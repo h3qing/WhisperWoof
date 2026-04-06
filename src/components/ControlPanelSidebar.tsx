@@ -90,7 +90,7 @@ export default function ControlPanelSidebar({
     {
       label: "System",
       items: [
-        { id: "tuning", label: "Tuning", icon: Beaker },
+        { id: "tuning", label: "Voice Style", icon: Beaker },
         { id: "storage", label: "Storage", icon: HardDrive },
       ],
     },

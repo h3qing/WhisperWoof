@@ -211,10 +211,12 @@ export default function TuningBench() {
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        chunksRef.current = []; // free memory
 
-        // Create playback URL
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
+        // Create playback data URL (blob: URLs don't work in Electron sandbox)
+        const reader = new FileReader();
+        reader.onloadend = () => { setAudioUrl(reader.result as string); };
+        reader.readAsDataURL(blob);
         setIsRecording(false);
 
         // Transcribe via whisper-server
@@ -344,10 +346,10 @@ export default function TuningBench() {
       <div className="px-5 py-3 border-b border-border/15 dark:border-white/6 shrink-0">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
           <Beaker size={14} className="text-primary/70" />
-          Pipeline Tuning Bench
+          Voice Style
         </h2>
         <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-          Record → transcribe → compare polish configs → pick the best
+          Speak naturally, compare styles, pick your favorite
         </p>
       </div>
 
@@ -355,7 +357,7 @@ export default function TuningBench() {
         {/* Step 1: Record */}
         <div className="space-y-2">
           <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider font-medium">
-            1. Record or paste
+            Say something
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -394,12 +396,12 @@ export default function TuningBench() {
         {/* Raw transcript */}
         <div>
           <div className="text-[10px] text-muted-foreground/40 uppercase tracking-wider font-medium mb-1">
-            Raw transcript
+            What you said
           </div>
           <textarea
             value={rawTranscript}
             onChange={(e) => setRawTranscript(e.target.value)}
-            placeholder="Record above or paste raw voice text here..."
+            placeholder="Or paste text here to compare styles..."
             className="w-full text-xs bg-transparent border border-border/15 dark:border-white/6 rounded-lg px-3 py-2 outline-none focus:border-primary/30 min-h-[48px] resize-none placeholder:text-muted-foreground/25"
             rows={2}
           />
