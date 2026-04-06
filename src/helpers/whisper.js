@@ -268,15 +268,14 @@ class WhisperManager {
         // Try to download the requested model, fall back to "tiny" (75MB) for speed
         const downloadModel = fs.existsSync(this.getModelPath("tiny")) ? model : "tiny";
         if (!fs.existsSync(this.getModelPath(downloadModel))) {
-          await this.downloadWhisperModel(downloadModel, { onProgress: (p) => {
-            debugLogger.debug(`[Whisper] Downloading ${downloadModel}: ${Math.round(p * 100)}%`);
-          }});
+          await this.downloadWhisperModel(downloadModel, (progress) => {
+            debugLogger.debug(`[Whisper] Downloading ${downloadModel}: ${Math.round(progress.percentage || 0)}%`);
+          });
           debugLogger.info(`[Whisper] Model "${downloadModel}" downloaded successfully`);
         }
         // If we downloaded "tiny" but user wanted something else, use tiny for now
         if (downloadModel !== model && fs.existsSync(this.getModelPath(downloadModel))) {
-          options.model = downloadModel;
-          return this.transcribeLocalWhisper(audioBuffer, options);
+          return this.transcribeLocalWhisper(audioBlob, { ...options, model: downloadModel });
         }
       } catch (downloadErr) {
         throw new Error(`Whisper model "${model}" not downloaded and auto-download failed: ${downloadErr.message}. Please download it from Settings.`);

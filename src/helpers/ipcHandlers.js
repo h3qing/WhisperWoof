@@ -939,9 +939,11 @@ class IPCHandlers {
           // WhisperWoof: try auto-downloading the tiny model (75MB) before giving up
           try {
             debugLogger.log("[Whisper] Model missing — auto-downloading tiny model...");
-            await this.whisperManager.downloadWhisperModel("tiny", {});
+            await this.whisperManager.downloadWhisperModel("tiny", (p) => {
+              debugLogger.log(`[Whisper] Downloading tiny: ${Math.round(p.percentage || 0)}%`);
+            });
             debugLogger.log("[Whisper] Tiny model downloaded, retrying...");
-            const retryResult = await this.whisperManager.transcribeLocalWhisper(audioBuffer, { ...options, model: "tiny" });
+            const retryResult = await this.whisperManager.transcribeLocalWhisper(audioBlob, { ...options, model: "tiny" });
             return retryResult;
           } catch (dlErr) {
             debugLogger.log(`[Whisper] Auto-download failed: ${dlErr.message}`);
