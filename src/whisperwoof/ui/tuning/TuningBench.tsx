@@ -178,10 +178,11 @@ export default function TuningBench() {
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [hasAudio, setHasAudio] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const audioBlobRef = useRef<Blob | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Pipeline state
@@ -211,12 +212,9 @@ export default function TuningBench() {
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        chunksRef.current = []; // free memory
-
-        // Create playback data URL (blob: URLs don't work in Electron sandbox)
-        const reader = new FileReader();
-        reader.onloadend = () => { setAudioUrl(reader.result as string); };
-        reader.readAsDataURL(blob);
+        chunksRef.current = []; // free chunk memory
+        audioBlobRef.current = blob; // keep blob for playback + re-transcription
+        setHasAudio(true);
         setIsRecording(false);
 
         // Transcribe via whisper-server
@@ -253,13 +251,15 @@ export default function TuningBench() {
   };
 
   const togglePlayback = () => {
-    if (!audioUrl) return;
+    if (!audioBlobRef.current) return;
     if (audioPlaying) {
       audioRef.current?.pause();
       setAudioPlaying(false);
     } else {
-      const audio = new Audio(audioUrl);
-      audio.onended = () => { setAudioPlaying(false); audioRef.current = null; };
+      // Use blob URL for playback (more compatible than data URL in Electron)
+      const url = URL.createObjectURL(audioBlobRef.current);
+      const audio = new Audio(url);
+      audio.onended = () => { setAudioPlaying(false); audioRef.current = null; URL.revokeObjectURL(url); };
       audio.play();
       audioRef.current = audio;
       setAudioPlaying(true);
@@ -379,7 +379,7 @@ export default function TuningBench() {
               </span>
             )}
 
-            {audioUrl && !isRecording && !isTranscribing && (
+            {hasAudio && !isRecording && !isTranscribing && (
               <button
                 onClick={togglePlayback}
                 className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-foreground px-2 py-1 rounded border border-border/15 dark:border-white/6 transition-colors"
