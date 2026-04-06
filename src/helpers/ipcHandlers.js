@@ -5968,7 +5968,6 @@ class IPCHandlers {
         return { success: true };
       } catch (error) { return { success: false }; }
     });
-  }
 
     // --- Custom Modes ---
 
