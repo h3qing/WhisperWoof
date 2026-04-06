@@ -285,6 +285,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   audioCuesEnabled: readBoolean("audioCuesEnabled", true),
   pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", true), // WhisperWoof: default ON to prevent AirPods HFP profile switch degrading music
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", true), // WhisperWoof: hide when not recording
+  indicatorStyle: (isBrowser ? localStorage.getItem("indicatorStyle") : null) || "full", // "full" | "compact" | "dot"
   startMinimized: readBoolean("startMinimized", true), // WhisperWoof: start in menu bar, not as visible window
   ...(() => {
     let accounts: GoogleCalendarAccount[] = [];
