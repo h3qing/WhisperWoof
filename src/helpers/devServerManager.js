@@ -14,7 +14,7 @@ const parseDevServerPort = () => {
 };
 
 const DEV_SERVER_PORT = parseDevServerPort();
-const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}/`;
+const DEV_SERVER_URL = `http://127.0.0.1:${DEV_SERVER_PORT}/`;
 
 class DevServerManager {
   static async waitForDevServer(url = DEV_SERVER_URL, maxAttempts = 30, delay = 1000) {
