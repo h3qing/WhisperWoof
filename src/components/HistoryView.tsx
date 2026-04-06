@@ -361,6 +361,18 @@ export default function HistoryView({
                               onShowAudioInFolder={onShowAudioInFolder}
                               onRetryTranscription={onRetryTranscription}
                               onOpenSettings={() => onOpenSettings("transcription")}
+                              onRate={(id, rating) => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const api = (window as any).electronAPI;
+                                api?.whisperwoofRateTranscription?.({
+                                  entryId: String(id),
+                                  rating,
+                                  rawTranscript: item.text,
+                                  polishedTranscript: item.text,
+                                  sttModel: "unknown",
+                                  polishPreset: "unknown",
+                                });
+                              }}
                             />
                           </div>
                         </div>
