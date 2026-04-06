@@ -924,4 +924,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Custom Modes
   whisperwoofSaveCustomPreset: (preset) => ipcRenderer.invoke("whisperwoof-save-custom-preset", preset),
   whisperwoofDeleteCustomPreset: (id) => ipcRenderer.invoke("whisperwoof-delete-custom-preset", id),
+
+  // Eval Dataset
+  whisperwoofRateTranscription: (params) => ipcRenderer.invoke("whisperwoof-rate-transcription", params),
+  whisperwoofGetEvalEntries: (filter) => ipcRenderer.invoke("whisperwoof-get-eval-entries", filter),
+  whisperwoofGetEvalStats: () => ipcRenderer.invoke("whisperwoof-get-eval-stats"),
+  whisperwoofDeleteEvalEntry: (id) => ipcRenderer.invoke("whisperwoof-delete-eval-entry", id),
+
+  // STT Model Comparison
+  whisperwoofTranscribeWithModel: (audioBlob, model) => ipcRenderer.invoke("whisperwoof-transcribe-with-model", audioBlob, model),
 });

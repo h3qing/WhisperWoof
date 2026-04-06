@@ -5997,6 +5997,52 @@ class IPCHandlers {
         return { success: true };
       } catch (error) { return { success: false }; }
     });
+
+    // --- Eval Dataset ---
+
+    ipcMain.handle("whisperwoof-rate-transcription", async (_event, params) => {
+      try {
+        const { rateTranscription } = require("../whisperwoof/bridge/eval-dataset");
+        return rateTranscription(params);
+      } catch (error) {
+        debugLogger.log(`[EvalDataset] rate failed: ${error.message}`);
+        return null;
+      }
+    });
+
+    ipcMain.handle("whisperwoof-get-eval-entries", async (_event, filter) => {
+      try {
+        const { getEvalEntries } = require("../whisperwoof/bridge/eval-dataset");
+        return getEvalEntries(filter || {});
+      } catch (error) { return []; }
+    });
+
+    ipcMain.handle("whisperwoof-get-eval-stats", async () => {
+      try {
+        const { getEvalStats } = require("../whisperwoof/bridge/eval-dataset");
+        return getEvalStats();
+      } catch (error) { return { total: 0, good: 0, bad: 0, withAudio: 0 }; }
+    });
+
+    ipcMain.handle("whisperwoof-delete-eval-entry", async (_event, id) => {
+      try {
+        const { deleteEvalEntry } = require("../whisperwoof/bridge/eval-dataset");
+        deleteEvalEntry(id);
+        return { success: true };
+      } catch (error) { return { success: false }; }
+    });
+
+    // --- STT Model Comparison ---
+
+    ipcMain.handle("whisperwoof-transcribe-with-model", async (_event, audioBlob, modelName) => {
+      try {
+        if (!this.whisperManager) return { success: false, error: "Whisper not available" };
+        const result = await this.whisperManager.transcribeLocalWhisper(audioBlob, { model: modelName });
+        return result;
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   broadcastToWindows(channel, payload) {

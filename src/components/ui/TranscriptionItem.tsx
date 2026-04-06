@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./button";
 import { Tooltip } from "./tooltip";
-import { Copy, Trash2, FileText, FolderOpen, RotateCcw, Loader2, AlertCircle } from "lucide-react";
+import { Copy, Trash2, FileText, FolderOpen, RotateCcw, Loader2, AlertCircle, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { TranscriptionItem as TranscriptionItemType } from "../../types/electron";
 import { cn } from "../lib/utils";
 import { getCachedPlatform } from "../../utils/platform";
@@ -22,6 +22,7 @@ interface TranscriptionItemProps {
   onShowAudioInFolder?: (id: number) => void;
   onRetryTranscription?: (id: number) => Promise<void>;
   onOpenSettings?: () => void;
+  onRate?: (id: number, rating: 1 | -1) => void;
 }
 
 export default function TranscriptionItem({
@@ -31,6 +32,7 @@ export default function TranscriptionItem({
   onShowAudioInFolder,
   onRetryTranscription,
   onOpenSettings,
+  onRate,
 }: TranscriptionItemProps) {
   const { t, i18n } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -198,6 +200,30 @@ export default function TranscriptionItem({
                 <Copy size={12} />
               </Button>
             </Tooltip>
+          )}
+          {onRate && !isFailed && (
+            <>
+              <Tooltip content="Good transcription">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onRate(item.id, 1)}
+                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10"
+                >
+                  <ThumbsUp size={11} />
+                </Button>
+              </Tooltip>
+              <Tooltip content="Bad transcription">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onRate(item.id, -1)}
+                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-red-400 hover:bg-red-400/10"
+                >
+                  <ThumbsDown size={11} />
+                </Button>
+              </Tooltip>
+            </>
           )}
           <Tooltip content={t("controlPanel.history.deleteItem")}>
             <Button
