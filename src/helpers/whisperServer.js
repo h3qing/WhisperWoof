@@ -29,6 +29,24 @@ class WhisperServerManager extends EventEmitter {
     this.cachedFFmpegPath = null;
     this.canConvert = false;
     this.useCuda = false;
+
+    // WhisperWoof: Auto-stop after 2 minutes of idle to free model RAM (500MB-3GB)
+    this._idleTimer = null;
+    this._idleTimeoutMs = 2 * 60 * 1000; // 2 minutes
+  }
+
+  _resetIdleTimer() {
+    if (this._idleTimer) clearTimeout(this._idleTimer);
+    this._idleTimer = setTimeout(() => {
+      if (this.process && this.ready) {
+        debugLogger.log("[WhisperServer] Idle timeout — stopping server to free memory");
+        this.stop().catch(() => {});
+      }
+    }, this._idleTimeoutMs);
+  }
+
+  _clearIdleTimer() {
+    if (this._idleTimer) { clearTimeout(this._idleTimer); this._idleTimer = null; }
   }
 
   getFFmpegPath() {
@@ -353,6 +371,7 @@ class WhisperServerManager extends EventEmitter {
       pollCount++;
       if (await this.checkHealth()) {
         this.ready = true;
+        this._resetIdleTimer(); // Start idle countdown
         debugLogger.debug("whisper-server ready", {
           startupTimeMs: Date.now() - startTime,
           pollCount,
@@ -416,6 +435,7 @@ class WhisperServerManager extends EventEmitter {
     if (!this.ready || !this.process) {
       throw new Error("whisper-server is not running");
     }
+    this._clearIdleTimer(); // Active use — don't shut down
 
     // Debug: Log audio buffer info
     debugLogger.debug("whisper-server transcribe called", {
@@ -529,6 +549,8 @@ class WhisperServerManager extends EventEmitter {
 
       req.write(body);
       req.end();
+    }).finally(() => {
+      this._resetIdleTimer(); // Start idle countdown after transcription
     });
   }
 
