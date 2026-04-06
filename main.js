@@ -586,17 +586,19 @@ async function startApp() {
   );
 
   // WhisperWoof security: Add Content Security Policy to all responses
+  // In development, Vite dev server requires 'unsafe-inline' and 'unsafe-eval' for HMR
+  const isDev = process.env.NODE_ENV === "development";
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self';" +
-          " script-src 'self';" +
+          "default-src 'self'" + (isDev ? " http://127.0.0.1:*" : "") + ";" +
+          " script-src 'self'" + (isDev ? " 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:*" : "") + ";" +
           " style-src 'self' 'unsafe-inline';" +
           " img-src 'self' data: blob:;" +
           " font-src 'self' data:;" +
-          " connect-src 'self' http://localhost:* https://*.neon.tech https://api.openai.com https://api.groq.com https://api.deepgram.com https://api.assemblyai.com https://generativelanguage.googleapis.com https://api.anthropic.com https://api.mistral.ai http://localhost:11434;" +
+          " connect-src 'self' http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https://*.neon.tech https://api.openai.com https://api.groq.com https://api.deepgram.com https://api.assemblyai.com https://generativelanguage.googleapis.com https://api.anthropic.com https://api.mistral.ai http://localhost:11434;" +
           " media-src 'self' blob:;" +
           " worker-src 'self' blob:;"
         ],
