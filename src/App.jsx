@@ -36,7 +36,7 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full' }) => {
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
@@ -72,9 +72,40 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
         @keyframes mandoListen { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
         @keyframes waveBar { 0%, 100% { height: var(--idle-h); opacity: 0.3; } 50% { height: var(--peak-h); opacity: 0.8; } }
         @keyframes procBar { 0%, 100% { height: var(--idle-h); opacity: 0.2; } 50% { height: var(--proc-h); opacity: 0.5; } }
+        @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.3); opacity: 1; } }
       `}</style>
 
-      {/* Mando head */}
+      {/* Dot mode: just a colored circle */}
+      {mode === 'dot' && (
+        <div style={{
+          width: '12px', height: '12px', borderRadius: '50%',
+          background: isSpeaking ? '#A06A3C' : isRecordingSilent ? '#736858' : isProcessing ? '#A06A3C' : '#3E3830',
+          animation: (isSpeaking || isProcessing) ? 'dotPulse 1s ease-in-out infinite' : 'none',
+          boxShadow: isSpeaking ? '0 0 8px rgba(160,106,60,0.5)' : 'none',
+        }} />
+      )}
+
+      {/* Compact mode: just waveform bars, no head, no text */}
+      {mode === 'compact' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '20px' }}>
+          {bars.slice(0, 12).map((peakH, i) => {
+            const idleH = 3;
+            return (
+              <div key={i} style={{
+                width: '2.5px', borderRadius: '2px',
+                background: isSpeaking ? '#A06A3C' : isProcessing ? '#736858' : 'rgba(232,213,195,0.12)',
+                '--idle-h': `${idleH}px`, '--peak-h': `${peakH * 0.7}px`, '--proc-h': `${peakH * 0.4}px`,
+                height: (isIdle || isRecordingSilent) ? `${idleH}px` : undefined,
+                animation: isSpeaking ? `waveBar 0.8s ease-in-out ${i * 0.06}s infinite` : isProcessing ? `procBar 1.5s ease-in-out ${i * 0.1}s infinite` : 'none',
+              }} />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Full mode: Mando head */}
+      {mode === 'full' && (<>
+
       <img
         src={mandoHeadSvg}
         alt=""
@@ -167,6 +198,7 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
           "{lastText}"
         </div>
       )}
+      </>)}
     </div>
   );
 };
@@ -547,6 +579,7 @@ export default function App() {
                   speaking={isSpeaking}
                   recording={isRecording}
                   animated={isRecording || isProcessing}
+                  mode={localStorage.getItem("indicatorStyle") || "full"}
                 />
               </div>
             </button>

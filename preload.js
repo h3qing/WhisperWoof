@@ -920,4 +920,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofTuningGetVariants: (testCaseId) => ipcRenderer.invoke("whisperwoof-tuning-get-variants", testCaseId),
   whisperwoofTuningRunVariant: (config) => ipcRenderer.invoke("whisperwoof-tuning-run-variant", config),
   whisperwoofTuningDeleteVariant: (id) => ipcRenderer.invoke("whisperwoof-tuning-delete-variant", id),
+
+  // Custom Modes
+  whisperwoofSaveCustomPreset: (preset) => ipcRenderer.invoke("whisperwoof-save-custom-preset", preset),
+  whisperwoofDeleteCustomPreset: (id) => ipcRenderer.invoke("whisperwoof-delete-custom-preset", id),
 });

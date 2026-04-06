@@ -5970,6 +5970,24 @@ class IPCHandlers {
     });
   }
 
+    // --- Custom Modes ---
+
+    ipcMain.handle("whisperwoof-save-custom-preset", async (_event, preset) => {
+      try {
+        const { saveCustomPreset } = require("../whisperwoof/bridge/polish-presets");
+        return saveCustomPreset(preset);
+      } catch (error) { return null; }
+    });
+
+    ipcMain.handle("whisperwoof-delete-custom-preset", async (_event, id) => {
+      try {
+        const { deleteCustomPreset } = require("../whisperwoof/bridge/polish-presets");
+        deleteCustomPreset(id);
+        return { success: true };
+      } catch (error) { return { success: false }; }
+    });
+  }
+
   broadcastToWindows(channel, payload) {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach((win) => {

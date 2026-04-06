@@ -109,14 +109,54 @@ const PRESETS = {
 
 const DEFAULT_PRESET_ID = "clean";
 
+// --- Custom Presets (user-defined) ---
+
+const fs = require("fs");
+const path = require("path");
+const { app } = require("electron");
+
+const CUSTOM_PRESETS_FILE = path.join(app.getPath("userData"), "custom-presets.json");
+
+function loadCustomPresets() {
+  try {
+    if (fs.existsSync(CUSTOM_PRESETS_FILE)) {
+      return JSON.parse(fs.readFileSync(CUSTOM_PRESETS_FILE, "utf-8"));
+    }
+  } catch { /* */ }
+  return {};
+}
+
+function saveCustomPresets(presets) {
+  try {
+    fs.writeFileSync(CUSTOM_PRESETS_FILE, JSON.stringify(presets, null, 2), "utf-8");
+  } catch { /* */ }
+}
+
+function getAllPresets() {
+  const custom = loadCustomPresets();
+  return { ...PRESETS, ...custom };
+}
+
+function saveCustomPreset({ id, name, description, prompt }) {
+  const custom = loadCustomPresets();
+  const presetId = id || `custom-${Date.now()}`;
+  custom[presetId] = { id: presetId, name, description, prompt, custom: true };
+  saveCustomPresets(custom);
+  return custom[presetId];
+}
+
+function deleteCustomPreset(id) {
+  const custom = loadCustomPresets();
+  delete custom[id];
+  saveCustomPresets(custom);
+}
+
 /**
- * Get all available presets.
+ * Get all available presets (built-in + custom).
  */
 function getPolishPresets() {
-  return Object.values(PRESETS).map(({ id, name, description }) => ({
-    id,
-    name,
-    description,
+  return Object.values(getAllPresets()).map(({ id, name, description, custom }) => ({
+    id, name, description, custom: !!custom,
   }));
 }
 
@@ -124,7 +164,8 @@ function getPolishPresets() {
  * Get the system prompt for a given preset ID.
  */
 function getPresetPrompt(presetId) {
-  const preset = PRESETS[presetId];
+  const all = getAllPresets();
+  const preset = all[presetId];
   if (!preset) return PRESETS[DEFAULT_PRESET_ID].prompt;
   return preset.prompt;
 }
@@ -133,7 +174,8 @@ function getPresetPrompt(presetId) {
  * Get the full preset object.
  */
 function getPreset(presetId) {
-  return PRESETS[presetId] || PRESETS[DEFAULT_PRESET_ID];
+  const all = getAllPresets();
+  return all[presetId] || PRESETS[DEFAULT_PRESET_ID];
 }
 
 module.exports = {
@@ -142,4 +184,6 @@ module.exports = {
   getPolishPresets,
   getPresetPrompt,
   getPreset,
+  saveCustomPreset,
+  deleteCustomPreset,
 };

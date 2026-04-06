@@ -67,18 +67,37 @@ export default function ControlPanelSidebar({
   const showLimitBanner = false;
   const showUpgradeBanner = false;
 
-  const navItems: {
-    id: ControlPanelView;
-    label: string;
-    icon: React.ComponentType<{ size?: number; className?: string }>;
-  }[] = [
-    { id: "home", label: t("sidebar.home"), icon: Home },
-    { id: "personal-notes", label: t("sidebar.notes"), icon: NotebookPen },
-    { id: "upload", label: t("sidebar.upload"), icon: Upload },
-    { id: "memory", label: "Memory", icon: BookOpen },
-    // WhisperWoof: "Integrations" hidden — OpenWhispr's Google Calendar integration, not WhisperWoof's MCP plugins
-    // { id: "integrations", label: t("sidebar.integrations"), icon: Blocks },
+  type NavItem = { id: ControlPanelView; label: string; icon: React.ComponentType<{ size?: number; className?: string }> };
+  type NavSection = { label?: string; items: NavItem[] };
+
+  const navSections: NavSection[] = [
+    {
+      // Primary — what you use every day
+      items: [
+        { id: "home", label: t("sidebar.home"), icon: Home },
+        { id: "whisperwoof-history", label: "History", icon: Clock },
+        { id: "smart-clipboard", label: "Clipboard", icon: Copy },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { id: "memory", label: "Memory", icon: BookOpen },
+        { id: "whisperwoof-projects", label: "Projects", icon: FolderOpen },
+        { id: "whisperwoof-plugins", label: "Plugins", icon: Puzzle },
+      ],
+    },
+    {
+      label: "System",
+      items: [
+        { id: "tuning", label: "Tuning", icon: Beaker },
+        { id: "storage", label: "Storage", icon: HardDrive },
+      ],
+    },
   ];
+
+  // Legacy navItems for backward compat with the top-section .map() renderer
+  const navItems: { id: ControlPanelView; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [];
 
   return (
     <div className="w-48 h-full shrink-0 border-r border-border/15 dark:border-white/6 flex flex-col bg-surface-1/60 dark:bg-surface-1">
@@ -110,36 +129,42 @@ export default function ControlPanelSidebar({
       )}
 
       <nav className="flex flex-col gap-0.5 px-2 pt-2 pb-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.id;
-
-          return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={cn(
-                "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
-                "focus-visible:ring-1 focus-visible:ring-primary/30",
-                isActive
-                  ? "bg-primary/8 dark:bg-primary/10"
-                  : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
-              )}
-            >
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-r-full bg-primary" />
-              )}
-              <Icon
-                size={15}
-                className={cn(
-                  "shrink-0 transition-colors duration-150",
-                  isActive
-                    ? "text-primary"
-                    : "text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/55 dark:group-hover:text-foreground/70"
-                )}
-              />
-              <span
-                className={cn(
+        {navSections.map((section, si) => (
+          <div key={si}>
+            {section.label && (
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/30 font-medium px-2.5 pt-3 pb-1">
+                {section.label}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeView === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onViewChange(item.id)}
+                  className={cn(
+                    "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
+                    "focus-visible:ring-1 focus-visible:ring-primary/30",
+                    isActive
+                      ? "bg-primary/8 dark:bg-primary/10"
+                      : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
+                  )}
+                >
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-r-full bg-primary" />
+                  )}
+                  <Icon
+                    size={15}
+                    className={cn(
+                      "shrink-0 transition-colors duration-150",
+                      isActive
+                        ? "text-primary"
+                        : "text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/55 dark:group-hover:text-foreground/70"
+                    )}
+                  />
+                  <span
+                    className={cn(
                   "text-xs transition-colors duration-150",
                   isActive
                     ? "text-foreground font-medium"
@@ -149,8 +174,10 @@ export default function ControlPanelSidebar({
                 {item.label}
               </span>
             </button>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="flex-1" />
@@ -216,88 +243,7 @@ export default function ControlPanelSidebar({
           </div>
         )}
 
-        {/* WhisperWoof: Referral system removed — cloud-only feature */}
-
-        <button
-          onClick={() => onViewChange("whisperwoof-history")}
-          aria-label="WhisperWoof History"
-          className={cn(
-            "group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none transition-colors duration-150",
-            "focus-visible:ring-1 focus-visible:ring-primary/30",
-            activeView === "whisperwoof-history"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          )}
-        >
-          <Clock size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">History</span>
-        </button>
-
-        <button
-          onClick={() => onViewChange("smart-clipboard")}
-          aria-label="Smart Clipboard"
-          className={`group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none ${
-            activeView === "smart-clipboard"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          } focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150`}
-        >
-          <Copy size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">Clipboard</span>
-        </button>
-
-        <button
-          onClick={() => onViewChange("whisperwoof-projects")}
-          aria-label="WhisperWoof Projects"
-          className={`group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none ${
-            activeView === "whisperwoof-projects"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          } focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150`}
-        >
-          <FolderOpen size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">Projects</span>
-        </button>
-
-        <button
-          onClick={() => onViewChange("whisperwoof-plugins")}
-          aria-label="WhisperWoof Plugins"
-          className={`group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none ${
-            activeView === "whisperwoof-plugins"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          } focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150`}
-        >
-          <Puzzle size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">Plugins</span>
-        </button>
-
-        <button
-          onClick={() => onViewChange("storage")}
-          aria-label="Storage Manager"
-          className={`group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none ${
-            activeView === "storage"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          } focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150`}
-        >
-          <HardDrive size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">Storage</span>
-        </button>
-
-        <button
-          onClick={() => onViewChange("tuning")}
-          aria-label="Pipeline Tuning"
-          className={`group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none ${
-            activeView === "tuning"
-              ? "bg-foreground/8 dark:bg-white/8"
-              : "hover:bg-foreground/4 dark:hover:bg-white/4"
-          } focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150`}
-        >
-          <Beaker size={15} className="shrink-0 text-foreground/60" />
-          <span className="text-xs text-foreground/80">Tuning</span>
-        </button>
-
+        {/* Settings button */}
         <button
           onClick={onOpenSettings}
           aria-label={t("sidebar.settings")}
@@ -312,12 +258,8 @@ export default function ControlPanelSidebar({
           </span>
         </button>
 
-        {/* WhisperWoof: Support dropdown removed — no cloud support to offer */}
-
-        <div className="mx-1 h-px bg-border/10 dark:bg-white/6 my-1.5!" />
-
-        {/* WhisperWoof: Auth removed — show app branding instead of user profile */}
-        <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md">
+        {/* Branding */}
+        <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md mt-1">
           <img src={logoIcon} alt="" className="w-5 h-5 rounded-sm shrink-0" />
           <p className="text-xs text-foreground/60 dark:text-foreground/55 font-medium">
             WhisperWoof
