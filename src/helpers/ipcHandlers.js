@@ -936,11 +936,21 @@ class IPCHandlers {
           };
         }
         if (errorMessage.includes("model") && errorMessage.includes("not downloaded")) {
-          return {
-            success: false,
-            error: "model_not_found",
-            message: errorMessage,
-          };
+          // WhisperWoof: try auto-downloading the tiny model (75MB) before giving up
+          try {
+            debugLogger.log("[Whisper] Model missing — auto-downloading tiny model...");
+            await this.whisperManager.downloadWhisperModel("tiny", {});
+            debugLogger.log("[Whisper] Tiny model downloaded, retrying...");
+            const retryResult = await this.whisperManager.transcribeLocalWhisper(audioBuffer, { ...options, model: "tiny" });
+            return retryResult;
+          } catch (dlErr) {
+            debugLogger.log(`[Whisper] Auto-download failed: ${dlErr.message}`);
+            return {
+              success: false,
+              error: "model_not_found",
+              message: `No model available. Download one from Settings → Transcription.`,
+            };
+          }
         }
 
         throw error;
