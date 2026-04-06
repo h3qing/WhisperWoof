@@ -354,6 +354,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
         const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType });
+        this.audioChunks = []; // WhisperWoof: free audio chunks immediately (5-50MB)
         this.lastAudioBlob = audioBlob;
 
         logger.info(

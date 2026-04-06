@@ -11,11 +11,11 @@ const path = require("path");
 const http = require("http");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-// WhisperWoof: Aggressive memory optimization
-// Reduce V8 heap limit for helper processes, enable GC hints
-app.commandLine.appendSwitch("js-flags", "--max-old-space-size=256 --expose-gc");
-app.commandLine.appendSwitch("disable-renderer-backgrounding"); // don't throttle hidden renderers, just let them GC
-app.commandLine.appendSwitch("disable-background-timer-throttling");
+// WhisperWoof: Memory optimization
+// Cap V8 heap for renderer processes (main process uses Node.js defaults)
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
+// NOTE: DO NOT add disable-renderer-backgrounding or disable-background-timer-throttling
+// Those flags prevent hidden windows from being throttled, wasting 200-400MB of RAM
 
 // Force cleanup of child processes on unexpected exit (SIGTERM, SIGINT)
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
@@ -25,6 +25,17 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
     setTimeout(() => process.exit(1), 3000);
   });
 }
+
+// WhisperWoof: Kill stale whisper-server/llama-server from previous crashed sessions
+try {
+  const { execSync } = require("child_process");
+  const stale = execSync("pgrep -f 'whisper-server|llama-server' 2>/dev/null || true", { encoding: "utf-8" }).trim();
+  if (stale) {
+    for (const pid of stale.split("\n").filter(Boolean)) {
+      try { process.kill(parseInt(pid), "SIGTERM"); } catch { /* already dead */ }
+    }
+  }
+} catch { /* pgrep not available or no stale processes */ }
 
 const VALID_CHANNELS = new Set(["development", "staging", "production"]);
 const DEFAULT_OAUTH_PROTOCOL_BY_CHANNEL = {
