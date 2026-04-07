@@ -3,6 +3,48 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
+## [1.8.0] - 2026-04-06 — Voice Style + Memory + Eval System + STT Providers
+
+### Voice Style (Pipeline Tuning)
+- **Voice Style bench** — record audio, compare STT models × polish presets × LLMs side-by-side
+- **Audio playback** — play back recorded samples before running comparisons
+- **Ideal output scoring** — type what perfect output looks like, variants scored via WER
+
+### Eval System
+- **Thumbs up/down** on every transcription in history — builds a personal quality dataset
+- **Persistent eval sets** — rated entries saved with audio to `~/.config/WhisperWoof/eval-audio/`
+- **Benchmark mode** — load eval set in Voice Style, test new configs against known-good samples
+
+### Memory (Context-Aware Vocabulary)
+- **Per-app vocabulary** — tracks which words you use in VS Code vs Slack vs Mail
+- **Auto-learn from corrections** — edit a transcript and Memory learns the right word
+- **Activity heatmap** — GitHub-style contribution graph on the home page
+
+### New Local STT Models
+- **Distil-Whisper Large V3** — 6x faster than Large V3, within 1% WER, 756MB (English-optimized)
+- **Distil-Whisper Large V3.5** — latest distilled model, best speed/quality ratio, 756MB
+- Both are GGML format, work with existing whisper.cpp server — no new runtime needed
+- 8 total local models: tiny, base, small, medium, large, turbo, distil-large-v3, distil-large-v3.5
+
+### UX Polish
+- **Custom modes** — create your own polish presets with custom prompts (Superwhisper's $249 feature, free)
+- **Sidebar cleanup** — grouped into Primary / Tools / System sections
+- **Compact indicator** — full/compact/dot modes for the floating widget
+- **Model auto-download** — missing whisper model triggers automatic download of tiny (75MB)
+- **Storage Manager** — disk usage, batch delete with confirmation, export, orphan cleanup
+- **Fun processing verbs** — "Fetching your words...", "Sniffing out the meaning..."
+- **Home page redesign** — greeting, hero stat, activity heatmap, fun facts
+
+### Performance
+- **Memory reduced from ~5GB to ~200MB** — whisper-server idle timeout, background throttling, stale process cleanup
+- **Multi-monitor widget** — follows cursor to correct display dynamically
+
+### Fixes
+- IPC channel collision between voice snippets and Smart Clipboard
+- Retry transcription now works after downloading models
+- AirPods audio fix (pauseMediaOnDictation default true)
+- 2 critical runtime bugs in whisper auto-download fixed
+
 ## [1.7.0] - 2026-03-31 — Smart Clipboard + Visual Refresh
 
 ### Smart Clipboard

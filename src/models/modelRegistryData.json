@@ -100,6 +100,30 @@
       "fileName": "ggml-large-v3-turbo.bin",
       "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
       "descriptionKey": "models.descriptions.whisper.turbo"
+    },
+    "distil-large-v3": {
+      "name": "Distil Large V3",
+      "description": "6x faster than Large V3, within 1% WER. English-optimized. 756M params.",
+      "descriptionKey": "models.descriptions.whisper.distil_large_v3",
+      "fileName": "ggml-distil-large-v3.bin",
+      "size": "756MB",
+      "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3-ggml/resolve/main/ggml-distil-large-v3.bin",
+      "recommended": true,
+      "speed": "fast",
+      "quality": "high",
+      "languages": "English (optimized)"
+    },
+    "distil-large-v3.5": {
+      "name": "Distil Large V3.5",
+      "description": "Latest distilled model. Best speed/quality ratio. English-optimized.",
+      "descriptionKey": "models.descriptions.whisper.distil_large_v35",
+      "fileName": "ggml-distil-large-v3.5.bin",
+      "size": "756MB",
+      "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3.5-ggml/resolve/main/ggml-distil-large-v3.5.bin",
+      "recommended": true,
+      "speed": "fast",
+      "quality": "highest",
+      "languages": "English (optimized)"
     }
   },
   "transcriptionProviders": [
