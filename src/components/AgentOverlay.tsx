@@ -28,6 +28,8 @@ export default function AgentOverlay() {
   const messagesRef = useRef<Message[]>([]);
   const agentStateRef = useRef<AgentState>("idle");
   const conversationIdRef = useRef<number | null>(null);
+  const creatingConversationRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -50,10 +52,15 @@ export default function AgentOverlay() {
       return;
     }
 
-    // Create conversation on first message
-    if (!conversationIdRef.current) {
-      const conv = await window.electronAPI?.createAgentConversation?.("New conversation");
-      conversationIdRef.current = conv?.id ?? null;
+    // Create conversation on first message (mutex to prevent duplicates)
+    if (!conversationIdRef.current && !creatingConversationRef.current) {
+      creatingConversationRef.current = true;
+      try {
+        const conv = await window.electronAPI?.createAgentConversation?.("New conversation");
+        conversationIdRef.current = conv?.id ?? null;
+      } finally {
+        creatingConversationRef.current = false;
+      }
     }
 
     const userMsg: Message = {
@@ -69,8 +76,7 @@ export default function AgentOverlay() {
     }
 
     // Auto-title after first user message
-    const allMessages = messagesRef.current;
-    if (conversationIdRef.current && allMessages.length === 0) {
+    if (conversationIdRef.current && messagesRef.current.length === 0) {
       const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
       window.electronAPI?.updateAgentConversationTitle?.(conversationIdRef.current, title);
     }
@@ -80,9 +86,11 @@ export default function AgentOverlay() {
     const settings = getSettings();
     const systemPrompt = getAgentSystemPrompt();
 
+    // Use the most up-to-date messages (including the user message we just added)
+    const contextMessages = [...messagesRef.current, userMsg];
     const llmMessages = [
       { role: "system", content: systemPrompt },
-      ...[...allMessages, userMsg].slice(-20).map((m) => ({ role: m.role, content: m.content })),
+      ...contextMessages.slice(-20).map((m) => ({ role: m.role, content: m.content })),
     ];
 
     const assistantId = crypto.randomUUID();
@@ -93,6 +101,11 @@ export default function AgentOverlay() {
     setAgentState("streaming");
 
     const isCloudAgent = settings.isSignedIn && settings.cloudAgentMode === "openwhispr";
+
+    // Abort any in-flight LLM request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       let fullContent = "";
@@ -107,30 +120,37 @@ export default function AgentOverlay() {
           );
 
       for await (const chunk of streamSource) {
+        if (controller.signal.aborted) break;
         fullContent += chunk;
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
         );
       }
 
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m))
-      );
+      if (!controller.signal.aborted) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m))
+        );
 
-      if (conversationIdRef.current) {
-        window.electronAPI?.addAgentMessage?.(conversationIdRef.current, "assistant", fullContent);
+        if (conversationIdRef.current) {
+          window.electronAPI?.addAgentMessage?.(conversationIdRef.current, "assistant", fullContent);
+        }
       }
     } catch (error) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId
-            ? { ...m, content: `Error: ${(error as Error).message}`, isStreaming: false }
-            : m
-        )
-      );
+      if (!controller.signal.aborted) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: `Error: ${(error as Error).message}`, isStreaming: false }
+              : m
+          )
+        );
+      }
     }
 
-    setAgentState("idle");
+    if (!controller.signal.aborted) {
+      setAgentState("idle");
+    }
   }, []);
 
   useEffect(() => {
@@ -163,7 +183,11 @@ export default function AgentOverlay() {
     });
     audioManagerRef.current = am;
     return () => {
-      window.removeEventListener("api-key-changed", (am as any)._onApiKeyChanged);
+      try {
+        am.cleanupStreaming?.();
+      } catch {
+        // Ignore cleanup errors
+      }
     };
   }, [addSystemMessage, handleTranscriptionComplete]);
 
@@ -245,6 +269,8 @@ export default function AgentOverlay() {
   }, []);
 
   const handleNewChat = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setMessages([]);
     setAgentState("idle");
     setPartialTranscript("");
@@ -252,6 +278,8 @@ export default function AgentOverlay() {
   }, []);
 
   const handleClose = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     window.electronAPI?.hideAgentOverlay?.();
   }, []);
 

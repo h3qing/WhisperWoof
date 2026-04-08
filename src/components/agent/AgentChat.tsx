@@ -25,7 +25,11 @@ export function AgentChat({ messages }: AgentChatProps) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) {
-      el.scrollTop = el.scrollHeight;
+      // Only auto-scroll if user is near the bottom (within 120px)
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (isNearBottom) {
+        el.scrollTop = el.scrollHeight;
+      }
     }
   }, [messages]);
 
