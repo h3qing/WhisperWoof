@@ -17,6 +17,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
+  const activeHotkeyRef = useRef(null); // Hotkey combo used during this dictation (e.g. "Fn+T")
   const { onToggle } = options;
 
   const performStartRecording = useCallback(async () => {
@@ -285,22 +286,46 @@ export const useAudioRecording = (toast, options = {}) => {
 
           setTranscript(textToPaste);
 
+          // WhisperWoof: Route based on active hotkey combo
+          const hotkeyUsed = activeHotkeyRef.current ?? "Fn";
+          const routeMap = {
+            "Fn":    "paste-at-cursor",
+            "Fn+T":  "copy-to-clipboard",
+            "Fn+N":  "save-as-markdown",
+            "Fn+P":  "project",
+          };
+          const routedTo = routeMap[hotkeyUsed] ?? "paste-at-cursor";
+
           const isStreaming = result.source?.includes("streaming");
           const { keepTranscriptionInClipboard } = getSettings();
-          const pasteStart = performance.now();
-          await audioManagerRef.current.safePaste(textToPaste, {
-            ...(isStreaming ? { fromStreaming: true } : {}),
-            restoreClipboard: !keepTranscriptionInClipboard,
-          });
-          logger.info(
-            "Paste timing",
-            {
-              pasteMs: Math.round(performance.now() - pasteStart),
-              source: result.source,
-              textLength: result.text.length,
-            },
-            "streaming"
-          );
+
+          if (routedTo === "copy-to-clipboard") {
+            // Fn+T: Copy to clipboard only (don't paste at cursor)
+            await navigator.clipboard.writeText(textToPaste);
+            logger.info("WhisperWoof routed to clipboard", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
+            toast({
+              title: t("hooks.audioRecording.copied", "Copied to clipboard"),
+              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+              variant: "default",
+              duration: 3000,
+            });
+          } else {
+            // Default: paste at cursor
+            const pasteStart = performance.now();
+            await audioManagerRef.current.safePaste(textToPaste, {
+              ...(isStreaming ? { fromStreaming: true } : {}),
+              restoreClipboard: !keepTranscriptionInClipboard,
+            });
+            logger.info(
+              "Paste timing",
+              {
+                pasteMs: Math.round(performance.now() - pasteStart),
+                source: result.source,
+                textLength: result.text.length,
+              },
+              "streaming"
+            );
+          }
 
           audioManagerRef.current.saveTranscription(textToPaste, rawText);
 
@@ -309,8 +334,8 @@ export const useAudioRecording = (toast, options = {}) => {
             source: 'voice',
             rawText: rawText,
             polished: textToPaste !== rawText ? textToPaste : null,
-            routedTo: 'paste-at-cursor',
-            hotkeyUsed: null, // TODO: pass actual hotkey from Phase 1a routing
+            routedTo,
+            hotkeyUsed,
             durationMs: null, // TODO: get from audio recording
             projectId: null,
             audioPath: null,
@@ -379,11 +404,13 @@ export const useAudioRecording = (toast, options = {}) => {
     });
 
     const disposeStart = window.electronAPI.onStartDictation?.(() => {
+      activeHotkeyRef.current = null;
       handleStart();
       onToggle?.();
     });
 
-    const disposeStop = window.electronAPI.onStopDictation?.(() => {
+    const disposeStop = window.electronAPI.onStopDictation?.((hotkeyUsed) => {
+      activeHotkeyRef.current = hotkeyUsed ?? null;
       handleStop();
       onToggle?.();
     });

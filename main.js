@@ -787,10 +787,12 @@ async function startApp() {
     let globeKeyDownTime = 0;
     let globeKeyIsRecording = false;
     let globeLastStopTime = 0;
+    let activeFnComboKey = null; // Track letter key pressed with Fn (e.g. "T" for Fn+T routing)
     const MIN_HOLD_DURATION_MS = 75; // WhisperWoof: reduced from 150ms — faster push-to-talk activation
     const POST_STOP_COOLDOWN_MS = 100; // WhisperWoof: reduced from 300ms for snappier response
 
     globeKeyManager.on("globe-down", async () => {
+      activeFnComboKey = null;
       const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
       const mainWindowLive = isLiveWindow(windowManager.mainWindow);
       debugLogger?.debug("[Globe] globe-down received", {
@@ -845,7 +847,8 @@ async function startApp() {
     });
 
     globeKeyManager.on("globe-up", async () => {
-      debugLogger?.debug("[Globe] globe-up received", { wasRecording: globeKeyIsRecording });
+      const hotkeyUsed = activeFnComboKey ? `Fn+${activeFnComboKey}` : "Fn";
+      debugLogger?.debug("[Globe] globe-up received", { wasRecording: globeKeyIsRecording, hotkeyUsed });
 
       // Forward to control panel for hotkey capture (Fn key released)
       if (isLiveWindow(windowManager.controlPanelWindow)) {
@@ -859,14 +862,20 @@ async function startApp() {
           globeLastStopTime = Date.now();
           if (globeKeyIsRecording) {
             globeKeyIsRecording = false;
-            debugLogger?.debug("[Globe] Stopping dictation (push release)");
-            windowManager.sendStopDictation();
+            debugLogger?.debug("[Globe] Stopping dictation (push release)", { hotkeyUsed });
+            windowManager.sendStopDictation(hotkeyUsed);
           }
         }
       }
 
       // Fn release also stops compound push-to-talk for Fn+F-key hotkeys
       windowManager.handleMacPushModifierUp("fn");
+    });
+
+    // Capture letter key pressed while Fn is held (e.g. T → Fn+T route)
+    globeKeyManager.on("fn-combo-key", (key) => {
+      activeFnComboKey = key;
+      debugLogger?.debug("[Globe] Fn combo key detected", { key, hotkeyUsed: `Fn+${key}` });
     });
 
     globeKeyManager.on("modifier-up", (modifier) => {

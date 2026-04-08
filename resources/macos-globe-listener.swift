@@ -2,6 +2,7 @@ import Cocoa
 import Darwin
 
 var fnIsDown = false
+var fnComboKeyEmitted = false
 var lastModifierFlags: NSEvent.ModifierFlags = []
 
 let rightModifiers: [(UInt16, NSEvent.ModifierFlags, String)] = [
@@ -31,9 +32,11 @@ guard let monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, h
 
     if containsFn && !fnIsDown {
         fnIsDown = true
+        fnComboKeyEmitted = false
         emit("FN_DOWN")
     } else if !containsFn && fnIsDown {
         fnIsDown = false
+        fnComboKeyEmitted = false
         emit("FN_UP")
     }
 
@@ -60,10 +63,22 @@ guard let monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, h
     exit(1)
 }
 
+// Monitor regular keyDown events to detect Fn+letter combos (e.g. Fn+T for todo routing).
+// Only emits the FIRST key pressed per Fn hold to avoid noise from key repeat.
+let keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: { event in
+    if fnIsDown && !fnComboKeyEmitted {
+        if let chars = event.charactersIgnoringModifiers?.uppercased(), !chars.isEmpty {
+            fnComboKeyEmitted = true
+            emit("FN_KEY:\(chars)")
+        }
+    }
+})
+
 let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 signal(SIGTERM, SIG_IGN)
 signalSource.setEventHandler {
     NSEvent.removeMonitor(monitor)
+    if let km = keyMonitor { NSEvent.removeMonitor(km) }
     exit(0)
 }
 signalSource.resume()

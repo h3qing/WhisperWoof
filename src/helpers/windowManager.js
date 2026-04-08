@@ -439,12 +439,12 @@ class WindowManager {
     }
   }
 
-  sendStopDictation() {
+  sendStopDictation(hotkeyUsed = null) {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send("stop-dictation");
+      this.mainWindow.webContents.send("stop-dictation", hotkeyUsed);
       this._isDictatingToggle = false;
       this.meetingDetectionEngine?.setUserRecording(false);
     }

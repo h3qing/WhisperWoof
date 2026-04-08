@@ -110,6 +110,11 @@ class GlobeKeyManager extends EventEmitter {
             if (modifier) {
               this.emit("right-modifier-up", modifier);
             }
+          } else if (line.startsWith("FN_KEY:")) {
+            const key = line.replace("FN_KEY:", "").trim();
+            if (key) {
+              this.emit("fn-combo-key", key);
+            }
           } else if (line.startsWith("MODIFIER_UP:")) {
             const modifier = line.replace("MODIFIER_UP:", "").trim().toLowerCase();
             if (modifier) {
