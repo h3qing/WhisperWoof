@@ -37,6 +37,32 @@ try {
   }
 } catch { /* pgrep not available or no stale processes */ }
 
+// WhisperWoof: Catch architecture mismatch early (Rosetta / wrong Node binary)
+// This happens when Node.js runs as x86_64 on an Apple Silicon Mac,
+// compiling better-sqlite3 for the wrong architecture.
+try {
+  require("better-sqlite3");
+} catch (archErr) {
+  if (archErr.message && archErr.message.includes("incompatible architecture")) {
+    const { dialog } = require("electron");
+    app.whenReady().then(() => {
+      dialog.showErrorBox(
+        "Architecture Mismatch",
+        "WhisperWoof was installed with the wrong version of Node.js for your Mac.\n\n" +
+        "Fix: Open Terminal and run these commands:\n\n" +
+        "  rm -rf node_modules\n" +
+        "  npm install\n" +
+        "  cd src && npx vite build && cd ..\n" +
+        "  npm start\n\n" +
+        "If that doesn't work, make sure you're using an Apple Silicon version of Node.js:\n" +
+        "  node -e \"console.log(process.arch)\"  →  should print 'arm64'\n\n" +
+        "If it prints 'x64', reinstall Node.js from nodejs.org (choose the ARM64/Apple Silicon version)."
+      );
+      app.quit();
+    });
+  }
+}
+
 const VALID_CHANNELS = new Set(["development", "staging", "production"]);
 const DEFAULT_OAUTH_PROTOCOL_BY_CHANNEL = {
   development: "whisperwoof-dev",
