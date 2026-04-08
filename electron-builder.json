@@ -121,7 +121,6 @@
     "hardenedRuntime": true,
     "entitlements": "resources/mac/entitlements.mac.plist",
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
-    "identity": null,
     "notarize": true,
     "extendInfo": {
       "LSUIElement": true,

@@ -129,6 +129,18 @@ v1.5.0 shipped — all 10 phases complete (60 PRs, 624 tests, 71 features)
 - **Status:** complete
 - **Depends on:** Phase 9 complete ✓
 
+### Phase 11: Distribution & Code Signing (current)
+- [x] Apple Developer account acquired
+- [x] Enable code signing in electron-builder (removed `identity: null`)
+- [ ] Create Developer ID Application certificate (via developer.apple.com)
+- [ ] Set up notarization credentials (Apple ID + app-specific password)
+- [ ] Configure CI env vars: `CSC_NAME`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+- [ ] Build signed + notarized .dmg locally and verify Gatekeeper passes
+- [ ] Update CI/CD to sign + notarize on release builds
+- [ ] Auto-update (Sparkle / electron-updater with GitHub Releases)
+- **Status:** in progress
+- **Depends on:** Apple Developer account ✓
+
 ## Key Questions
 1. Ollama latency: Can Llama 3.2 3B polish <1s on M1? (Benchmark in Phase 1a)
 2. Fn key reliability: Does Globe key work on target macOS version? (Validate in Phase 0)
