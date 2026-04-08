@@ -4,7 +4,7 @@ import { cn } from "../lib/utils";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 
-type AgentState = "idle" | "listening" | "transcribing" | "thinking" | "streaming";
+import type { AgentState } from "../AgentOverlay";
 
 interface AgentInputProps {
   agentState: AgentState;

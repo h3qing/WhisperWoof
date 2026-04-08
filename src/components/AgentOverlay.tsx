@@ -8,7 +8,7 @@ import ReasoningService from "../services/ReasoningService";
 import { getSettings } from "../stores/settingsStore";
 import { getAgentSystemPrompt } from "../config/prompts";
 
-type AgentState = "idle" | "listening" | "transcribing" | "thinking" | "streaming";
+export type AgentState = "idle" | "listening" | "transcribing" | "thinking" | "streaming";
 
 interface Message {
   id: string;

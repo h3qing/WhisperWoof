@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Calendar, Loader2, LogIn, Monitor, Video } from "lucide-react";
 import { Button } from "./ui/button";
@@ -42,7 +42,13 @@ export default function UpcomingMeetings({ events, isLoading }: UpcomingMeetings
   const systemAudio = useSystemAudioPermission();
   const isSignedIn = useSettingsStore((s) => s.isSignedIn);
 
-  const now = useMemo(() => new Date(), []);
+  const [now, setNow] = useState(() => new Date());
+
+  // Update "now" every 30 seconds so the "Now" indicator stays accurate
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const groupedEvents = useMemo(() => {
     if (events.length === 0) return [];

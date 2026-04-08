@@ -65,16 +65,32 @@ export function AgentMessage({ role, content, isStreaming }: AgentMessageProps) 
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
 
-        <MarkdownRenderer
-          content={content}
-          className="text-[13px] leading-relaxed [&_p]:text-[13px] [&_li]:text-[13px]"
-        />
-
-        {isStreaming && (
-          <span
-            className="inline-block w-[2px] h-[14px] bg-foreground align-middle ml-0.5"
-            style={{ animation: "agent-cursor-blink 800ms steps(1) infinite" }}
-          />
+        {isStreaming && !content ? (
+          <span className="inline-flex gap-1 py-0.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50"
+                style={{
+                  animation: "agent-loading-dot 1.2s ease-in-out infinite",
+                  animationDelay: `${i * 200}ms`,
+                }}
+              />
+            ))}
+          </span>
+        ) : (
+          <>
+            <MarkdownRenderer
+              content={content}
+              className="text-[13px] leading-relaxed [&_p]:text-[13px] [&_li]:text-[13px]"
+            />
+            {isStreaming && (
+              <span
+                className="inline-block w-[2px] h-[14px] bg-foreground align-middle ml-0.5"
+                style={{ animation: "agent-cursor-blink 800ms steps(1) infinite" }}
+              />
+            )}
+          </>
         )}
       </div>
     </div>
