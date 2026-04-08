@@ -26,7 +26,7 @@
     "dev:renderer": "cd src && vite",
     "prebuild": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx",
     "build": "cd src && vite build && cd .. && electron-builder",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node scripts/check-arch.js && electron-builder install-app-deps",
     "build:renderer": "cd src && vite build",
     "prebuild:mac": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx",
     "build:mac": "npm run build:renderer && electron-builder --mac",
