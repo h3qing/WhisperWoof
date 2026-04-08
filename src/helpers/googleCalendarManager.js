@@ -271,14 +271,20 @@ class GoogleCalendarManager {
     this.activeMeeting = event;
     this.notifiedMeetings.add(event.id);
 
-    const notif = new Notification({
-      title: event.summary || "Meeting",
-      body: "Meeting starting now",
-    });
-    notif.on("click", () => {
-      this.broadcastToWindows("gcal-start-recording", { event });
-    });
-    notif.show();
+    // Delegate to MeetingDetectionEngine for unified notification (custom overlay).
+    // Falls back to native notification if engine is not set.
+    if (this._meetingDetectionEngine) {
+      this._meetingDetectionEngine._showCalendarNotification(event);
+    } else {
+      const notif = new Notification({
+        title: event.summary || "Meeting",
+        body: "Meeting starting now",
+      });
+      notif.on("click", () => {
+        this.broadcastToWindows("gcal-start-recording", { event });
+      });
+      notif.show();
+    }
 
     this.broadcastToWindows("gcal-meeting-starting", { event });
 
@@ -293,6 +299,13 @@ class GoogleCalendarManager {
     }
 
     this.scheduleNextMeeting();
+  }
+
+  /**
+   * Set the meeting detection engine reference for unified notifications.
+   */
+  setMeetingDetectionEngine(engine) {
+    this._meetingDetectionEngine = engine;
   }
 
   onMeetingEnd() {

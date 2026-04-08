@@ -1016,12 +1016,8 @@ class WindowManager {
       }
     }, 3000);
 
-    this._notificationTimeout = setTimeout(() => {
-      if (this.meetingDetectionEngine) {
-        this.meetingDetectionEngine.handleNotificationTimeout();
-      }
-      this.dismissMeetingNotification();
-    }, 30000);
+    // No auto-dismiss — notification persists until user acts (Granola-style).
+    // The user must either start recording or explicitly dismiss.
 
     this.notificationWindow.on("closed", () => {
       this.notificationWindow = null;

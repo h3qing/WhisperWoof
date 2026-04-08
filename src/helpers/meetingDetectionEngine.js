@@ -2,6 +2,7 @@ const { BrowserWindow } = require("electron");
 const debugLogger = require("./debugLogger");
 
 const IMMINENT_THRESHOLD_MS = 5 * 60 * 1000;
+const PRE_MEETING_LEAD_MS = 90 * 1000; // show notification 90s before calendar event
 
 class MeetingDetectionEngine {
   constructor(
@@ -22,21 +23,27 @@ class MeetingDetectionEngine {
     this._meetingModeActive = false;
     this._notificationQueue = [];
     this._postRecordingCooldown = null;
+    this._runningMeetingProcesses = new Set(); // track detected meeting apps
+    this._preMeetingTimer = null;
+    this._preMeetingNotifiedIds = new Set();
     this._bindListeners();
   }
 
   _bindListeners() {
-    // Process detection is context-only — track running apps but don't trigger notifications.
-    // This avoids false positives from apps like FaceTime running in the background.
+    // Track running meeting apps for confidence scoring
     this.meetingProcessDetector.on("meeting-process-detected", (data) => {
+      this._runningMeetingProcesses.add(data.processKey);
+      this.audioActivityDetector.setMeetingAppRunning(this._runningMeetingProcesses.size > 0);
       debugLogger.info(
-        "Meeting app running (context only)",
-        { processKey: data.processKey, appName: data.appName },
+        "Meeting app running",
+        { processKey: data.processKey, appName: data.appName, total: this._runningMeetingProcesses.size },
         "meeting"
       );
     });
 
     this.meetingProcessDetector.on("meeting-process-ended", (data) => {
+      this._runningMeetingProcesses.delete(data.processKey);
+      this.audioActivityDetector.setMeetingAppRunning(this._runningMeetingProcesses.size > 0);
       this.activeDetections.delete(`process:${data.processKey}`);
     });
 
@@ -93,11 +100,27 @@ class MeetingDetectionEngine {
         const start = new Date(evt.start_time).getTime();
         return start - now <= IMMINENT_THRESHOLD_MS && start > now;
       });
+
+      // Calendar event overrides dismiss cooldown — if a calendar meeting is
+      // imminent, show notification even if user recently dismissed one
+      if (imminentEvent) {
+        this.audioActivityDetector.lastDismissedAt = null;
+      }
     }
+
+    const hasMeetingApp = this._runningMeetingProcesses.size > 0;
+    const confidence = imminentEvent ? "high" : hasMeetingApp ? "high" : "medium";
 
     debugLogger.info(
       "Meeting detection triggered",
-      { detectionId, source, imminentEvent: imminentEvent?.summary ?? null },
+      {
+        detectionId,
+        source,
+        imminentEvent: imminentEvent?.summary ?? null,
+        hasMeetingApp,
+        meetingApps: [...this._runningMeetingProcesses],
+        confidence,
+      },
       "meeting"
     );
     this.activeDetections.set(detectionId, { source, key, data, dismissed: false });
@@ -216,6 +239,7 @@ class MeetingDetectionEngine {
       );
     } finally {
       this.windowManager.dismissMeetingNotification();
+      this._schedulePreMeetingNotification();
     }
   }
 
@@ -359,6 +383,109 @@ class MeetingDetectionEngine {
     debugLogger.info("Meeting detection engine started", this.preferences, "meeting");
     if (this.preferences.processDetection) this.meetingProcessDetector.start();
     if (this.preferences.audioDetection) this.audioActivityDetector.start();
+    this._schedulePreMeetingNotification();
+  }
+
+  /**
+   * Schedule a notification ~90s before the next calendar event.
+   * Called on start, after each calendar sync, and after showing/dismissing a notification.
+   */
+  _schedulePreMeetingNotification() {
+    if (this._preMeetingTimer) {
+      clearTimeout(this._preMeetingTimer);
+      this._preMeetingTimer = null;
+    }
+
+    const calendarState = this.googleCalendarManager?.getActiveMeetingState?.();
+    if (!calendarState?.upcomingEvents?.length) return;
+
+    const now = Date.now();
+    const next = calendarState.upcomingEvents.find((evt) => {
+      if (this._preMeetingNotifiedIds.has(evt.id)) return false;
+      const start = new Date(evt.start_time).getTime();
+      return start > now;
+    });
+    if (!next) return;
+
+    const startMs = new Date(next.start_time).getTime();
+    const leadTimeMs = startMs - PRE_MEETING_LEAD_MS;
+    const delay = Math.max(0, leadTimeMs - now);
+
+    debugLogger.info("Scheduling pre-meeting notification", {
+      event: next.summary,
+      startTime: next.start_time,
+      delayMs: delay,
+    }, "meeting");
+
+    this._preMeetingTimer = setTimeout(() => {
+      this._preMeetingTimer = null;
+      this._showCalendarNotification(next);
+    }, delay);
+  }
+
+  /**
+   * Show a meeting notification triggered by a calendar event (pre-meeting or at start).
+   * Uses the same custom overlay as audio-triggered notifications.
+   */
+  _showCalendarNotification(event) {
+    if (this._meetingModeActive || this._userRecording) {
+      debugLogger.info("Suppressing calendar notification — busy", {
+        meetingMode: this._meetingModeActive,
+        recording: this._userRecording,
+      }, "meeting");
+      this._schedulePreMeetingNotification();
+      return;
+    }
+
+    this._preMeetingNotifiedIds.add(event.id);
+
+    const now = Date.now();
+    const startMs = new Date(event.start_time).getTime();
+    const minutesUntil = Math.round((startMs - now) / 60_000);
+
+    const title = event.summary || "Upcoming Meeting";
+    const body = minutesUntil > 0
+      ? `Starting in ${minutesUntil} minute${minutesUntil !== 1 ? "s" : ""}. Want to take notes?`
+      : "Your meeting is starting. Want to take notes?";
+
+    const detectionId = `calendar:${event.id}`;
+
+    this.activeDetections.set(detectionId, {
+      source: "calendar",
+      key: event.id,
+      data: { event },
+      dismissed: false,
+      event,
+    });
+
+    debugLogger.info("Showing calendar notification", {
+      detectionId,
+      title,
+      minutesUntil,
+    }, "meeting");
+
+    // Auto-start if preference is set
+    if (this.preferences.autoStart) {
+      debugLogger.info("Auto-starting from calendar event", { detectionId }, "meeting");
+      this.handleNotificationResponse(detectionId, "start");
+      return;
+    }
+
+    this.windowManager.showMeetingNotification({
+      detectionId,
+      source: "calendar",
+      key: event.id,
+      title,
+      body,
+      event,
+    });
+
+    this.broadcastToWindows("meeting-detected", {
+      detectionId,
+      source: "calendar",
+      data: { event },
+      imminentEvent: event,
+    });
   }
 
   stop() {
@@ -367,9 +494,14 @@ class MeetingDetectionEngine {
     this.audioActivityDetector.stop();
     this.activeDetections.clear();
     this._meetingModeActive = false;
+    this._runningMeetingProcesses.clear();
     if (this._postRecordingCooldown) {
       clearTimeout(this._postRecordingCooldown);
       this._postRecordingCooldown = null;
+    }
+    if (this._preMeetingTimer) {
+      clearTimeout(this._preMeetingTimer);
+      this._preMeetingTimer = null;
     }
     this._notificationQueue = [];
   }

@@ -10,6 +10,7 @@ const execAsync = promisify(exec);
 const CHECK_INTERVAL_MS = process.platform === "win32" ? 15 * 1000 : 3 * 1000;
 const SUSTAINED_THRESHOLD_CHECKS = 2;
 const SUSTAINED_EVENT_DRIVEN_MS = 2 * 1000;
+const SUSTAINED_EVENT_DRIVEN_NO_APP_MS = 8 * 1000; // longer threshold when no meeting app is running
 const COOLDOWN_MS = 5 * 60 * 1000;
 const INACTIVE_RESET_MS = 60 * 1000;
 const EXEC_OPTS = { timeout: 5000, encoding: "utf8" };
@@ -41,6 +42,15 @@ class AudioActivityDetector extends EventEmitter {
       this._clearSustainedTimer();
     }
     debugLogger.debug("User recording state changed", { active }, "meeting");
+  }
+
+  /**
+   * Set whether a meeting app (Zoom, Teams, etc.) is currently running.
+   * When true, uses a shorter sustained threshold for faster detection.
+   */
+  setMeetingAppRunning(active) {
+    this._meetingAppRunning = active;
+    debugLogger.debug("Meeting app running state changed", { active }, "meeting");
   }
 
   async start() {
@@ -365,6 +375,11 @@ class AudioActivityDetector extends EventEmitter {
       if (!this.audioActiveStart) this.audioActiveStart = Date.now();
 
       if (!this._sustainedTimer) {
+        // Use shorter threshold when a meeting app is running (higher confidence)
+        const thresholdMs = this._meetingAppRunning
+          ? SUSTAINED_EVENT_DRIVEN_MS
+          : SUSTAINED_EVENT_DRIVEN_NO_APP_MS;
+
         this._sustainedTimer = setTimeout(() => {
           this._sustainedTimer = null;
           if (this._userRecording || this.hasPrompted) return;
@@ -375,11 +390,11 @@ class AudioActivityDetector extends EventEmitter {
           const durationMs = now - this.audioActiveStart;
           debugLogger.info(
             "Sustained audio activity detected (event-driven)",
-            { durationMs },
+            { durationMs, meetingAppRunning: !!this._meetingAppRunning, thresholdMs },
             "meeting"
           );
           this.emit("sustained-audio-detected", { durationMs, detectedAt: now });
-        }, SUSTAINED_EVENT_DRIVEN_MS);
+        }, thresholdMs);
       }
     } else {
       this._clearSustainedTimer();
