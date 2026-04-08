@@ -18,7 +18,7 @@ Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotk
 ## Architecture
 
 - **StorageProvider interface** — All data access is abstracted. Phase 1 uses SqliteProvider (Kysely ORM + better-sqlite3). Future providers: Supabase, WhisperWoof Cloud.
-- **Hotkey = intent** — Key combo determines destination. No LLM intent detection.
+- **Hotkey = intent** — Key combo determines destination. No LLM intent detection. Fn+letter combos detected via native `.keyDown` monitor in globe-listener (e.g. Fn+T → clipboard, Fn+N → markdown, Fn+P → project).
 - **MCP for plugins** (Phase 2) — Plugins are MCP servers. WhisperWoof is an MCP client.
 - **Local-first** — No mandatory cloud dependency. Ollama is optional (graceful degradation to raw transcript).
 - **Bridge pattern** — `src/whisperwoof/bridge/` is the ONLY place that imports OpenWhispr code. All other WhisperWoof code is isolated.
@@ -30,7 +30,7 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
   core/                       ← Main process (strict TypeScript)
     storage/                  StorageProvider interface + SqliteProvider
     polish/                   OllamaService (adapts OpenWhispr's ReasoningService)
-    router/                   HotkeyRouter (extends OpenWhispr's HotkeyManager)
+    router/                   HotkeyRouter (route definitions + dispatch)
     clipboard/                ClipboardMonitor (NSPasteboard polling)
     pipeline/                 Orchestrates STT → Polish → Route
   ui/                         ← Renderer (React + TSX)
@@ -42,6 +42,17 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     stt-hook.ts               Hook into STT output
     hotkey-hook.ts            Extend HotkeyManager
     app-init.ts               WhisperWoof init at startup
+```
+
+### Fn+letter hotkey routing data flow
+
+```
+macos-globe-listener.swift    FN_DOWN / FN_KEY:T / FN_UP (native keyDown monitor)
+  → src/helpers/globeKeyManager.js    emits 'fn-combo-key' event
+  → main.js                          tracks activeFnComboKey, builds "Fn+T"
+  → src/helpers/windowManager.js      sendStopDictation(hotkeyUsed) via IPC
+  → preload.js                        forwards hotkeyUsed to renderer
+  → src/hooks/useAudioRecording.js    routes: Fn→paste, Fn+T→clipboard, Fn+N→markdown, Fn+P→project
 ```
 
 ## Testing
