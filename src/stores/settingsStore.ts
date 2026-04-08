@@ -61,6 +61,7 @@ const BOOLEAN_SETTINGS = new Set([
   "startMinimized",
   "meetingProcessDetection",
   "meetingAudioDetection",
+  "meetingAutoStart",
   "isSignedIn",
   "agentEnabled",
   "keepTranscriptionInClipboard",
@@ -103,6 +104,7 @@ export interface SettingsState
   gcalEmail: string;
   meetingProcessDetection: boolean;
   meetingAudioDetection: boolean;
+  meetingAutoStart: boolean;
   panelStartPosition: "bottom-right" | "center" | "bottom-left";
   keepTranscriptionInClipboard: boolean;
 
@@ -303,6 +305,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   meetingProcessDetection: readBoolean("meetingProcessDetection", true),
   meetingAudioDetection: readBoolean("meetingAudioDetection", true),
+  meetingAutoStart: readBoolean("meetingAutoStart", false),
   panelStartPosition: (() => {
     const v = readString("panelStartPosition", "center"); // WhisperWoof: center by default
     if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
@@ -490,6 +493,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   },
   setMeetingProcessDetection: createBooleanSetter("meetingProcessDetection"),
   setMeetingAudioDetection: createBooleanSetter("meetingAudioDetection"),
+  setMeetingAutoStart: createBooleanSetter("meetingAutoStart"),
   setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => {
     if (get().panelStartPosition === position) return;
     if (isBrowser) localStorage.setItem("panelStartPosition", position);
@@ -796,6 +800,7 @@ export async function initializeSettings(): Promise<void> {
       await window.electronAPI.meetingDetectionSetPreferences?.({
         processDetection: currentState.meetingProcessDetection,
         audioDetection: currentState.meetingAudioDetection,
+        autoStart: currentState.meetingAutoStart,
       });
     } catch (err) {
       logger.warn(

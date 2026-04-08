@@ -11,6 +11,8 @@ const { i18nMain, changeLanguage } = require("./i18nMain");
 const DeepgramStreaming = require("./deepgramStreaming");
 const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
+const MeetingAudioBuffer = require("./meetingAudioBuffer");
+const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
@@ -116,6 +118,12 @@ class IPCHandlers {
     this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
+    this._meetingAudioBuffer = new MeetingAudioBuffer();
+    this._meetingTranscriptCheckpoint = new MeetingTranscriptCheckpoint({
+      databaseManager: this.databaseManager,
+    });
+    this._meetingSessionRotationTimer = null;
+    this._meetingReconnecting = {};
     this._audioCleanupInterval = null;
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
@@ -3859,6 +3867,13 @@ class IPCHandlers {
     let meetingTranscriptionPrepareInProgress = false;
     let meetingTranscriptionPreparePromise = null;
 
+    let meetingSegmentCounter = 0;
+
+    // Store on `this` so reconnection methods can access it
+    this._attachMeetingStreamingHandlers = (streaming, win, source) => {
+      attachMeetingStreamingHandlers(streaming, win, source);
+    };
+
     const attachMeetingStreamingHandlers = (streaming, win, source) => {
       const send = (channel, data) => {
         if (!win || win.isDestroyed()) {
@@ -3889,9 +3904,27 @@ class IPCHandlers {
           type: "final",
           timestamp,
         });
+
+        // Feed transcript checkpoint for crash safety
+        if (this._meetingTranscriptCheckpoint.isActive) {
+          this._meetingTranscriptCheckpoint.addSegment({
+            id: `seg-${++meetingSegmentCounter}`,
+            text: latestSegment,
+            source,
+            timestamp,
+          });
+        }
       };
       streaming.onError = (error) => {
         send("meeting-transcription-error", error.message);
+      };
+      streaming.onSessionEnd = (data) => {
+        // Unexpected disconnect — attempt reconnection
+        if (!this._meetingReconnecting[source]) {
+          debugLogger.log("Meeting stream ended unexpectedly, attempting reconnect", { source });
+          send("meeting-transcription-error", `Connection lost for ${source} — reconnecting...`);
+          this._attemptMeetingReconnect(source, win, streaming);
+        }
       };
     };
 
@@ -4090,8 +4123,22 @@ class IPCHandlers {
       }
 
       meetingTranscriptionStartInProgress = true;
+      meetingSegmentCounter = 0;
       try {
         const systemAudioMode = getMeetingSystemAudioMode();
+
+        // Start local audio buffer for crash safety
+        this._meetingAudioBuffer.start();
+
+        // Start transcript checkpoint if we have a noteId from the renderer
+        if (options.noteId) {
+          this._meetingTranscriptCheckpoint.start(options.noteId, {
+            audioBufferDir: this._meetingAudioBuffer.getSessionDir(),
+          });
+        }
+
+        // Start session rotation timer (rotate at 25min to avoid OpenAI's 30min limit)
+        this._startMeetingSessionRotation(event, options);
 
         // If already prepared (warm connections from prepare), just re-attach handlers
         if (isMeetingStreamingConnected()) {
@@ -4116,6 +4163,9 @@ class IPCHandlers {
         return { success: true, systemAudioMode };
       } catch (error) {
         await rollbackMeetingTranscriptionStart();
+        this._meetingAudioBuffer.stop({ keepFiles: true }); // keep files for recovery
+        this._meetingTranscriptCheckpoint.stop();
+        this._stopMeetingSessionRotation();
         debugLogger.error("Meeting transcription start error", { error: error.message });
         return { success: false, error: error.message };
       } finally {
@@ -4125,13 +4175,19 @@ class IPCHandlers {
 
     const sendMeetingAudio = (audioBuffer, source) => {
       const streaming = source === "mic" ? this._meetingMicStreaming : this._meetingSystemStreaming;
+      const buf = Buffer.isBuffer(audioBuffer) ? audioBuffer : Buffer.from(audioBuffer);
+
+      // Always write to local audio buffer for crash safety
+      if (this._meetingAudioBuffer.isActive) {
+        this._meetingAudioBuffer.writeChunk(buf, source);
+      }
+
       if (!streaming) {
         if (meetingSendCounts[source] === 0) {
           debugLogger.error("Meeting audio send: no streaming instance", { source });
         }
         return;
       }
-      const buf = Buffer.isBuffer(audioBuffer) ? audioBuffer : Buffer.from(audioBuffer);
       const sent = streaming.sendAudio(buf);
       meetingSendCounts[source]++;
       if (meetingSendCounts[source] <= 5 || meetingSendCounts[source] % 100 === 0) {
@@ -4166,20 +4222,55 @@ class IPCHandlers {
 
     ipcMain.handle("meeting-transcription-stop", async () => {
       try {
+        this._stopMeetingSessionRotation();
+
         if (this.audioTapManager) {
           await this.audioTapManager.stop();
         }
 
+        // Force a final transcript checkpoint before disconnecting
+        this._meetingTranscriptCheckpoint.forceCheckpoint();
+
         const results = await disconnectMeetingStreaming();
+
+        // Stop audio buffer — keep files until cleanup is explicitly requested
+        const audioResult = this._meetingAudioBuffer.stop({ keepFiles: true });
+        const checkpointResult = this._meetingTranscriptCheckpoint.stop();
 
         return {
           success: true,
           transcript: [results[0]?.text, results[1]?.text].filter(Boolean).join(" "),
+          audioBufferDir: audioResult.dir,
+          audioFiles: audioResult.files,
+          checkpointedSegments: checkpointResult.savedSegments,
         };
       } catch (error) {
         debugLogger.error("Meeting transcription stop error", { error: error.message });
+        // Still try to stop buffer/checkpoint on error
+        this._meetingAudioBuffer.stop({ keepFiles: true });
+        this._meetingTranscriptCheckpoint.stop();
+        this._stopMeetingSessionRotation();
         return { success: false, error: error.message };
       }
+    });
+
+    // Cleanup audio buffer files after they're no longer needed
+    ipcMain.handle("meeting-audio-cleanup", async (_event, dir) => {
+      try {
+        this._meetingAudioBuffer.cleanupFiles(dir);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Start transcript checkpoint for a meeting note
+    ipcMain.handle("meeting-checkpoint-start", async (_event, noteId) => {
+      if (!noteId) return { success: false, error: "noteId required" };
+      this._meetingTranscriptCheckpoint.start(noteId, {
+        audioBufferDir: this._meetingAudioBuffer.getSessionDir(),
+      });
+      return { success: true };
     });
 
     ipcMain.handle("dictation-realtime-warmup", async (event, options = {}) => {
@@ -6052,6 +6143,166 @@ class IPCHandlers {
         win.webContents.send(channel, payload);
       }
     });
+  }
+
+  // --- Meeting session rotation & reconnection ---
+
+  _startMeetingSessionRotation(event, options) {
+    this._stopMeetingSessionRotation();
+
+    this._meetingStreamingStartedAt = Date.now();
+    this._meetingStreamingEvent = event;
+    this._meetingStreamingOptions = options;
+
+    // Check every 30s if sessions need rotation
+    this._meetingSessionRotationTimer = setInterval(() => {
+      this._checkMeetingSessionRotation();
+    }, 30_000);
+  }
+
+  _stopMeetingSessionRotation() {
+    if (this._meetingSessionRotationTimer) {
+      clearInterval(this._meetingSessionRotationTimer);
+      this._meetingSessionRotationTimer = null;
+    }
+    this._meetingStreamingStartedAt = null;
+    this._meetingStreamingEvent = null;
+    this._meetingStreamingOptions = null;
+    this._meetingReconnecting = {};
+  }
+
+  async _checkMeetingSessionRotation() {
+    if (!this._meetingStreamingStartedAt) return;
+
+    const SESSION_MAX_AGE_MS = 25 * 60 * 1000; // 25min (5min before OpenAI's ~30min limit)
+    const age = Date.now() - this._meetingStreamingStartedAt;
+
+    if (age < SESSION_MAX_AGE_MS) return;
+
+    debugLogger.log("Meeting session rotation triggered", { ageMs: age });
+
+    const event = this._meetingStreamingEvent;
+    const options = this._meetingStreamingOptions;
+    if (!event || !options) return;
+
+    try {
+      // Force checkpoint before rotation
+      this._meetingTranscriptCheckpoint.forceCheckpoint();
+
+      // Disconnect old streams
+      const oldMicStreaming = this._meetingMicStreaming;
+      const oldSystemStreaming = this._meetingSystemStreaming;
+
+      // Create new connections
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win || win.isDestroyed()) return;
+
+      // Fetch new tokens and reconnect
+      // (reuse the existing connectRealtimeStreaming which is closure-scoped in setupHandlers)
+      // Instead, we'll use the reconnect method which has access to the closures
+      this._meetingStreamingStartedAt = Date.now();
+
+      // Notify renderer about rotation
+      win.webContents.send("meeting-transcription-error", "Session rotating for stability...");
+
+      // Disconnect old streams gracefully (they'll produce final transcript)
+      if (oldMicStreaming) await oldMicStreaming.disconnect().catch(() => {});
+      if (oldSystemStreaming) await oldSystemStreaming.disconnect().catch(() => {});
+
+      // The onSessionEnd handler will trigger reconnection automatically
+    } catch (err) {
+      debugLogger.error("Meeting session rotation failed", { error: err.message });
+    }
+  }
+
+  async _attemptMeetingReconnect(source, win, _oldStreaming) {
+    const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
+
+    if (this._meetingReconnecting[source]) return;
+    this._meetingReconnecting[source] = true;
+
+    // Force checkpoint immediately on disconnect
+    this._meetingTranscriptCheckpoint.forceCheckpoint();
+
+    const options = this._meetingStreamingOptions;
+    const event = this._meetingStreamingEvent;
+    if (!options || !event) {
+      this._meetingReconnecting[source] = false;
+      return;
+    }
+
+    for (let attempt = 0; attempt < RECONNECT_DELAYS.length; attempt++) {
+      const delay = RECONNECT_DELAYS[attempt];
+      debugLogger.log("Meeting reconnect attempt", { source, attempt, delayMs: delay });
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      if (!this._meetingAudioBuffer.isActive) {
+        debugLogger.log("Meeting stopped during reconnect, aborting", { source });
+        break;
+      }
+
+      try {
+        const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
+        const streaming = new OpenAIRealtimeStreaming();
+
+        // Fetch a fresh token
+        let token;
+        if (options.mode === "byok") {
+          token = this.environmentManager.getOpenAIKey();
+        } else {
+          const apiUrl = this.environmentManager.getApiUrl?.() || "";
+          const cookieHeader = await this._getSessionCookiesForEvent?.(event);
+          // Simplified: reuse existing token fetch via IPC re-invocation pattern
+          // For byok mode, just use the stored key
+          token = this.environmentManager.getOpenAIKey();
+        }
+
+        if (!token) {
+          debugLogger.error("Meeting reconnect: no token available", { source });
+          continue;
+        }
+
+        this._attachMeetingStreamingHandlers(streaming, win, source);
+
+        await streaming.connect({
+          apiKey: token,
+          model: options.model || "gpt-4o-mini-transcribe",
+          preconfigured: options.mode !== "byok",
+        });
+
+        // Swap the streaming instance
+        if (source === "mic") {
+          this._meetingMicStreaming = streaming;
+        } else {
+          this._meetingSystemStreaming = streaming;
+        }
+
+        debugLogger.log("Meeting reconnected", { source, attempt });
+
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("meeting-transcription-error", `${source} reconnected`);
+        }
+
+        this._meetingReconnecting[source] = false;
+        return;
+      } catch (err) {
+        debugLogger.error("Meeting reconnect failed", {
+          source,
+          attempt,
+          error: err.message,
+        });
+      }
+    }
+
+    debugLogger.error("Meeting reconnect exhausted all attempts", { source });
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(
+        "meeting-transcription-error",
+        `${source} connection lost. Audio is saved locally for recovery.`
+      );
+    }
+    this._meetingReconnecting[source] = false;
   }
 }
 

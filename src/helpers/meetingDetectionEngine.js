@@ -17,7 +17,7 @@ class MeetingDetectionEngine {
     this.windowManager = windowManager;
     this.databaseManager = databaseManager;
     this.activeDetections = new Map();
-    this.preferences = { processDetection: true, audioDetection: true };
+    this.preferences = { processDetection: true, audioDetection: true, autoStart: false };
     this._userRecording = false;
     this._meetingModeActive = false;
     this._notificationQueue = [];
@@ -115,7 +115,7 @@ class MeetingDetectionEngine {
       body = "It sounds like you're in a meeting. Want to take notes?";
     }
 
-    debugLogger.info("Showing notification", { detectionId, title }, "meeting");
+    debugLogger.info("Showing notification", { detectionId, title, autoStart: this.preferences.autoStart }, "meeting");
 
     let event;
     if (imminentEvent) {
@@ -139,6 +139,13 @@ class MeetingDetectionEngine {
     const detection = this.activeDetections.get(detectionId);
     if (detection) {
       detection.event = event;
+    }
+
+    // Auto-start: skip notification and immediately begin recording
+    if (this.preferences.autoStart) {
+      debugLogger.info("Auto-starting meeting recording", { detectionId }, "meeting");
+      this.handleNotificationResponse(detectionId, "start");
+      return;
     }
 
     this.windowManager.showMeetingNotification({
@@ -329,7 +336,7 @@ class MeetingDetectionEngine {
 
   setPreferences(prefs) {
     debugLogger.info("Updating detection preferences", prefs, "meeting");
-    Object.assign(this.preferences, prefs);
+    this.preferences = { ...this.preferences, ...prefs };
 
     if (this.preferences.processDetection) {
       this.meetingProcessDetector.start();

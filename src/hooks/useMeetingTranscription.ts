@@ -211,7 +211,9 @@ const flushAndDisconnectProcessor = async (processor: AudioWorkletNode | null) =
 
 let segmentCounter = 0;
 
-export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
+export function useMeetingTranscription(options?: {
+  noteId?: string;
+}): UseMeetingTranscriptionReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
@@ -271,6 +273,19 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         setTranscript(result.transcript);
       } else if (result?.error) {
         setError(result.error);
+      }
+
+      // Log audio safety info
+      if (result?.audioFiles?.length > 0) {
+        logger.info(
+          "Meeting audio saved locally",
+          {
+            files: result.audioFiles.length,
+            dir: result.audioBufferDir,
+            checkpointedSegments: result.checkpointedSegments,
+          },
+          "meeting"
+        );
       }
     } catch (err) {
       setError((err as Error).message);
@@ -346,8 +361,9 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     try {
       const startTime = performance.now();
 
+      const startOpts = { ...getMeetingTranscriptionOptions(), noteId: options?.noteId };
       const [startResult, micResult] = await Promise.all([
-        window.electronAPI?.meetingTranscriptionStart?.(getMeetingTranscriptionOptions()),
+        window.electronAPI?.meetingTranscriptionStart?.(startOpts),
         getMeetingMicConstraints().then((constraints) =>
           navigator.mediaDevices.getUserMedia(constraints).catch((err) => {
             logger.error(

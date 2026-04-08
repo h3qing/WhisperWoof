@@ -1138,6 +1138,7 @@ declare global {
         provider?: string;
         model?: string;
         language?: string;
+        noteId?: string;
       }) => Promise<{
         success: boolean;
         error?: string;
@@ -1148,7 +1149,12 @@ declare global {
         success: boolean;
         transcript?: string;
         error?: string;
+        audioBufferDir?: string;
+        audioFiles?: string[];
+        checkpointedSegments?: number;
       }>;
+      meetingAudioCleanup?: (dir?: string) => Promise<{ success: boolean; error?: string }>;
+      meetingCheckpointStart?: (noteId: string) => Promise<{ success: boolean; error?: string }>;
       onMeetingTranscriptionSegment?: (
         callback: (data: {
           text: string;
