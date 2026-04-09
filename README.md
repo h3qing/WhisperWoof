@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.8.0-C87B3A?style=flat-square" alt="v1.8.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.9.0-C87B3A?style=flat-square" alt="v1.9.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-651%20passing-brightgreen?style=flat-square" alt="651 tests passing">
+  <img src="https://img.shields.io/badge/tests-744%20passing-brightgreen?style=flat-square" alt="744 tests passing">
 </p>
 
 <p align="center">
@@ -103,8 +103,16 @@ Voice ──▶ Local STT (Whisper/Parakeet)
 - **Context-aware** — Detects active app. VS Code gets code style, Slack gets casual, Mail gets professional.
 - **Voice commands** — "Rewrite this." "Translate to Spanish." "Summarize." 10 editing commands.
 - **Cmd+K command bar** — Spotlight-style overlay. Type /todo, /note, /project.
+- **Agent mode** — Voice-driven AI chat. Press hotkey, speak, get streamed LLM responses.
 
-### Smart Clipboard *(new)*
+### Meeting Recording *(new)*
+- **Granola-style detection** — Detects meetings via calendar + mic + process signals. Shows persistent notification.
+- **Pre-meeting alerts** — Notification appears ~90s before scheduled meetings.
+- **Crash-safe audio** — Audio saved to local WAV files in 5-minute segments. Never lose a meeting.
+- **Transcript checkpoints** — Saved to SQLite every 60s. Survives crashes and network drops.
+- **Auto-reconnect** — WebSocket reconnection with backoff + session rotation at 25 minutes.
+
+### Smart Clipboard
 - **Kanban board** — Organize reusable text snippets into boards (Greetings, Work, Code, etc.)
 - **Quick paste** — Copy any snippet with one click. Hotkey paste with Cmd+Shift+1-9.
 - **Frequency tracking** — See which snippets you use most. Sorted by usage count.
@@ -172,11 +180,13 @@ brew install ollama && ollama pull llama3.2:1b && ollama serve
 ## Roadmap
 
 - [x] **Phase 0** — Fork + security hardening + test infrastructure
-- [x] **Phase 1a** — Core pipeline: StorageProvider, Ollama polish, hotkey routing
-- [x] **Phase 1b** — Features: clipboard history, voice history UI, floating indicator, projects
-- [x] **Smart Clipboard** — Kanban snippet boards, IPC bridge, frequency tracking
-- [ ] **Phase 2** — MCP plugin system (Todoist, Notion, Slack, Calendar)
-- [ ] **Phase 3** — Polish, onboarding wizard, public release
+- [x] **Phase 1** — Core pipeline: StorageProvider, Ollama polish, hotkey routing, features
+- [x] **Phase 2** — MCP plugin system (Todoist, Notion, Slack, Calendar)
+- [x] **Phase 3** — Polish, onboarding, public release (v1.0)
+- [x] **Phases 4–10** — Competitive features, AI intelligence, vibe coding, streaming, templates
+- [x] **Meeting recording** — Crash-safe audio buffer, transcript checkpoints, Granola-style detection
+- [x] **Agent mode** — Voice-driven AI chat with streaming LLM responses
+- [ ] **Distribution** — Code signing, notarization, auto-update
 
 <br>
 

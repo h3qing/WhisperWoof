@@ -33,6 +33,7 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     router/                   HotkeyRouter (route definitions + dispatch)
     clipboard/                ClipboardMonitor (NSPasteboard polling)
     pipeline/                 Orchestrates STT → Polish → Route
+    meeting/                  Tests for meeting safety modules
   ui/                         ← Renderer (React + TSX)
     history/                  HistoryPanel, Search, AudioPlayer
     indicator/                FloatingIndicator (Classic + Bark dog ear styles)
@@ -42,6 +43,41 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     stt-hook.ts               Hook into STT output
     hotkey-hook.ts            Extend HotkeyManager
     app-init.ts               WhisperWoof init at startup
+    meeting-bridge.js         Meeting lifecycle coordinator (delegates to checkpoint)
+    agentic-actions.js        Voice-triggered action intent detection + MCP routing
+
+src/helpers/                     ← Meeting safety modules (main process)
+    meetingAudioBuffer.js       Local WAV file buffer (5-min rotating segments)
+    meetingTranscriptCheckpoint.js  Periodic transcript save to SQLite (60s)
+    meetingSessionManager.js    WebSocket reconnection + session rotation
+    meetingDetectionEngine.js   Orchestrates calendar + process + audio detection
+    audioActivityDetector.js    Mic activity detection (event-driven + polling)
+    meetingProcessDetector.js   Detects Zoom/Teams/Webex/FaceTime running
+```
+
+### Meeting recording safety architecture
+
+```
+Voice/System Audio Chunks
+    │
+    ├──► MeetingAudioBuffer        (local WAV files, 5-min segments)
+    │     └── Crash-safe: valid WAV on disk at all times
+    │
+    ├──► OpenAI Realtime WebSocket (streaming transcription)
+    │     ├── MeetingSessionManager handles reconnection + rotation
+    │     └── If disconnect: auto-reconnect with exponential backoff
+    │
+    └──► MeetingTranscriptCheckpoint (SQLite every 60s)
+          └── At most 60s of transcript lost on crash
+```
+
+### Meeting detection confidence model
+
+```
+Calendar event imminent (90s)     → HIGH confidence → show notification
+Calendar event + mic active       → HIGH confidence → 2s threshold
+Meeting app running + mic active  → HIGH confidence → 2s threshold
+Mic active only                   → MEDIUM confidence → 8s threshold
 ```
 
 ### Fn+letter hotkey routing data flow

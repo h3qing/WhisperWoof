@@ -4,7 +4,7 @@
 Fork OpenWhispr and build WhisperWoof: a voice-first personal automation tool that transcribes, polishes (local LLM), routes (hotkey-driven), and stores (unified capture layer) voice and clipboard input.
 
 ## Current Phase
-v1.5.0 shipped — all 10 phases complete (60 PRs, 624 tests, 71 features)
+v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phase 12 complete)
 
 ## Phases
 
@@ -128,6 +128,32 @@ v1.5.0 shipped — all 10 phases complete (60 PRs, 624 tests, 71 features)
 - [x] Voice-driven app automation (11 commands: open/switch/close/minimize/fullscreen/mute/volume/dark mode/new tab/window, AppleScript)
 - **Status:** complete
 - **Depends on:** Phase 9 complete ✓
+
+### Phase 12: Meeting Safety + Agent Fixes (v1.9.0)
+- [x] MeetingAudioBuffer — local WAV file buffer with 5-min rotating segments
+- [x] MeetingTranscriptCheckpoint — periodic transcript save to SQLite every 60s
+- [x] MeetingSessionManager — WebSocket reconnection with backoff + session rotation at 25min
+- [x] Wire audio buffer into sendMeetingAudio (parallel write to disk + OpenAI)
+- [x] Wire checkpoint into segment handlers for crash safety
+- [x] Auto-start recording option (meetingAutoStart setting)
+- [x] Unified meeting bridge (checkpoint-backed, not in-memory-only)
+- [x] Persistent notifications (remove 30s auto-dismiss)
+- [x] Calendar pre-notification (~90s before scheduled meetings)
+- [x] Unified notification path (calendar → custom overlay, not native OS notification)
+- [x] Confidence-based thresholds (2s with meeting app, 8s mic-only)
+- [x] Calendar overrides dismiss cooldown
+- [x] Process detection feeds audio detector
+- [x] Fix agent conversation creation race condition (mutex)
+- [x] Add LLM streaming cancellation (AbortController)
+- [x] Fix agent auto-scroll (only when near bottom)
+- [x] Fix stale messagesRef in agent LLM context
+- [x] Fix agentic-actions tests (import from source, not duplicated)
+- [x] Fix stale "Now" indicator in UpcomingMeetings
+- [x] Deduplicate AgentState type
+- [x] Improve empty streaming state UX (loading dots)
+- [x] 78 new meeting tests + 15 new agent tests (744 total, all passing)
+- **Status:** complete
+- **Depends on:** Phase 10 complete ✓
 
 ### Phase 11: Distribution & Code Signing (current)
 - [x] Apple Developer account acquired

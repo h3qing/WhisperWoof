@@ -3,6 +3,39 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
+## [1.9.0] - 2026-04-08 — Meeting Safety + Agent Fixes + Reliable Detection
+
+### Meeting Recording — Crash-Safe Audio
+- **Local audio buffer** — mic + system audio written to 5-minute rotating WAV files on disk. Network drop or crash no longer loses meeting audio.
+- **Transcript checkpoints** — partial transcript saved to SQLite every 60 seconds. At most 60s of transcript lost on failure.
+- **WebSocket reconnection** — automatic reconnect with exponential backoff (1s → 16s) when OpenAI Realtime stream drops.
+- **Session rotation** — proactively rotates WebSocket at 25 minutes to avoid OpenAI's ~30-minute session limit.
+- **Auto-start option** — new `meetingAutoStart` setting to begin recording automatically when a meeting is detected.
+- **Unified meeting bridge** — replaced in-memory-only segment accumulation with checkpoint-backed persistence.
+
+### Meeting Detection — Granola-Style Reliability
+- **Persistent notifications** — meeting prompt stays on screen until user acts (removed 30-second auto-dismiss).
+- **Calendar pre-notification** — shows custom overlay ~90 seconds before scheduled meetings, not just at start time.
+- **Unified notification path** — calendar events now use the same custom overlay with Start/Dismiss buttons (replaced easy-to-miss native OS notification).
+- **Confidence-based thresholds** — 2-second mic threshold when Zoom/Teams/Webex detected running, 8-second threshold otherwise (reduces false positives from Siri, voice search).
+- **Calendar overrides cooldown** — imminent calendar event bypasses the 5-minute dismiss cooldown.
+- **Process detection feeds audio detector** — running meeting apps lower the sustained audio threshold for faster detection.
+
+### Agent Mode — Bug Fixes
+- **Conversation race condition fixed** — rapid speech no longer creates duplicate conversations (mutex guard).
+- **LLM streaming cancellation** — "New Chat" and close now abort in-flight LLM requests via AbortController.
+- **Smart auto-scroll** — chat only scrolls to bottom when user is near the bottom (within 120px). Reading history during streaming no longer jumps.
+- **Stale message ref fixed** — LLM context now always includes the current user message.
+- **Agentic actions tests fixed** — tests now import from source module instead of duplicating the implementation (tests had already diverged).
+
+### Polish
+- **UpcomingMeetings "Now" indicator** — updates every 30 seconds instead of never refreshing after mount.
+- **Deduplicated AgentState type** — exported from AgentOverlay, imported by AgentInput.
+- **Empty streaming state** — shows loading dots instead of an empty bubble with a blinking cursor.
+
+### Tests
+- 744 tests across 43 files (was 729). 78 new meeting tests + 15 new agentic action tests. Zero regressions.
+
 ## [1.8.0] - 2026-04-06 — Voice Style + Memory + Eval System + STT Providers
 
 ### Voice Style (Pipeline Tuning)
