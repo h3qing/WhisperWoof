@@ -1454,6 +1454,8 @@
         "llama_llama_3_1_8b_instruct_q4_k_m": "Modèle puissant avec d'excellentes performances",
         "openai_oss_gpt_oss_20b_mxfp4": "Modèle open-weight d'OpenAI pour matériel grand public",
         "gemma_gemma_3_4b_it_q4_k_m": "Modèle open-weight de Google, excellent équilibre vitesse/qualité",
+        "gemma_gemma_4_31b_it_q4_k_m": "Le plus grand Gemma 4 de Google, meilleure qualité",
+        "gemma_gemma_4_26b_a4b_it_q4_k_m": "Gemma 4 MoE de Google, rapide avec 4B paramètres actifs",
         "gemma_gemma_4_e4b_it_q4_k_m": "Dernier multimodal de Google, raisonnement avancé",
         "gemma_gemma_4_e2b_it_q4_k_m": "Gemma 4 compact de Google, rapide et efficace",
         "gemma_gemma_3_12b_it_q4_k_m": "Modèle milieu de gamme de Google, raisonnement solide",
