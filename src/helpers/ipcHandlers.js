@@ -4643,13 +4643,23 @@ class IPCHandlers {
     });
 
     ipcMain.handle("get-stt-config", async (event) => {
+      // WhisperWoof is local-first: most users won't be signed into
+      // OpenWhispr cloud, so "not configured" / "no session" are
+      // expected states, not errors. Return a clean not-configured
+      // result without logging noise. Only real network / HTTP failures
+      // are logged, and we log error.message (Error objects don't
+      // JSON-serialize, so the old `error` arg rendered as "{}").
+      const apiUrl = getApiUrl();
+      if (!apiUrl) {
+        return { success: false, error: "not-configured", code: "NO_API_URL" };
+      }
+
+      const cookieHeader = await getSessionCookies(event);
+      if (!cookieHeader) {
+        return { success: false, error: "not-configured", code: "NO_SESSION" };
+      }
+
       try {
-        const apiUrl = getApiUrl();
-        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
-
-        const cookieHeader = await getSessionCookies(event);
-        if (!cookieHeader) throw new Error("No session cookies available");
-
         const response = await fetch(`${apiUrl}/api/stt-config`, {
           headers: { Cookie: cookieHeader },
         });
@@ -4658,14 +4668,15 @@ class IPCHandlers {
           if (response.status === 401) {
             return { success: false, error: "Session expired", code: "AUTH_EXPIRED" };
           }
-          throw new Error(`API error: ${response.status}`);
+          debugLogger.error(`STT config fetch failed: HTTP ${response.status}`);
+          return { success: false, error: `HTTP ${response.status}`, code: "HTTP_ERROR" };
         }
 
         const data = await response.json();
         return { success: true, ...data };
       } catch (error) {
-        debugLogger.error("STT config fetch error:", error);
-        return null;
+        debugLogger.error(`STT config fetch error: ${error.message}`);
+        return { success: false, error: error.message, code: "FETCH_ERROR" };
       }
     });
 
