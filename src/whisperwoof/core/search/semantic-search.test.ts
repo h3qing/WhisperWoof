@@ -1,203 +1,180 @@
 /**
- * Tests for Semantic Search — TF-IDF vectorization and cosine similarity
+ * Tests for Semantic Search — TF-IDF vectorization + cosine similarity.
+ *
+ * Imports `tokenize`, `termFrequency`, `inverseDocumentFrequency`,
+ * `tfidfVector`, `cosineSimilarity`, and `STOP_WORDS` directly from
+ * `bridge/semantic-search.js`. Source is load-safe (debugLogger + an
+ * injectable db reference) and every pure helper is already exported,
+ * so no `-pure.js` extraction was needed.
+ *
+ * The SQL-backed `semanticSearch(query, options)` and `findSimilar(id)`
+ * functions delegate to these helpers after fetching rows — tests now
+ * exercise the exact math the runtime uses.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from "vitest";
 
-// Re-implement pure math for testing
+vi.mock("../../../helpers/debugLogger", () => ({
+  log: vi.fn(),
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 
-const STOP_WORDS = new Set([
-  "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-  "i", "me", "my", "we", "you", "he", "she", "it", "they", "this", "that",
-  "not", "no", "so", "if", "as", "just", "about", "all", "also", "over",
-  "up", "out", "into", "after", "before", "between", "under",
-]);
+// @ts-expect-error — CommonJS module, no TS declarations
+import {
+  tokenize,
+  termFrequency,
+  inverseDocumentFrequency,
+  tfidfVector,
+  cosineSimilarity,
+  STOP_WORDS,
+} from "../../bridge/semantic-search";
 
-function tokenize(text: string): string[] {
-  if (!text) return [];
-  return text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w));
-}
-
-function termFrequency(tokens: string[]): Record<string, number> {
-  const tf: Record<string, number> = {};
-  for (const t of tokens) tf[t] = (tf[t] || 0) + 1;
-  const len = tokens.length || 1;
-  for (const t in tf) tf[t] /= len;
-  return tf;
-}
-
-function inverseDocumentFrequency(corpus: string[][]): Record<string, number> {
-  const df: Record<string, number> = {};
-  const N = corpus.length;
-  for (const doc of corpus) {
-    for (const term of new Set(doc)) df[term] = (df[term] || 0) + 1;
-  }
-  const idf: Record<string, number> = {};
-  for (const term in df) idf[term] = Math.log((N + 1) / (df[term] + 1)) + 1;
-  return idf;
-}
-
-function tfidfVector(tf: Record<string, number>, idf: Record<string, number>): Record<string, number> {
-  const vec: Record<string, number> = {};
-  for (const term in tf) if (idf[term]) vec[term] = tf[term] * idf[term];
-  return vec;
-}
-
-function cosineSimilarity(a: Record<string, number>, b: Record<string, number>): number {
-  let dot = 0, normA = 0, normB = 0;
-  for (const t in a) { normA += a[t] * a[t]; if (b[t]) dot += a[t] * b[t]; }
-  for (const t in b) normB += b[t] * b[t];
-  const denom = Math.sqrt(normA) * Math.sqrt(normB);
-  return denom === 0 ? 0 : dot / denom;
-}
-
-describe('Semantic Search', () => {
-  describe('tokenize', () => {
-    it('lowercases and splits on whitespace', () => {
-      expect(tokenize("Hello World")).toEqual(["hello", "world"]);
-    });
-
-    it('removes stop words', () => {
-      const tokens = tokenize("The quick brown fox jumps over the lazy dog");
-      expect(tokens).not.toContain("the");
-      expect(tokens).not.toContain("over");
-      expect(tokens).toContain("quick");
-      expect(tokens).toContain("brown");
-    });
-
-    it('removes punctuation', () => {
-      expect(tokenize("hello, world! how's it?")).toEqual(["hello", "world", "how"]);
-    });
-
-    it('filters short words (< 2 chars)', () => {
-      expect(tokenize("I a am ok go")).toEqual(["am", "ok", "go"]);
-    });
-
-    it('returns empty for null/empty', () => {
-      expect(tokenize("")).toEqual([]);
-      expect(tokenize(null as any)).toEqual([]);
-    });
+describe("tokenize", () => {
+  it("lowercases and splits on whitespace", () => {
+    expect(tokenize("Hello World")).toEqual(["hello", "world"]);
   });
 
-  describe('termFrequency', () => {
-    it('computes normalized frequency', () => {
-      const tf = termFrequency(["hello", "world", "hello"]);
-      expect(tf.hello).toBeCloseTo(2 / 3);
-      expect(tf.world).toBeCloseTo(1 / 3);
-    });
-
-    it('handles single token', () => {
-      const tf = termFrequency(["test"]);
-      expect(tf.test).toBe(1);
-    });
-
-    it('handles empty', () => {
-      expect(termFrequency([])).toEqual({});
-    });
+  it("removes stop words", () => {
+    const tokens: string[] = tokenize("The quick brown fox jumps over the lazy dog");
+    expect(tokens).not.toContain("the");
+    expect(tokens).not.toContain("over");
+    expect(tokens).toContain("quick");
+    expect(tokens).toContain("brown");
   });
 
-  describe('inverseDocumentFrequency', () => {
-    it('rare terms get higher IDF', () => {
-      const corpus = [
-        ["hello", "world"],
-        ["hello", "earth"],
-        ["hello", "mars"],
-      ];
-      const idf = inverseDocumentFrequency(corpus);
-      // "hello" appears in all 3 docs, "mars" in 1
-      expect(idf.mars).toBeGreaterThan(idf.hello);
-    });
-
-    it('common terms get lower IDF', () => {
-      const corpus = [["common"], ["common"], ["common"], ["rare"]];
-      const idf = inverseDocumentFrequency(corpus);
-      expect(idf.common).toBeLessThan(idf.rare);
-    });
+  it("removes punctuation (and filters 'how' as a stop word)", () => {
+    // "how" is in the production STOP_WORDS list, so the tokenizer drops
+    // it even though punctuation was stripped correctly. "it" and "s"
+    // also get dropped ("it" is a stop word, "s" is shorter than 2 chars).
+    expect(tokenize("hello, world! how's it?")).toEqual(["hello", "world"]);
   });
 
-  describe('cosineSimilarity', () => {
-    it('identical vectors = 1.0', () => {
-      const v = { hello: 1, world: 1 };
-      expect(cosineSimilarity(v, v)).toBeCloseTo(1.0);
-    });
-
-    it('orthogonal vectors = 0.0', () => {
-      const a = { hello: 1 };
-      const b = { world: 1 };
-      expect(cosineSimilarity(a, b)).toBe(0);
-    });
-
-    it('partially overlapping vectors > 0', () => {
-      const a = { hello: 1, world: 1 };
-      const b = { hello: 1, mars: 1 };
-      const sim = cosineSimilarity(a, b);
-      expect(sim).toBeGreaterThan(0);
-      expect(sim).toBeLessThan(1);
-    });
-
-    it('empty vectors = 0', () => {
-      expect(cosineSimilarity({}, {})).toBe(0);
-      expect(cosineSimilarity({ a: 1 }, {})).toBe(0);
-    });
+  it("filters tokens shorter than 2 characters", () => {
+    // "i" + "a" are stop words too, so this also asserts the stop list
+    expect(tokenize("I a am ok go")).toEqual(["am", "ok", "go"]);
   });
 
-  describe('end-to-end similarity', () => {
-    const docs = [
-      "We need to fix the bug in the login page authentication",
-      "Schedule a meeting with the design team for next week",
-      "The login authentication system has a critical error that needs fixing",
-      "Buy groceries and pick up the kids from school",
+  it("returns an empty array for null / empty input", () => {
+    expect(tokenize("")).toEqual([]);
+    expect(tokenize(null)).toEqual([]);
+    expect(tokenize(undefined)).toEqual([]);
+  });
+});
+
+describe("termFrequency", () => {
+  it("computes document-length-normalized frequency", () => {
+    const tf = termFrequency(["hello", "world", "hello"]);
+    expect(tf.hello).toBeCloseTo(2 / 3);
+    expect(tf.world).toBeCloseTo(1 / 3);
+  });
+
+  it("returns 1 for a single-token document", () => {
+    expect(termFrequency(["test"]).test).toBe(1);
+  });
+
+  it("returns an empty map for an empty token list", () => {
+    expect(termFrequency([])).toEqual({});
+  });
+});
+
+describe("inverseDocumentFrequency", () => {
+  it("assigns higher IDF to rarer terms", () => {
+    const corpus = [
+      ["hello", "world"],
+      ["hello", "earth"],
+      ["hello", "mars"],
     ];
-
-    function searchDocs(query: string): number[] {
-      const corpus = docs.map(tokenize);
-      const queryTokens = tokenize(query);
-      const allDocs = [...corpus, queryTokens];
-      const idf = inverseDocumentFrequency(allDocs);
-      const queryVec = tfidfVector(termFrequency(queryTokens), idf);
-
-      return corpus.map((docTokens) => {
-        const docVec = tfidfVector(termFrequency(docTokens), idf);
-        return Math.round(cosineSimilarity(queryVec, docVec) * 1000) / 1000;
-      });
-    }
-
-    it('bug-related query matches bug-related docs highest', () => {
-      const scores = searchDocs("authentication bug fix");
-      // Docs 0 and 2 are about bugs/auth, should score highest
-      expect(scores[0]).toBeGreaterThan(scores[1]); // bug doc > meeting doc
-      expect(scores[2]).toBeGreaterThan(scores[1]); // auth error doc > meeting doc
-      expect(scores[0]).toBeGreaterThan(scores[3]); // bug doc > groceries doc
-    });
-
-    it('meeting query matches meeting doc highest', () => {
-      const scores = searchDocs("meeting schedule team");
-      expect(scores[1]).toBeGreaterThan(scores[0]); // meeting doc > bug doc
-      expect(scores[1]).toBeGreaterThan(scores[3]); // meeting doc > groceries doc
-    });
-
-    it('unrelated query scores low across all docs', () => {
-      const scores = searchDocs("quantum physics lecture notes");
-      expect(scores.every((s) => s < 0.3)).toBe(true);
-    });
+    const idf = inverseDocumentFrequency(corpus);
+    expect(idf.mars).toBeGreaterThan(idf.hello);
   });
 
-  describe('stop words', () => {
-    it('has common English stop words', () => {
-      expect(STOP_WORDS.has("the")).toBe(true);
-      expect(STOP_WORDS.has("and")).toBe(true);
-      expect(STOP_WORDS.has("is")).toBe(true);
-    });
+  it("assigns lower IDF to common terms", () => {
+    const corpus = [["common"], ["common"], ["common"], ["rare"]];
+    const idf = inverseDocumentFrequency(corpus);
+    expect(idf.common).toBeLessThan(idf.rare);
+  });
 
-    it('does not include content words', () => {
-      expect(STOP_WORDS.has("meeting")).toBe(false);
-      expect(STOP_WORDS.has("bug")).toBe(false);
-      expect(STOP_WORDS.has("design")).toBe(false);
+  it("uses smoothed IDF (guaranteed > 0 for every term)", () => {
+    const idf = inverseDocumentFrequency([["only"]]);
+    expect(idf.only).toBeGreaterThan(0);
+  });
+});
+
+describe("cosineSimilarity", () => {
+  it("returns 1.0 for identical vectors", () => {
+    const v = { hello: 1, world: 1 };
+    expect(cosineSimilarity(v, v)).toBeCloseTo(1.0);
+  });
+
+  it("returns 0.0 for orthogonal vectors", () => {
+    expect(cosineSimilarity({ hello: 1 }, { world: 1 })).toBe(0);
+  });
+
+  it("returns a value in (0, 1) for partially overlapping vectors", () => {
+    const sim = cosineSimilarity({ hello: 1, world: 1 }, { hello: 1, mars: 1 });
+    expect(sim).toBeGreaterThan(0);
+    expect(sim).toBeLessThan(1);
+  });
+
+  it("returns 0 for empty vectors (no divide-by-zero)", () => {
+    expect(cosineSimilarity({}, {})).toBe(0);
+    expect(cosineSimilarity({ a: 1 }, {})).toBe(0);
+  });
+});
+
+describe("end-to-end similarity ranking", () => {
+  const docs = [
+    "We need to fix the bug in the login page authentication",
+    "Schedule a meeting with the design team for next week",
+    "The login authentication system has a critical error that needs fixing",
+    "Buy groceries and pick up the kids from school",
+  ];
+
+  function searchDocs(query: string): number[] {
+    const corpus = docs.map(tokenize);
+    const queryTokens = tokenize(query);
+    const allDocs = [...corpus, queryTokens];
+    const idf = inverseDocumentFrequency(allDocs);
+    const queryVec = tfidfVector(termFrequency(queryTokens), idf);
+
+    return corpus.map((docTokens: string[]) => {
+      const docVec = tfidfVector(termFrequency(docTokens), idf);
+      return Math.round(cosineSimilarity(queryVec, docVec) * 1000) / 1000;
     });
+  }
+
+  it("ranks bug / auth queries above unrelated docs", () => {
+    const scores = searchDocs("authentication bug fix");
+    expect(scores[0]).toBeGreaterThan(scores[1]); // bug doc > meeting doc
+    expect(scores[2]).toBeGreaterThan(scores[1]); // auth error doc > meeting doc
+    expect(scores[0]).toBeGreaterThan(scores[3]); // bug doc > groceries doc
+  });
+
+  it("ranks meeting queries above other docs", () => {
+    const scores = searchDocs("meeting schedule team");
+    expect(scores[1]).toBeGreaterThan(scores[0]);
+    expect(scores[1]).toBeGreaterThan(scores[3]);
+  });
+
+  it("scores unrelated queries low across the board", () => {
+    const scores = searchDocs("quantum physics lecture notes");
+    expect(scores.every((s: number) => s < 0.3)).toBe(true);
+  });
+});
+
+describe("STOP_WORDS registry", () => {
+  it("includes common English stop words", () => {
+    expect(STOP_WORDS.has("the")).toBe(true);
+    expect(STOP_WORDS.has("and")).toBe(true);
+    expect(STOP_WORDS.has("is")).toBe(true);
+  });
+
+  it("does not include content words", () => {
+    expect(STOP_WORDS.has("meeting")).toBe(false);
+    expect(STOP_WORDS.has("bug")).toBe(false);
+    expect(STOP_WORDS.has("design")).toBe(false);
   });
 });

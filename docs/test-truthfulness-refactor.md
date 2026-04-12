@@ -1,9 +1,13 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 17 of ~35 files shipped across four sessions on `2026-04-11`.
-18 remaining, tracked below. **Bucket B is complete and the first
-Bucket C batch (webhooks + analytics + focus-mode + entry-tags) is done.**
-Every remaining file still needs Pattern 2 or Bucket D work.
+**Status:** 20 of ~35 files shipped across five sessions on `2026-04-11`.
+15 remaining, tracked below. **Bucket B and the first two Bucket C
+batches are complete.** Notable finding from batch 2: three bridge
+modules (`auto-tagger`, `semantic-search`, `screen-context`) were
+actually load-safe and already exported every pure helper — the old
+tests just never imported them. Direct-import candidates are more
+common than the original audit assumed; always check the source's
+top-level requires before resorting to Pattern 2.
 
 ## Problem statement
 
@@ -71,7 +75,7 @@ Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 The pure file has no electron / fs / app / debugLogger requires, so
 tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped (17 files across batches 1 + 2 + 3 + 4)
+## Shipped (20 files across batches 1 + 2 + 3 + 4 + 5)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
@@ -92,6 +96,9 @@ tests load it instantly in the vitest Node runtime without mocks.
 | `core/analytics/analytics.test.ts` | Pattern 2 — extracted `computePolishStats`, `computeStreaks`, `fillHourGaps`, `extractCommandName`, `extractSnippetTrigger`, `getEmptyDashboard`. Production SQL fetches rows, pure module does the math | New `bridge/analytics-pure.js` |
 | `core/focus/focus-mode.test.ts` | Pattern 2 — extracted `SPRINT_PRESETS`, `validateDuration`, `createSessionObject`, `appendEntryToSession`, `markSessionEnded`, `computeFocusStats`, `computeActiveSessionView`. Pure functions take explicit `now` for deterministic tests | New `bridge/focus-mode-pure.js` |
 | `core/tags/entry-tags.test.ts` | Pattern 2 (minimal) — extracted `validateTagName`, `DEFAULT_TAG_COLOR`, `MAX_TAG_NAME_LENGTH`. Dropped in-memory-mock tests for the SQL-only CRUD paths since they can't be unified without loading better-sqlite3 | New `bridge/entry-tags-pure.js` |
+| `core/tags/auto-tagger.test.ts` | Pattern 1 — direct import. Source was load-safe and already exported `suggestTagsByKeywords` + `KEYWORD_RULES` | None |
+| `core/search/semantic-search.test.ts` | Pattern 1 — direct import. Source already exports `tokenize`, `termFrequency`, `inverseDocumentFrequency`, `tfidfVector`, `cosineSimilarity`, `STOP_WORDS`. Fixed one assertion that was wrong because the old test's fake stop-word list omitted "how" | None |
+| `core/context/screen-context.test.ts` | Pattern 1 — direct import. Source only requires `child_process` + `debugLogger`. Added screen-vs-voice-command disambiguation guards | None |
 
 ## Regressions caught by the refactor
 
@@ -122,33 +129,33 @@ tests load it instantly in the vitest Node runtime without mocks.
   `settingsStore.ts` so any rename there will trip the test until the
   marker list is updated.
 
-## Remaining work — 18 files
+## Remaining work — 15 files
 
-Grouped by effort. Each row needs the same pattern: find (or extract)
-the real source, wire the test to import it, drop the inline copy.
-**Bucket B is complete** — all direct-import opportunities have been
-exhausted. Every remaining file needs Pattern 2 or Bucket D work.
+Grouped by effort. Each row still needs the same pattern: find (or
+extract) the real source, wire the test to import it, drop the
+inline copy. **Always check `top-level requires` in the bridge source
+first** — several files assumed to need Pattern 2 turned out to be
+load-safe and just needed Pattern 1 direct imports.
 
-### Bucket C: Pattern 2 (bridge source crashes at load, extract pure sibling)
+### Bucket C: Likely Pattern 2 (bridge source probably crashes at load)
 
-Grep result from the audit shows these bridge files DO exist. Most
-likely call `app.getPath` at top-level so Pattern 2 is needed:
+These need verification — if the bridge file doesn't call
+`app.getPath` / `fs` at module load, it may be another direct-import
+win like `auto-tagger` / `semantic-search` / `screen-context`:
 
 - `bridge/agentic-actions.js` ← `core/actions/agentic-actions.test.ts`
 - `bridge/app-automation.js` ← `core/automation/app-automation.test.ts`
-- `bridge/auto-tagger.js` ← `core/tags/auto-tagger.test.ts`
 - `bridge/conversation-memory.js` ← `core/memory/conversation-memory.test.ts`
 - `bridge/daily-digest.js` ← `core/digest/daily-digest.test.ts`
 - `bridge/entry-chains.js` ← `core/chains/entry-chains.test.ts`
 - `bridge/entry-templates.js` ← `core/templates/entry-templates.test.ts`
 - `bridge/intent-capture.js` ← `core/intent/intent-capture.test.ts`
 - `bridge/keybindings.js` ← `core/keybindings/keybindings.test.ts`
-- `bridge/screen-context.js` ← `core/context/screen-context.test.ts`
-- `bridge/semantic-search.js` ← `core/search/semantic-search.test.ts`
 - `bridge/streaming-manager.js` ← `core/streaming/streaming-manager.test.ts`
 - `bridge/vocabulary.js` ← `core/vocabulary/vocabulary.test.ts`
 
-Effort: M each. Tackle 3–5 per session to avoid sprawl.
+Effort: S–M each depending on whether Pattern 1 or Pattern 2 applies.
+Tackle 3–5 per session.
 
 ### Bucket D: mock-only or borderline
 
@@ -163,10 +170,18 @@ Effort: M each. Tackle 3–5 per session to avoid sprawl.
 
 ## Recommended next session
 
-Next Bucket C batch — start with feature modules that have the most
-pure transformations to extract: `auto-tagger` (keyword rules + tag
-scoring), `semantic-search` (TF-IDF math), `screen-context` (command
-prefix parsing). Then `conversation-memory` (query patterns) and
-`intent-capture` (signal categories) if time permits. Leave
-`conversation-memory` + `daily-digest` for last — they're the
-heaviest / most LLM-prompt-tangled.
+Next batch candidates: `keybindings` (conflict detection / rebind
+validation), `entry-chains` (tree traversal / cycle detection),
+`intent-capture` (rambling-detection signal categories),
+`entry-templates` (template rendering). All four likely have
+extractable pure helpers and the tests look small-to-medium.
+
+Leave `conversation-memory` + `daily-digest` + `agentic-actions` for
+last — they're the heaviest (LLM prompts, 5+ action types, query
+pattern matching).
+
+**Always check top-level requires first.** Batch 2 taught us that
+the original audit overcounted Pattern 2 candidates — running a
+`grep -n 'app.getPath\|require(.fs.)' bridge/<file>.js` before
+committing to an extraction strategy saves an entire refactor step
+when the source turns out to be load-safe.
