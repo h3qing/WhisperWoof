@@ -4,7 +4,7 @@
 Fork OpenWhispr and build WhisperWoof: a voice-first personal automation tool that transcribes, polishes (local LLM), routes (hotkey-driven), and stores (unified capture layer) voice and clipboard input.
 
 ## Current Phase
-v1.9.0 shipped + unreleased eng-review cleanup (753 tests, 10 of 35 test-truthfulness files refactored, 5 surgical upstream cherry-picks). Next: finish Bucket B/C of the test refactor OR switch to Phase 11 (code signing + notarization) for distribution.
+v1.9.0 shipped + unreleased eng-review cleanup (758 tests, 13 of 35 test-truthfulness files refactored [Bucket B complete], 5 surgical upstream cherry-picks, STT config error fixed, API key export leak fixed). Next: Bucket C test refactor OR switch to Phase 11 (code signing + notarization) once Apple Developer cert arrives.
 
 ## Phases
 
@@ -172,9 +172,12 @@ v1.9.0 shipped + unreleased eng-review cleanup (753 tests, 10 of 35 test-truthfu
 - [x] Dev-gate SmartClipboard demo data fallback (`import.meta.env.DEV`)
 - [x] Batch project-integration IPC to fix N+1 in WhisperWoofProjects
 - [x] Delete unused 636-line `SqliteProvider` class + correct architecture docs
-- [ ] Test-truthfulness refactor — 10 of 35 files done. See `docs/test-truthfulness-refactor.md` for remaining work, bucketed by difficulty.
+- [x] STT config error at boot — "not signed into cloud" was treated as an error, and `debugLogger.error("msg:", error)` rendered Error objects as `{}`. Fixed both.
+- [x] **Security**: fix API key leak in `stripApiKeys` — filter was `String.includes("apiKey")` (lowercase) but app stores keys as `openaiApiKey` (capital `A`), so every settings export leaked every plaintext key. Caught by the test-truthfulness refactor.
+- [ ] Test-truthfulness refactor — **13 of 35 files done, Bucket B complete.** See `docs/test-truthfulness-refactor.md` for remaining Bucket C/D work.
 - [x] Surgical upstream cherry-picks: brace-expansion + xmldom security bumps, JSON.parse validation in prompts, Gemma 4 local models (E2B/E4B + 31B/26B MoE)
 - [ ] Full upstream merge (deferred — 177 commits remaining, heavy overlap on ipcHandlers.js / agent / meeting files; needs its own session)
+- [ ] Sweep the 17 remaining `debugLogger.error("msg:", error)` sites in `ipcHandlers.js` that silently render as `{}`
 - **Status:** in progress
 - **Depends on:** Phase 12 complete ✓
 

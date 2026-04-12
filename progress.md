@@ -1,5 +1,87 @@
 # Progress Log
 
+## 2026-04-11 — Session: Bucket B complete + STT config fix + security bug
+
+Continued the eng-review cleanup while waiting on the Apple Developer
+cert. Two parallel threads: finish Bucket B of the test-truthfulness
+refactor, and chase the STT config error that had been nagging at boot.
+
+### Thread 1 — Bucket B test truthfulness (3 more files, batch 3)
+
+- `core/coding/vibe-coding.test.ts` → direct import of `hasCodeIntent`,
+  `getCodingPrompt`, `isCodeModeApp`, `isShellModeApp`,
+  `CODE_MODE_APPS`, `SHELL_MODE_APPS`, `CODE_PROMPT`, `SHELL_PROMPT`
+  from `bridge/vibe-coding.js`. Source is load-safe, no extraction
+  needed.
+
+- `core/capture/recurring-capture.test.ts` → extracted `isValidTime`,
+  `parseTime`, `getIsoDay`, `shouldFire`, `getPresets` into a new
+  `bridge/recurring-capture-pure.js`. `recurring-capture.js` delegates;
+  the test imports the pure module directly, bypassing the top-level
+  `app.getPath` call that would have crashed the test at load.
+
+- `core/settings/settings-export.test.ts` → extracted `stripApiKeys`,
+  `validateBundle`, `mergeArrays` into a new
+  `bridge/settings-export-pure.js`. Previously these helpers were
+  inlined inside `exportSettings` / `importSettings`, and the test
+  kept parallel copies that silently drifted from production.
+
+**Bucket B is now complete.** Every remaining test-truthfulness file
+(22 of them) needs Pattern 2 extraction or a fresh module.
+
+### Critical security bug caught by the refactor
+
+The old `stripApiKeys` used `String.includes("apiKey")` (lowercase
+`a`) as its secret marker. The app stores real API keys as
+`openaiApiKey`, `anthropicApiKey`, `groqApiKey`, `geminiApiKey`,
+`mistralApiKey`, `customTranscriptionApiKey`, `customReasoningApiKey`
+in `src/stores/settingsStore.ts` — every one has a capital `A` after
+the provider name. `"openaiApiKey".includes("apiKey")` returns
+**false**, so the filter caught **none** of the real keys. Any user
+who exported their settings got a plaintext dump of every API key
+they'd configured.
+
+The old test hid this by testing against a fictitious
+`"whisperwoof-openai-api-key"` naming convention the app never uses.
+The test was green while production shipped broken. **This is the
+most serious case of the test-truthfulness pattern yet.**
+
+Fix: the pure module lowercases keys before matching and uses an
+expanded marker list (`apikey`, `api-key`, `api_key`, `token`,
+`secret`, `bearer`). The new test pins against the exact camelCase
+key names from `settingsStore.ts` so any rename will trip the test
+until the marker list is updated.
+
+### Thread 2 — STT config error at boot
+
+Two root causes for the `ERROR: STT config fetch error: {}` noise
+that's been showing up 3× every startup:
+
+1. `get-stt-config` in `ipcHandlers.js` threw `"No session cookies
+   available"` on every boot for any user not signed into OpenWhispr
+   cloud — i.e., the entire local-first target audience. Each of the
+   three `useAudioRecording` hook instances (dictation / control
+   panel / sidebar) called it on mount, producing three identical
+   error logs.
+
+2. `debugLogger.error("message:", errorObj)` stringifies its second
+   argument but `Error` objects don't JSON-serialize (their
+   `message`/`stack` aren't enumerable own properties), so the log
+   rendered as `{}` — useless when something real goes wrong.
+
+Fixed both: "not signed in" now returns `{success: false, code:
+"NO_SESSION"}` without logging, and real errors log
+`error.message` via template literal.
+
+**Note:** the same `debugLogger.error("msg:", error)` pattern appears
+in 17 other places across `ipcHandlers.js`. They all silently log
+`{}` when things go wrong. Not swept in this session — flagged in
+the commit message as a candidate for a follow-up batch.
+
+### Test results
+- 43 test files / 758 tests (up from 753 — 5 new camelCase `ApiKey`
+  coverage assertions from the security fix; zero regressions)
+
 ## 2026-04-11 — Session: Bucket B refactor batch + upstream cherry-picks
 
 Continued the test-truthfulness refactor with Bucket B (files where

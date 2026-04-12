@@ -5,15 +5,19 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up
 
+### Security
+- **Settings export was leaking every API key** (caught by the test-truthfulness refactor). The inline `stripApiKeys` in `bridge/settings-export.js` used `String.includes("apiKey")` (lowercase `a`) as its secret marker. The app stores real keys as `openaiApiKey`, `anthropicApiKey`, `groqApiKey`, `geminiApiKey`, `mistralApiKey`, `customTranscriptionApiKey`, `customReasoningApiKey` in `src/stores/settingsStore.ts` — every one has a capital `A` after the provider name. `"openaiApiKey".includes("apiKey")` returns **false**, so the filter silently matched **none** of the real keys the app writes. Any user who exported their settings got a plaintext dump of every API key they'd configured. Fixed: the pure module now lowercases keys before matching and uses an expanded marker list (`apikey`, `api-key`, `api_key`, `token`, `secret`, `bearer`). The old test hid the bug by testing against a fictitious `"whisperwoof-openai-api-key"` naming convention the app never uses.
+
 ### Fixes
 - **Language detection regression**: `SCRIPT_PATTERNS` in `bridge/language-detect.js` were declared without the `/g` flag, so `String.match(pattern).length` was always 1 and the `ratio > 0.15` gate never triggered — production `detectLanguage` silently returned English for every non-Latin-script string. Caught by the test-truthfulness refactor.
 - **Virtual scroll perf**: `EntryRow` in `WhisperWoofHistory.tsx` was a plain function component with an unstable inline `onSelect` arrow, so every scroll re-rendered every visible row. Wrapped in `React.memo` and pass `setSelectedId` directly (stable by React's `useState` contract).
 - **Project integration N+1**: `WhisperWoofProjects.tsx` fired one IPC call per project to fetch integration targets. Replaced with a single batched `whisperwoof-get-project-integrations` handler that returns the full `projectId → target` map in one SQL query.
 - **SmartClipboard demo data leak risk**: the IPC-unavailable branch in `SmartClipboard.fetchData` seeded demo boards/snippets. Safe by accident in production but one preload bug away from leaking — now gated behind `import.meta.env.DEV` with a real error message in production.
+- **STT config error at boot**: `get-stt-config` threw `"No session cookies available"` on every boot for any user not signed into OpenWhispr cloud — i.e., the whole local-first target audience — and each of three `useAudioRecording` hook instances (dictation / control panel / sidebar) logged the error. The log showed `{}` because `debugLogger.error("msg:", errorObj)` doesn't serialize Error objects (message / stack aren't enumerable). Fixed: "not signed in" is now a clean non-error return, and real errors log `error.message` via template literal. Same `"msg:", error` pattern exists in 17 other places across `ipcHandlers.js` — flagged for a follow-up sweep.
 
 ### Refactor
 - **Deleted unused `SqliteProvider` class** (636 lines). The runtime has always used `better-sqlite3` directly in `bridge/app-init.js`; the class was only imported by its own (now-deleted) test file. Corrected `CLAUDE.md` / `CONTRIBUTING.md` to describe the actual architecture.
-- **Test-truthfulness refactor, 10 of 35 files**: ~35 test files previously defined their own inline copies of production logic, so regressions in real code would ship green. 10 files now import from the real source — either via direct import (when the bridge module is load-safe) or by extracting a `*-pure.js` sibling (when the bridge crashes at load because of top-level `app.getPath`). Files wired: `snippet-hotkeys`, `context-detector`, `snippets`, `style-learner`, `privacy-lock`, `backtrack`, `language-detect`, `llm-providers`, `voice-commands`, `smart-reply`. Remaining 25 files tracked in `docs/test-truthfulness-refactor.md`.
+- **Test-truthfulness refactor, 13 of ~35 files**: ~35 test files previously defined their own inline copies of production logic, so regressions in real code would ship green. 13 files now import from the real source — either via direct import (when the bridge module is load-safe) or by extracting a `*-pure.js` sibling (when the bridge crashes at load because of top-level `app.getPath`). Files wired: `snippet-hotkeys`, `context-detector`, `snippets`, `style-learner`, `privacy-lock`, `backtrack`, `language-detect`, `llm-providers`, `voice-commands`, `smart-reply`, `vibe-coding`, `recurring-capture`, `settings-export`. **Bucket B (direct-import) is complete.** Remaining 22 files tracked in `docs/test-truthfulness-refactor.md`.
 - Extracted `validateConfig(config)` as a pure exported helper in `bridge/llm-providers.js`; `polishWithProvider` now delegates to it instead of duplicating the registry lookup and API-key gate inline.
 
 ### Upstream catch-up (cherry-picked from `OpenWhispr/openwhispr`)
@@ -25,7 +29,7 @@ Full upstream merge deferred to its own session (182 commits behind, heavy overl
 - **Local models**: Gemma 4 31B + 26B MoE added to the local model registry (+ translations)
 
 ### Tests
-- 43 test files / 753 tests (up from 744 — the net gain is from real-source assertions in the refactored tests; zero regressions)
+- 43 test files / 758 tests (up from 744 — net gain from real-source assertions in the refactored tests, including 5 new camelCase `ApiKey` coverage assertions from the security fix; zero regressions)
 
 ## [1.9.0] - 2026-04-08 — Meeting Safety + Agent Fixes + Reliable Detection
 

@@ -1,7 +1,9 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 10 of ~35 files shipped across two sessions on `2026-04-11`.
-25 remaining, tracked below.
+**Status:** 13 of ~35 files shipped across three sessions on `2026-04-11`.
+22 remaining, tracked below. **Bucket B is complete** — every remaining
+file needs Pattern 2 (extract `*-pure.js` sibling) or Bucket D (new
+module from scratch).
 
 ## Problem statement
 
@@ -69,7 +71,7 @@ Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 The pure file has no electron / fs / app / debugLogger requires, so
 tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped (10 files across batches 1 + 2)
+## Shipped (13 files across batches 1 + 2 + 3)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
@@ -83,11 +85,14 @@ tests load it instantly in the vitest Node runtime without mocks.
 | `core/polish/llm-providers.test.ts` | Pattern 1 — direct import. Extracted `validateConfig` as pure helper | `bridge/llm-providers.js` — `validateConfig()` exported, `polishWithProvider` delegates to it |
 | `core/commands/voice-commands.test.ts` | Pattern 1 — direct import | None |
 | `core/reply/smart-reply.test.ts` | Pattern 1 — direct import | None |
+| `core/coding/vibe-coding.test.ts` | Pattern 1 — direct import | None |
+| `core/capture/recurring-capture.test.ts` | Pattern 2 — extracted `isValidTime`, `parseTime`, `getIsoDay`, `shouldFire`, `getPresets` | New `bridge/recurring-capture-pure.js` |
+| `core/settings/settings-export.test.ts` | Pattern 2 — extracted `stripApiKeys`, `validateBundle`, `mergeArrays`. **Critical bug caught** — see below | New `bridge/settings-export-pure.js` |
 
 ## Regressions caught by the refactor
 
-- **language-detect.js**: SCRIPT_PATTERNS were declared without `/g`,
-  so `String.match(pattern).length` was always 1 and the
+- **language-detect.js** (batch 2): SCRIPT_PATTERNS were declared
+  without `/g`, so `String.match(pattern).length` was always 1 and the
   `ratio > 0.15` gate never triggered. Production `detectLanguage`
   silently returned English for every non-Latin-script string. The
   old test hid this because its inline reimplementation used
@@ -95,21 +100,30 @@ tests load it instantly in the vitest Node runtime without mocks.
   + added an inline NOTE comment so future reviewers don't strip the
   flag.
 
-## Remaining work — 25 files
+- **settings-export.js** (batch 3, critical, security-relevant):
+  The inline `stripApiKeys` used `String.includes("apiKey")`
+  (lowercase `a`) as its marker. The app stores real API keys as
+  `openaiApiKey`, `anthropicApiKey`, `groqApiKey`, `geminiApiKey`,
+  `mistralApiKey`, `customTranscriptionApiKey`, `customReasoningApiKey`
+  in `src/stores/settingsStore.ts` — every one of them has a capital
+  `A` after the provider name. `"openaiApiKey".includes("apiKey")`
+  returns **false**. The filter caught **none** of the real API keys
+  the app writes, meaning every settings export would have leaked
+  every plaintext API key to disk. The old test hid this by using a
+  fictitious kebab-case naming convention
+  (`"whisperwoof-openai-api-key"`) that the app never actually uses.
+  Fixed: the pure module now lowercases keys before matching and uses
+  an expanded marker list (`apikey`, `api-key`, `api_key`, `token`,
+  `secret`, `bearer`). Test pins against the exact key names from
+  `settingsStore.ts` so any rename there will trip the test until the
+  marker list is updated.
+
+## Remaining work — 22 files
 
 Grouped by effort. Each row needs the same pattern: find (or extract)
 the real source, wire the test to import it, drop the inline copy.
-
-### Bucket B: Direct import (bridge source already load-safe)
-
-Candidates where `bridge/<feature>.js` likely only requires debugLogger.
-Verify by grepping for `app.getPath` in the source first.
-
-- `bridge/vibe-coding.js` ← `core/coding/vibe-coding.test.ts`
-- `bridge/recurring-capture.js` ← `core/capture/recurring-capture.test.ts`
-- `bridge/settings-export.js` ← `core/settings/settings-export.test.ts`
-
-Effort: S each.
+**Bucket B is complete** — all direct-import opportunities have been
+exhausted. Every remaining file needs Pattern 2 or Bucket D work.
 
 ### Bucket C: Pattern 2 (bridge source crashes at load, extract pure sibling)
 
@@ -149,7 +163,8 @@ Effort: M each. Tackle 3–5 per session to avoid sprawl.
 
 ## Recommended next session
 
-Pick the 3 Bucket B candidates first (fastest, one commit each). Then
-move to Bucket C with a small batch of 3–5 related modules — likely
-start with `analytics`, `auto-tagger`, `webhooks` (all smallish,
-self-contained).
+With Bucket B done, the cheapest next wins are in Bucket C. Start with
+small, self-contained features: `analytics`, `auto-tagger`, `webhooks`.
+Each extracts 1–3 pure helpers into a sibling file, same pattern as
+`recurring-capture-pure.js` / `settings-export-pure.js`. Target 3–5
+files per session to avoid the bridge file sprawl getting messy.
