@@ -15,9 +15,16 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  MAX_ENTRIES,
+  filterVocabulary,
+  isDuplicateWord,
+  flattenSttHints,
+  computeVocabularyStats,
+  planVocabularyImport,
+} = require("./vocabulary-pure");
 
 const VOCAB_FILE = path.join(app.getPath("userData"), "whisperwoof-vocabulary.json");
-const MAX_ENTRIES = 1000;
 const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
 
 /**
@@ -88,25 +95,7 @@ function invalidateCache() {
 // --- CRUD ---
 
 function getVocabulary(options = {}) {
-  let entries = loadVocabulary();
-
-  if (options.category) {
-    entries = entries.filter((e) => e.category === options.category);
-  }
-  if (options.search) {
-    const q = options.search.toLowerCase();
-    entries = entries.filter((e) =>
-      e.word.toLowerCase().includes(q) ||
-      (e.alternatives || []).some((a) => a.toLowerCase().includes(q))
-    );
-  }
-  if (options.sortBy === "usage") {
-    entries = [...entries].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
-  } else {
-    entries = [...entries].sort((a, b) => a.word.localeCompare(b.word));
-  }
-
-  return entries;
+  return filterVocabulary(loadVocabulary(), options);
 }
 
 function addWord(word, options = {}) {
@@ -115,8 +104,7 @@ function addWord(word, options = {}) {
   const trimmed = word.trim();
   const entries = loadVocabulary();
 
-  // Dedup
-  if (entries.some((e) => e.word.toLowerCase() === trimmed.toLowerCase())) {
+  if (isDuplicateWord(entries, trimmed)) {
     return { success: false, error: `"${trimmed}" already exists` };
   }
 
@@ -195,33 +183,13 @@ function importWords(words, category = "general") {
   if (!Array.isArray(words)) return { success: false, error: "Words must be an array" };
 
   const entries = loadVocabulary();
-  const existing = new Set(entries.map((e) => e.word.toLowerCase()));
-  let added = 0;
+  const { additions } = planVocabularyImport(entries, words, category);
 
-  const newEntries = [];
-  for (const word of words) {
-    const trimmed = (typeof word === "string" ? word : word?.word || "").trim();
-    if (!trimmed || existing.has(trimmed.toLowerCase())) continue;
-    if (entries.length + newEntries.length >= MAX_ENTRIES) break;
-
-    existing.add(trimmed.toLowerCase());
-    newEntries.push({
-      id: `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      word: trimmed,
-      category: typeof word === "object" ? (word.category || category) : category,
-      alternatives: typeof word === "object" ? (word.alternatives || []) : [],
-      createdAt: new Date().toISOString(),
-      source: "import",
-      usageCount: 0,
-    });
-    added++;
+  if (additions.length > 0) {
+    saveVocabulary([...entries, ...additions]);
   }
 
-  if (newEntries.length > 0) {
-    saveVocabulary([...entries, ...newEntries]);
-  }
-
-  return { success: true, added, total: entries.length + newEntries.length };
+  return { success: true, added: additions.length, total: entries.length + additions.length };
 }
 
 function exportWords() {
@@ -304,66 +272,21 @@ function getTrackedApps() {
  * When bundleId is provided, boost app-specific words to the front.
  */
 function getSttHints(bundleId) {
-  const entries = loadVocabulary();
-  const hints = [];
-  const hintSet = new Set();
-
-  // If bundleId provided, put app-specific words first
-  if (bundleId) {
-    const appEntries = entries
-      .filter((e) => e.appContexts && e.appContexts[bundleId])
-      .sort((a, b) => (b.appContexts[bundleId]?.count || 0) - (a.appContexts[bundleId]?.count || 0));
-
-    for (const entry of appEntries) {
-      if (!hintSet.has(entry.word)) {
-        hints.push(entry.word);
-        hintSet.add(entry.word);
-      }
-      for (const alt of entry.alternatives || []) {
-        if (!hintSet.has(alt)) { hints.push(alt); hintSet.add(alt); }
-      }
-    }
-  }
-
-  // Then add remaining words
-  for (const entry of entries) {
-    if (!hintSet.has(entry.word)) {
-      hints.push(entry.word);
-      hintSet.add(entry.word);
-    }
-    for (const alt of entry.alternatives || []) {
-      if (!hintSet.has(alt)) { hints.push(alt); hintSet.add(alt); }
-    }
-  }
-
-  return hints;
+  return flattenSttHints(loadVocabulary(), bundleId);
 }
 
 /**
  * Get vocabulary stats including per-app breakdown.
+ *
+ * Delegates the pure math (category counts, top-used, source
+ * breakdown) to vocabulary-pure and layers in the per-app tracking
+ * which needs disk-backed data.
  */
 function getVocabularyStats() {
   const entries = loadVocabulary();
-  const categories = {};
-  for (const entry of entries) {
-    categories[entry.category] = (categories[entry.category] || 0) + 1;
-  }
-
-  const trackedApps = getTrackedApps();
-  const autoLearnedCount = entries.filter((e) => e.source === "auto-learn").length;
-  const manualCount = entries.filter((e) => e.source === "manual").length;
-
   return {
-    total: entries.length,
-    max: MAX_ENTRIES,
-    autoLearned: autoLearnedCount,
-    manual: manualCount,
-    categories,
-    trackedApps,
-    topUsed: [...entries].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 5).map((e) => ({
-      word: e.word,
-      usageCount: e.usageCount || 0,
-    })),
+    ...computeVocabularyStats(entries),
+    trackedApps: getTrackedApps(),
   };
 }
 

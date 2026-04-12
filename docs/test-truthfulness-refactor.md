@@ -1,14 +1,12 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 22 of ~35 files shipped across six sessions on `2026-04-11`.
-13 remaining, tracked below. **Bucket B and Bucket C batches 1–3 are
-complete.** Notable finding from batch 2: three bridge modules
-(`auto-tagger`, `semantic-search`, `screen-context`) were actually
-load-safe and already exported every pure helper — the old tests just
-never imported them. Batch 3 confirmed it: `intent-capture` was also a
-direct-import win. Direct-import candidates are more common than the
-original audit assumed; always check the source's top-level requires
-before resorting to Pattern 2.
+**Status:** 23 of ~35 files shipped across seven sessions on `2026-04-11`.
+12 remaining, tracked below. **Bucket B and Bucket C batches 1–4 are
+complete.** Notable pattern from batch 4: `vocabulary`'s import planner
+is the first pure extraction to take injected `nowIso` + `idFactory`
+arguments — a good template for any remaining Pattern 2 files that
+need to generate timestamped or randomly-id'd records deterministically
+in tests.
 
 ## Problem statement
 
@@ -76,7 +74,7 @@ Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 The pure file has no electron / fs / app / debugLogger requires, so
 tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped (22 files across batches 1 + 2 + 3 + 4 + 5 + 6)
+## Shipped (23 files across batches 1 + 2 + 3 + 4 + 5 + 6 + 7)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
@@ -102,6 +100,7 @@ tests load it instantly in the vitest Node runtime without mocks.
 | `core/context/screen-context.test.ts` | Pattern 1 — direct import. Source only requires `child_process` + `debugLogger`. Added screen-vs-voice-command disambiguation guards | None |
 | `core/keybindings/keybindings.test.ts` | Pattern 2 — extracted `DEFAULT_KEYBINDINGS`, `CATEGORIES`, `KEY_COMBO_PATTERN`, `isValidKeyCombo`, `mergeWithOverrides`, `detectConflict`, `validateKeybindingBundle`. Production `rebindAction` + `importKeybindings` delegate. Added default-integrity assertions (every default uses a valid combo, every binding maps to a real category) | New `bridge/keybindings-pure.js` |
 | `core/intent/intent-capture.test.ts` | Pattern 1 — direct import. Added an assertion that every `RAMBLING_SIGNALS` regex has the `/g` flag (same class of bug as the `language-detect` regression caught in batch 2) | None |
+| `core/vocabulary/vocabulary.test.ts` | Pattern 2 — extracted `filterVocabulary`, `isDuplicateWord`, `flattenSttHints`, `computeVocabularyStats`, `planVocabularyImport`, `MAX_ENTRIES`. `planVocabularyImport` takes `nowIso` + `idFactory` as DI args for deterministic tests | New `bridge/vocabulary-pure.js` |
 
 ## Regressions caught by the refactor
 
@@ -132,7 +131,7 @@ tests load it instantly in the vitest Node runtime without mocks.
   `settingsStore.ts` so any rename there will trip the test until the
   marker list is updated.
 
-## Remaining work — 13 files
+## Remaining work — 12 files
 
 Grouped by effort. Each row still needs the same pattern: find (or
 extract) the real source, wire the test to import it, drop the
@@ -148,8 +147,6 @@ first** — more files than expected turn out to be load-safe.
 - `bridge/entry-chains.js` ← `core/chains/entry-chains.test.ts`
 - `bridge/entry-templates.js` ← `core/templates/entry-templates.test.ts`
 - `bridge/streaming-manager.js` ← `core/streaming/streaming-manager.test.ts`
-- `bridge/vocabulary.js` ← `core/vocabulary/vocabulary.test.ts`
-
 Effort: S–M each depending on whether Pattern 1 or Pattern 2 applies.
 Tackle 3–5 per session.
 
