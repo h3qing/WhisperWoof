@@ -1,188 +1,186 @@
 /**
- * Tests for Language Detection — multi-language support
+ * Tests for Language Detection — multi-language support.
  *
- * Tests script-based and word-frequency heuristic detection.
+ * Imports the real `detectLanguage`, `SCRIPT_PATTERNS`, and `WORD_PATTERNS`
+ * from bridge/language-detect.js so regressions in the script/word-frequency
+ * heuristics are caught. The source only requires debugLogger.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from "vitest";
 
-// Re-implement detection logic for testing
+vi.mock("../../../helpers/debugLogger", () => ({
+  log: vi.fn(),
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
 
-const SCRIPT_PATTERNS = [
-  { lang: "ja", pattern: /[\u3040-\u309F\u30A0-\u30FF]/ },
-  { lang: "ko", pattern: /[\uAC00-\uD7AF\u1100-\u11FF]/ },
-  { lang: "zh", pattern: /[\u4E00-\u9FFF\u3400-\u4DBF]/ },
-  { lang: "ar", pattern: /[\u0600-\u06FF\u0750-\u077F]/ },
-  { lang: "hi", pattern: /[\u0900-\u097F]/ },
-  { lang: "th", pattern: /[\u0E00-\u0E7F]/ },
-  { lang: "ru", pattern: /[\u0400-\u04FF]/ },
-];
+// @ts-expect-error — CommonJS module, no TS declarations
+import {
+  detectLanguage,
+  getLanguagePolishSuffix,
+  getSupportedLanguages,
+  LANGUAGE_NAMES,
+} from "../../bridge/language-detect";
 
-const WORD_PATTERNS = [
-  { lang: "es", words: ["que", "por", "las", "los", "una", "del", "con", "para", "como", "esta", "pero", "más", "tiene", "también", "puede"] },
-  { lang: "fr", words: ["les", "des", "une", "que", "est", "dans", "pour", "pas", "qui", "sur", "avec", "sont", "mais", "cette", "tout"] },
-  { lang: "de", words: ["der", "die", "das", "und", "ist", "ein", "eine", "für", "mit", "auf", "den", "nicht", "sich", "auch", "werden"] },
-  { lang: "pt", words: ["que", "para", "uma", "com", "por", "não", "mais", "está", "tem", "são", "mas", "como", "muito", "também", "pode"] },
-  { lang: "it", words: ["che", "per", "una", "con", "sono", "non", "come", "questo", "anche", "della", "più", "alla", "nella", "essere", "fatto"] },
-];
-
-function detectLanguage(text: string | null): { lang: string; name: string; confidence: string } {
-  if (!text || text.trim().length < 5) {
-    return { lang: "en", name: "English", confidence: "default" };
-  }
-
-  const trimmed = text.trim();
-
-  // Script-based
-  for (const { lang, pattern } of SCRIPT_PATTERNS) {
-    const matches = (trimmed.match(new RegExp(pattern.source, "g")) || []).length;
-    if (matches / trimmed.length > 0.15) {
-      return { lang, name: lang, confidence: "high" };
-    }
-  }
-
-  // Word-frequency
-  const words = trimmed.toLowerCase().split(/\s+/);
-  if (words.length < 3) return { lang: "en", name: "English", confidence: "default" };
-
-  const wordSet = new Set(words);
-  let bestLang: string | null = null;
-  let bestScore = 0;
-
-  for (const { lang, words: markers } of WORD_PATTERNS) {
-    const matchCount = markers.filter((m) => wordSet.has(m)).length;
-    const score = matchCount / markers.length;
-    if (score > bestScore) {
-      bestScore = score;
-      bestLang = lang;
-    }
-  }
-
-  if (bestLang && bestScore >= 0.2) {
-    return { lang: bestLang, name: bestLang, confidence: bestScore >= 0.4 ? "high" : "medium" };
-  }
-
-  return { lang: "en", name: "English", confidence: "default" };
-}
-
-describe('Language Detection', () => {
-  describe('script-based detection', () => {
-    it('detects Japanese (hiragana/katakana)', () => {
-      expect(detectLanguage("これはテストです。日本語のテキストです。")).toEqual(
-        expect.objectContaining({ lang: "ja", confidence: "high" })
-      );
-    });
-
-    it('detects Korean (Hangul)', () => {
-      expect(detectLanguage("이것은 한국어 텍스트입니다. 테스트합니다.")).toEqual(
-        expect.objectContaining({ lang: "ko", confidence: "high" })
-      );
-    });
-
-    it('detects Chinese (CJK)', () => {
-      expect(detectLanguage("这是一个中文文本测试。你好世界。")).toEqual(
-        expect.objectContaining({ lang: "zh", confidence: "high" })
-      );
-    });
-
-    it('detects Arabic', () => {
-      expect(detectLanguage("هذا نص باللغة العربية للاختبار")).toEqual(
-        expect.objectContaining({ lang: "ar", confidence: "high" })
-      );
-    });
-
-    it('detects Russian (Cyrillic)', () => {
-      expect(detectLanguage("Это текст на русском языке для тестирования")).toEqual(
-        expect.objectContaining({ lang: "ru", confidence: "high" })
-      );
-    });
-
-    it('detects Hindi (Devanagari)', () => {
-      expect(detectLanguage("यह हिंदी में एक परीक्षण पाठ है")).toEqual(
-        expect.objectContaining({ lang: "hi", confidence: "high" })
-      );
-    });
-
-    it('detects Thai', () => {
-      expect(detectLanguage("นี่คือข้อความภาษาไทยสำหรับการทดสอบ")).toEqual(
-        expect.objectContaining({ lang: "th", confidence: "high" })
-      );
-    });
+describe("detectLanguage — script-based detection", () => {
+  it("detects Japanese (hiragana/katakana)", () => {
+    const result = detectLanguage("これはテストです。日本語のテキストです。");
+    expect(result.lang).toBe("ja");
+    expect(result.name).toBe("Japanese");
+    expect(result.confidence).toBe("high");
   });
 
-  describe('word-frequency detection (Latin scripts)', () => {
-    it('detects Spanish', () => {
-      const result = detectLanguage("Esta es una prueba del sistema para detectar que idioma estamos usando con más palabras");
-      expect(result.lang).toBe("es");
-    });
-
-    it('detects French', () => {
-      const result = detectLanguage("Les résultats sont dans une base de données pour les utilisateurs qui sont sur cette plateforme");
-      expect(result.lang).toBe("fr");
-    });
-
-    it('detects German', () => {
-      const result = detectLanguage("Der Mann ist ein guter Freund und die Frau ist auch eine nette Person für das Team");
-      expect(result.lang).toBe("de");
-    });
-
-    it('detects Italian', () => {
-      const result = detectLanguage("Questo non è un problema per una persona che viene anche dalla città della regione");
-      expect(result.lang).toBe("it");
-    });
+  it("detects Korean (Hangul)", () => {
+    const result = detectLanguage("이것은 한국어 텍스트입니다. 테스트합니다.");
+    expect(result.lang).toBe("ko");
+    expect(result.confidence).toBe("high");
   });
 
-  describe('English (default)', () => {
-    it('defaults to English for English text', () => {
-      const result = detectLanguage("I need to buy groceries and pick up the kids from school today");
-      expect(result.lang).toBe("en");
-    });
-
-    it('defaults to English for short text', () => {
-      expect(detectLanguage("hi")).toEqual(
-        expect.objectContaining({ lang: "en", confidence: "default" })
-      );
-    });
-
-    it('defaults to English for null', () => {
-      expect(detectLanguage(null)).toEqual(
-        expect.objectContaining({ lang: "en", confidence: "default" })
-      );
-    });
-
-    it('defaults to English for empty string', () => {
-      expect(detectLanguage("")).toEqual(
-        expect.objectContaining({ lang: "en", confidence: "default" })
-      );
-    });
+  it("detects Chinese (CJK)", () => {
+    const result = detectLanguage("这是一个中文文本测试。你好世界。");
+    expect(result.lang).toBe("zh");
+    expect(result.confidence).toBe("high");
   });
 
-  describe('confidence levels', () => {
-    it('script detection is always high confidence', () => {
-      expect(detectLanguage("これはテストです。日本語のテキストです。").confidence).toBe("high");
-    });
-
-    it('strong word match is high confidence', () => {
-      const result = detectLanguage("Les résultats sont dans une base de données pour les utilisateurs qui sont sur cette plateforme avec des outils");
-      expect(["high", "medium"]).toContain(result.confidence);
-    });
-
-    it('English defaults have default confidence', () => {
-      expect(detectLanguage("hello world test").confidence).toBe("default");
-    });
+  it("detects Arabic", () => {
+    const result = detectLanguage("هذا نص باللغة العربية للاختبار");
+    expect(result.lang).toBe("ar");
+    expect(result.confidence).toBe("high");
   });
 
-  describe('edge cases', () => {
-    it('handles mixed-script text (majority wins)', () => {
-      // Mostly Japanese with some English words
-      const result = detectLanguage("これはtestです。日本語のtextです。テストrunning。");
-      expect(result.lang).toBe("ja");
-    });
+  it("detects Russian (Cyrillic)", () => {
+    const result = detectLanguage("Это текст на русском языке для тестирования");
+    expect(result.lang).toBe("ru");
+    expect(result.confidence).toBe("high");
+  });
 
-    it('handles numbers and punctuation gracefully', () => {
-      expect(detectLanguage("12345 !@#$% 67890")).toEqual(
-        expect.objectContaining({ lang: "en", confidence: "default" })
-      );
-    });
+  it("detects Hindi (Devanagari)", () => {
+    const result = detectLanguage("यह हिंदी में एक परीक्षण पाठ है");
+    expect(result.lang).toBe("hi");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("detects Thai", () => {
+    const result = detectLanguage("นี่คือข้อความภาษาไทยสำหรับการทดสอบ");
+    expect(result.lang).toBe("th");
+    expect(result.confidence).toBe("high");
+  });
+});
+
+describe("detectLanguage — word-frequency detection (Latin scripts)", () => {
+  it("detects Spanish", () => {
+    const result = detectLanguage(
+      "Esta es una prueba del sistema para detectar que idioma estamos usando con más palabras",
+    );
+    expect(result.lang).toBe("es");
+  });
+
+  it("detects French", () => {
+    const result = detectLanguage(
+      "Les résultats sont dans une base de données pour les utilisateurs qui sont sur cette plateforme",
+    );
+    expect(result.lang).toBe("fr");
+  });
+
+  it("detects German", () => {
+    const result = detectLanguage(
+      "Der Mann ist ein guter Freund und die Frau ist auch eine nette Person für das Team",
+    );
+    expect(result.lang).toBe("de");
+  });
+
+  it("detects Italian", () => {
+    const result = detectLanguage(
+      "Questo non è un problema per una persona che viene anche dalla città della regione",
+    );
+    expect(result.lang).toBe("it");
+  });
+});
+
+describe("detectLanguage — English default / short-circuit", () => {
+  it("defaults to English for English text", () => {
+    const result = detectLanguage("I need to buy groceries and pick up the kids from school today");
+    expect(result.lang).toBe("en");
+  });
+
+  it("defaults to English for short text (< 5 chars)", () => {
+    const result = detectLanguage("hi");
+    expect(result.lang).toBe("en");
+    expect(result.confidence).toBe("default");
+  });
+
+  it("defaults to English for null", () => {
+    const result = detectLanguage(null);
+    expect(result.lang).toBe("en");
+    expect(result.confidence).toBe("default");
+  });
+
+  it("defaults to English for empty string", () => {
+    const result = detectLanguage("");
+    expect(result.lang).toBe("en");
+    expect(result.confidence).toBe("default");
+  });
+});
+
+describe("detectLanguage — mixed and edge cases", () => {
+  it("handles mixed-script text (majority script wins)", () => {
+    const result = detectLanguage("これはtestです。日本語のtextです。テストrunning。");
+    expect(result.lang).toBe("ja");
+  });
+
+  it("handles numbers and punctuation gracefully (defaults to English)", () => {
+    const result = detectLanguage("12345 !@#$% 67890");
+    expect(result.lang).toBe("en");
+  });
+});
+
+describe("getLanguagePolishSuffix", () => {
+  it("returns empty string for English", () => {
+    expect(getLanguagePolishSuffix("en")).toBe("");
+  });
+
+  it("returns empty string for null / undefined", () => {
+    expect(getLanguagePolishSuffix(null)).toBe("");
+    expect(getLanguagePolishSuffix(undefined)).toBe("");
+  });
+
+  it("names the detected language so the polish prompt stays in-language", () => {
+    const suffix = getLanguagePolishSuffix("ja");
+    expect(suffix).toContain("Japanese");
+    expect(suffix).toContain("Do NOT translate");
+  });
+
+  it("falls back to the raw code if language name is unknown", () => {
+    expect(getLanguagePolishSuffix("xx")).toContain("xx");
+  });
+});
+
+describe("getSupportedLanguages", () => {
+  it("lists all languages in LANGUAGE_NAMES with {code, name}", () => {
+    const list = getSupportedLanguages();
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.every((l: { code: string; name: string }) => !!l.code && !!l.name)).toBe(true);
+  });
+
+  it("includes English and at least one non-Latin script language", () => {
+    const list = getSupportedLanguages() as { code: string; name: string }[];
+    const codes = list.map((l) => l.code);
+    expect(codes).toContain("en");
+    expect(codes).toContain("ja");
+  });
+});
+
+describe("LANGUAGE_NAMES registry", () => {
+  it("maps 'en' to 'English'", () => {
+    expect(LANGUAGE_NAMES.en).toBe("English");
+  });
+
+  it("covers both script-based and word-frequency languages", () => {
+    expect(LANGUAGE_NAMES.ja).toBe("Japanese");
+    expect(LANGUAGE_NAMES.es).toBe("Spanish");
+    expect(LANGUAGE_NAMES.fr).toBe("French");
   });
 });

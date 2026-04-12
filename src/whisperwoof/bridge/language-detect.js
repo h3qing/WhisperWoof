@@ -16,14 +16,17 @@ const debugLogger = require("../../helpers/debugLogger");
 
 // --- Character-range heuristics ---
 
+// NOTE: /g is required. Without it, String.match returns only the first hit,
+// so matches.length === 1 and ratio = 1/N never clears the 0.15 threshold for
+// any real-length string, which silently breaks script-based detection.
 const SCRIPT_PATTERNS = [
-  { lang: "ja", pattern: /[\u3040-\u309F\u30A0-\u30FF]/, name: "Japanese" },
-  { lang: "ko", pattern: /[\uAC00-\uD7AF\u1100-\u11FF]/, name: "Korean" },
-  { lang: "zh", pattern: /[\u4E00-\u9FFF\u3400-\u4DBF]/, name: "Chinese" },
-  { lang: "ar", pattern: /[\u0600-\u06FF\u0750-\u077F]/, name: "Arabic" },
-  { lang: "hi", pattern: /[\u0900-\u097F]/, name: "Hindi" },
-  { lang: "th", pattern: /[\u0E00-\u0E7F]/, name: "Thai" },
-  { lang: "ru", pattern: /[\u0400-\u04FF]/, name: "Russian" },
+  { lang: "ja", pattern: /[\u3040-\u309F\u30A0-\u30FF]/g, name: "Japanese" },
+  { lang: "ko", pattern: /[\uAC00-\uD7AF\u1100-\u11FF]/g, name: "Korean" },
+  { lang: "zh", pattern: /[\u4E00-\u9FFF\u3400-\u4DBF]/g, name: "Chinese" },
+  { lang: "ar", pattern: /[\u0600-\u06FF\u0750-\u077F]/g, name: "Arabic" },
+  { lang: "hi", pattern: /[\u0900-\u097F]/g, name: "Hindi" },
+  { lang: "th", pattern: /[\u0E00-\u0E7F]/g, name: "Thai" },
+  { lang: "ru", pattern: /[\u0400-\u04FF]/g, name: "Russian" },
 ];
 
 // --- Common word heuristics for Latin-script languages ---

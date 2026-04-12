@@ -215,6 +215,21 @@ function getProviders() {
 }
 
 /**
+ * Validate a provider config (provider id + api key presence).
+ * Returns null if valid, or a human-readable error string.
+ *
+ * Extracted so tests can exercise the real check directly instead of
+ * reimplementing the registry lookup and api-key gate in parallel.
+ */
+function validateConfig(config = {}) {
+  const providerId = config.provider || "ollama";
+  const provider = PROVIDERS[providerId];
+  if (!provider) return `Unknown provider: ${providerId}`;
+  if (provider.requiresApiKey && !config.apiKey) return `${provider.name} requires an API key`;
+  return null;
+}
+
+/**
  * Polish text using the configured provider.
  * Falls back to raw text on any failure.
  *
@@ -223,16 +238,13 @@ function getProviders() {
  * @param {object} config - { provider, model, apiKey, baseUrl, timeoutMs }
  */
 async function polishWithProvider(text, systemPrompt, config = {}) {
+  const validationError = validateConfig(config);
+  if (validationError) {
+    return { text, polished: false, error: validationError };
+  }
+
   const providerId = config.provider || "ollama";
   const provider = PROVIDERS[providerId];
-
-  if (!provider) {
-    return { text, polished: false, error: `Unknown provider: ${providerId}` };
-  }
-
-  if (provider.requiresApiKey && !config.apiKey) {
-    return { text, polished: false, error: `${provider.name} requires an API key` };
-  }
 
   const startTime = Date.now();
 
@@ -268,5 +280,6 @@ async function polishWithProvider(text, systemPrompt, config = {}) {
 module.exports = {
   getProviders,
   polishWithProvider,
+  validateConfig,
   PROVIDERS,
 };
