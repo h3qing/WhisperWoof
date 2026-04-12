@@ -1,149 +1,107 @@
 /**
- * Tests for Privacy Lock Mode — URL/provider validation, overrides
+ * Tests for Privacy Lock Mode — URL / provider validation + overrides.
+ *
+ * Imports the real allowlist helpers from the pure bridge module so these
+ * tests catch regressions in the production security checks. The persisted
+ * state (loadState/saveState) and lock/unlock lifecycle live in
+ * privacy-lock.js and are out of scope here.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
+// @ts-expect-error — CommonJS module, no TS declarations
+import {
+  DEFAULT_ALLOWED_LOCAL,
+  PRIVACY_OVERRIDES,
+  isUrlAllowedWhenLocked,
+  isProviderAllowedWhenLocked,
+} from "../../bridge/privacy-lock-pure";
 
-// Re-implement pure validation logic for testing
-
-const ALLOWED_LOCAL = ["localhost", "127.0.0.1", "0.0.0.0", "::1"];
-
-function isUrlAllowed(url: string, locked: boolean): boolean {
-  if (!locked) return true;
-  try {
-    const parsed = new URL(url);
-    return ALLOWED_LOCAL.includes(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
-
-function isProviderAllowed(providerId: string, locked: boolean): boolean {
-  if (!locked) return true;
-  return providerId === "ollama";
-}
-
-function getPrivacyOverrides(locked: boolean) {
-  if (!locked) return null;
-  return {
-    provider: "ollama",
-    useLocalWhisper: true,
-    cloudSttDisabled: true,
-    telegramSyncPaused: true,
-    analyticsDisabled: true,
-    pluginNetworkBlocked: true,
-  };
-}
-
-describe('Privacy Lock Mode', () => {
-  describe('URL validation (locked)', () => {
-    it('allows localhost URLs', () => {
-      expect(isUrlAllowed("http://localhost:11434/api/chat", true)).toBe(true);
-      expect(isUrlAllowed("http://127.0.0.1:11434/api/tags", true)).toBe(true);
-      expect(isUrlAllowed("http://0.0.0.0:8080/test", true)).toBe(true);
-    });
-
-    it('blocks cloud URLs', () => {
-      expect(isUrlAllowed("https://api.openai.com/v1/chat/completions", true)).toBe(false);
-      expect(isUrlAllowed("https://api.anthropic.com/v1/messages", true)).toBe(false);
-      expect(isUrlAllowed("https://api.groq.com/openai/v1/chat/completions", true)).toBe(false);
-      expect(isUrlAllowed("https://api.todoist.com/rest/v2/tasks", true)).toBe(false);
-    });
-
-    it('blocks Telegram API', () => {
-      expect(isUrlAllowed("https://api.telegram.org/bot123/getUpdates", true)).toBe(false);
-    });
-
-    it('blocks invalid URLs', () => {
-      expect(isUrlAllowed("not-a-url", true)).toBe(false);
-      expect(isUrlAllowed("", true)).toBe(false);
-    });
+describe("isUrlAllowedWhenLocked", () => {
+  it("allows localhost URLs", () => {
+    expect(isUrlAllowedWhenLocked("http://localhost:11434/api/chat")).toBe(true);
+    expect(isUrlAllowedWhenLocked("http://127.0.0.1:11434/api/tags")).toBe(true);
+    expect(isUrlAllowedWhenLocked("http://0.0.0.0:8080/test")).toBe(true);
   });
 
-  describe('URL validation (unlocked)', () => {
-    it('allows all URLs when unlocked', () => {
-      expect(isUrlAllowed("https://api.openai.com/v1/chat", false)).toBe(true);
-      expect(isUrlAllowed("https://api.anthropic.com/v1/messages", false)).toBe(true);
-      expect(isUrlAllowed("http://localhost:11434/api/chat", false)).toBe(true);
-    });
+  it("blocks cloud URLs", () => {
+    expect(isUrlAllowedWhenLocked("https://api.openai.com/v1/chat/completions")).toBe(false);
+    expect(isUrlAllowedWhenLocked("https://api.anthropic.com/v1/messages")).toBe(false);
+    expect(isUrlAllowedWhenLocked("https://api.groq.com/openai/v1/chat/completions")).toBe(false);
+    expect(isUrlAllowedWhenLocked("https://api.todoist.com/rest/v2/tasks")).toBe(false);
   });
 
-  describe('provider validation', () => {
-    it('only allows ollama when locked', () => {
-      expect(isProviderAllowed("ollama", true)).toBe(true);
-      expect(isProviderAllowed("openai", true)).toBe(false);
-      expect(isProviderAllowed("anthropic", true)).toBe(false);
-      expect(isProviderAllowed("groq", true)).toBe(false);
-    });
-
-    it('allows all providers when unlocked', () => {
-      expect(isProviderAllowed("ollama", false)).toBe(true);
-      expect(isProviderAllowed("openai", false)).toBe(true);
-      expect(isProviderAllowed("anthropic", false)).toBe(true);
-      expect(isProviderAllowed("groq", false)).toBe(true);
-    });
+  it("blocks Telegram API", () => {
+    expect(isUrlAllowedWhenLocked("https://api.telegram.org/bot123/getUpdates")).toBe(false);
   });
 
-  describe('privacy overrides', () => {
-    it('returns overrides when locked', () => {
-      const overrides = getPrivacyOverrides(true);
-      expect(overrides).not.toBeNull();
-      expect(overrides!.provider).toBe("ollama");
-      expect(overrides!.useLocalWhisper).toBe(true);
-      expect(overrides!.cloudSttDisabled).toBe(true);
-      expect(overrides!.telegramSyncPaused).toBe(true);
-      expect(overrides!.analyticsDisabled).toBe(true);
-      expect(overrides!.pluginNetworkBlocked).toBe(true);
-    });
-
-    it('returns null when unlocked', () => {
-      expect(getPrivacyOverrides(false)).toBeNull();
-    });
-
-    it('overrides force ollama provider', () => {
-      const overrides = getPrivacyOverrides(true)!;
-      expect(overrides.provider).toBe("ollama");
-    });
-
-    it('overrides disable all cloud services', () => {
-      const overrides = getPrivacyOverrides(true)!;
-      expect(overrides.cloudSttDisabled).toBe(true);
-      expect(overrides.telegramSyncPaused).toBe(true);
-      expect(overrides.analyticsDisabled).toBe(true);
-    });
+  it("blocks invalid URLs (fail-closed)", () => {
+    expect(isUrlAllowedWhenLocked("not-a-url")).toBe(false);
+    expect(isUrlAllowedWhenLocked("")).toBe(false);
   });
 
-  describe('localhost variants', () => {
-    it('recognizes all standard local addresses', () => {
-      expect(ALLOWED_LOCAL).toContain("localhost");
-      expect(ALLOWED_LOCAL).toContain("127.0.0.1");
-      expect(ALLOWED_LOCAL).toContain("0.0.0.0");
-      expect(ALLOWED_LOCAL).toContain("::1");
-    });
-
-    it('has exactly 4 allowed addresses', () => {
-      expect(ALLOWED_LOCAL).toHaveLength(4);
-    });
+  it("handles localhost with port and path", () => {
+    expect(isUrlAllowedWhenLocked("http://localhost:3000")).toBe(true);
+    expect(isUrlAllowedWhenLocked("http://localhost:11434/api/chat")).toBe(true);
+    expect(isUrlAllowedWhenLocked("http://localhost/deep/path/here")).toBe(true);
   });
 
-  describe('edge cases', () => {
-    it('handles localhost with port', () => {
-      expect(isUrlAllowed("http://localhost:3000", true)).toBe(true);
-      expect(isUrlAllowed("http://localhost:11434/api/chat", true)).toBe(true);
-    });
+  it("blocks local-looking but not actually local domains", () => {
+    expect(isUrlAllowedWhenLocked("http://localhost.evil.com/steal")).toBe(false);
+  });
 
-    it('handles localhost with path', () => {
-      expect(isUrlAllowed("http://localhost/deep/path/here", true)).toBe(true);
-    });
+  it("blocks private IP ranges (only explicit loopback passes)", () => {
+    expect(isUrlAllowedWhenLocked("http://192.168.1.1:11434")).toBe(false);
+    expect(isUrlAllowedWhenLocked("http://10.0.0.1:11434")).toBe(false);
+  });
 
-    it('blocks local-looking but not actually local domains', () => {
-      expect(isUrlAllowed("http://localhost.evil.com/steal", true)).toBe(false);
-    });
+  it("honors a custom allowlist passed by the caller", () => {
+    const custom = ["10.0.0.5"];
+    expect(isUrlAllowedWhenLocked("http://10.0.0.5/path", custom)).toBe(true);
+    expect(isUrlAllowedWhenLocked("http://localhost", custom)).toBe(false);
+  });
+});
 
-    it('blocks private IP ranges (not just loopback)', () => {
-      // Privacy lock is strict — only explicit localhost, not 192.168.x.x
-      expect(isUrlAllowed("http://192.168.1.1:11434", true)).toBe(false);
-      expect(isUrlAllowed("http://10.0.0.1:11434", true)).toBe(false);
-    });
+describe("isProviderAllowedWhenLocked", () => {
+  it("only allows ollama", () => {
+    expect(isProviderAllowedWhenLocked("ollama")).toBe(true);
+    expect(isProviderAllowedWhenLocked("openai")).toBe(false);
+    expect(isProviderAllowedWhenLocked("anthropic")).toBe(false);
+    expect(isProviderAllowedWhenLocked("groq")).toBe(false);
+    expect(isProviderAllowedWhenLocked("")).toBe(false);
+  });
+});
+
+describe("PRIVACY_OVERRIDES", () => {
+  it("forces ollama provider and local STT", () => {
+    expect(PRIVACY_OVERRIDES.provider).toBe("ollama");
+    expect(PRIVACY_OVERRIDES.useLocalWhisper).toBe(true);
+  });
+
+  it("disables all cloud-dependent services", () => {
+    expect(PRIVACY_OVERRIDES.cloudSttDisabled).toBe(true);
+    expect(PRIVACY_OVERRIDES.telegramSyncPaused).toBe(true);
+    expect(PRIVACY_OVERRIDES.analyticsDisabled).toBe(true);
+    expect(PRIVACY_OVERRIDES.pluginNetworkBlocked).toBe(true);
+  });
+
+  it("is frozen so runtime mutation can't relax the lock", () => {
+    expect(Object.isFrozen(PRIVACY_OVERRIDES)).toBe(true);
+  });
+});
+
+describe("DEFAULT_ALLOWED_LOCAL", () => {
+  it("recognizes all standard loopback addresses", () => {
+    expect(DEFAULT_ALLOWED_LOCAL).toContain("localhost");
+    expect(DEFAULT_ALLOWED_LOCAL).toContain("127.0.0.1");
+    expect(DEFAULT_ALLOWED_LOCAL).toContain("0.0.0.0");
+    expect(DEFAULT_ALLOWED_LOCAL).toContain("::1");
+  });
+
+  it("has exactly 4 allowed addresses", () => {
+    expect(DEFAULT_ALLOWED_LOCAL).toHaveLength(4);
+  });
+
+  it("is frozen so runtime mutation can't widen the allowlist", () => {
+    expect(Object.isFrozen(DEFAULT_ALLOWED_LOCAL)).toBe(true);
   });
 });

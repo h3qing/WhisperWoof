@@ -21,6 +21,12 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  DEFAULT_ALLOWED_LOCAL,
+  PRIVACY_OVERRIDES,
+  isUrlAllowedWhenLocked,
+  isProviderAllowedWhenLocked,
+} = require("./privacy-lock-pure");
 
 const PRIVACY_FILE = path.join(app.getPath("userData"), "whisperwoof-privacy.json");
 
@@ -47,7 +53,7 @@ function loadState() {
     autoLockOnBattery: false,
     autoLockOnVpn: false,
     networkBlockList: [], // Additional domains to always block
-    allowedLocalAddresses: ["localhost", "127.0.0.1", "0.0.0.0", "::1"],
+    allowedLocalAddresses: [...DEFAULT_ALLOWED_LOCAL],
   };
 
   return privacyState;
@@ -142,38 +148,22 @@ function getPrivacyState() {
 // --- Network validation ---
 
 /**
- * Check if a URL is allowed under privacy lock.
- * Only localhost addresses pass.
+ * Check if a URL is allowed under privacy lock. Pure allowlist check lives
+ * in privacy-lock-pure.js; this wrapper just layers on the persisted state.
  */
 function isUrlAllowed(url) {
   const state = loadState();
-
-  // If not locked, everything is allowed
   if (!state.locked) return true;
-
-  try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname;
-
-    // Allow localhost variants
-    if (state.allowedLocalAddresses.includes(hostname)) return true;
-
-    // Block everything else
-    return false;
-  } catch {
-    // Invalid URL — block it
-    return false;
-  }
+  return isUrlAllowedWhenLocked(url, state.allowedLocalAddresses);
 }
 
 /**
  * Check if a provider is allowed under privacy lock.
- * Only "ollama" is allowed when locked.
  */
 function isProviderAllowed(providerId) {
   const state = loadState();
   if (!state.locked) return true;
-  return providerId === "ollama";
+  return isProviderAllowedWhenLocked(providerId);
 }
 
 /**
@@ -183,15 +173,7 @@ function isProviderAllowed(providerId) {
 function getPrivacyOverrides() {
   const state = loadState();
   if (!state.locked) return null;
-
-  return {
-    provider: "ollama",           // Force local LLM
-    useLocalWhisper: true,        // Force local STT
-    cloudSttDisabled: true,       // No cloud transcription
-    telegramSyncPaused: true,     // No Telegram polling
-    analyticsDisabled: true,      // No usage reporting
-    pluginNetworkBlocked: true,   // MCP plugins can't access network
-  };
+  return PRIVACY_OVERRIDES;
 }
 
 // --- Settings ---
