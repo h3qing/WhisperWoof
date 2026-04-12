@@ -17,11 +17,14 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  editDistance,
+  shouldRecordStyleExample,
+  buildPromptFromExamples,
+} = require("./style-learner-pure");
 
 const STYLE_FILE = path.join(app.getPath("userData"), "whisperwoof-style-examples.json");
 const MAX_EXAMPLES = 50;
-const MIN_EDIT_DISTANCE_RATIO = 0.05; // Minimum 5% change to count as a meaningful edit
-const MAX_PROMPT_EXAMPLES = 5;
 
 /**
  * Load style examples from disk.
@@ -50,60 +53,17 @@ function saveExamples(examples) {
 }
 
 /**
- * Simple Levenshtein distance (for edit distance ratio).
- */
-function editDistance(a, b) {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      const cost = b.charAt(i - 1) === a.charAt(j - 1) ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost,
-      );
-    }
-  }
-
-  return matrix[b.length][a.length];
-}
-
-/**
  * Record a style example (polished text → user's edited version).
  * Only records if the edit is meaningful (>5% change).
  */
 function recordStyleExample(polishedText, editedText) {
-  if (!polishedText || !editedText) return false;
+  if (!shouldRecordStyleExample(polishedText, editedText)) return false;
 
   const polished = polishedText.trim();
   const edited = editedText.trim();
-
-  // Skip if identical
-  if (polished === edited) return false;
-
-  // Skip if too short
-  if (polished.length < 10 || edited.length < 10) return false;
-
-  // Check edit distance ratio
   const distance = editDistance(polished, edited);
   const maxLen = Math.max(polished.length, edited.length);
   const ratio = distance / maxLen;
-
-  // Skip trivial edits (< 5% change) — likely just cursor movement
-  if (ratio < MIN_EDIT_DISTANCE_RATIO) return false;
-
-  // Skip massive changes (> 80% different) — user rewrote entirely, not a style signal
-  if (ratio > 0.8) return false;
 
   const examples = loadExamples();
 
@@ -140,37 +100,11 @@ function recordStyleExample(polishedText, editedText) {
 
 /**
  * Build a few-shot style section to append to the polish prompt.
- * Selects the most relevant examples based on input length similarity.
+ * Loads examples from disk and delegates the pure scoring+formatting
+ * to buildPromptFromExamples.
  */
 function buildStylePrompt(inputText) {
-  const examples = loadExamples();
-  if (examples.length === 0) return "";
-
-  const inputLen = inputText.length;
-
-  // Score examples by relevance (prefer similar length, recent)
-  const scored = examples.map((ex, idx) => {
-    const lenDiff = Math.abs(ex.polished.length - inputLen) / Math.max(ex.polished.length, inputLen);
-    const recency = idx / examples.length; // 0 = oldest, 1 = newest
-    const score = (1 - lenDiff) * 0.6 + recency * 0.4;
-    return { ...ex, score };
-  });
-
-  // Sort by score descending, take top N
-  scored.sort((a, b) => b.score - a.score);
-  const selected = scored.slice(0, MAX_PROMPT_EXAMPLES);
-
-  if (selected.length === 0) return "";
-
-  const lines = selected.map((ex) =>
-    `Example:\nBefore: "${ex.polished.slice(0, 200)}"\nAfter: "${ex.edited.slice(0, 200)}"`
-  );
-
-  return (
-    "\n\nThe user has previously edited polished text in these ways. " +
-    "Adapt your style to match their preferences:\n\n" +
-    lines.join("\n\n")
-  );
+  return buildPromptFromExamples(inputText, loadExamples());
 }
 
 /**

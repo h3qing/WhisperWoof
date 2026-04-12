@@ -11,6 +11,7 @@
 
 const { globalShortcut } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const { mapSnippetRow } = require("./snippet-hotkeys-pure");
 
 const HOTKEY_COUNT = 9;
 
@@ -23,14 +24,7 @@ function getSnippetByHotkey(db, hotkeyNumber) {
   try {
     const row = db.prepare("SELECT * FROM bf_snippets WHERE hotkey = ?").get(String(hotkeyNumber));
     if (!row) return null;
-    return {
-      id: row.id,
-      content: row.content,
-      title: row.title,
-      boardId: row.board_id,
-      hotkey: row.hotkey,
-      useCount: row.use_count ?? 0,
-    };
+    return mapSnippetRow(row);
   } catch (error) {
     debugLogger.log(`[SnippetHotkeys] Failed to look up hotkey ${hotkeyNumber}: ${error.message}`);
     return null;

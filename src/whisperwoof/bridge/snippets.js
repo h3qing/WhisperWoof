@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const { matchSnippet, simpleEditDistance } = require("./snippets-pure");
 
 const SNIPPETS_FILE = path.join(app.getPath("userData"), "whisperwoof-snippets.json");
 const MAX_SNIPPETS = 200;
@@ -161,64 +162,9 @@ function removeSnippet(id) {
  * 3. Fuzzy: tolerate minor STT errors (1 char off for triggers >5 chars)
  */
 function expandSnippet(transcribedText) {
-  if (!transcribedText || transcribedText.trim().length < 2) return null;
-
-  const input = transcribedText.trim().toLowerCase();
-  const snippets = loadSnippets();
-
-  // 1. Exact match
-  const exact = snippets.find((s) => input === s.trigger.toLowerCase());
-  if (exact) {
-    incrementUsage(exact.id);
-    return { matched: true, trigger: exact.trigger, body: exact.body, matchType: "exact" };
-  }
-
-  // 2. Prefix match — input starts with a trigger phrase
-  const prefixMatch = snippets
-    .filter((s) => input.startsWith(s.trigger.toLowerCase()))
-    .sort((a, b) => b.trigger.length - a.trigger.length)[0]; // longest match wins
-
-  if (prefixMatch) {
-    incrementUsage(prefixMatch.id);
-    return { matched: true, trigger: prefixMatch.trigger, body: prefixMatch.body, matchType: "prefix" };
-  }
-
-  // 3. Fuzzy match — allow 1 char difference for longer triggers
-  for (const snippet of snippets) {
-    if (snippet.trigger.length < 5) continue; // only fuzzy match on longer triggers
-    const distance = simpleEditDistance(input, snippet.trigger.toLowerCase());
-    if (distance <= 1) {
-      incrementUsage(snippet.id);
-      return { matched: true, trigger: snippet.trigger, body: snippet.body, matchType: "fuzzy" };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Simple edit distance for short strings (for fuzzy matching).
- */
-function simpleEditDistance(a, b) {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  if (Math.abs(a.length - b.length) > 2) return Math.abs(a.length - b.length);
-
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      const cost = b[i - 1] === a[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost,
-      );
-    }
-  }
-  return matrix[b.length][a.length];
+  const result = matchSnippet(transcribedText, loadSnippets());
+  if (result) incrementUsage(result.id);
+  return result;
 }
 
 /**
@@ -239,5 +185,6 @@ module.exports = {
   updateSnippet,
   removeSnippet,
   expandSnippet,
+  matchSnippet,
   simpleEditDistance,
 };
