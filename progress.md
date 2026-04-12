@@ -1,5 +1,64 @@
 # Progress Log
 
+## 2026-04-11 — Session: Bucket B refactor batch + upstream cherry-picks
+
+Continued the test-truthfulness refactor with Bucket B (files where
+bridge source already exists) and interleaved surgical upstream
+cherry-picks to catch up on a few weeks of OpenWhispr changes without
+tackling the full 182-commit backlog.
+
+### Phase A: Test truthfulness batch 2 — 5 more files wired to real source
+1. `backtrack.test.ts` → imports `detectBacktrack`/`hasBacktrack`/`CORRECTION_SIGNALS`
+   from `bridge/backtrack.js`. Direct import + debugLogger mock.
+2. `language-detect.test.ts` → imports `detectLanguage` and friends from
+   `bridge/language-detect.js`. **Surfaced a real regression**: script
+   patterns shipped without `/g`, so `matches.length` was always 1 and
+   production silently returned English for every non-Latin-script
+   string. The old test hid it by using `new RegExp(pattern.source, "g")`
+   in its reimplementation — testing a *corrected* version while
+   production shipped broken. Fixed the flag, added a NOTE comment so
+   future reviewers don't strip it.
+3. `llm-providers.test.ts` → extracted `validateConfig(config)` as a pure
+   exported helper (`polishWithProvider` now delegates to it), imports
+   `PROVIDERS`/`getProviders`/`validateConfig` directly.
+4. `voice-commands.test.ts` → imports `detectCommand`/`COMMAND_PATTERNS`/
+   `getAvailableCommands` from `bridge/voice-commands.js`. Added a test
+   that exercises the `buildPrompt` closure returned by the matcher.
+5. `smart-reply.test.ts` → imports `isReplyIntent`/`getReplyMode`/
+   `REPLY_SIGNALS`/`REPLY_PROMPTS`/`APP_REPLY_MODE` from
+   `bridge/smart-reply.js`.
+
+All 5 files needed only a `debugLogger` mock — no electron / fs / app
+in the require chain, so no `-pure.js` sibling extraction needed. The
+Bucket B pattern is: `vi.mock("debugLogger") → direct import → done`.
+
+Test-truthfulness total progress: **10 of 35 files refactored** across
+both sessions. 25 remaining — tracked in
+`docs/test-truthfulness-refactor.md`.
+
+### Phase B: Surgical upstream cherry-picks (5 commits)
+
+Still a fork of `OpenWhispr/openwhispr`. Last shared commit was
+`95b092720` on 2026-03-23; upstream advanced 182 commits since. Full
+merge deferred to its own session due to heavy overlap on
+`ipcHandlers.js`, agent/meeting components, and preload — the hot
+files on both sides. Cherry-picked the additive / security-relevant
+commits that couldn't conflict:
+
+1. `8fb0db9cd` — Bump brace-expansion to 1.1.13 (security backport)
+2. `d54a860f5` — feat: add Gemma 4 E2B and E4B local models
+3. `a8e8d641f` — feat: add Gemma 4 31B and 26B MoE to local model registry
+4. `131a21f60` — chore(deps): bump @xmldom/xmldom to 0.8.12
+5. `ed7a3ad39` — fix: validate JSON.parse result type before .replace() in prompts
+
+All cherry-picks auto-merged cleanly; no manual conflict resolution.
+
+### Test results
+- 43 test files / 753 tests (up from 739 — net +14 from refactor
+  assertions against real source code)
+- All green; `/g` fix also verified by the real-source assertions that
+  previously couldn't run
+
 ## 2026-04-11 — Session: Engineering Review Cleanup
 
 Verified 5 eng-review findings against current code and worked through them
