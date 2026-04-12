@@ -325,22 +325,17 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
     fetchProjects();
   }, [fetchProjects]);
 
-  // Load integration targets for all projects
+  // Load integration targets for all projects (single batched IPC call)
   useEffect(() => {
     let cancelled = false;
 
     const loadIntegrations = async () => {
-      const result: Record<string, string | null> = {};
-      for (const project of projects) {
-        try {
-          const target = await window.electronAPI.whisperwoofGetProjectIntegration(project.id);
-          if (cancelled) return;
-          result[project.id] = target;
-        } catch {
-          result[project.id] = null;
-        }
+      try {
+        const result = await window.electronAPI.whisperwoofGetProjectIntegrations();
+        if (!cancelled) setIntegrations(result ?? {});
+      } catch {
+        if (!cancelled) setIntegrations({});
       }
-      if (!cancelled) setIntegrations(result);
     };
 
     if (projects.length > 0) loadIntegrations();

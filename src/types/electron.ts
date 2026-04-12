@@ -1422,7 +1422,7 @@ declare global {
 
       // WhisperWoof — Project → MCP dispatch
       whisperwoofUpdateProjectIntegration: (projectId: string, pluginId: string | null) => Promise<any>;
-      whisperwoofGetProjectIntegration: (projectId: string) => Promise<string | null>;
+      whisperwoofGetProjectIntegrations: () => Promise<Record<string, string | null>>;
       whisperwoofDispatchEntry: (entryId: string, pluginId: string, text: string) => Promise<{ success: boolean; message?: string; error?: string }>;
     };
 

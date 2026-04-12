@@ -552,12 +552,19 @@ function updateProjectIntegration(projectId, pluginId) {
 }
 
 /**
- * Get the integration target for a project.
+ * Get integration targets for all projects in a single query.
+ * Returns a map of projectId → integration_target (string | null).
  */
-function getProjectIntegration(projectId) {
-  if (!whisperwoofDb) return null;
-  const project = whisperwoofDb.prepare('SELECT integration_target FROM bf_projects WHERE id = ?').get(projectId);
-  return project?.integration_target ?? null;
+function getProjectIntegrations() {
+  if (!whisperwoofDb) return {};
+  const rows = whisperwoofDb
+    .prepare('SELECT id, integration_target FROM bf_projects')
+    .all();
+  const result = {};
+  for (const row of rows) {
+    result[row.id] = row.integration_target ?? null;
+  }
+  return result;
 }
 
 // --- Smart Clipboard: Board + Snippet CRUD ---
@@ -715,7 +722,7 @@ module.exports = {
   deleteWhisperWoofProject,
   getProjectEntries,
   updateProjectIntegration,
-  getProjectIntegration,
+  getProjectIntegrations,
   // Database access (for snippet hotkeys)
   getWhisperWoofDb: () => whisperwoofDb,
   // Smart Clipboard

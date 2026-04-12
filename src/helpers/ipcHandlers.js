@@ -3108,13 +3108,13 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-get-project-integration", async (_event, projectId) => {
+    ipcMain.handle("whisperwoof-get-project-integrations", async () => {
       try {
-        const { getProjectIntegration } = require("../whisperwoof/bridge/app-init");
-        return getProjectIntegration(projectId);
+        const { getProjectIntegrations } = require("../whisperwoof/bridge/app-init");
+        return getProjectIntegrations();
       } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-project-integration failed: ${error.message}`);
-        return null;
+        debugLogger.log(`[WhisperWoof] get-project-integrations failed: ${error.message}`);
+        return {};
       }
     });
 

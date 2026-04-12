@@ -890,7 +890,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // WhisperWoof: Project → MCP plugin dispatch
   whisperwoofUpdateProjectIntegration: (projectId, pluginId) => ipcRenderer.invoke("whisperwoof-update-project-integration", projectId, pluginId),
-  whisperwoofGetProjectIntegration: (projectId) => ipcRenderer.invoke("whisperwoof-get-project-integration", projectId),
+  whisperwoofGetProjectIntegrations: () => ipcRenderer.invoke("whisperwoof-get-project-integrations"),
   whisperwoofDispatchEntry: (entryId, pluginId, text) => ipcRenderer.invoke("whisperwoof-dispatch-entry", entryId, pluginId, text),
 
   // Smart Clipboard
