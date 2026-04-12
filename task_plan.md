@@ -4,7 +4,7 @@
 Fork OpenWhispr and build WhisperWoof: a voice-first personal automation tool that transcribes, polishes (local LLM), routes (hotkey-driven), and stores (unified capture layer) voice and clipboard input.
 
 ## Current Phase
-v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phase 12 complete)
+v1.9.0 shipped + unreleased eng-review cleanup (753 tests, 10 of 35 test-truthfulness files refactored, 5 surgical upstream cherry-picks). Next: finish Bucket B/C of the test refactor OR switch to Phase 11 (code signing + notarization) for distribution.
 
 ## Phases
 
@@ -14,7 +14,7 @@ v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phas
 - [x] Proxy cloud API calls — CSP connect-src allowlist configured
 - [x] Set up Vitest + write tests (70 tests passing across 4 files)
 - [x] Rebrand: package.json, electron-builder.json, main.js, windowConfig.js
-- [x] WhisperWoof core modules built: StorageProvider, SqliteProvider, OllamaService, HotkeyRouter, ClipboardMonitor, Pipeline
+- [x] WhisperWoof core modules built: StorageProvider interface, OllamaService, HotkeyRouter, ClipboardMonitor, Pipeline (runtime SQL lives in bridge/app-init.js; `SqliteProvider` class was deleted 2026-04-11 as dead code)
 - [x] Wire WhisperWoof init into main.js (startApp + will-quit)
 - [x] Validate Fn key — works, timing improved (75ms hold, 100ms cooldown, crash recovery)
 - **Status:** complete
@@ -155,7 +155,7 @@ v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phas
 - **Status:** complete
 - **Depends on:** Phase 10 complete ✓
 
-### Phase 11: Distribution & Code Signing (current)
+### Phase 11: Distribution & Code Signing
 - [x] Apple Developer account acquired
 - [x] Enable code signing in electron-builder (removed `identity: null`)
 - [ ] Create Developer ID Application certificate (via developer.apple.com)
@@ -167,10 +167,21 @@ v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phas
 - **Status:** in progress
 - **Depends on:** Apple Developer account ✓
 
+### Phase 13: Engineering Review Cleanup (current)
+- [x] EntryRow memoization + stable onSelect callback (virtual scroll perf)
+- [x] Dev-gate SmartClipboard demo data fallback (`import.meta.env.DEV`)
+- [x] Batch project-integration IPC to fix N+1 in WhisperWoofProjects
+- [x] Delete unused 636-line `SqliteProvider` class + correct architecture docs
+- [ ] Test-truthfulness refactor — 10 of 35 files done. See `docs/test-truthfulness-refactor.md` for remaining work, bucketed by difficulty.
+- [x] Surgical upstream cherry-picks: brace-expansion + xmldom security bumps, JSON.parse validation in prompts, Gemma 4 local models (E2B/E4B + 31B/26B MoE)
+- [ ] Full upstream merge (deferred — 177 commits remaining, heavy overlap on ipcHandlers.js / agent / meeting files; needs its own session)
+- **Status:** in progress
+- **Depends on:** Phase 12 complete ✓
+
 ## Key Questions
 1. Ollama latency: Can Llama 3.2 3B polish <1s on M1? (Benchmark in Phase 1a)
 2. Fn key reliability: Does Globe key work on target macOS version? (Validate in Phase 0)
-3. OpenWhispr upstream: Do we maintain merge compatibility or own the fork? (Decide in Phase 0)
+3. ~~OpenWhispr upstream: Do we maintain merge compatibility or own the fork?~~ De facto own the fork. Surgical cherry-picks for security + additive features (local model registry entries). Last catch-up: 2026-04-11 (5 commits from a 182-commit backlog). Full merge deferred — heavy overlap on ipcHandlers.js and agent/meeting files.
 4. NSPasteboard battery impact: Is 0.5s polling acceptable in Electron? (Profile in Phase 1b)
 
 ## Decisions Made
