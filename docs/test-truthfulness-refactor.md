@@ -1,9 +1,9 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 13 of ~35 files shipped across three sessions on `2026-04-11`.
-22 remaining, tracked below. **Bucket B is complete** — every remaining
-file needs Pattern 2 (extract `*-pure.js` sibling) or Bucket D (new
-module from scratch).
+**Status:** 17 of ~35 files shipped across four sessions on `2026-04-11`.
+18 remaining, tracked below. **Bucket B is complete and the first
+Bucket C batch (webhooks + analytics + focus-mode + entry-tags) is done.**
+Every remaining file still needs Pattern 2 or Bucket D work.
 
 ## Problem statement
 
@@ -71,7 +71,7 @@ Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 The pure file has no electron / fs / app / debugLogger requires, so
 tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped (13 files across batches 1 + 2 + 3)
+## Shipped (17 files across batches 1 + 2 + 3 + 4)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
@@ -88,6 +88,10 @@ tests load it instantly in the vitest Node runtime without mocks.
 | `core/coding/vibe-coding.test.ts` | Pattern 1 — direct import | None |
 | `core/capture/recurring-capture.test.ts` | Pattern 2 — extracted `isValidTime`, `parseTime`, `getIsoDay`, `shouldFire`, `getPresets` | New `bridge/recurring-capture-pure.js` |
 | `core/settings/settings-export.test.ts` | Pattern 2 — extracted `stripApiKeys`, `validateBundle`, `mergeArrays`. **Critical bug caught** — see below | New `bridge/settings-export-pure.js` |
+| `core/webhooks/webhooks.test.ts` | Pattern 2 — extracted `buildPayload`, `signPayload` (HMAC-SHA256), `matchesFilters`, `validateWebhookUrl`. Added explicit SSRF guards (`file://`, `data:`, `ftp://`) and a hand-computed HMAC baseline | New `bridge/webhooks-pure.js` |
+| `core/analytics/analytics.test.ts` | Pattern 2 — extracted `computePolishStats`, `computeStreaks`, `fillHourGaps`, `extractCommandName`, `extractSnippetTrigger`, `getEmptyDashboard`. Production SQL fetches rows, pure module does the math | New `bridge/analytics-pure.js` |
+| `core/focus/focus-mode.test.ts` | Pattern 2 — extracted `SPRINT_PRESETS`, `validateDuration`, `createSessionObject`, `appendEntryToSession`, `markSessionEnded`, `computeFocusStats`, `computeActiveSessionView`. Pure functions take explicit `now` for deterministic tests | New `bridge/focus-mode-pure.js` |
+| `core/tags/entry-tags.test.ts` | Pattern 2 (minimal) — extracted `validateTagName`, `DEFAULT_TAG_COLOR`, `MAX_TAG_NAME_LENGTH`. Dropped in-memory-mock tests for the SQL-only CRUD paths since they can't be unified without loading better-sqlite3 | New `bridge/entry-tags-pure.js` |
 
 ## Regressions caught by the refactor
 
@@ -118,7 +122,7 @@ tests load it instantly in the vitest Node runtime without mocks.
   `settingsStore.ts` so any rename there will trip the test until the
   marker list is updated.
 
-## Remaining work — 22 files
+## Remaining work — 18 files
 
 Grouped by effort. Each row needs the same pattern: find (or extract)
 the real source, wire the test to import it, drop the inline copy.
@@ -131,22 +135,18 @@ Grep result from the audit shows these bridge files DO exist. Most
 likely call `app.getPath` at top-level so Pattern 2 is needed:
 
 - `bridge/agentic-actions.js` ← `core/actions/agentic-actions.test.ts`
-- `bridge/analytics.js` ← `core/analytics/analytics.test.ts`
 - `bridge/app-automation.js` ← `core/automation/app-automation.test.ts`
 - `bridge/auto-tagger.js` ← `core/tags/auto-tagger.test.ts`
 - `bridge/conversation-memory.js` ← `core/memory/conversation-memory.test.ts`
 - `bridge/daily-digest.js` ← `core/digest/daily-digest.test.ts`
 - `bridge/entry-chains.js` ← `core/chains/entry-chains.test.ts`
-- `bridge/entry-tags.js` ← `core/tags/entry-tags.test.ts`
 - `bridge/entry-templates.js` ← `core/templates/entry-templates.test.ts`
-- `bridge/focus-mode.js` ← `core/focus/focus-mode.test.ts`
 - `bridge/intent-capture.js` ← `core/intent/intent-capture.test.ts`
 - `bridge/keybindings.js` ← `core/keybindings/keybindings.test.ts`
 - `bridge/screen-context.js` ← `core/context/screen-context.test.ts`
 - `bridge/semantic-search.js` ← `core/search/semantic-search.test.ts`
 - `bridge/streaming-manager.js` ← `core/streaming/streaming-manager.test.ts`
 - `bridge/vocabulary.js` ← `core/vocabulary/vocabulary.test.ts`
-- `bridge/webhooks.js` ← `core/webhooks/webhooks.test.ts`
 
 Effort: M each. Tackle 3–5 per session to avoid sprawl.
 
@@ -163,8 +163,10 @@ Effort: M each. Tackle 3–5 per session to avoid sprawl.
 
 ## Recommended next session
 
-With Bucket B done, the cheapest next wins are in Bucket C. Start with
-small, self-contained features: `analytics`, `auto-tagger`, `webhooks`.
-Each extracts 1–3 pure helpers into a sibling file, same pattern as
-`recurring-capture-pure.js` / `settings-export-pure.js`. Target 3–5
-files per session to avoid the bridge file sprawl getting messy.
+Next Bucket C batch — start with feature modules that have the most
+pure transformations to extract: `auto-tagger` (keyword rules + tag
+scoring), `semantic-search` (TF-IDF math), `screen-context` (command
+prefix parsing). Then `conversation-memory` (query patterns) and
+`intent-capture` (signal categories) if time permits. Leave
+`conversation-memory` + `daily-digest` for last — they're the
+heaviest / most LLM-prompt-tangled.

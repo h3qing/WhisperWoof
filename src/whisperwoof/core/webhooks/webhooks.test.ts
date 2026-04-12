@@ -1,11 +1,26 @@
 /**
- * Tests for Webhook Integration — payload, signing, filtering, validation
+ * Tests for Webhook Integration pure logic — payload, HMAC signing,
+ * filter matching, URL validation.
+ *
+ * Imports `buildPayload`, `signPayload`, `matchesFilters`, and
+ * `validateWebhookUrl` directly from `bridge/webhooks-pure.js`. These
+ * are the same helpers `webhooks.js` delegates to — the inline copies
+ * used to live inside `addWebhook` / `updateWebhook` / `fireWebhook`
+ * and the test kept a parallel set that could drift silently.
+ *
+ * The async `fireWebhook` / `fireWebhooks` retry-loop lives in
+ * `webhooks.js` and is tested via manual integration.
  */
 
-import { describe, it, expect } from 'vitest';
-import { createHmac } from 'crypto';
-
-// Re-implement pure logic for testing
+import { describe, it, expect } from "vitest";
+import { createHmac } from "crypto";
+// @ts-expect-error — CommonJS module, no TS declarations
+import {
+  buildPayload,
+  signPayload,
+  matchesFilters,
+  validateWebhookUrl,
+} from "../../bridge/webhooks-pure";
 
 interface WebhookFilters {
   sources: string[] | null;
@@ -25,53 +40,6 @@ interface Entry {
   metadata: Record<string, unknown>;
 }
 
-function buildPayload(entry: Entry) {
-  return {
-    event: "entry.created",
-    timestamp: new Date().toISOString(),
-    data: {
-      id: entry.id,
-      createdAt: entry.createdAt,
-      source: entry.source,
-      text: entry.polished || entry.rawText || "",
-      rawText: entry.rawText || null,
-      routedTo: entry.routedTo || null,
-      projectId: entry.projectId || null,
-      tags: entry.tags || [],
-      metadata: entry.metadata || {},
-    },
-  };
-}
-
-function signPayload(payload: any, secret: string | null): string | null {
-  if (!secret) return null;
-  const body = JSON.stringify(payload);
-  return createHmac("sha256", secret).update(body).digest("hex");
-}
-
-function matchesFilters(entry: Entry, filters: WebhookFilters | null): boolean {
-  if (!filters) return true;
-  if (filters.sources && filters.sources.length > 0) {
-    if (!filters.sources.includes(entry.source)) return false;
-  }
-  if (filters.tags && filters.tags.length > 0) {
-    if (!filters.tags.some((t) => entry.tags.includes(t))) return false;
-  }
-  if (filters.projects && filters.projects.length > 0) {
-    if (!filters.projects.includes(entry.projectId!)) return false;
-  }
-  return true;
-}
-
-function isValidUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return ["http:", "https:"].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
-
 const SAMPLE_ENTRY: Entry = {
   id: "e1",
   source: "voice",
@@ -84,105 +52,134 @@ const SAMPLE_ENTRY: Entry = {
   metadata: {},
 };
 
-describe('Webhook Integration', () => {
-  describe('buildPayload', () => {
-    it('builds correct Zapier-compatible payload', () => {
-      const payload = buildPayload(SAMPLE_ENTRY);
-      expect(payload.event).toBe("entry.created");
-      expect(payload.data.id).toBe("e1");
-      expect(payload.data.source).toBe("voice");
-      expect(payload.data.text).toBe("I need to call Sarah."); // polished preferred
-      expect(payload.data.rawText).toBe("um so I need to call Sarah");
-      expect(payload.data.tags).toEqual(["tag-1", "tag-2"]);
-    });
-
-    it('uses rawText when no polished', () => {
-      const entry = { ...SAMPLE_ENTRY, polished: null };
-      const payload = buildPayload(entry);
-      expect(payload.data.text).toBe("um so I need to call Sarah");
-    });
-
-    it('includes timestamp', () => {
-      const payload = buildPayload(SAMPLE_ENTRY);
-      expect(payload.timestamp).toBeTruthy();
-      expect(() => new Date(payload.timestamp)).not.toThrow();
-    });
+describe("buildPayload", () => {
+  it("builds a Zapier-compatible payload from an entry", () => {
+    const payload = buildPayload(SAMPLE_ENTRY);
+    expect(payload.event).toBe("entry.created");
+    expect(payload.data.id).toBe("e1");
+    expect(payload.data.source).toBe("voice");
+    expect(payload.data.text).toBe("I need to call Sarah.");
+    expect(payload.data.rawText).toBe("um so I need to call Sarah");
+    expect(payload.data.tags).toEqual(["tag-1", "tag-2"]);
+    expect(payload.data.projectId).toBe("proj-1");
   });
 
-  describe('signPayload', () => {
-    it('returns null when no secret', () => {
-      expect(signPayload({ test: true }, null)).toBeNull();
-    });
+  it("prefers polished text but falls back to rawText", () => {
+    const noPolished = { ...SAMPLE_ENTRY, polished: null };
+    expect(buildPayload(noPolished).data.text).toBe("um so I need to call Sarah");
 
-    it('returns HMAC-SHA256 hex string when secret provided', () => {
-      const sig = signPayload({ test: true }, "my-secret");
-      expect(sig).toBeTruthy();
-      expect(sig!.length).toBe(64); // SHA256 hex = 64 chars
-    });
-
-    it('produces consistent signatures', () => {
-      const payload = { data: "hello" };
-      const sig1 = signPayload(payload, "secret");
-      const sig2 = signPayload(payload, "secret");
-      expect(sig1).toBe(sig2);
-    });
-
-    it('different secrets produce different signatures', () => {
-      const payload = { data: "hello" };
-      const sig1 = signPayload(payload, "secret1");
-      const sig2 = signPayload(payload, "secret2");
-      expect(sig1).not.toBe(sig2);
-    });
+    const bothEmpty = { ...SAMPLE_ENTRY, polished: null, rawText: "" };
+    expect(buildPayload(bothEmpty).data.text).toBe("");
   });
 
-  describe('matchesFilters', () => {
-    it('matches when no filters (null)', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, null)).toBe(true);
-    });
-
-    it('matches when all filters are null', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: null })).toBe(true);
-    });
-
-    it('filters by source', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: ["voice"], tags: null, projects: null })).toBe(true);
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: ["clipboard"], tags: null, projects: null })).toBe(false);
-    });
-
-    it('filters by tag', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: ["tag-1"], projects: null })).toBe(true);
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: ["tag-999"], projects: null })).toBe(false);
-    });
-
-    it('filters by project', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: ["proj-1"] })).toBe(true);
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: ["proj-999"] })).toBe(false);
-    });
-
-    it('combines filters (AND logic)', () => {
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: ["voice"], tags: ["tag-1"], projects: ["proj-1"] })).toBe(true);
-      expect(matchesFilters(SAMPLE_ENTRY, { sources: ["clipboard"], tags: ["tag-1"], projects: ["proj-1"] })).toBe(false);
-    });
+  it("includes a parseable ISO timestamp", () => {
+    const payload = buildPayload(SAMPLE_ENTRY);
+    expect(payload.timestamp).toBeTruthy();
+    expect(() => new Date(payload.timestamp)).not.toThrow();
   });
 
-  describe('URL validation', () => {
-    it('accepts https URLs', () => {
-      expect(isValidUrl("https://hooks.zapier.com/1234")).toBe(true);
-      expect(isValidUrl("https://n8n.example.com/webhook/abc")).toBe(true);
-    });
+  it("defaults missing arrays / objects to empty", () => {
+    const bare = { ...SAMPLE_ENTRY, tags: undefined, metadata: undefined };
+    const payload = buildPayload(bare as unknown as Entry);
+    expect(payload.data.tags).toEqual([]);
+    expect(payload.data.metadata).toEqual({});
+  });
+});
 
-    it('accepts http URLs', () => {
-      expect(isValidUrl("http://localhost:5678/webhook")).toBe(true);
-    });
+describe("signPayload — HMAC-SHA256", () => {
+  it("returns null when no secret is provided", () => {
+    expect(signPayload({ test: true }, null)).toBeNull();
+    expect(signPayload({ test: true }, "")).toBeNull();
+    expect(signPayload({ test: true }, undefined)).toBeNull();
+  });
 
-    it('rejects non-http protocols', () => {
-      expect(isValidUrl("ftp://example.com")).toBe(false);
-      expect(isValidUrl("file:///etc/passwd")).toBe(false);
-    });
+  it("returns a 64-char SHA256 hex string when a secret is provided", () => {
+    const sig = signPayload({ test: true }, "my-secret");
+    expect(sig).toBeTruthy();
+    expect(sig!.length).toBe(64);
+    expect(sig).toMatch(/^[0-9a-f]{64}$/);
+  });
 
-    it('rejects invalid URLs', () => {
-      expect(isValidUrl("not-a-url")).toBe(false);
-      expect(isValidUrl("")).toBe(false);
-    });
+  it("produces the same signature for the same payload + secret", () => {
+    const payload = { data: "hello" };
+    expect(signPayload(payload, "secret")).toBe(signPayload(payload, "secret"));
+  });
+
+  it("produces different signatures for different secrets", () => {
+    const payload = { data: "hello" };
+    expect(signPayload(payload, "secret1")).not.toBe(signPayload(payload, "secret2"));
+  });
+
+  it("matches a hand-computed HMAC-SHA256 of the serialized JSON", () => {
+    // This nails the exact algorithm and body format. If the source ever
+    // changes serialization (e.g., stringify with spaces, different field
+    // order), this assertion will catch the drift immediately.
+    const payload = { event: "entry.created", data: { id: "abc" } };
+    const secret = "s3cret";
+    const expected = createHmac("sha256", secret)
+      .update(JSON.stringify(payload))
+      .digest("hex");
+    expect(signPayload(payload, secret)).toBe(expected);
+  });
+});
+
+describe("matchesFilters", () => {
+  it("matches when filters are null", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, null)).toBe(true);
+  });
+
+  it("matches when every filter slot is null", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: null })).toBe(true);
+  });
+
+  it("filters by source", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: ["voice"], tags: null, projects: null })).toBe(true);
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: ["clipboard"], tags: null, projects: null })).toBe(false);
+  });
+
+  it("filters by tag (any-of match)", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: ["tag-1"], projects: null })).toBe(true);
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: ["tag-999"], projects: null })).toBe(false);
+    // entry has tag-1 AND tag-2; filter with just tag-2 should still match
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: ["tag-2", "tag-999"], projects: null })).toBe(true);
+  });
+
+  it("filters by project", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: ["proj-1"] })).toBe(true);
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: null, tags: null, projects: ["proj-999"] })).toBe(false);
+  });
+
+  it("combines filters with AND", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: ["voice"], tags: ["tag-1"], projects: ["proj-1"] })).toBe(true);
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: ["clipboard"], tags: ["tag-1"], projects: ["proj-1"] })).toBe(false);
+  });
+
+  it("treats an empty-array filter slot as matching (null-equivalent)", () => {
+    expect(matchesFilters(SAMPLE_ENTRY, { sources: [], tags: [], projects: [] })).toBe(true);
+  });
+});
+
+describe("validateWebhookUrl", () => {
+  it("accepts https URLs", () => {
+    expect(validateWebhookUrl("https://hooks.zapier.com/1234")).toBeNull();
+    expect(validateWebhookUrl("https://n8n.example.com/webhook/abc")).toBeNull();
+  });
+
+  it("accepts http URLs (local dev / self-hosted)", () => {
+    expect(validateWebhookUrl("http://localhost:5678/webhook")).toBeNull();
+  });
+
+  it("rejects non-http protocols (SSRF guard)", () => {
+    expect(validateWebhookUrl("ftp://example.com")).toContain("http or https");
+    expect(validateWebhookUrl("file:///etc/passwd")).toContain("http or https");
+    expect(validateWebhookUrl("data:text/plain,hello")).toContain("http or https");
+  });
+
+  it("rejects invalid or empty URLs", () => {
+    expect(validateWebhookUrl("not-a-url")).toContain("Invalid URL");
+    expect(validateWebhookUrl("")).toContain("required");
+    expect(validateWebhookUrl("   ")).toContain("required");
+    expect(validateWebhookUrl(null)).toContain("required");
+    expect(validateWebhookUrl(undefined)).toContain("required");
   });
 });

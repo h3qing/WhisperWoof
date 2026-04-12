@@ -15,11 +15,16 @@
  * Storage: ~/.config/WhisperWoof/whisperwoof-webhooks.json
  */
 
-const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  buildPayload,
+  signPayload,
+  matchesFilters,
+  validateWebhookUrl,
+} = require("./webhooks-pure");
 
 const WEBHOOKS_FILE = path.join(app.getPath("userData"), "whisperwoof-webhooks.json");
 const MAX_WEBHOOKS = 20;
@@ -56,22 +61,10 @@ function getWebhooks() {
 }
 
 function addWebhook(config) {
-  if (!config.url || !config.url.trim()) {
-    return { success: false, error: "URL is required" };
-  }
+  const urlError = validateWebhookUrl(config.url);
+  if (urlError) return { success: false, error: urlError };
 
   const url = config.url.trim();
-
-  // Validate URL format
-  try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) {
-      return { success: false, error: "URL must use http or https" };
-    }
-  } catch {
-    return { success: false, error: "Invalid URL format" };
-  }
-
   const data = loadWebhooks();
   if (data.webhooks.length >= MAX_WEBHOOKS) {
     return { success: false, error: `Maximum ${MAX_WEBHOOKS} webhooks reached` };
@@ -109,15 +102,9 @@ function updateWebhook(id, updates) {
   const allowed = {};
   if (updates.name !== undefined) allowed.name = updates.name.trim();
   if (updates.url !== undefined) {
-    try {
-      const parsed = new URL(updates.url.trim());
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return { success: false, error: "URL must use http or https" };
-      }
-      allowed.url = updates.url.trim();
-    } catch {
-      return { success: false, error: "Invalid URL format" };
-    }
+    const urlError = validateWebhookUrl(updates.url);
+    if (urlError) return { success: false, error: urlError };
+    allowed.url = updates.url.trim();
   }
   if (updates.enabled !== undefined) allowed.enabled = !!updates.enabled;
   if (updates.secret !== undefined) allowed.secret = updates.secret || null;
@@ -140,62 +127,8 @@ function removeWebhook(id) {
   return { success: true };
 }
 
-// --- Payload ---
-
-/**
- * Build the webhook payload for an entry.
- * Zapier/n8n/Make compatible JSON structure.
- */
-function buildPayload(entry) {
-  return {
-    event: "entry.created",
-    timestamp: new Date().toISOString(),
-    data: {
-      id: entry.id,
-      createdAt: entry.createdAt,
-      source: entry.source,
-      text: entry.polished || entry.rawText || "",
-      rawText: entry.rawText || null,
-      routedTo: entry.routedTo || null,
-      projectId: entry.projectId || null,
-      tags: entry.tags || [],
-      metadata: entry.metadata || {},
-    },
-  };
-}
-
-/**
- * Sign a payload with HMAC-SHA256 for webhook security.
- */
-function signPayload(payload, secret) {
-  if (!secret) return null;
-  const body = JSON.stringify(payload);
-  return crypto.createHmac("sha256", secret).update(body).digest("hex");
-}
-
-// --- Filtering ---
-
-/**
- * Check if an entry matches a webhook's filters.
- */
-function matchesFilters(entry, filters) {
-  if (!filters) return true;
-
-  if (filters.sources && filters.sources.length > 0) {
-    if (!filters.sources.includes(entry.source)) return false;
-  }
-
-  if (filters.tags && filters.tags.length > 0) {
-    const entryTags = entry.tags || [];
-    if (!filters.tags.some((t) => entryTags.includes(t))) return false;
-  }
-
-  if (filters.projects && filters.projects.length > 0) {
-    if (!filters.projects.includes(entry.projectId)) return false;
-  }
-
-  return true;
-}
+// Pure payload / signing / filter / URL-validation helpers are required
+// at the top of this file from ./webhooks-pure.
 
 // --- Fire webhooks ---
 

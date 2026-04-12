@@ -8,6 +8,16 @@
  */
 
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  computePolishStats,
+  computeStreaks,
+  fillHourGaps,
+  extractCommandName,
+  extractSnippetTrigger,
+  getEmptyDashboard,
+  VOICE_COMMAND_PREFIX,
+  SNIPPET_PREFIX,
+} = require("./analytics-pure");
 
 let db = null;
 
@@ -45,19 +55,7 @@ function getDashboard(options = {}) {
   }
 }
 
-function getEmptyDashboard() {
-  return {
-    summary: { totalEntries: 0, todayEntries: 0, thisWeekEntries: 0, thisMonthEntries: 0 },
-    entriesPerDay: [],
-    sourceBreakdown: [],
-    polishStats: { totalPolished: 0, totalRaw: 0, avgCharsSaved: 0, polishRate: 0 },
-    topCommands: [],
-    topSnippets: [],
-    busiestHours: [],
-    averageDuration: { avgMs: 0, totalMs: 0, count: 0 },
-    streaks: { current: 0, longest: 0 },
-  };
-}
+// getEmptyDashboard lives in ./analytics-pure and is required at the top.
 
 // --- Individual metrics ---
 
@@ -110,30 +108,8 @@ function getPolishStats() {
     FROM bf_entries
     WHERE polished IS NOT NULL AND raw_text IS NOT NULL
   `).all();
-
-  if (rows.length === 0) {
-    return { totalPolished: 0, totalRaw: 0, avgCharsSaved: 0, polishRate: 0 };
-  }
-
-  let totalRawLen = 0;
-  let totalPolishedLen = 0;
-
-  for (const row of rows) {
-    totalRawLen += (row.raw_text || "").length;
-    totalPolishedLen += (row.polished || "").length;
-  }
-
   const totalEntries = db.prepare("SELECT COUNT(*) as count FROM bf_entries").get().count;
-  const avgCharsDiff = rows.length > 0
-    ? Math.round((totalPolishedLen - totalRawLen) / rows.length)
-    : 0;
-
-  return {
-    totalPolished: rows.length,
-    totalRaw: totalEntries,
-    avgCharsSaved: avgCharsDiff, // negative = shorter (concisified), positive = expanded
-    polishRate: totalEntries > 0 ? Math.round((rows.length / totalEntries) * 100) : 0,
-  };
+  return computePolishStats(rows, totalEntries);
 }
 
 function getTopCommands(limit) {
@@ -141,14 +117,14 @@ function getTopCommands(limit) {
   const rows = db.prepare(`
     SELECT routed_to, COUNT(*) as count
     FROM bf_entries
-    WHERE routed_to LIKE 'voice-command:%'
+    WHERE routed_to LIKE '${VOICE_COMMAND_PREFIX}%'
     GROUP BY routed_to
     ORDER BY count DESC
     LIMIT ?
   `).all(limit);
 
   return rows.map((r) => ({
-    command: r.routed_to.replace("voice-command:", ""),
+    command: extractCommandName(r.routed_to),
     count: r.count,
   }));
 }
@@ -158,34 +134,26 @@ function getTopSnippets(limit) {
   const rows = db.prepare(`
     SELECT routed_to, COUNT(*) as count
     FROM bf_entries
-    WHERE routed_to LIKE 'snippet:%'
+    WHERE routed_to LIKE '${SNIPPET_PREFIX}%'
     GROUP BY routed_to
     ORDER BY count DESC
     LIMIT ?
   `).all(limit);
 
   return rows.map((r) => ({
-    trigger: r.routed_to.replace("snippet:", ""),
+    trigger: extractSnippetTrigger(r.routed_to),
     count: r.count,
   }));
 }
 
 function getBusiestHours() {
-  // Returns 24 entries (0-23) with counts
   const rows = db.prepare(`
     SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
     FROM bf_entries
     GROUP BY hour
     ORDER BY hour ASC
   `).all();
-
-  // Fill missing hours with 0
-  const hourMap = Object.fromEntries(rows.map((r) => [r.hour, r.count]));
-  const result = [];
-  for (let h = 0; h < 24; h++) {
-    result.push({ hour: h, count: hourMap[h] || 0 });
-  }
-  return result;
+  return fillHourGaps(rows);
 }
 
 function getAverageDuration() {
@@ -203,51 +171,12 @@ function getAverageDuration() {
 }
 
 function getStreaks() {
-  // Calculate current and longest daily usage streaks
   const rows = db.prepare(`
     SELECT DISTINCT date(created_at) as day
     FROM bf_entries
     ORDER BY day DESC
   `).all();
-
-  if (rows.length === 0) return { current: 0, longest: 0 };
-
-  const days = rows.map((r) => r.day);
-  const today = new Date().toISOString().split("T")[0];
-
-  // Current streak (from today backwards)
-  let current = 0;
-  let checkDate = today;
-  for (const day of days) {
-    if (day === checkDate) {
-      current++;
-      // Move to previous day
-      const d = new Date(checkDate);
-      d.setDate(d.getDate() - 1);
-      checkDate = d.toISOString().split("T")[0];
-    } else if (day < checkDate) {
-      break;
-    }
-  }
-
-  // Longest streak ever
-  let longest = 0;
-  let streak = 1;
-  for (let i = 0; i < days.length - 1; i++) {
-    const d1 = new Date(days[i]);
-    const d2 = new Date(days[i + 1]);
-    const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 1) {
-      streak++;
-    } else {
-      longest = Math.max(longest, streak);
-      streak = 1;
-    }
-  }
-  longest = Math.max(longest, streak);
-
-  return { current, longest };
+  return computeStreaks(rows.map((r) => r.day));
 }
 
 module.exports = {

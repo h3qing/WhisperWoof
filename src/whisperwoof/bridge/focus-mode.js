@@ -22,19 +22,18 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  SPRINT_PRESETS,
+  validateDuration,
+  createSessionObject,
+  appendEntryToSession,
+  markSessionEnded,
+  computeFocusStats,
+  computeActiveSessionView,
+} = require("./focus-mode-pure");
 
 const SESSIONS_FILE = path.join(app.getPath("userData"), "whisperwoof-focus-sessions.json");
 const MAX_SESSIONS = 500;
-
-// --- Preset durations ---
-
-const SPRINT_PRESETS = [
-  { id: "quick", name: "Quick Capture", durationMin: 5, description: "5 min — rapid brain dump" },
-  { id: "short", name: "Short Sprint", durationMin: 15, description: "15 min — focused note-taking" },
-  { id: "pomodoro", name: "Pomodoro", durationMin: 25, description: "25 min — classic focus session" },
-  { id: "deep", name: "Deep Work", durationMin: 45, description: "45 min — extended thinking" },
-  { id: "marathon", name: "Marathon", durationMin: 60, description: "60 min — long creative session" },
-];
 
 // --- Active session (in-memory, one at a time) ---
 
@@ -55,22 +54,10 @@ function startSession(options = {}) {
   }
 
   const durationMin = options.durationMin || 25;
-  if (durationMin < 1 || durationMin > 180) {
-    return { success: false, error: "Duration must be 1-180 minutes" };
-  }
+  const validationError = validateDuration(durationMin);
+  if (validationError) return { success: false, error: validationError };
 
-  activeSession = {
-    id: `focus-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    startedAt: new Date().toISOString(),
-    durationMin,
-    goal: (options.goal || "").trim() || null,
-    presetId: options.presetId || null,
-    entryIds: [],
-    wordCount: 0,
-    isActive: true,
-    endedAt: null,
-    summary: null,
-  };
+  activeSession = createSessionObject({ ...options, durationMin });
 
   debugLogger.info("[WhisperWoof] Focus session started", {
     id: activeSession.id,
@@ -86,13 +73,7 @@ function startSession(options = {}) {
  */
 function recordEntry(entryId, wordCount = 0) {
   if (!activeSession || !activeSession.isActive) return false;
-
-  activeSession = {
-    ...activeSession,
-    entryIds: [...activeSession.entryIds, entryId],
-    wordCount: activeSession.wordCount + wordCount,
-  };
-
+  activeSession = appendEntryToSession(activeSession, entryId, wordCount);
   return true;
 }
 
@@ -107,15 +88,7 @@ function endSession(summary = null) {
     return { success: false, error: "No active focus session" };
   }
 
-  const completed = {
-    ...activeSession,
-    isActive: false,
-    endedAt: new Date().toISOString(),
-    summary: summary || null,
-    actualDurationMin: Math.round(
-      (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000
-    ),
-  };
+  const completed = markSessionEnded(activeSession, summary);
 
   // Save to history
   const sessions = loadSessions();
@@ -141,18 +114,7 @@ function endSession(summary = null) {
  * Get the current active session (or null).
  */
 function getActiveSession() {
-  if (!activeSession) return null;
-
-  // Check if session has expired (over duration)
-  const elapsedMin = (Date.now() - new Date(activeSession.startedAt).getTime()) / 60000;
-  const remaining = Math.max(0, activeSession.durationMin - elapsedMin);
-
-  return {
-    ...activeSession,
-    elapsedMin: Math.round(elapsedMin * 10) / 10,
-    remainingMin: Math.round(remaining * 10) / 10,
-    isExpired: remaining <= 0,
-  };
+  return computeActiveSessionView(activeSession);
 }
 
 /**
@@ -209,53 +171,7 @@ function getSessionHistory(options = {}) {
  * Get focus stats (for analytics dashboard).
  */
 function getFocusStats() {
-  const sessions = loadSessions();
-  if (sessions.length === 0) {
-    return {
-      totalSessions: 0,
-      totalMinutes: 0,
-      totalWords: 0,
-      totalEntries: 0,
-      avgDuration: 0,
-      completionRate: 0,
-      currentStreak: 0,
-    };
-  }
-
-  const totalMin = sessions.reduce((sum, s) => sum + (s.actualDurationMin || 0), 0);
-  const totalWords = sessions.reduce((sum, s) => sum + (s.wordCount || 0), 0);
-  const totalEntries = sessions.reduce((sum, s) => sum + (s.entryIds?.length || 0), 0);
-  const completed = sessions.filter((s) =>
-    s.actualDurationMin >= s.durationMin * 0.8 // 80% of target = "completed"
-  ).length;
-
-  // Current streak (days with at least one session)
-  const sessionDays = new Set(sessions.map((s) => s.startedAt.split("T")[0]));
-  const sortedDays = Array.from(sessionDays).sort().reverse();
-  const today = new Date().toISOString().split("T")[0];
-
-  let streak = 0;
-  let checkDate = today;
-  for (const day of sortedDays) {
-    if (day === checkDate) {
-      streak++;
-      const d = new Date(checkDate);
-      d.setDate(d.getDate() - 1);
-      checkDate = d.toISOString().split("T")[0];
-    } else if (day < checkDate) {
-      break;
-    }
-  }
-
-  return {
-    totalSessions: sessions.length,
-    totalMinutes: totalMin,
-    totalWords: totalWords,
-    totalEntries: totalEntries,
-    avgDuration: Math.round(totalMin / sessions.length),
-    completionRate: Math.round((completed / sessions.length) * 100),
-    currentStreak: streak,
-  };
+  return computeFocusStats(loadSessions());
 }
 
 /**

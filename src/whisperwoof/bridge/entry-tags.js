@@ -15,6 +15,10 @@
  */
 
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  DEFAULT_TAG_COLOR,
+  validateTagName,
+} = require("./entry-tags-pure");
 
 let db = null;
 
@@ -74,10 +78,11 @@ function getAllTags() {
 
 function createTag(name, color) {
   if (!db) return { success: false, error: "Database not initialized" };
-  if (!name || !name.trim()) return { success: false, error: "Tag name is required" };
+
+  const validationError = validateTagName(name);
+  if (validationError) return { success: false, error: validationError };
 
   const trimmed = name.trim();
-  if (trimmed.length > 50) return { success: false, error: "Tag name must be 50 characters or less" };
 
   // Check uniqueness
   const existing = db.prepare("SELECT id FROM bf_tags WHERE name = ? COLLATE NOCASE").get(trimmed);
@@ -85,7 +90,7 @@ function createTag(name, color) {
 
   const id = `tag-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const createdAt = new Date().toISOString();
-  const tagColor = color || "#A06A3C"; // Default: Mando accent
+  const tagColor = color || DEFAULT_TAG_COLOR;
 
   db.prepare("INSERT INTO bf_tags (id, name, color, created_at) VALUES (?, ?, ?, ?)").run(id, trimmed, tagColor, createdAt);
 
@@ -100,9 +105,10 @@ function updateTag(id, updates) {
   if (!tag) return { success: false, error: "Tag not found" };
 
   if (updates.name !== undefined) {
+    const validationError = validateTagName(updates.name);
+    if (validationError) return { success: false, error: validationError };
+
     const trimmed = updates.name.trim();
-    if (!trimmed) return { success: false, error: "Tag name is required" };
-    if (trimmed.length > 50) return { success: false, error: "Tag name must be 50 characters or less" };
 
     // Check uniqueness (excluding self)
     const existing = db.prepare("SELECT id FROM bf_tags WHERE name = ? COLLATE NOCASE AND id != ?").get(trimmed, id);
