@@ -30,8 +30,8 @@ v1.9.0 — Meeting safety, agent fixes, Granola-style detection (744 tests, Phas
 - [x] Learning mode toast (before/after polish, first 20 captures)
 - [x] Hotkey routing — via Command Bar (Cmd+K → /todo, /note, /project)
 - [x] Fn+letter combo routing — globe-listener detects keyDown while Fn held, routes Fn+T→clipboard, Fn+N→markdown, Fn+P→project
-- [ ] **GATE: Use WhisperWoof daily for 3 days. Fix issues before proceeding.**
-- **Status:** nearly complete (daily-use gate remaining)
+- [x] **GATE: Use WhisperWoof daily for 3 days. Fix issues before proceeding.** (Daily-driven through v1.9.0)
+- **Status:** complete
 - **Depends on:** Phase 0 complete ✓
 - **Gate criteria:** Daily-usable. If Ollama latency bad → fix or cut. If Fn key broken → switch default.
 

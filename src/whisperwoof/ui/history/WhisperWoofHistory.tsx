@@ -155,7 +155,7 @@ function FilterChips({
   );
 }
 
-function EntryRow({
+const EntryRow = React.memo(function EntryRow({
   entry,
   isSelected,
   onSelect,
@@ -163,7 +163,7 @@ function EntryRow({
 }: {
   readonly entry: Entry;
   readonly isSelected: boolean;
-  readonly onSelect: () => void;
+  readonly onSelect: (id: string) => void;
   readonly onToggleFavorite: (id: string) => void;
 }) {
   const text = displayText(entry);
@@ -172,7 +172,7 @@ function EntryRow({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={() => onSelect(entry.id)}
       className={cn(
         "w-full text-left px-3 py-2.5 rounded-md transition-colors duration-150 outline-none",
         "focus-visible:ring-1 focus-visible:ring-primary/30",
@@ -230,7 +230,7 @@ function EntryRow({
       </div>
     </button>
   );
-}
+});
 
 function ImagePreview({ imagePath }: { readonly imagePath: string }) {
   const [imageData, setImageData] = useState<string | null>(null);
@@ -661,7 +661,7 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
                     key={entry.id}
                     entry={entry}
                     isSelected={entry.id === selectedId}
-                    onSelect={() => setSelectedId(entry.id)}
+                    onSelect={setSelectedId}
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
