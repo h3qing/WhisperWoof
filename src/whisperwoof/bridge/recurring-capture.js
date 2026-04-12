@@ -19,6 +19,13 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  isValidTime,
+  parseTime,
+  getIsoDay,
+  shouldFire,
+  getPresets,
+} = require("./recurring-capture-pure");
 
 const SCHEDULES_FILE = path.join(app.getPath("userData"), "whisperwoof-schedules.json");
 const MAX_SCHEDULES = 20;
@@ -118,67 +125,8 @@ function removeSchedule(id) {
   return { success: true };
 }
 
-// --- Time validation ---
-
-function isValidTime(time) {
-  if (!time || typeof time !== "string") return false;
-  const match = time.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return false;
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
-}
-
-/**
- * Parse "HH:MM" into { hours, minutes }.
- */
-function parseTime(time) {
-  const [h, m] = time.split(":").map(Number);
-  return { hours: h, minutes: m };
-}
-
-/**
- * Get the JS day-of-week (1=Mon..7=Sun) from a Date.
- * JS getDay() returns 0=Sun, 1=Mon..6=Sat — convert to ISO.
- */
-function getIsoDay(date) {
-  const jsDay = date.getDay();
-  return jsDay === 0 ? 7 : jsDay;
-}
-
-// --- Schedule checking ---
-
-/**
- * Check if a schedule should fire right now.
- */
-function shouldFire(schedule, now) {
-  if (!schedule.enabled) return false;
-
-  const { hours, minutes } = parseTime(schedule.time);
-  const isoDay = getIsoDay(now);
-
-  // Check day of week
-  if (!schedule.days.includes(isoDay)) return false;
-
-  // Check time (within the same minute)
-  if (now.getHours() !== hours || now.getMinutes() !== minutes) return false;
-
-  // Don't fire if already fired this minute
-  if (schedule.lastFiredAt) {
-    const lastFired = new Date(schedule.lastFiredAt);
-    if (
-      lastFired.getFullYear() === now.getFullYear() &&
-      lastFired.getMonth() === now.getMonth() &&
-      lastFired.getDate() === now.getDate() &&
-      lastFired.getHours() === now.getHours() &&
-      lastFired.getMinutes() === now.getMinutes()
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
+// Time validation + fire-time check live in recurring-capture-pure.js
+// and are required at the top of this file.
 
 /**
  * Check all schedules and fire any that match the current time.
@@ -243,18 +191,6 @@ function stopScheduler() {
   }
   notifyCallback = null;
   debugLogger.log("[WhisperWoof] Recurring capture scheduler stopped");
-}
-
-/**
- * Get preset schedule configurations (for quick setup UI).
- */
-function getPresets() {
-  return [
-    { name: "Morning Brain Dump", prompt: "What's on your mind this morning?", time: "08:00", days: [1, 2, 3, 4, 5] },
-    { name: "End of Day Review", prompt: "What did you accomplish today?", time: "17:00", days: [1, 2, 3, 4, 5] },
-    { name: "Weekly Reflection", prompt: "How did this week go? What would you improve?", time: "16:00", days: [5] },
-    { name: "Daily Standup Prep", prompt: "What did you do yesterday, what's today's plan, any blockers?", time: "09:00", days: [1, 2, 3, 4, 5] },
-  ];
 }
 
 module.exports = {

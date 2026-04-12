@@ -18,9 +18,14 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  EXPORT_VERSION,
+  stripApiKeys,
+  validateBundle,
+  mergeArrays,
+} = require("./settings-export-pure");
 
 const USER_DATA = app.getPath("userData");
-const EXPORT_VERSION = 1;
 
 const CONFIG_FILES = {
   snippets: path.join(USER_DATA, "whisperwoof-snippets.json"),
@@ -76,16 +81,10 @@ function exportSettings(options = {}) {
     data.appPresetMap = options.appPresetMap;
   }
 
-  // User preferences from localStorage (passed from renderer)
+  // User preferences from localStorage (passed from renderer) — strip
+  // API keys via the shared pure helper so tests validate the same gate.
   if (options.localStorageKeys) {
-    // Strip API keys for safety
-    const safeKeys = { ...options.localStorageKeys };
-    for (const key of Object.keys(safeKeys)) {
-      if (key.includes("api-key") || key.includes("apiKey") || key.includes("token")) {
-        delete safeKeys[key];
-      }
-    }
-    data.preferences = safeKeys;
+    data.preferences = stripApiKeys(options.localStorageKeys);
   }
 
   const bundle = {
@@ -123,12 +122,9 @@ function importSettings(bundle, options = {}) {
   const errors = [];
   const imported = {};
 
-  if (!bundle || !bundle.data) {
-    return { success: false, imported: {}, errors: ["Invalid bundle: missing data"] };
-  }
-
-  if (bundle.appName !== "WhisperWoof") {
-    return { success: false, imported: {}, errors: ["Invalid bundle: not a WhisperWoof export"] };
+  const validationError = validateBundle(bundle);
+  if (validationError) {
+    return { success: false, imported: {}, errors: [validationError] };
   }
 
   const { data } = bundle;
@@ -141,21 +137,9 @@ function importSettings(bundle, options = {}) {
       if (merge) {
         const existing = readConfigFile(filePath) || [];
         const incoming = Array.isArray(data[key]) ? data[key] : [];
-
-        // Merge arrays by deduplicating on 'id' or 'word' or 'trigger'
-        const existingIds = new Set();
-        for (const item of existing) {
-          existingIds.add(item.id || item.word || item.trigger || JSON.stringify(item));
-        }
-
-        const newItems = incoming.filter((item) => {
-          const itemKey = item.id || item.word || item.trigger || JSON.stringify(item);
-          return !existingIds.has(itemKey);
-        });
-
-        const merged = [...existing, ...newItems];
+        const { merged, added } = mergeArrays(existing, incoming);
         writeConfigFile(filePath, merged);
-        imported[key] = { existing: existing.length, added: newItems.length, total: merged.length };
+        imported[key] = { existing: existing.length, added, total: merged.length };
       } else {
         writeConfigFile(filePath, data[key]);
         const count = Array.isArray(data[key]) ? data[key].length : 1;
