@@ -3,6 +3,30 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
+## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up
+
+### Fixes
+- **Language detection regression**: `SCRIPT_PATTERNS` in `bridge/language-detect.js` were declared without the `/g` flag, so `String.match(pattern).length` was always 1 and the `ratio > 0.15` gate never triggered — production `detectLanguage` silently returned English for every non-Latin-script string. Caught by the test-truthfulness refactor.
+- **Virtual scroll perf**: `EntryRow` in `WhisperWoofHistory.tsx` was a plain function component with an unstable inline `onSelect` arrow, so every scroll re-rendered every visible row. Wrapped in `React.memo` and pass `setSelectedId` directly (stable by React's `useState` contract).
+- **Project integration N+1**: `WhisperWoofProjects.tsx` fired one IPC call per project to fetch integration targets. Replaced with a single batched `whisperwoof-get-project-integrations` handler that returns the full `projectId → target` map in one SQL query.
+- **SmartClipboard demo data leak risk**: the IPC-unavailable branch in `SmartClipboard.fetchData` seeded demo boards/snippets. Safe by accident in production but one preload bug away from leaking — now gated behind `import.meta.env.DEV` with a real error message in production.
+
+### Refactor
+- **Deleted unused `SqliteProvider` class** (636 lines). The runtime has always used `better-sqlite3` directly in `bridge/app-init.js`; the class was only imported by its own (now-deleted) test file. Corrected `CLAUDE.md` / `CONTRIBUTING.md` to describe the actual architecture.
+- **Test-truthfulness refactor, 10 of 35 files**: ~35 test files previously defined their own inline copies of production logic, so regressions in real code would ship green. 10 files now import from the real source — either via direct import (when the bridge module is load-safe) or by extracting a `*-pure.js` sibling (when the bridge crashes at load because of top-level `app.getPath`). Files wired: `snippet-hotkeys`, `context-detector`, `snippets`, `style-learner`, `privacy-lock`, `backtrack`, `language-detect`, `llm-providers`, `voice-commands`, `smart-reply`. Remaining 25 files tracked in `docs/test-truthfulness-refactor.md`.
+- Extracted `validateConfig(config)` as a pure exported helper in `bridge/llm-providers.js`; `polishWithProvider` now delegates to it instead of duplicating the registry lookup and API-key gate inline.
+
+### Upstream catch-up (cherry-picked from `OpenWhispr/openwhispr`)
+Full upstream merge deferred to its own session (182 commits behind, heavy overlap on `ipcHandlers.js` / agent / meeting components). These five additive commits landed cleanly:
+- **Security**: `brace-expansion` 1.1.13 security backport
+- **Security**: `@xmldom/xmldom` 0.8.12 bump
+- **Security**: `JSON.parse` result type-validation in `src/config/prompts.ts` custom prompt loader
+- **Local models**: Gemma 4 E2B + E4B added to the local model registry (+ translations)
+- **Local models**: Gemma 4 31B + 26B MoE added to the local model registry (+ translations)
+
+### Tests
+- 43 test files / 753 tests (up from 744 — the net gain is from real-source assertions in the refactored tests; zero regressions)
+
 ## [1.9.0] - 2026-04-08 — Meeting Safety + Agent Fixes + Reliable Detection
 
 ### Meeting Recording — Crash-Safe Audio

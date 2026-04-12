@@ -1,6 +1,7 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 5 of ~35 files shipped in session `2026-04-11`. Remaining work captured here.
+**Status:** 10 of ~35 files shipped across two sessions on `2026-04-11`.
+25 remaining, tracked below.
 
 ## Problem statement
 
@@ -15,12 +16,12 @@ module under test.
 
 ## Why this is the shape of the codebase
 
-Most feature logic lives inside two CommonJS files that are hard to
-import from a vitest .test.ts:
+Most feature logic lives inside CommonJS modules that don't load cleanly
+in a vitest Node runtime:
 
 1. `src/helpers/ipcHandlers.js` (~5800 lines) — feature logic is
    inlined inside IPC handlers that also mutate electron state.
-2. `src/whisperwoof/bridge/*.js` — CommonJS modules that call
+2. `src/whisperwoof/bridge/*.js` — many CJS modules call
    `app.getPath("userData")` at top-level to compute a JSON file path.
    Vitest's `vi.mock("electron", …)` can hoist a stub into the ESM
    graph, but it does **not** reliably intercept the CJS `require("electron")`
@@ -32,90 +33,108 @@ Also: `better-sqlite3` is compiled against Electron's Node, not system
 Node, so the vitest Node runtime can't `require('better-sqlite3')` at all
 — ruling out real-DB integration tests.
 
-## The pattern that works — "extract a `*-pure.js` sibling"
+## Two patterns that work
 
-Applied to all 5 files shipped this round. For each feature file
-`src/whisperwoof/bridge/<feature>.js`:
+### Pattern 1 — "Direct import" (when the bridge module is load-safe)
 
-1. Create a new sibling `<feature>-pure.js` (plain CommonJS). Move all
-   pure logic into it — no `fs`, no `electron`, no `better-sqlite3`, no
-   side effects. Export everything the tests need.
+If the `bridge/<feature>.js` only requires `debugLogger` (or other
+side-effect-free deps), the test can import it directly:
+
+```ts
+vi.mock("../../../helpers/debugLogger", () => ({ log: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
+// @ts-expect-error — CommonJS module, no TS declarations
+import { detectX, someConstant } from "../../bridge/feature";
+```
+
+Used for: `context-detector`, `backtrack`, `llm-providers`,
+`voice-commands`, `smart-reply`, `language-detect`.
+
+### Pattern 2 — "Extract a `*-pure.js` sibling" (when the bridge crashes at load)
+
+When `<feature>.js` calls `app.getPath("userData")` at top-level or
+otherwise triggers side effects at require-time, create a sibling
+`<feature>-pure.js` with no electron / fs / app / debugLogger requires:
+
+1. Move all pure logic into `<feature>-pure.js` (plain CommonJS). Export
+   everything the tests and production both need.
 2. Update `<feature>.js` to `require('./<feature>-pure')` and delegate
    through. Production behavior unchanged.
 3. Rewrite `<feature>.test.ts` to
    `import … from '../../bridge/<feature>-pure'` (with a
-   `@ts-expect-error` for the missing .d.ts). The test no longer needs
-   to mock electron or debugLogger because the pure module touches
-   nothing external.
+   `@ts-expect-error` for the missing .d.ts).
 4. Delete the inline reimplementation from the test file.
 
-Naming is consistent: `<feature>-pure.js`. The pure file has no
-electron / fs / app / debugLogger requires, so tests load it
-instantly in the vitest Node runtime without mocks.
+Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 
-Alternate pattern (when the source is already in a safe module): just
-fix the test import. Used once this round for `context-detector` —
-`bridge/context-detector.js` only requires `child_process` and
-`debugLogger`, neither of which crash at module load.
+The pure file has no electron / fs / app / debugLogger requires, so
+tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped this round (5 files)
+## Shipped (10 files across batches 1 + 2)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
-| `bridge/snippet-hotkeys.test.ts` | Extracted `mapSnippetRow` | New `bridge/snippet-hotkeys-pure.js` |
-| `core/context/context-detector.test.ts` | Direct import from existing bridge module | None |
-| `core/snippets/snippets.test.ts` | Extracted `matchSnippet` + `simpleEditDistance` | New `bridge/snippets-pure.js` |
-| `core/polish/style-learner.test.ts` | Extracted `editDistance`, `shouldRecordStyleExample`, `buildPromptFromExamples` | New `bridge/style-learner-pure.js` |
-| `core/privacy/privacy-lock.test.ts` | Extracted `isUrlAllowedWhenLocked`, `isProviderAllowedWhenLocked`, `PRIVACY_OVERRIDES`, `DEFAULT_ALLOWED_LOCAL` | New `bridge/privacy-lock-pure.js` |
+| `bridge/snippet-hotkeys.test.ts` | Pattern 2 — extracted `mapSnippetRow` | New `bridge/snippet-hotkeys-pure.js` |
+| `core/context/context-detector.test.ts` | Pattern 1 — direct import | None |
+| `core/snippets/snippets.test.ts` | Pattern 2 — extracted `matchSnippet` + `simpleEditDistance` | New `bridge/snippets-pure.js` |
+| `core/polish/style-learner.test.ts` | Pattern 2 — extracted `editDistance`, `shouldRecordStyleExample`, `buildPromptFromExamples` | New `bridge/style-learner-pure.js` |
+| `core/privacy/privacy-lock.test.ts` | Pattern 2 — extracted `isUrlAllowedWhenLocked`, `isProviderAllowedWhenLocked`, `PRIVACY_OVERRIDES`, `DEFAULT_ALLOWED_LOCAL` | New `bridge/privacy-lock-pure.js` |
+| `core/polish/backtrack.test.ts` | Pattern 1 — direct import | None |
+| `core/language/language-detect.test.ts` | Pattern 1 — direct import. **Real bug caught**: source regex missing `/g`, fixed | `bridge/language-detect.js` SCRIPT_PATTERNS now `/g` |
+| `core/polish/llm-providers.test.ts` | Pattern 1 — direct import. Extracted `validateConfig` as pure helper | `bridge/llm-providers.js` — `validateConfig()` exported, `polishWithProvider` delegates to it |
+| `core/commands/voice-commands.test.ts` | Pattern 1 — direct import | None |
+| `core/reply/smart-reply.test.ts` | Pattern 1 — direct import | None |
 
-## Remaining work — ~30 files
+## Regressions caught by the refactor
+
+- **language-detect.js**: SCRIPT_PATTERNS were declared without `/g`,
+  so `String.match(pattern).length` was always 1 and the
+  `ratio > 0.15` gate never triggered. Production `detectLanguage`
+  silently returned English for every non-Latin-script string. The
+  old test hid this because its inline reimplementation used
+  `new RegExp(pattern.source, "g")` instead of the raw pattern. Fixed
+  + added an inline NOTE comment so future reviewers don't strip the
+  flag.
+
+## Remaining work — 25 files
 
 Grouped by effort. Each row needs the same pattern: find (or extract)
 the real source, wire the test to import it, drop the inline copy.
 
-### Bucket B: pure logic lives in a bridge `.js` file already
+### Bucket B: Direct import (bridge source already load-safe)
 
-Look for an existing `src/whisperwoof/bridge/<feature>.js` or helper.
-If it loads cleanly (no top-level `app.getPath`), the test can import
-it directly. Otherwise, extract a `-pure.js` sibling.
+Candidates where `bridge/<feature>.js` likely only requires debugLogger.
+Verify by grepping for `app.getPath` in the source first.
 
-- `bridge/backtrack.js` ← `core/polish/backtrack.test.ts`
-- `bridge/llm-providers.js` ← `core/polish/llm-providers.test.ts`
-- `bridge/language-detect.js` (or similar) ← `core/language/language-detect.test.ts`
-- `bridge/smart-reply.js` ← `core/reply/smart-reply.test.ts`
-- `bridge/voice-commands.js` ← `core/commands/voice-commands.test.ts`
 - `bridge/vibe-coding.js` ← `core/coding/vibe-coding.test.ts`
 - `bridge/recurring-capture.js` ← `core/capture/recurring-capture.test.ts`
 - `bridge/settings-export.js` ← `core/settings/settings-export.test.ts`
 
-Effort: S each, ~15 files total in bucket B.
+Effort: S each.
 
-### Bucket C: logic lives inside `src/helpers/ipcHandlers.js`
+### Bucket C: Pattern 2 (bridge source crashes at load, extract pure sibling)
 
-These are the hardest — the "module" is really just a block of code
-inside `ipcHandlers.js`. Fix requires extracting a clean TS/JS module
-first, then updating the IPC handler to call it, then pointing the
-test at it.
+Grep result from the audit shows these bridge files DO exist. Most
+likely call `app.getPath` at top-level so Pattern 2 is needed:
 
-- `core/actions/agentic-actions.test.ts`
-- `core/analytics/analytics.test.ts`
-- `core/automation/app-automation.test.ts`
-- `core/chains/entry-chains.test.ts`
-- `core/digest/daily-digest.test.ts`
-- `core/focus/focus-mode.test.ts`
-- `core/intent/intent-capture.test.ts`
-- `core/keybindings/keybindings.test.ts`
-- `core/memory/conversation-memory.test.ts`
-- `core/screen-context.test.ts`
-- `core/search/semantic-search.test.ts`
-- `core/streaming/streaming-manager.test.ts`
-- `core/tags/auto-tagger.test.ts`
-- `core/tags/entry-tags.test.ts`
-- `core/templates/entry-templates.test.ts`
-- `core/vocabulary/vocabulary.test.ts`
-- `core/webhooks/webhooks.test.ts`
+- `bridge/agentic-actions.js` ← `core/actions/agentic-actions.test.ts`
+- `bridge/analytics.js` ← `core/analytics/analytics.test.ts`
+- `bridge/app-automation.js` ← `core/automation/app-automation.test.ts`
+- `bridge/auto-tagger.js` ← `core/tags/auto-tagger.test.ts`
+- `bridge/conversation-memory.js` ← `core/memory/conversation-memory.test.ts`
+- `bridge/daily-digest.js` ← `core/digest/daily-digest.test.ts`
+- `bridge/entry-chains.js` ← `core/chains/entry-chains.test.ts`
+- `bridge/entry-tags.js` ← `core/tags/entry-tags.test.ts`
+- `bridge/entry-templates.js` ← `core/templates/entry-templates.test.ts`
+- `bridge/focus-mode.js` ← `core/focus/focus-mode.test.ts`
+- `bridge/intent-capture.js` ← `core/intent/intent-capture.test.ts`
+- `bridge/keybindings.js` ← `core/keybindings/keybindings.test.ts`
+- `bridge/screen-context.js` ← `core/context/screen-context.test.ts`
+- `bridge/semantic-search.js` ← `core/search/semantic-search.test.ts`
+- `bridge/streaming-manager.js` ← `core/streaming/streaming-manager.test.ts`
+- `bridge/vocabulary.js` ← `core/vocabulary/vocabulary.test.ts`
+- `bridge/webhooks.js` ← `core/webhooks/webhooks.test.ts`
 
-Effort: M each. Tackle 3–5 per session to avoid ipcHandlers.js sprawl.
+Effort: M each. Tackle 3–5 per session to avoid sprawl.
 
 ### Bucket D: mock-only or borderline
 
@@ -130,6 +149,7 @@ Effort: M each. Tackle 3–5 per session to avoid ipcHandlers.js sprawl.
 
 ## Recommended next session
 
-Pick 3 files from Bucket B (the `bridge/*.js` ones) in one commit —
-fastest ROI per fix. Then 2 from Bucket C together so the
-`ipcHandlers.js` extraction has a consistent approach across features.
+Pick the 3 Bucket B candidates first (fastest, one commit each). Then
+move to Bucket C with a small batch of 3–5 related modules — likely
+start with `analytics`, `auto-tagger`, `webhooks` (all smallish,
+self-contained).

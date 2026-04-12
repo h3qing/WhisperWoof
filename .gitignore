@@ -320,3 +320,6 @@ eval/results/
 
 # Claude Code agent configs
 .agents/
+
+# Vite dev server cache
+src/.vite/
