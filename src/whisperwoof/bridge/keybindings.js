@@ -18,34 +18,16 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const {
+  DEFAULT_KEYBINDINGS,
+  CATEGORIES,
+  isValidKeyCombo,
+  mergeWithOverrides,
+  detectConflict,
+  validateKeybindingBundle,
+} = require("./keybindings-pure");
 
 const KEYBINDINGS_FILE = path.join(app.getPath("userData"), "whisperwoof-keybindings.json");
-
-// --- Default keybindings ---
-
-const DEFAULT_KEYBINDINGS = {
-  // Core actions
-  "toggle-recording": { key: "Fn", label: "Toggle recording", category: "core" },
-  "command-bar": { key: "CommandOrControl+K", label: "Command bar", category: "core" },
-  "paste-at-cursor": { key: "Fn", label: "Paste at cursor", category: "routing" },
-
-  // Routing
-  "save-markdown": { key: "Fn+N", label: "Save as Markdown", category: "routing" },
-  "route-project": { key: "Fn+P", label: "Route to project", category: "routing" },
-  "route-todo": { key: "Fn+T", label: "Route to todo", category: "routing" },
-
-  // Navigation
-  "open-history": { key: "CommandOrControl+H", label: "Open history", category: "navigation" },
-  "open-settings": { key: "CommandOrControl+,", label: "Open settings", category: "navigation" },
-  "open-projects": { key: "CommandOrControl+P", label: "Open projects", category: "navigation" },
-
-  // Focus mode
-  "start-focus": { key: "CommandOrControl+Shift+F", label: "Start focus sprint", category: "focus" },
-  "end-focus": { key: "CommandOrControl+Shift+E", label: "End focus sprint", category: "focus" },
-
-  // Privacy
-  "toggle-privacy": { key: "CommandOrControl+Shift+L", label: "Toggle privacy lock", category: "privacy" },
-};
 
 // --- State ---
 
@@ -80,46 +62,28 @@ function saveOverrides() {
 // --- Merged keybindings ---
 
 /**
- * Get all keybindings (defaults merged with user overrides).
+ * Get keybindings as a flat array, defaults merged with user overrides.
+ * Delegates to mergeWithOverrides in the pure module so the UI, tests,
+ * and runtime all see the same shape.
+ */
+function getKeybindingsList() {
+  return mergeWithOverrides(loadOverrides());
+}
+
+/**
+ * Get keybindings as a map keyed by actionId (legacy callers).
  */
 function getKeybindings() {
-  const overrides = loadOverrides();
+  const list = getKeybindingsList();
   const result = {};
-
-  for (const [actionId, defaultBinding] of Object.entries(DEFAULT_KEYBINDINGS)) {
-    const override = overrides[actionId];
-    result[actionId] = {
-      actionId,
-      ...defaultBinding,
-      key: override?.key || defaultBinding.key,
-      isCustom: !!override?.key,
-      defaultKey: defaultBinding.key,
-    };
+  for (const binding of list) {
+    result[binding.actionId] = binding;
   }
-
   return result;
 }
 
-/**
- * Get keybindings as a flat array (for UI).
- */
-function getKeybindingsList() {
-  const bindings = getKeybindings();
-  return Object.values(bindings);
-}
-
 // --- Rebind ---
-
-/**
- * Valid key combo format: modifier+key or single key.
- * Examples: "CommandOrControl+K", "Fn+N", "Shift+Enter", "F5"
- */
-const KEY_COMBO_PATTERN = /^(Fn|F[1-9]|F1[0-2]|[A-Z]|[0-9]|Space|Enter|Tab|Escape|Backspace|Delete|Home|End|PageUp|PageDown|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|,|\.|\[|\]|\\|\/|;|'|`|-|=)$|^(CommandOrControl|Cmd|Ctrl|Alt|Shift|Fn)\+/i;
-
-function isValidKeyCombo(key) {
-  if (!key || typeof key !== "string") return false;
-  return KEY_COMBO_PATTERN.test(key.trim());
-}
+// Validation / conflict detection lives in keybindings-pure.js.
 
 /**
  * Rebind an action to a new key combo.
@@ -142,16 +106,15 @@ function rebindAction(actionId, newKey) {
     return { success: false, error: `Invalid key combo: "${trimmedKey}"` };
   }
 
-  // Check for conflicts
-  const currentBindings = getKeybindings();
-  for (const [id, binding] of Object.entries(currentBindings)) {
-    if (id !== actionId && binding.key.toLowerCase() === trimmedKey.toLowerCase()) {
-      return {
-        success: false,
-        error: `Key "${trimmedKey}" is already bound to "${binding.label}"`,
-        conflict: id,
-      };
-    }
+  const currentList = getKeybindingsList();
+  const conflictId = detectConflict(currentList, actionId, trimmedKey);
+  if (conflictId) {
+    const conflicting = currentList.find((b) => b.actionId === conflictId);
+    return {
+      success: false,
+      error: `Key "${trimmedKey}" is already bound to "${conflicting?.label || conflictId}"`,
+      conflict: conflictId,
+    };
   }
 
   const overrides = loadOverrides();
@@ -200,13 +163,8 @@ function exportKeybindings() {
 }
 
 function importKeybindings(data) {
-  if (!data || data.appName !== "WhisperWoof" || data.type !== "keybindings") {
-    return { success: false, error: "Invalid keybinding export file" };
-  }
-
-  if (!data.bindings || typeof data.bindings !== "object") {
-    return { success: false, error: "No bindings found in export" };
-  }
+  const bundleError = validateKeybindingBundle(data);
+  if (bundleError) return { success: false, error: bundleError };
 
   // Validate all keys before applying
   let imported = 0;
@@ -239,13 +197,7 @@ function importKeybindings(data) {
  * Get keybinding categories (for grouped settings UI).
  */
 function getCategories() {
-  return [
-    { id: "core", name: "Core", description: "Recording and command bar" },
-    { id: "routing", name: "Routing", description: "Where voice text goes" },
-    { id: "navigation", name: "Navigation", description: "Open panels and views" },
-    { id: "focus", name: "Focus", description: "Focus sprint controls" },
-    { id: "privacy", name: "Privacy", description: "Privacy lock" },
-  ];
+  return [...CATEGORIES];
 }
 
 module.exports = {

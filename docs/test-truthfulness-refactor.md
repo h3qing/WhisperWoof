@@ -1,13 +1,14 @@
 # Test Truthfulness Refactor — Follow-up Tracker
 
-**Status:** 20 of ~35 files shipped across five sessions on `2026-04-11`.
-15 remaining, tracked below. **Bucket B and the first two Bucket C
-batches are complete.** Notable finding from batch 2: three bridge
-modules (`auto-tagger`, `semantic-search`, `screen-context`) were
-actually load-safe and already exported every pure helper — the old
-tests just never imported them. Direct-import candidates are more
-common than the original audit assumed; always check the source's
-top-level requires before resorting to Pattern 2.
+**Status:** 22 of ~35 files shipped across six sessions on `2026-04-11`.
+13 remaining, tracked below. **Bucket B and Bucket C batches 1–3 are
+complete.** Notable finding from batch 2: three bridge modules
+(`auto-tagger`, `semantic-search`, `screen-context`) were actually
+load-safe and already exported every pure helper — the old tests just
+never imported them. Batch 3 confirmed it: `intent-capture` was also a
+direct-import win. Direct-import candidates are more common than the
+original audit assumed; always check the source's top-level requires
+before resorting to Pattern 2.
 
 ## Problem statement
 
@@ -75,7 +76,7 @@ Used for: `snippet-hotkeys`, `snippets`, `style-learner`, `privacy-lock`.
 The pure file has no electron / fs / app / debugLogger requires, so
 tests load it instantly in the vitest Node runtime without mocks.
 
-## Shipped (20 files across batches 1 + 2 + 3 + 4 + 5)
+## Shipped (22 files across batches 1 + 2 + 3 + 4 + 5 + 6)
 
 | Test file | Approach | Source changes |
 | --- | --- | --- |
@@ -99,6 +100,8 @@ tests load it instantly in the vitest Node runtime without mocks.
 | `core/tags/auto-tagger.test.ts` | Pattern 1 — direct import. Source was load-safe and already exported `suggestTagsByKeywords` + `KEYWORD_RULES` | None |
 | `core/search/semantic-search.test.ts` | Pattern 1 — direct import. Source already exports `tokenize`, `termFrequency`, `inverseDocumentFrequency`, `tfidfVector`, `cosineSimilarity`, `STOP_WORDS`. Fixed one assertion that was wrong because the old test's fake stop-word list omitted "how" | None |
 | `core/context/screen-context.test.ts` | Pattern 1 — direct import. Source only requires `child_process` + `debugLogger`. Added screen-vs-voice-command disambiguation guards | None |
+| `core/keybindings/keybindings.test.ts` | Pattern 2 — extracted `DEFAULT_KEYBINDINGS`, `CATEGORIES`, `KEY_COMBO_PATTERN`, `isValidKeyCombo`, `mergeWithOverrides`, `detectConflict`, `validateKeybindingBundle`. Production `rebindAction` + `importKeybindings` delegate. Added default-integrity assertions (every default uses a valid combo, every binding maps to a real category) | New `bridge/keybindings-pure.js` |
+| `core/intent/intent-capture.test.ts` | Pattern 1 — direct import. Added an assertion that every `RAMBLING_SIGNALS` regex has the `/g` flag (same class of bug as the `language-detect` regression caught in batch 2) | None |
 
 ## Regressions caught by the refactor
 
@@ -129,19 +132,14 @@ tests load it instantly in the vitest Node runtime without mocks.
   `settingsStore.ts` so any rename there will trip the test until the
   marker list is updated.
 
-## Remaining work — 15 files
+## Remaining work — 13 files
 
 Grouped by effort. Each row still needs the same pattern: find (or
 extract) the real source, wire the test to import it, drop the
 inline copy. **Always check `top-level requires` in the bridge source
-first** — several files assumed to need Pattern 2 turned out to be
-load-safe and just needed Pattern 1 direct imports.
+first** — more files than expected turn out to be load-safe.
 
-### Bucket C: Likely Pattern 2 (bridge source probably crashes at load)
-
-These need verification — if the bridge file doesn't call
-`app.getPath` / `fs` at module load, it may be another direct-import
-win like `auto-tagger` / `semantic-search` / `screen-context`:
+### Bucket C: Pattern 1 or Pattern 2 TBD
 
 - `bridge/agentic-actions.js` ← `core/actions/agentic-actions.test.ts`
 - `bridge/app-automation.js` ← `core/automation/app-automation.test.ts`
@@ -149,8 +147,6 @@ win like `auto-tagger` / `semantic-search` / `screen-context`:
 - `bridge/daily-digest.js` ← `core/digest/daily-digest.test.ts`
 - `bridge/entry-chains.js` ← `core/chains/entry-chains.test.ts`
 - `bridge/entry-templates.js` ← `core/templates/entry-templates.test.ts`
-- `bridge/intent-capture.js` ← `core/intent/intent-capture.test.ts`
-- `bridge/keybindings.js` ← `core/keybindings/keybindings.test.ts`
 - `bridge/streaming-manager.js` ← `core/streaming/streaming-manager.test.ts`
 - `bridge/vocabulary.js` ← `core/vocabulary/vocabulary.test.ts`
 
