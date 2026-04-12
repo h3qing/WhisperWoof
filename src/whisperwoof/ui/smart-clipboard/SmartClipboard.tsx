@@ -373,8 +373,8 @@ export default function SmartClipboard({ className }: SmartClipboardProps) {
         setBoards([...boardsData]);
         setSnippets([...snippetsData]);
         setError(null);
-      } else {
-        // IPC not available — show demo data for development
+      } else if (import.meta.env.DEV) {
+        // Dev-only fallback when IPC isn't wired up yet. Never reaches production.
         setBoards([
           { id: "demo-1", name: "Greetings", position: 0, color: "#C87B3A", createdAt: new Date().toISOString() },
           { id: "demo-2", name: "Work", position: 1, color: "#60A5FA", createdAt: new Date().toISOString() },
@@ -387,6 +387,8 @@ export default function SmartClipboard({ className }: SmartClipboardProps) {
           { id: "s4", content: "I've pushed the changes to the feature branch. Ready for review.", title: "PR ready", boardId: "demo-2", position: 1, source: "ai", useCount: 3, lastUsedAt: null, hotkey: "3", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
           { id: "s5", content: "console.log(JSON.stringify(data, null, 2));", title: "Debug log", boardId: "demo-3", position: 0, source: "human", useCount: 20, lastUsedAt: null, hotkey: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
         ]);
+      } else {
+        setError("Smart Clipboard is unavailable. Please restart the app.");
       }
     } catch {
       setError("Unable to load Smart Clipboard data.");
