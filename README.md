@@ -13,7 +13,7 @@
   <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.9.0-C87B3A?style=flat-square" alt="v1.9.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-786%20passing-brightgreen?style=flat-square" alt="786 tests passing">
+  <img src="https://img.shields.io/badge/tests-800%20passing-brightgreen?style=flat-square" alt="800 tests passing">
 </p>
 
 <p align="center">

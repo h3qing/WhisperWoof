@@ -5,6 +5,8 @@ import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle } from "../utils/recordingErrors";
+import { LatencyTracker } from "../whisperwoof/core/latency/latency-tracker";
+import { PERCEIVED_LATENCY_BUDGET_MS } from "../whisperwoof/core/latency/types";
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -18,6 +20,10 @@ export const useAudioRecording = (toast, options = {}) => {
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
   const activeHotkeyRef = useRef(null); // Hotkey combo used during this dictation (e.g. "Fn+T")
+  // WhisperWoof: per-capture latency tracker. Created on hotkey down,
+  // marked through each pipeline stage, finalized + persisted to
+  // bf_entries.metadata.timings when the capture completes.
+  const latencyTrackerRef = useRef(null);
   const { onToggle } = options;
 
   const performStartRecording = useCallback(async () => {
@@ -28,6 +34,13 @@ export const useAudioRecording = (toast, options = {}) => {
 
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isProcessing) return false;
+
+      // WhisperWoof latency: start the tracker at the very first moment
+      // we know the user is trying to record. `hotkey` is marked now,
+      // `micOpen` lands a few ms later once startRecording returns true.
+      const tracker = new LatencyTracker();
+      tracker.mark("hotkey");
+      latencyTrackerRef.current = tracker;
 
       // Retry STT config fetch if it wasn't loaded on mount (e.g. auth wasn't ready)
       if (!audioManagerRef.current.sttConfig) {
@@ -42,10 +55,14 @@ export const useAudioRecording = (toast, options = {}) => {
         : await audioManagerRef.current.startRecording();
 
       if (didStart) {
+        tracker.mark("micOpen");
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
         }
         void playStartCue();
+      } else {
+        // Recording never actually started — discard the half-formed tracker.
+        latencyTrackerRef.current = null;
       }
 
       return didStart;
@@ -62,6 +79,13 @@ export const useAudioRecording = (toast, options = {}) => {
 
       const currentState = audioManagerRef.current.getState();
       if (!currentState.isRecording && !currentState.isStreamingStartInProgress) return false;
+
+      // WhisperWoof latency: micStop + sttStart happen at the boundary
+      // between "user is speaking" and "processing has begun". In
+      // non-streaming mode the audio manager queues processAudio
+      // immediately; in streaming mode the final chunk flush starts.
+      latencyTrackerRef.current?.mark("micStop");
+      latencyTrackerRef.current?.mark("sttStart");
 
       if (currentState.isStreaming || currentState.isStreamingStartInProgress) {
         void playStopCue();
@@ -124,7 +148,11 @@ export const useAudioRecording = (toast, options = {}) => {
             return;
           }
 
-          // WhisperWoof: Pipeline timing for debug
+          // WhisperWoof latency: the STT stage just completed — mark it.
+          // The tracker was started in performStartRecording (hotkey) and
+          // advanced through micOpen/micStop/sttStart in start/stop.
+          const tracker = latencyTrackerRef.current;
+          tracker?.mark("sttEnd");
           const pipelineStart = performance.now();
           const timings = {};
 
@@ -218,6 +246,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
           if (polishEnabled) {
             try {
+              tracker?.mark("polishStart");
               const polishStart = performance.now();
               const polishPreset = localStorage.getItem("whisperwoof-polish-preset") || "clean";
               const customPrompt = localStorage.getItem("whisperwoof-custom-prompt") || "";
@@ -235,6 +264,7 @@ export const useAudioRecording = (toast, options = {}) => {
                 }
               );
               timings.polishMs = Math.round(performance.now() - polishStart);
+              tracker?.mark("polishEnd");
             if (polishResult?.polished && polishResult.text) {
               rawText = transcribedText;
               textToPaste = polishResult.text;
@@ -299,6 +329,7 @@ export const useAudioRecording = (toast, options = {}) => {
           const isStreaming = result.source?.includes("streaming");
           const { keepTranscriptionInClipboard } = getSettings();
 
+          tracker?.mark("pasteStart");
           if (routedTo === "copy-to-clipboard") {
             // Fn+T: Copy to clipboard only (don't paste at cursor)
             await navigator.clipboard.writeText(textToPaste);
@@ -326,20 +357,46 @@ export const useAudioRecording = (toast, options = {}) => {
               "streaming"
             );
           }
+          tracker?.mark("pasteEnd");
 
           audioManagerRef.current.saveTranscription(textToPaste, rawText);
 
-          // WhisperWoof: Save to bf_entries for unified history
+          // WhisperWoof: Build latency timings + persist to bf_entries
+          const capturedTimings = tracker?.toTimings() ?? null;
+          const speakingDurationMs = capturedTimings?.speakingMs ?? null;
+
+          if (capturedTimings) {
+            const budget = PERCEIVED_LATENCY_BUDGET_MS;
+            const pMs = capturedTimings.perceivedMs;
+            const label = pMs != null && pMs <= budget ? "PASS" : "OVER";
+            logger.info(
+              `WhisperWoof latency [${label}]`,
+              {
+                perceivedMs: pMs,
+                budget,
+                speakingMs: capturedTimings.speakingMs,
+                sttMs: capturedTimings.sttMs,
+                polishMs: capturedTimings.polishMs,
+                pasteMs: capturedTimings.pasteMs,
+                totalMs: capturedTimings.totalMs,
+              },
+              "whisperwoof"
+            );
+          }
+
+          // Reset tracker for next capture
+          latencyTrackerRef.current = null;
+
           window.electronAPI?.whisperwoofSaveEntry?.({
             source: 'voice',
             rawText: rawText,
             polished: textToPaste !== rawText ? textToPaste : null,
             routedTo,
             hotkeyUsed,
-            durationMs: null, // TODO: get from audio recording
+            durationMs: speakingDurationMs,
             projectId: null,
             audioPath: null,
-            metadata: {},
+            metadata: capturedTimings ? { timings: capturedTimings } : {},
           });
 
           if (result.source === "openai" && getSettings().useLocalWhisper) {

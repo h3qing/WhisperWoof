@@ -3,7 +3,13 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
-## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up
+## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up + Latency Infra
+
+### New Feature: Pipeline Latency Instrumentation (infra)
+- **LatencyTracker module** (`src/whisperwoof/core/latency/`) — pure TypeScript class that collects `performance.now()` marks at each pipeline stage. Injectable `Clock` interface so the bench harness and unit tests can use deterministic fake clocks. Typed `PipelineStage` enum (`hotkey` → `micOpen` → `micStop` → `sttStart` → `sttEnd` → `polishStart` → `polishEnd` → `pasteStart` → `pasteEnd`) and a `PipelineTimings` interface for the flat, persistable record.
+- **`useAudioRecording.js` instrumented** — a tracker is created on hotkey fire, marked through every stage boundary, and finalized when the capture completes. The full `PipelineTimings` record (speaking duration + STT + polish + paste + perceived latency + total) is now persisted to `bf_entries.metadata.timings` and logged to the console with a PASS/OVER label against the 500ms perceived-latency budget. `durationMs` (previously a TODO null) is now populated with the speaking duration.
+- **14 unit tests** covering the full LatencyTracker lifecycle: happy-path capture, polish-skipped capture, snippet-short-circuit capture, negative-duration clamping, partial marks, and the 500ms budget gate.
+- **No UI dashboard yet** — display surface will be designed in a follow-up scope discussion. The infra collects and persists; the UI reads later.
 
 ### Security
 - **Settings export was leaking every API key** (caught by the test-truthfulness refactor). The inline `stripApiKeys` in `bridge/settings-export.js` used `String.includes("apiKey")` (lowercase `a`) as its secret marker. The app stores real keys as `openaiApiKey`, `anthropicApiKey`, `groqApiKey`, `geminiApiKey`, `mistralApiKey`, `customTranscriptionApiKey`, `customReasoningApiKey` in `src/stores/settingsStore.ts` — every one has a capital `A` after the provider name. `"openaiApiKey".includes("apiKey")` returns **false**, so the filter silently matched **none** of the real keys the app writes. Any user who exported their settings got a plaintext dump of every API key they'd configured. Fixed: the pure module now lowercases keys before matching and uses an expanded marker list (`apikey`, `api-key`, `api_key`, `token`, `secret`, `bearer`). The old test hid the bug by testing against a fictitious `"whisperwoof-openai-api-key"` naming convention the app never uses.
@@ -36,7 +42,7 @@ Full upstream merge deferred to its own session (182 commits behind, heavy overl
 - **Local models**: Gemma 4 31B + 26B MoE added to the local model registry (+ translations)
 
 ### Tests
-- 43 test files / 786 tests (up from 744 — net gain from real-source assertions in the refactored tests, including the webhooks SSRF / HMAC baseline assertions, focus-mode deterministic-time coverage, screen-vs-voice-command disambiguation guards, keybinding default-integrity checks, rambling-signal /g-flag guards, and the new `planVocabularyImport` deterministic-time / max-entries coverage; zero regressions)
+- 44 test files / 800 tests (up from 744 — net gain from real-source assertions in the refactored tests + 14 new latency tracker tests; zero regressions)
 
 ## [1.9.0] - 2026-04-08 — Meeting Safety + Agent Fixes + Reliable Detection
 
