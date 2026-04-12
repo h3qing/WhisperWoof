@@ -17,7 +17,7 @@ Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotk
 
 ## Architecture
 
-- **StorageProvider interface** — All data access is abstracted. Phase 1 uses SqliteProvider (Kysely ORM + better-sqlite3). Future providers: Supabase, WhisperWoof Cloud.
+- **Storage** — Main process owns `better-sqlite3` directly in `src/whisperwoof/bridge/app-init.js`; it creates `bf_entries`, `bf_projects`, `bf_snippets`, `bf_snippet_boards`, `bf_audit_log`, and the FTS5 index. A `StorageProvider` TypeScript interface lives in `src/whisperwoof/core/storage/` for the pipeline module, but is not instantiated at runtime. The renderer reads/writes exclusively via IPC handlers in `src/helpers/ipcHandlers.js`.
 - **Hotkey = intent** — Key combo determines destination. No LLM intent detection. Fn+letter combos detected via native `.keyDown` monitor in globe-listener (e.g. Fn+T → clipboard, Fn+N → markdown, Fn+P → project).
 - **MCP for plugins** (Phase 2) — Plugins are MCP servers. WhisperWoof is an MCP client.
 - **Local-first** — No mandatory cloud dependency. Ollama is optional (graceful degradation to raw transcript).
@@ -28,7 +28,7 @@ Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotk
 ```
 src/whisperwoof/                 ← ALL WhisperWoof additions
   core/                       ← Main process (strict TypeScript)
-    storage/                  StorageProvider interface + SqliteProvider
+    storage/                  StorageProvider interface + shared types (runtime DB lives in bridge/app-init.js)
     polish/                   OllamaService (adapts OpenWhispr's ReasoningService)
     router/                   HotkeyRouter (route definitions + dispatch)
     clipboard/                ClipboardMonitor (NSPasteboard polling)

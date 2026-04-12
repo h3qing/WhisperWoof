@@ -1,9 +1,8 @@
 /**
  * WhisperWoof Storage Types
  *
- * All data access goes through the StorageProvider interface.
- * Phase 1: SqliteProvider (wraps OpenWhispr's Kysely + better-sqlite3)
- * Future: SupabaseProvider, WhisperWoofCloudProvider
+ * Shared across the main-process runtime (src/whisperwoof/bridge/app-init.js
+ * talks to better-sqlite3 directly) and the renderer (consumes rows over IPC).
  */
 
 export type EntrySource = 'voice' | 'clipboard' | 'meeting' | 'import';

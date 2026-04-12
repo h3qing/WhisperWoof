@@ -30,7 +30,7 @@ WhisperWoof code lives in `src/whisperwoof/` — isolated from OpenWhispr core t
 ```
 src/whisperwoof/
   core/           ← Main process (strict TypeScript)
-    storage/      StorageProvider interface + SqliteProvider
+    storage/      StorageProvider interface + shared types (runtime DB in bridge/app-init.js)
     polish/       OllamaService for transcript cleanup
     router/       HotkeyRouter for destination routing
     clipboard/    ClipboardMonitor (NSPasteboard polling)
