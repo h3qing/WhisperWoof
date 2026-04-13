@@ -3,7 +3,16 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
-## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up + Latency Infra
+## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up + Latency Infra + Website
+
+### Website
+- **Combined "floating assistant" + "raw voice in, polished text out" demo sections** into one condensed mock-window card with Mando head, waveform, raw input, and polished output all in a single visual. Removed the separate "Meet your floating assistant" preview section.
+- **Unified features grid**: removed "Mando's ears" card, converted from mixed 3-column with wide-span cards to a clean 2-column, 4-row grid with 8 equal-size cards.
+- **Fixed JS crash**: `querySelector('.demo-box')` returned null after the section merge, crashing the IntersectionObserver setup and breaking all scroll-reveal animations on the entire page.
+
+### Fixes (app)
+- **Distil model download broken**: Distil Large V3 and V3.5 were missing `expectedSizeBytes` in the model registry, so the download config computed `NaN` for the file size, breaking disk-space checks and silently aborting the download. Added the numeric field.
+- **Wrong provider icon**: all local Whisper models showed the OpenAI ChatGPT logo. Changed to the open-source whisper icon since these are GGML community binaries from `ggerganov/whisper.cpp`, not official OpenAI distributions.
 
 ### New Feature: Pipeline Latency Instrumentation (infra)
 - **LatencyTracker module** (`src/whisperwoof/core/latency/`) — pure TypeScript class that collects `performance.now()` marks at each pipeline stage. Injectable `Clock` interface so the bench harness and unit tests can use deterministic fake clocks. Typed `PipelineStage` enum (`hotkey` → `micOpen` → `micStop` → `sttStart` → `sttEnd` → `polishStart` → `polishEnd` → `pasteStart` → `pasteEnd`) and a `PipelineTimings` interface for the flat, persistable record.

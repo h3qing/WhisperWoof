@@ -323,3 +323,6 @@ eval/results/
 
 # Vite dev server cache
 src/.vite/
+
+# gstack retro snapshots (local-only)
+.context/
