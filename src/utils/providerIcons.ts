@@ -11,7 +11,7 @@ import gemmaIcon from "@/assets/icons/providers/gemma.svg";
 
 export const PROVIDER_ICONS: Record<string, string> = {
   openai: openaiIcon,
-  whisper: openaiIcon,
+  whisper: openaiOssIcon,
   anthropic: anthropicIcon,
   gemini: geminiIcon,
   llama: llamaIcon,
@@ -27,7 +27,7 @@ export function getProviderIcon(provider: string): string | undefined {
   return PROVIDER_ICONS[provider];
 }
 
-export const MONOCHROME_PROVIDERS = ["openai", "whisper", "anthropic", "openai-oss"] as const;
+export const MONOCHROME_PROVIDERS = ["openai", "anthropic", "openai-oss"] as const;
 
 export function isMonochromeProvider(provider: string): boolean {
   return (MONOCHROME_PROVIDERS as readonly string[]).includes(provider);
