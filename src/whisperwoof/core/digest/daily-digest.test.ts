@@ -1,8 +1,13 @@
 /**
  * Tests for Daily Digest — entry aggregation and summary generation
+ *
+ * Imports from the actual pure module (no duplicated implementation).
  */
 
 import { describe, it, expect } from 'vitest';
+
+// Import from the pure module — no electron/fs side effects
+const { buildDigestData, DIGEST_PROMPT } = require('../../bridge/daily-digest-pure');
 
 interface DigestEntry {
   id: string;
@@ -10,38 +15,6 @@ interface DigestEntry {
   text: string;
   routedTo: string | null;
   createdAt: string;
-}
-
-interface DigestData {
-  entryCount: number;
-  wordCount: number;
-  sources: Record<string, number>;
-  timeRange: { start: string; end: string } | null;
-}
-
-function buildDigestData(entries: DigestEntry[]): DigestData {
-  if (entries.length === 0) {
-    return { entryCount: 0, wordCount: 0, sources: {}, timeRange: null };
-  }
-
-  const sources: Record<string, number> = {};
-  let totalWords = 0;
-
-  for (const entry of entries) {
-    const src = entry.source || "unknown";
-    sources[src] = (sources[src] || 0) + 1;
-    totalWords += (entry.text || "").split(/\s+/).filter(Boolean).length;
-  }
-
-  return {
-    entryCount: entries.length,
-    wordCount: totalWords,
-    sources,
-    timeRange: {
-      start: entries[0].createdAt,
-      end: entries[entries.length - 1].createdAt,
-    },
-  };
 }
 
 const SAMPLE_ENTRIES: DigestEntry[] = [
@@ -149,10 +122,14 @@ describe('Daily Digest', () => {
   });
 
   describe('digest prompt', () => {
-    const DIGEST_PROMPT = "You are a personal assistant summarizing";
-
     it('prompt exists and is non-empty', () => {
       expect(DIGEST_PROMPT.length).toBeGreaterThan(10);
+    });
+
+    it('prompt includes required section names', () => {
+      expect(DIGEST_PROMPT).toContain("Key Topics");
+      expect(DIGEST_PROMPT).toContain("Action Items");
+      expect(DIGEST_PROMPT).toContain("Decisions");
     });
   });
 });

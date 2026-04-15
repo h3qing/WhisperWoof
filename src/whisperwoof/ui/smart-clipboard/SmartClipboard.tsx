@@ -407,7 +407,7 @@ export default function SmartClipboard({ className }: SmartClipboardProps) {
         const board = await api.whisperwoofSaveBoard({
           name: newBoardName.trim(),
           position: boards.length,
-          color: BOARD_COLORS[boards.length % BOARD_COLORS.length],
+          color: BOARD_COLORS[boards.length % BOARD_COLORS.length]!,
         });
         setBoards((prev) => [...prev, board]);
       } else {
@@ -416,7 +416,7 @@ export default function SmartClipboard({ className }: SmartClipboardProps) {
           id: `demo-${Date.now()}`,
           name: newBoardName.trim(),
           position: boards.length,
-          color: BOARD_COLORS[boards.length % BOARD_COLORS.length],
+          color: BOARD_COLORS[boards.length % BOARD_COLORS.length]!,
           createdAt: new Date().toISOString(),
         };
         setBoards((prev) => [...prev, board]);
@@ -559,7 +559,7 @@ export default function SmartClipboard({ className }: SmartClipboardProps) {
 
   const handleAddSuggestion = async (suggestion: SnippetSuggestion) => {
     if (boards.length === 0) return;
-    const targetBoard = boards[0]; // Add to the first board
+    const targetBoard = boards[0]!; // Add to the first board
     const boardSnippets = snippets.filter((s) => s.boardId === targetBoard.id);
     const title = suggestion.text.length > 40 ? suggestion.text.slice(0, 40).trimEnd() + "..." : suggestion.text;
     const source = (suggestion.source === "voice" ? "voice" : "human") as SnippetSource;

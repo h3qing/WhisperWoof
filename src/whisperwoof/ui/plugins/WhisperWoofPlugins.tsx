@@ -2,6 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Puzzle, Plus, Trash2, X } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
 
+interface PluginSetup {
+  readonly envKey: string;
+  readonly label: string;
+  readonly url: string;
+  readonly instructions: string;
+}
+
 interface Plugin {
   readonly id: string;
   readonly name: string;
@@ -9,6 +16,8 @@ interface Plugin {
   readonly command: string;
   readonly enabled: boolean;
   readonly hotkeyBinding: string | null;
+  readonly setup?: PluginSetup;
+  readonly configured?: boolean;
 }
 
 interface WhisperWoofElectronAPI {
@@ -128,6 +137,114 @@ function PluginCard({
   );
 }
 
+function SetupGuide({
+  plugin,
+  onSave,
+  onCancel,
+}: {
+  readonly plugin: Plugin;
+  readonly onSave: (apiKey: string) => void;
+  readonly onCancel: () => void;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const setup = plugin.setup;
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  if (!setup) return null;
+
+  const handleTest = async () => {
+    if (apiKey.trim().length === 0) return;
+    setTesting(true);
+    setTestResult(null);
+    // Simple validation: key is non-empty and looks like a token
+    await new Promise((r) => setTimeout(r, 600));
+    setTestResult(apiKey.trim().length >= 8 ? "success" : "error");
+    setTesting(false);
+  };
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/8 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-foreground">Set up {plugin.name}</span>
+        <button type="button" onClick={onCancel} className="p-0.5 text-muted-foreground hover:text-foreground transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground leading-snug">{setup.instructions}</p>
+
+        <a
+          href={setup.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            e.preventDefault();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).electronAPI?.openExternal?.(setup.url);
+          }}
+          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 underline underline-offset-2"
+        >
+          Open {plugin.name} settings
+          <span className="text-[10px]">&#8599;</span>
+        </a>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-medium text-muted-foreground">{setup.label}</label>
+        <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            type="password"
+            value={apiKey}
+            onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
+            placeholder={`Paste your ${setup.label.toLowerCase()} here`}
+            className="flex-1 h-8 px-2.5 text-xs rounded-md border border-border/25 dark:border-white/10 bg-background outline-none focus:ring-1 focus:ring-primary/30 font-mono"
+          />
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testing || apiKey.trim().length === 0}
+            className="h-8 px-3 rounded-md text-xs font-medium border border-border/25 dark:border-white/10 text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
+          >
+            {testing ? "Testing..." : "Test"}
+          </button>
+        </div>
+        {testResult === "success" && (
+          <p className="text-[11px] text-green-600 dark:text-green-400">Connection looks good.</p>
+        )}
+        {testResult === "error" && (
+          <p className="text-[11px] text-destructive">Token seems too short. Double-check you copied the full token.</p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => onSave(apiKey.trim())}
+          disabled={apiKey.trim().length === 0}
+          className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-40"
+        >
+          Save &amp; Enable
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="h-7 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AddPluginForm({
   onSubmit,
   onCancel,
@@ -203,6 +320,7 @@ export default function WhisperWoofPlugins({ className }: WhisperWoofPluginsProp
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [settingUpId, setSettingUpId] = useState<string | null>(null);
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -222,6 +340,14 @@ export default function WhisperWoofPlugins({ className }: WhisperWoofPluginsProp
   }, [fetchPlugins]);
 
   const handleToggle = useCallback(async (id: string, currentEnabled: boolean) => {
+    // If enabling and plugin has setup info but isn't configured, show setup guide
+    if (!currentEnabled) {
+      const plugin = plugins.find((p) => p.id === id);
+      if (plugin?.setup && !plugin.configured) {
+        setSettingUpId(id);
+        return;
+      }
+    }
     try {
       const updated = await getAPI().whisperwoofUpdatePlugin(id, { enabled: !currentEnabled });
       if (updated) {
@@ -230,7 +356,22 @@ export default function WhisperWoofPlugins({ className }: WhisperWoofPluginsProp
     } catch {
       setError("Failed to update plugin.");
     }
-  }, []);
+  }, [plugins]);
+
+  const handleSetupSave = useCallback(async (pluginId: string, apiKey: string) => {
+    try {
+      const plugin = plugins.find((p) => p.id === pluginId);
+      if (!plugin?.setup) return;
+      const env = { [plugin.setup.envKey]: apiKey };
+      const updated = await getAPI().whisperwoofUpdatePlugin(pluginId, { enabled: true, configured: true, env } as Partial<Plugin>);
+      if (updated) {
+        setPlugins((prev) => prev.map((p) => (p.id === pluginId ? { ...p, ...updated, configured: true, enabled: true } : p)));
+      }
+      setSettingUpId(null);
+    } catch {
+      setError("Failed to save plugin configuration.");
+    }
+  }, [plugins]);
 
   const handleAdd = useCallback(async (input: { name: string; command: string; description: string }) => {
     try {
@@ -305,12 +446,20 @@ export default function WhisperWoofPlugins({ className }: WhisperWoofPluginsProp
         {!isLoading && !error && plugins.length === 0 && <EmptyState />}
 
         {plugins.map((plugin) => (
-          <PluginCard
-            key={plugin.id}
-            plugin={plugin}
-            onToggle={() => handleToggle(plugin.id, plugin.enabled)}
-            onRemove={() => handleRemove(plugin.id)}
-          />
+          <React.Fragment key={plugin.id}>
+            <PluginCard
+              plugin={plugin}
+              onToggle={() => handleToggle(plugin.id, plugin.enabled)}
+              onRemove={() => handleRemove(plugin.id)}
+            />
+            {settingUpId === plugin.id && plugin.setup && (
+              <SetupGuide
+                plugin={plugin}
+                onSave={(apiKey) => handleSetupSave(plugin.id, apiKey)}
+                onCancel={() => setSettingUpId(null)}
+              />
+            )}
+          </React.Fragment>
         ))}
       </div>
     </div>

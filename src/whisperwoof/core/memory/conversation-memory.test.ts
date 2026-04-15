@@ -1,30 +1,21 @@
 /**
  * Tests for Conversation Memory — query detection and topic extraction
+ *
+ * Imports from the actual source module (no duplicated implementation).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-const MEMORY_PATTERNS = [
-  /\b(what did I|what was I)\s+(say|saying|mention|talk|talking|write|note|capture|record)\s*(about|regarding)?\b/i,
-  /\b(when did I)\s+(say|mention|talk about|discuss|note)\b/i,
-  /\b(did I)\s+(say|mention|talk about|note|capture)\s+(anything|something)\s+(about|regarding)\b/i,
-  /\b(find|search|look for)\s+(my|what I)\s+(said|mentioned|noted|notes|captured|entries)\s+(about|regarding|on)\b/i,
-  /\b(what was)\s+(my|that)\s+(idea|thought|note|comment|decision)\s+(about|regarding|on)\b/i,
-  /\b(remind me)\s+(what|of what)\s+(I said|I mentioned|we discussed|I noted)\b/i,
-  /\b(show me|pull up|get)\s+(my\s+)?(previous\s+|earlier\s+)?(notes?|entries?|thoughts?)\s+(about|on|regarding)\b/i,
-];
+// Mock debugLogger before importing the source module
+vi.mock('../../helpers/debugLogger', () => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
 
-function isMemoryQuery(text: string | null): boolean {
-  if (!text || text.length < 10) return false;
-  return MEMORY_PATTERNS.some((p) => p.test(text.trim()));
-}
-
-function extractQueryTopic(text: string | null): string | null {
-  if (!text) return null;
-  const aboutMatch = text.trim().match(/\b(?:about|regarding|on)\s+(.+?)[\?\.!]?\s*$/i);
-  if (aboutMatch) return aboutMatch[1].trim();
-  return null;
-}
+// Import from the actual source — single source of truth
+const { isMemoryQuery, extractQueryTopic, getMemoryQueryExamples, MEMORY_PATTERNS } = require('../../bridge/conversation-memory');
 
 describe('Conversation Memory', () => {
   describe('isMemoryQuery', () => {
@@ -105,24 +96,21 @@ describe('Conversation Memory', () => {
   });
 
   describe('memory query examples', () => {
-    const examples = [
-      "What did I say about the budget?",
-      "When did I mention Sarah?",
-      "What was my idea about the landing page?",
-      "Did I say anything about the deadline?",
-      "Find what I noted about the deployment",
-      "Remind me what I said about the new feature",
-      "Show me my earlier notes on the project",
-    ];
-
     it('all examples are detected as memory queries', () => {
+      const examples = getMemoryQueryExamples();
       for (const ex of examples) {
         expect(isMemoryQuery(ex)).toBe(true);
       }
     });
 
     it('has 7 examples', () => {
-      expect(examples).toHaveLength(7);
+      expect(getMemoryQueryExamples()).toHaveLength(7);
+    });
+  });
+
+  describe('pattern registry', () => {
+    it('has 7 memory patterns', () => {
+      expect(MEMORY_PATTERNS).toHaveLength(7);
     });
   });
 });

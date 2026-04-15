@@ -75,8 +75,12 @@ class GlobeKeyManager extends EventEmitter {
     }
 
     this.hasReportedError = false;
-    this.process = spawn(listenerPath);
-    debugLogger.info("[GlobeKeyManager] Process spawned", { pid: this.process.pid });
+
+    // Pass configurable routing keys to the native binary
+    const routingKeys = this._getRoutingKeys();
+    const spawnArgs = routingKeys.length > 0 ? ["--routing-keys", routingKeys.join(",")] : [];
+    this.process = spawn(listenerPath, spawnArgs);
+    debugLogger.info("[GlobeKeyManager] Process spawned", { pid: this.process.pid, routingKeys });
 
     // After sustained uptime, reset the restart counter so future sleep/wake
     // cycles get a fresh set of restart attempts
@@ -120,6 +124,13 @@ class GlobeKeyManager extends EventEmitter {
             if (modifier) {
               this.emit("modifier-up", modifier);
             }
+          } else if (line.startsWith("ROUTING_KEYS:")) {
+            const keys = line.replace("ROUTING_KEYS:", "").trim();
+            debugLogger.info("[GlobeKeyManager] CGEventTap active, consuming routing keys", { keys });
+            this.emit("routing-keys-confirmed", keys.split(","));
+          } else if (line === "NO_ACCESSIBILITY") {
+            debugLogger.warn("[GlobeKeyManager] Accessibility permission not granted — falling back to read-only monitor (Fn+letter keys will leak to focused app)");
+            this.emit("accessibility-denied");
           }
         });
     });
@@ -130,6 +141,9 @@ class GlobeKeyManager extends EventEmitter {
       if (message.length > 0) {
         if (message.includes("Failed to create event monitor")) {
           this.reportError(new Error(message));
+        } else if (message.includes("Accessibility permission not granted")) {
+          // This is expected when permission isn't granted — already handled via NO_ACCESSIBILITY stdout event
+          debugLogger.info("[GlobeKeyManager] Accessibility fallback active", { message });
         } else {
           debugLogger.warn("[GlobeKeyManager] Non-fatal stderr output", { message });
         }
@@ -250,6 +264,12 @@ class GlobeKeyManager extends EventEmitter {
       // Don't block startup on verification failure — let spawn attempt proceed
       return null;
     }
+  }
+
+  _getRoutingKeys() {
+    // Default routing keys for Fn+letter combos.
+    // In the future, these will be read from the keybindings config.
+    return ["T", "N", "P"];
   }
 
   resolveListenerBinary() {

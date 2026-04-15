@@ -858,12 +858,20 @@ async function startApp() {
 
       if (hotkeyManager.getCurrentHotkey && isGlobeLikeHotkey(hotkeyManager.getCurrentHotkey())) {
         const activationMode = windowManager.getActivationMode();
-        if (activationMode === "push") {
+        const hasComboKey = activeFnComboKey !== null;
+
+        // Fn+letter combos always behave as push-to-talk (hold to record, release to stop)
+        // regardless of the global activation mode. The user is explicitly holding keys.
+        if (activationMode === "push" || hasComboKey) {
           globeKeyDownTime = 0;
           globeLastStopTime = Date.now();
           if (globeKeyIsRecording) {
             globeKeyIsRecording = false;
-            debugLogger?.debug("[Globe] Stopping dictation (push release)", { hotkeyUsed });
+            debugLogger?.debug("[Globe] Stopping dictation (push release)", { hotkeyUsed, comboForced: hasComboKey && activationMode !== "push" });
+            windowManager.sendStopDictation(hotkeyUsed);
+          } else if (hasComboKey && activationMode !== "push") {
+            // In toggle mode with a combo key, also send stop to cancel any toggle-started recording
+            debugLogger?.debug("[Globe] Stopping dictation (combo override in toggle mode)", { hotkeyUsed });
             windowManager.sendStopDictation(hotkeyUsed);
           }
         }

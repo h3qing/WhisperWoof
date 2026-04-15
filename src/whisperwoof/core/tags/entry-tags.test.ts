@@ -15,7 +15,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   MAX_TAG_NAME_LENGTH,
   DEFAULT_TAG_COLOR,

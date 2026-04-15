@@ -13,7 +13,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   MAX_ENTRIES,
   filterVocabulary,
@@ -30,6 +29,7 @@ interface VocabEntry {
   alternatives: string[];
   source: string;
   usageCount: number;
+  createdAt?: string;
   appContexts?: Record<string, { count: number; firstSeen: string; lastSeen: string }>;
 }
 
@@ -61,9 +61,9 @@ describe("filterVocabulary", () => {
 
   it("sorts by usage descending when sortBy: 'usage'", () => {
     const sorted: VocabEntry[] = filterVocabulary(SAMPLE, { sortBy: "usage" });
-    expect(sorted[0].word).toBe("Mando"); // 20
-    expect(sorted[1].word).toBe("WhisperWoof"); // 15
-    expect(sorted[2].word).toBe("Ollama"); // 12
+    expect(sorted[0]!.word).toBe("Mando"); // 20
+    expect(sorted[1]!.word).toBe("WhisperWoof"); // 15
+    expect(sorted[2]!.word).toBe("Ollama"); // 12
   });
 
   it("defaults to alphabetical sort", () => {
@@ -130,9 +130,9 @@ describe("flattenSttHints", () => {
       "com.microsoft.VSCode": { count: 10, firstSeen: "2026-04-01T00:00:00Z", lastSeen: "2026-04-10T00:00:00Z" },
     };
     const withContext: VocabEntry[] = [
-      { ...SAMPLE[0] },
-      { ...SAMPLE[1] },
-      { ...SAMPLE[2], appContexts },
+      { ...SAMPLE[0]! },
+      { ...SAMPLE[1]! },
+      { ...SAMPLE[2]!, appContexts },
     ];
     const hints: string[] = flattenSttHints(withContext, "com.microsoft.VSCode");
     // Ollama (the app-specific entry) should land before WhisperWoof
@@ -149,17 +149,17 @@ describe("computeVocabularyStats", () => {
   it("counts entries per category", () => {
     const stats = computeVocabularyStats(SAMPLE);
     expect(stats.total).toBe(5);
-    expect(stats.categories.technical).toBe(2);
-    expect(stats.categories.names).toBe(2);
-    expect(stats.categories.abbreviation).toBe(1);
+    expect((stats.categories as Record<string, number>).technical).toBe(2);
+    expect((stats.categories as Record<string, number>).names).toBe(2);
+    expect((stats.categories as Record<string, number>).abbreviation).toBe(1);
   });
 
   it("returns the top 5 most-used words by usageCount", () => {
     const stats = computeVocabularyStats(SAMPLE);
     expect(stats.topUsed).toHaveLength(5);
-    expect(stats.topUsed[0].word).toBe("Mando"); // 20
-    expect(stats.topUsed[1].word).toBe("WhisperWoof"); // 15
-    expect(stats.topUsed[2].word).toBe("Ollama"); // 12
+    expect(stats.topUsed[0]!.word).toBe("Mando"); // 20
+    expect(stats.topUsed[1]!.word).toBe("WhisperWoof"); // 15
+    expect(stats.topUsed[2]!.word).toBe("Ollama"); // 12
   });
 
   it("counts source breakdown (manual vs auto-learned)", () => {
@@ -226,8 +226,8 @@ describe("planVocabularyImport", () => {
       idFactory,
     );
     expect(additions).toHaveLength(1);
-    expect(additions[0].category).toBe("names");
-    expect(additions[0].alternatives).toEqual(["foo bar"]);
+    expect(additions[0]!.category).toBe("names");
+    expect(additions[0]!.alternatives).toEqual(["foo bar"]);
   });
 
   it("stops adding once MAX_ENTRIES is reached", () => {

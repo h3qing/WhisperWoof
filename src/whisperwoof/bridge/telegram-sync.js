@@ -11,6 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const { transformEntry, filterPending } = require("./telegram-sync-pure");
 
 const INBOX_PATH = path.join(app.getPath("userData"), "telegram-inbox.json");
 const POLL_INTERVAL_MS = 10000; // Check every 10 seconds
@@ -50,7 +51,7 @@ function importPendingEntries() {
   if (!saveEntryFn) return 0;
 
   const entries = readInbox();
-  const pending = entries.filter((e) => !e.imported);
+  const pending = filterPending(entries);
 
   if (pending.length === 0) return 0;
 
@@ -58,21 +59,7 @@ function importPendingEntries() {
 
   for (const entry of pending) {
     try {
-      saveEntryFn({
-        source: "import", // Telegram entries show as "import" source
-        rawText: entry.rawText,
-        polished: entry.polished || null,
-        routedTo: "telegram-companion",
-        hotkeyUsed: null,
-        durationMs: entry.durationSec ? entry.durationSec * 1000 : null,
-        projectId: null,
-        audioPath: null,
-        metadata: {
-          telegramFrom: entry.from,
-          telegramChatId: entry.chatId,
-          telegramEntryId: entry.id,
-        },
-      });
+      saveEntryFn(transformEntry(entry));
       entry.imported = true;
       imported++;
     } catch (err) {

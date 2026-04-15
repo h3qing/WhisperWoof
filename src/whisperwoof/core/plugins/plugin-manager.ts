@@ -68,7 +68,7 @@ export class PluginManager {
       const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
 
       // Create transport — spawns the MCP server process
-      const [command, ...args] = config.command.split(/\s+/);
+      const [command = "", ...args] = config.command.split(/\s+/);
       const transport = new StdioClientTransport({
         command,
         args: [...args, ...(config.args ?? [])],

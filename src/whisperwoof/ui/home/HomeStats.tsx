@@ -83,7 +83,7 @@ function pickFacts(facts: string[], count: number = 3): string[] {
   const hourSeed = Math.floor(Date.now() / 3600000); // changes every hour
   const picked: string[] = [];
   for (let i = 0; i < count; i++) {
-    picked.push(facts[(hourSeed + i) % facts.length]);
+    picked.push(facts[(hourSeed + i) % facts.length]!);
   }
   return picked;
 }
@@ -104,7 +104,7 @@ function buildHeatmapWeeks(entriesPerDay: { day: string; count: number }[], numW
     for (let d = 0; d < 7; d++) {
       const date = new Date(today);
       date.setDate(today.getDate() - (w * 7) - (today.getDay() - d));
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = date.toISOString().split("T")[0]!;
       week.push({ date: dateStr, count: date > today ? -1 : (countMap.get(dateStr) ?? 0) });
     }
     columns.push(week);

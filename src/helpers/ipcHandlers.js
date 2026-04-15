@@ -1488,7 +1488,7 @@ class IPCHandlers {
         const loginSettings = app.getLoginItemSettings();
         return loginSettings.openAtLogin;
       } catch (error) {
-        debugLogger.error("Error getting auto-start status:", error);
+        debugLogger.error(`Error getting auto-start status: ${error.message}`);
         return false;
       }
     });
@@ -1502,7 +1502,7 @@ class IPCHandlers {
         debugLogger.debug("Auto-start setting updated", { enabled });
         return { success: true };
       } catch (error) {
-        debugLogger.error("Error setting auto-start:", error);
+        debugLogger.error(`Error setting auto-start: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -1515,7 +1515,7 @@ class IPCHandlers {
         debugLogger.debug("Returning models", { count: models.length }, "ipc");
         return models;
       } catch (error) {
-        debugLogger.error("Error in model-get-all:", error);
+        debugLogger.error(`Error in model-get-all: ${error.message}`);
         throw error;
       }
     });
@@ -2701,7 +2701,36 @@ class IPCHandlers {
         const { getNotesDirectory } = require("../whisperwoof/bridge/markdown-route");
         return { success: true, path: getNotesDirectory() };
       } catch (error) {
-        return { success: false, error: error.message };
+        return { success: false, error: `Failed to get notes directory: ${error.message}` };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-set-notes-dir", async (_event, dir) => {
+      try {
+        const { setNotesDir } = require("../whisperwoof/bridge/markdown-route");
+        const result = setNotesDir(dir);
+        return { success: true, path: result };
+      } catch (error) {
+        return { success: false, error: `Failed to set notes directory: ${error.message}` };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-pick-notes-dir", async () => {
+      try {
+        const { dialog } = require("electron");
+        const result = await dialog.showOpenDialog({
+          properties: ["openDirectory", "createDirectory"],
+          title: "Choose Notes Folder",
+          message: "Pick a folder for WhisperWoof to save voice notes (works with Obsidian vaults, iCloud, or any local folder)",
+        });
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, canceled: true };
+        }
+        const { setNotesDir } = require("../whisperwoof/bridge/markdown-route");
+        const dir = setNotesDir(result.filePaths[0]);
+        return { success: true, path: dir };
+      } catch (error) {
+        return { success: false, error: `Failed to pick notes directory: ${error.message}` };
       }
     });
 
@@ -3228,7 +3257,7 @@ class IPCHandlers {
           const data = await response.json();
           return { success: true, text: data.content[0].text.trim() };
         } catch (error) {
-          debugLogger.error("Anthropic reasoning error:", error);
+          debugLogger.error(`Anthropic reasoning error: ${error.message}`);
           return { success: false, error: error.message };
         }
       }
@@ -3568,7 +3597,7 @@ class IPCHandlers {
         }
         return { success: true };
       } catch (error) {
-        debugLogger.error("Failed to clear auth session:", error);
+        debugLogger.error(`Failed to clear auth session: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -4397,7 +4426,7 @@ class IPCHandlers {
           matchType: data.matchType,
         };
       } catch (error) {
-        debugLogger.error("Cloud reasoning error:", error);
+        debugLogger.error(`Cloud reasoning error: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -4460,7 +4489,7 @@ class IPCHandlers {
         event.sender.send("agent-stream-done");
         return { success: true };
       } catch (error) {
-        debugLogger.error("Cloud agent stream error:", error);
+        debugLogger.error(`Cloud agent stream error: ${error.message}`);
         event.sender.send("agent-stream-done");
         return { success: false, error: error.message };
       }
@@ -4538,7 +4567,7 @@ class IPCHandlers {
         const data = await response.json();
         return { success: true, ...data };
       } catch (error) {
-        debugLogger.error("Cloud usage fetch error:", error);
+        debugLogger.error(`Cloud usage fetch error: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -4940,7 +4969,7 @@ class IPCHandlers {
         const data = await response.json();
         return data;
       } catch (error) {
-        debugLogger.error("Error fetching referral stats:", error);
+        debugLogger.error(`Error fetching referral stats: ${error.message}`);
         throw error;
       }
     });
@@ -4978,7 +5007,7 @@ class IPCHandlers {
         const data = await response.json();
         return data;
       } catch (error) {
-        debugLogger.error("Error sending referral invite:", error);
+        debugLogger.error(`Error sending referral invite: ${error.message}`);
         throw error;
       }
     });
@@ -5011,7 +5040,7 @@ class IPCHandlers {
         const data = await response.json();
         return data;
       } catch (error) {
-        debugLogger.error("Error fetching referral invites:", error);
+        debugLogger.error(`Error fetching referral invites: ${error.message}`);
         throw error;
       }
     });
@@ -5022,7 +5051,7 @@ class IPCHandlers {
         await shell.openPath(modelsDir);
         return { success: true };
       } catch (error) {
-        debugLogger.error("Failed to open whisper models folder:", error);
+        debugLogger.error(`Failed to open whisper models folder: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -5055,7 +5084,7 @@ class IPCHandlers {
           logLevel: debugLogger.getLevel(),
         };
       } catch (error) {
-        debugLogger.error("Failed to get debug state:", error);
+        debugLogger.error(`Failed to get debug state: ${error.message}`);
         return { enabled: false, logPath: null, logLevel: "info" };
       }
     });
@@ -5112,7 +5141,7 @@ class IPCHandlers {
           logPath: debugLogger.getLogPath(),
         };
       } catch (error) {
-        debugLogger.error("Failed to set debug logging:", error);
+        debugLogger.error(`Failed to set debug logging: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
@@ -5123,7 +5152,7 @@ class IPCHandlers {
         await shell.openPath(logsDir);
         return { success: true };
       } catch (error) {
-        debugLogger.error("Failed to open logs folder:", error);
+        debugLogger.error(`Failed to open logs folder: ${error.message}`);
         return { success: false, error: error.message };
       }
     });

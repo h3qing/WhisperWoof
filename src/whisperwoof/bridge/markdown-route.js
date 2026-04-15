@@ -19,9 +19,36 @@ const DEFAULT_NOTES_DIR = path.join(
 );
 
 function getNotesDir() {
-  // TODO: Read from settings once settings integration is done
-  const customDir = process.env.WHISPERWOOF_NOTES_DIR;
-  return customDir || DEFAULT_NOTES_DIR;
+  // Priority: env var > persisted setting > default
+  const envDir = process.env.WHISPERWOOF_NOTES_DIR;
+  if (envDir) return envDir;
+
+  try {
+    const settingsPath = path.join(app.getPath("userData"), "whisperwoof-settings.json");
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      if (settings.notesDirectory) return settings.notesDirectory;
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  return DEFAULT_NOTES_DIR;
+}
+
+function setNotesDir(dir) {
+  const settingsPath = path.join(app.getPath("userData"), "whisperwoof-settings.json");
+  let settings = {};
+  try {
+    if (fs.existsSync(settingsPath)) {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    }
+  } catch {
+    // Start fresh
+  }
+  settings = { ...settings, notesDirectory: dir };
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+  return dir;
 }
 
 function generateFilename() {
@@ -53,7 +80,19 @@ function saveAsMarkdown(text) {
     const filename = generateFilename();
     const filePath = path.join(dir, filename);
 
-    fs.writeFileSync(filePath, text.trim(), "utf-8");
+    const now = new Date();
+    const title = text.trim().split("\n")[0].slice(0, 60);
+    const frontmatter = [
+      "---",
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `date: ${now.toISOString()}`,
+      "source: voice",
+      "app: WhisperWoof",
+      "---",
+      "",
+    ].join("\n");
+
+    fs.writeFileSync(filePath, frontmatter + text.trim() + "\n", "utf-8");
 
     debugLogger.info("[WhisperWoof] Saved markdown note", {
       filePath,
@@ -77,4 +116,4 @@ function getNotesDirectory() {
   return getNotesDir();
 }
 
-module.exports = { saveAsMarkdown, getNotesDirectory, DEFAULT_NOTES_DIR };
+module.exports = { saveAsMarkdown, getNotesDirectory, setNotesDir, DEFAULT_NOTES_DIR };

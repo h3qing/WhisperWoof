@@ -21,7 +21,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   detectRambling,
   getIntentPrompt,
@@ -81,7 +80,7 @@ describe("detectRambling", () => {
   });
 
   it("returns score 0 for null / empty input", () => {
-    expect(detectRambling(null)).toEqual({ score: 0, signals: {}, isRambling: false });
+    expect(detectRambling(null as any)).toEqual({ score: 0, signals: {}, isRambling: false });
     expect(detectRambling("")).toEqual({ score: 0, signals: {}, isRambling: false });
   });
 

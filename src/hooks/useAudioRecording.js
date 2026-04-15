@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import AudioManager from "../helpers/audioManager";
 import logger from "../utils/logger";
@@ -7,6 +7,15 @@ import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle } from "../utils/recordingErrors";
 import { LatencyTracker } from "../whisperwoof/core/latency/latency-tracker";
 import { PERCEIVED_LATENCY_BUDGET_MS } from "../whisperwoof/core/latency/types";
+import mandoHeadSvg from "../assets/mando-head.svg";
+
+const MandoToastIcon = React.createElement("img", {
+  src: mandoHeadSvg,
+  alt: "",
+  width: 18,
+  height: 18,
+  style: { borderRadius: 4, opacity: 0.9 },
+});
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -335,7 +344,34 @@ export const useAudioRecording = (toast, options = {}) => {
             await navigator.clipboard.writeText(textToPaste);
             logger.info("WhisperWoof routed to clipboard", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
             toast({
+              icon: MandoToastIcon,
               title: t("hooks.audioRecording.copied", "Copied to clipboard"),
+              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+              variant: "default",
+              duration: 3000,
+            });
+          } else if (routedTo === "save-as-markdown") {
+            // Fn+N: Save as Markdown file
+            const saveResult = await window.electronAPI?.whisperwoofSaveMarkdown?.(textToPaste);
+            if (saveResult?.success) {
+              logger.info("WhisperWoof routed to markdown", { hotkeyUsed, filePath: saveResult.filePath }, "whisperwoof");
+              toast({
+                icon: MandoToastIcon,
+                title: "Saved as note",
+                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+                variant: "default",
+                duration: 3000,
+              });
+            } else {
+              logger.error(`WhisperWoof markdown save failed: ${saveResult?.error || "unknown"}`);
+              toast({ title: "Failed to save note", description: saveResult?.error, variant: "destructive", duration: 5000 });
+            }
+          } else if (routedTo === "project") {
+            // Fn+P: Save entry tagged for project routing (entry is saved below, project picker handles dispatch)
+            logger.info("WhisperWoof routed to project", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
+            toast({
+              icon: MandoToastIcon,
+              title: "Captured to project",
               description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
               variant: "default",
               duration: 3000,

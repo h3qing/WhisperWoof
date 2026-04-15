@@ -153,9 +153,9 @@ describe('Smart Clipboard — Boards', () => {
 
     const boards = getBoards(store);
     expect(boards).toHaveLength(3);
-    expect(boards[0].name).toBe('A');
-    expect(boards[1].name).toBe('B');
-    expect(boards[2].name).toBe('C');
+    expect(boards[0]!.name).toBe('A');
+    expect(boards[1]!.name).toBe('B');
+    expect(boards[2]!.name).toBe('C');
   });
 
   it('updates a board name and color', () => {
@@ -227,9 +227,9 @@ describe('Smart Clipboard — Snippets', () => {
 
     const snippets = getSnippetsByBoard(store, boardId);
     expect(snippets).toHaveLength(3);
-    expect(snippets[0].title).toBe('A');
-    expect(snippets[1].title).toBe('B');
-    expect(snippets[2].title).toBe('C');
+    expect(snippets[0]!.title).toBe('A');
+    expect(snippets[1]!.title).toBe('B');
+    expect(snippets[2]!.title).toBe('C');
   });
 
   it('separates snippets by board', () => {

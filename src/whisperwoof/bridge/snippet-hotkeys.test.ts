@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module without TS types, imported from .js
 import { mapSnippetRow } from "./snippet-hotkeys-pure";
 
 interface SnippetRow {
@@ -20,6 +19,15 @@ interface SnippetRow {
   hotkey: string | null;
   use_count: number;
   last_used_at: string | null;
+}
+
+interface MappedSnippet {
+  id: string;
+  content: string;
+  title: string;
+  boardId: string;
+  hotkey: string | null;
+  useCount: number;
 }
 
 function makeRow(overrides: Partial<SnippetRow> = {}): SnippetRow {
@@ -51,12 +59,12 @@ describe("mapSnippetRow", () => {
 
   it("defaults useCount to 0 when use_count is nullish", () => {
     const row = makeRow({ use_count: null as unknown as number });
-    expect(mapSnippetRow(row).useCount).toBe(0);
+    expect((mapSnippetRow(row) as MappedSnippet).useCount).toBe(0);
   });
 
   it("preserves null hotkey", () => {
     const row = makeRow({ hotkey: null });
-    expect(mapSnippetRow(row).hotkey).toBeNull();
+    expect((mapSnippetRow(row) as MappedSnippet).hotkey).toBeNull();
   });
 
   it("returns a frozen object so callers can't mutate the mapped snippet", () => {

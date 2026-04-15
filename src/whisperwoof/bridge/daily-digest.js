@@ -20,6 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const { buildDigestData, DIGEST_PROMPT } = require("./daily-digest-pure");
 
 const DIGESTS_FILE = path.join(app.getPath("userData"), "whisperwoof-digests.json");
 const MAX_DIGESTS = 100;
@@ -73,64 +74,7 @@ function getEntriesForDays(days) {
   return getEntriesForRange(start.toISOString(), end.toISOString());
 }
 
-// --- Build digest data (no LLM needed) ---
-
-/**
- * Build a structured digest from entries — pure data, no LLM.
- */
-function buildDigestData(entries) {
-  if (entries.length === 0) {
-    return {
-      entryCount: 0,
-      wordCount: 0,
-      sources: {},
-      entries: [],
-      timeRange: null,
-    };
-  }
-
-  const sources = {};
-  let totalWords = 0;
-
-  for (const entry of entries) {
-    const src = entry.source || "unknown";
-    sources[src] = (sources[src] || 0) + 1;
-    totalWords += (entry.text || "").split(/\s+/).filter(Boolean).length;
-  }
-
-  return {
-    entryCount: entries.length,
-    wordCount: totalWords,
-    sources,
-    timeRange: {
-      start: entries[0].createdAt,
-      end: entries[entries.length - 1].createdAt,
-    },
-    entries: entries.map((e) => ({
-      id: e.id,
-      source: e.source,
-      text: e.text.slice(0, 500),
-      routedTo: e.routedTo,
-      createdAt: e.createdAt,
-    })),
-  };
-}
-
 // --- LLM digest generation ---
-
-const DIGEST_PROMPT =
-  "You are a personal assistant summarizing a user's voice notes and captured text from today.\n\n" +
-  "Rules:\n" +
-  "- Create a structured daily digest with these sections:\n" +
-  "  ## Key Topics — the main things discussed/captured (3-7 bullet points)\n" +
-  "  ## Action Items — anything that sounds like a task or to-do\n" +
-  "  ## Decisions — any decisions that were made or stated\n" +
-  "  ## Notes — other notable items that don't fit above\n" +
-  "- Be concise — one sentence per bullet point\n" +
-  "- If a section has no items, omit it entirely\n" +
-  "- Use Markdown formatting\n" +
-  "- Preserve names, dates, numbers, and specifics\n" +
-  "- Return ONLY the digest, no introductions or conclusions";
 
 /**
  * Generate an AI-powered digest using the configured LLM provider.

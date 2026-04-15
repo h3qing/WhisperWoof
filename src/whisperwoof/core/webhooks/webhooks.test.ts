@@ -14,7 +14,6 @@
 
 import { describe, it, expect } from "vitest";
 import { createHmac } from "crypto";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   buildPayload,
   signPayload,

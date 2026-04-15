@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   EXPORT_VERSION,
   stripApiKeys,

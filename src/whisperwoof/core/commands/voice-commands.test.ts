@@ -18,7 +18,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import { detectCommand, COMMAND_PATTERNS, getAvailableCommands } from "../../bridge/voice-commands";
 
 describe("detectCommand", () => {

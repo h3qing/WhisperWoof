@@ -6,6 +6,7 @@ export interface ToastProps {
   id?: string;
   title?: string;
   description?: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
   variant?: "default" | "destructive" | "success";
   duration?: number;
@@ -189,6 +190,7 @@ const Toast: React.FC<
 > = ({
   title,
   description,
+  icon,
   action,
   variant = "default",
   duration = 3500,
@@ -247,6 +249,7 @@ const Toast: React.FC<
       <div className={cn("w-0.5 shrink-0", config.accentClass)} />
 
       <div className="flex items-start gap-2 flex-1 min-w-0 px-2.5 py-2 pr-7">
+        {icon && <div className="shrink-0 mt-px">{icon}</div>}
         <div className="flex-1 min-w-0">
           {message && (
             <div className="text-xs font-medium leading-tight text-white/90">{message}</div>

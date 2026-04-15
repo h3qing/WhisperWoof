@@ -1,5 +1,93 @@
 # Progress Log
 
+## 2026-04-12 — Session: v1.10.0 release + debugLogger sweep + Bucket C complete + hotkey redesign plan
+
+### Release
+- Cut v1.10.0: bumped VERSION, package.json, CHANGELOG, website hero badge + "What's New" cards.
+
+### debugLogger.error sweep (15 sites)
+- All 15 `debugLogger.error("msg:", error)` sites in `ipcHandlers.js` converted
+  to template literals with `error.message`. Previously logged `{}` for every
+  caught error because Error objects don't JSON-serialize (message/stack aren't
+  enumerable).
+
+### Test truthfulness — Bucket C complete (6 files, 29 of 35 total)
+- `app-automation.test.ts` (Pattern 1) — found silent drift: test had 11 commands,
+  source has 12 (missing `doNotDisturb`).
+- `conversation-memory.test.ts` (Pattern 1) — no bugs found.
+- `streaming-manager.test.ts` (Pattern 1) — no bugs found.
+- `daily-digest.test.ts` (Pattern 2) — new `bridge/daily-digest-pure.js`.
+- `entry-chains.test.ts` (Pattern 2) — new `bridge/entry-chains-pure.js` with
+  injectable lookup for DI in tests.
+- `entry-templates.test.ts` (Pattern 2) — new `bridge/entry-templates-pure.js`.
+- `agentic-actions.test.ts` — already refactored in a prior session, no work needed.
+
+### Hotkey combo UX redesign — plan reviewed and approved
+- Researched macOS hotkey landscape: system-reserved keys, Globe/Fn namespace
+  expansion, competing voice app defaults (Wispr Flow, SuperWhisper, Aqua Voice).
+- Found Fn+N conflicts with macOS Notification Center (Sonoma+).
+- Ran /autoplan with CEO + Eng review. Key findings:
+  - Split bug fix (CGEventTap key consumption) from interaction model redesign
+  - Add prototype spike as go/no-go gate for CGEventTap
+  - Design routing layer input-agnostic for future voice routing
+- Compiled CGEventTap spike binary (`resources/cgevent-tap-spike.swift`).
+  Awaiting manual test to verify Globe+letter interception works.
+
+### TS strict-mode errors — scoped
+- 313 errors across `src/whisperwoof/`. 75% concentrated in 8 files.
+- Top 3 are meeting test files (163 errors, 52%) — mostly implicit `any` from mocks.
+- Bucket D test truthfulness running in background.
+
+### Test results
+- 44 test files / 808 tests — all green.
+
+## 2026-04-14 — Session: Hotkey fix + Plugin setup + Obsidian integration + v1.11.0
+
+### Hotkey Phase A — CGEventTap (DONE)
+- Built and tested CGEventTap spike — confirmed it intercepts Fn+T/N/P
+  before macOS handles Globe shortcuts (including Fn+N Notification Center).
+- Rewrote `macos-globe-listener.swift` with `CGEventTapCreate` +
+  `headInsertEventTap`. Routing keys consumed, no more "ttttt" in text fields.
+- Falls back to read-only `NSEvent.addGlobalMonitorForEvents` if Accessibility
+  permission denied (emits `NO_ACCESSIBILITY` event to JS).
+- `globeKeyManager.js` passes `--routing-keys T,N,P` arg to binary.
+
+### Fn+N / Fn+P routing fix (CRITICAL bug found by E2E audit)
+- `useAudioRecording.js` had a route map for Fn+N → `save-as-markdown` and
+  Fn+P → `project`, but the dispatch code only handled `copy-to-clipboard`.
+  Everything else silently fell through to paste-at-cursor. Added real
+  dispatch for both routes.
+- Fn+letter combos now force push-to-talk regardless of global activation
+  mode. In toggle mode, releasing Fn with a combo key stops recording
+  (previously did nothing, user had to tap Fn again).
+
+### Plugin system
+- Added TickTick to default plugin list (was missing).
+- Added guided setup flow: toggle ON → inline setup card with instructions,
+  link to developer portal, API key input, test button, "Save & Enable".
+- All 5 first-party plugins have setup metadata (envKey, label, url, instructions).
+- Saved plugin files auto-merge new defaults and backfill setup metadata.
+
+### Obsidian / iCloud integration
+- `markdown-route.js` now writes YAML frontmatter (title, date, source, app).
+- `getNotesDir()` reads from `whisperwoof-settings.json` (not just env var).
+- New `setNotesDir()` + `whisperwoof-pick-notes-dir` IPC opens native folder
+  picker. Settings UI has "Change Folder" button.
+- User can point to `~/Library/Mobile Documents/.../Obsidian/Vault/` — notes
+  appear in Obsidian and sync via iCloud.
+
+### Mando toast icon
+- Toast component gained `icon` prop. Fn+T, Fn+N, Fn+P toasts show the
+  18x18 Mando head SVG.
+
+### v1.11.0 release
+- VERSION, package.json, CHANGELOG, website all updated.
+- Website hero badge: "v1.11 — Hotkey Fix + Plugin Setup + Obsidian Notes"
+- "What's New" cards: Hotkey Fix, Obsidian Notes, Plugin Setup.
+
+### Test results
+- 44 test files / 808 tests — all green. 0 TypeScript errors.
+
 ## 2026-04-11 — Session: Bucket B complete + STT config fix + security bug
 
 Continued the eng-review cleanup while waiting on the Apple Developer

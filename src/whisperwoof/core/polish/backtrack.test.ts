@@ -17,7 +17,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import { detectBacktrack, hasBacktrack, CORRECTION_SIGNALS } from "../../bridge/backtrack";
 
 describe("hasBacktrack — correction signal detection", () => {

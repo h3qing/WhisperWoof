@@ -37,22 +37,26 @@ interface Answer {
   priority?: "speed" | "quality" | "balanced";
 }
 
+function getModel(key: string): ModelRecommendation {
+  return MODELS[key]!;
+}
+
 function recommend(answers: Answer): ModelRecommendation {
   const { ram, language, priority } = answers;
 
   // English-only path
   if (language === "english") {
-    if (ram === "low") return priority === "speed" ? MODELS.tiny : MODELS.base;
-    if (ram === "medium") return priority === "speed" ? MODELS.small : MODELS["distil-large-v3.5"];
+    if (ram === "low") return priority === "speed" ? getModel("tiny") : getModel("base");
+    if (ram === "medium") return priority === "speed" ? getModel("small") : getModel("distil-large-v3.5");
     // high RAM
-    return priority === "speed" ? MODELS["distil-large-v3.5"] : MODELS["distil-large-v3.5"];
+    return priority === "speed" ? getModel("distil-large-v3.5") : getModel("distil-large-v3.5");
   }
 
   // Multilingual path
-  if (ram === "low") return priority === "speed" ? MODELS.tiny : MODELS.small;
-  if (ram === "medium") return priority === "speed" ? MODELS.turbo : MODELS.medium;
+  if (ram === "low") return priority === "speed" ? getModel("tiny") : getModel("small");
+  if (ram === "medium") return priority === "speed" ? getModel("turbo") : getModel("medium");
   // high RAM
-  return priority === "speed" ? MODELS.turbo : MODELS.large;
+  return priority === "speed" ? getModel("turbo") : getModel("large");
 }
 
 function QuestionCard({

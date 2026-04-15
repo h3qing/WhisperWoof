@@ -280,15 +280,30 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
       {/* Notes (Fn+N) */}
       <SettingsSection title="Notes (Fn+N)">
         <SettingsGroup>
-          <SettingsRow label="Notes directory">
-            <button
-              onClick={handleOpenNotesFolder}
-              disabled={state.notesDirLoading}
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-foreground border border-border/50 dark:border-white/10 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
-            >
-              <FolderOpen size={13} />
-              Open Folder
-            </button>
+          <SettingsRow label="Notes directory" description="Markdown files saved here. Point to your Obsidian vault or iCloud folder.">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={async () => {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const api = (window as any).electronAPI;
+                  const result = await api?.whisperwoofPickNotesDir?.();
+                  if (result?.success) {
+                    setState((prev) => ({ ...prev, notesDir: result.path }));
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+              >
+                Change Folder
+              </button>
+              <button
+                onClick={handleOpenNotesFolder}
+                disabled={state.notesDirLoading}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-foreground border border-border/50 dark:border-white/10 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+              >
+                <FolderOpen size={13} />
+                Open
+              </button>
+            </div>
           </SettingsRow>
           <p className="text-xs text-muted-foreground/70 font-mono truncate" title={state.notesDir}>
             {state.notesDirLoading ? "Loading..." : state.notesDir}
