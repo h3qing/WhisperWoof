@@ -95,7 +95,7 @@ describe("MeetingSessionManager", () => {
       await manager.connect("mic", "test-token");
 
       expect(mockInstances).toHaveLength(1);
-      expect(mockInstances[0].connect).toHaveBeenCalledWith({
+      expect(mockInstances[0]!.connect).toHaveBeenCalledWith({
         apiKey: "test-token",
         model: "gpt-4o-mini-transcribe",
         preconfigured: true,
@@ -110,28 +110,28 @@ describe("MeetingSessionManager", () => {
 
     it("disconnects existing slot before reconnecting same source", async () => {
       await manager.connect("mic", "token-1");
-      const firstInstance = mockInstances[0];
+      const firstInstance = mockInstances[0]!;
 
       await manager.connect("mic", "token-2");
-      expect(firstInstance.disconnect).toHaveBeenCalled();
+      expect(firstInstance!.disconnect).toHaveBeenCalled();
       expect(mockInstances).toHaveLength(2);
     });
 
     it("attaches transcript handlers to the streaming instance", async () => {
       await manager.connect("mic", "test-token");
-      const instance = mockInstances[0];
+      const instance = mockInstances[0]!;
 
-      expect(instance.onPartialTranscript).toBeTypeOf("function");
-      expect(instance.onFinalTranscript).toBeTypeOf("function");
-      expect(instance.onError).toBeTypeOf("function");
-      expect(instance.onSessionEnd).toBeTypeOf("function");
+      expect(instance!.onPartialTranscript).toBeTypeOf("function");
+      expect(instance!.onFinalTranscript).toBeTypeOf("function");
+      expect(instance!.onError).toBeTypeOf("function");
+      expect(instance!.onSessionEnd).toBeTypeOf("function");
     });
 
     it("partial transcript handler calls onSegment with correct shape", async () => {
       await manager.connect("mic", "test-token");
-      const instance = mockInstances[0];
+      const instance = mockInstances[0]!;
 
-      instance.onPartialTranscript!("hello");
+      instance!.onPartialTranscript!("hello");
       expect(onSegment).toHaveBeenCalledWith({
         text: "hello",
         source: "mic",
@@ -141,9 +141,9 @@ describe("MeetingSessionManager", () => {
 
     it("final transcript handler calls onSegment with correct shape", async () => {
       await manager.connect("mic", "test-token");
-      const instance = mockInstances[0];
+      const instance = mockInstances[0]!;
 
-      instance.onFinalTranscript!("hello world", 12345);
+      instance!.onFinalTranscript!("hello world", 12345);
       expect(onSegment).toHaveBeenCalledWith({
         text: "hello world",
         source: "mic",
@@ -160,7 +160,7 @@ describe("MeetingSessionManager", () => {
 
       const result = manager.sendAudio(buf, "mic");
       expect(result).toBe(true);
-      expect(mockInstances[0].sendAudio).toHaveBeenCalledWith(buf);
+      expect(mockInstances[0]!.sendAudio).toHaveBeenCalledWith(buf);
     });
 
     it("returns false when source is unknown", () => {
@@ -174,19 +174,19 @@ describe("MeetingSessionManager", () => {
       await manager.connect("mic", "mic-token");
       await manager.connect("system", "system-token");
 
-      const { transcripts } = await manager.disconnectAll();
-      expect(transcripts.mic).toBe("test transcript");
-      expect(transcripts.system).toBe("test transcript");
-      expect(mockInstances[0].disconnect).toHaveBeenCalled();
-      expect(mockInstances[1].disconnect).toHaveBeenCalled();
+      const { transcripts } = await manager.disconnectAll() as { transcripts: Record<string, string> };
+      expect((transcripts as any).mic).toBe("test transcript");
+      expect((transcripts as any).system).toBe("test transcript");
+      expect(mockInstances[0]!.disconnect).toHaveBeenCalled();
+      expect(mockInstances[1]!.disconnect).toHaveBeenCalled();
     });
 
     it("falls back to getFullTranscript when disconnect throws", async () => {
       await manager.connect("mic", "test-token");
-      mockInstances[0].disconnect.mockRejectedValue(new Error("disconnect failed"));
+      mockInstances[0]!.disconnect.mockRejectedValue(new Error("disconnect failed"));
 
-      const { transcripts } = await manager.disconnectAll();
-      expect(transcripts.mic).toBe("test transcript");
+      const { transcripts } = await manager.disconnectAll() as { transcripts: Record<string, string> };
+      expect((transcripts as any).mic).toBe("test transcript");
     });
 
     it("clears state and marks as inactive", async () => {
@@ -245,10 +245,10 @@ describe("MeetingSessionManager", () => {
   describe("unexpected disconnect and reconnection", () => {
     it("triggers reconnection when onSessionEnd fires", async () => {
       await manager.connect("mic", "test-token");
-      const instance = mockInstances[0];
+      const instance = mockInstances[0]!;
 
       // Simulate unexpected disconnect
-      instance.onSessionEnd!({});
+      instance!.onSessionEnd!({});
 
       // Wait for reconnection delay
       await vi.advanceTimersByTimeAsync(1000);
@@ -259,7 +259,7 @@ describe("MeetingSessionManager", () => {
 
     it("calls onReconnected after successful reconnection", async () => {
       await manager.connect("mic", "test-token");
-      mockInstances[0].onSessionEnd!({});
+      mockInstances[0]!.onSessionEnd!({});
 
       await vi.advanceTimersByTimeAsync(1000);
 
@@ -268,11 +268,11 @@ describe("MeetingSessionManager", () => {
 
     it("does not reconnect when stopping", async () => {
       await manager.connect("mic", "test-token");
-      const instance = mockInstances[0];
+      const instance = mockInstances[0]!;
 
       // Start disconnecting
       const disconnectPromise = manager.disconnectAll();
-      instance.onSessionEnd!({});
+      instance!.onSessionEnd!({});
 
       await disconnectPromise;
       await vi.advanceTimersByTimeAsync(5000);
@@ -298,8 +298,8 @@ describe("MeetingSessionManager", () => {
       manager.sendAudio(Buffer.from([1]), "mic");
       manager.sendAudio(Buffer.from([2]), "system");
 
-      expect(mockInstances[0].sendAudio).toHaveBeenCalledWith(Buffer.from([1]));
-      expect(mockInstances[1].sendAudio).toHaveBeenCalledWith(Buffer.from([2]));
+      expect(mockInstances[0]!.sendAudio).toHaveBeenCalledWith(Buffer.from([1]));
+      expect(mockInstances[1]!.sendAudio).toHaveBeenCalledWith(Buffer.from([2]));
     });
   });
 
@@ -307,7 +307,7 @@ describe("MeetingSessionManager", () => {
     it("returns the streaming instance for a connected source", async () => {
       await manager.connect("mic", "test-token");
       const streaming = manager.getStreaming("mic");
-      expect(streaming).toBe(mockInstances[0]);
+      expect(streaming).toBe(mockInstances[0]!);
     });
 
     it("returns null for an unknown source", () => {

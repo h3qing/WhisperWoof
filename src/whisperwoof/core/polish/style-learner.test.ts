@@ -8,7 +8,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   editDistance,
   shouldRecordStyleExample,

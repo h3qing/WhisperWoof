@@ -1,6 +1,6 @@
 {
   "name": "whisperwoof",
-  "version": "1.8.0",
+  "version": "1.11.0",
   "description": "Voice-first personal automation — transcribe, polish, route, and store. Fork of OpenWhispr.",
   "main": "main.js",
   "private": true,

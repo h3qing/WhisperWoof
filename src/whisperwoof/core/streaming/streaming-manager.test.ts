@@ -2,104 +2,30 @@
  * Tests for Streaming Transcription Manager
  *
  * Tests session lifecycle, partial buffering, word diffing, display formatting.
+ * Imports from the actual source module (no duplicated implementation).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-// Re-implement pure logic for testing
+// Mock debugLogger before importing the source module
+vi.mock('../../helpers/debugLogger', () => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
 
-const MAX_PARTIAL_LENGTH = 200;
-const STALE_THRESHOLD_MS = 3000;
-
-interface StreamingSession {
-  id: string;
-  startedAt: number;
-  partialText: string;
-  finalText: string;
-  wordCount: number;
-  updateCount: number;
-  lastUpdateAt: number;
-  isActive: boolean;
-  finalizedAt?: number;
-  durationMs?: number;
-}
-
-function createSession(): StreamingSession {
-  return Object.freeze({
-    id: `stream-${Date.now()}`,
-    startedAt: Date.now(),
-    partialText: "",
-    finalText: "",
-    wordCount: 0,
-    updateCount: 0,
-    lastUpdateAt: Date.now(),
-    isActive: true,
-  }) as StreamingSession;
-}
-
-function updatePartial(session: StreamingSession, partialText: string): StreamingSession {
-  if (!session || !session.isActive) return session;
-  const trimmed = (partialText || "").trim();
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  return Object.freeze({
-    ...session,
-    partialText: trimmed.length > MAX_PARTIAL_LENGTH
-      ? trimmed.slice(0, MAX_PARTIAL_LENGTH) + "\u2026"
-      : trimmed,
-    wordCount: words.length,
-    updateCount: session.updateCount + 1,
-    lastUpdateAt: Date.now(),
-  }) as StreamingSession;
-}
-
-function finalizeSession(session: StreamingSession, finalText: string): StreamingSession {
-  if (!session) return session;
-  return Object.freeze({
-    ...session,
-    finalText: (finalText || "").trim(),
-    partialText: "",
-    isActive: false,
-    finalizedAt: Date.now(),
-    durationMs: Date.now() - session.startedAt,
-  }) as StreamingSession;
-}
-
-function diffPartials(oldText: string, newText: string) {
-  const oldWords = (oldText || "").split(/\s+/).filter(Boolean);
-  const newWords = (newText || "").split(/\s+/).filter(Boolean);
-  let commonPrefix = 0;
-  while (
-    commonPrefix < oldWords.length &&
-    commonPrefix < newWords.length &&
-    oldWords[commonPrefix] === newWords[commonPrefix]
-  ) {
-    commonPrefix++;
-  }
-  return {
-    unchanged: commonPrefix,
-    changed: Math.max(0, oldWords.length - commonPrefix),
-    added: Math.max(0, newWords.length - commonPrefix),
-    newWords: newWords.slice(commonPrefix),
-  };
-}
-
-function formatForDisplay(partialText: string, maxChars = 60): string {
-  if (!partialText) return "";
-  if (partialText.length <= maxChars) return partialText;
-  const truncated = partialText.slice(-maxChars);
-  const firstSpace = truncated.indexOf(" ");
-  if (firstSpace > 0 && firstSpace < 10) {
-    return "\u2026" + truncated.slice(firstSpace);
-  }
-  return "\u2026" + truncated;
-}
-
-function getWpm(session: StreamingSession): number {
-  if (!session || session.wordCount === 0) return 0;
-  const elapsedMinutes = (Date.now() - session.startedAt) / 60000;
-  if (elapsedMinutes < 0.05) return 0;
-  return Math.round(session.wordCount / elapsedMinutes);
-}
+// Import from the actual source — single source of truth
+const {
+  createSession,
+  updatePartial,
+  finalizeSession,
+  diffPartials,
+  formatForDisplay,
+  getWpm,
+  MAX_PARTIAL_LENGTH,
+  STALE_THRESHOLD_MS,
+} = require('../../bridge/streaming-manager');
 
 describe('Streaming Manager', () => {
   describe('session lifecycle', () => {
@@ -234,7 +160,7 @@ describe('Streaming Manager', () => {
         ...createSession(),
         startedAt: Date.now() - 60000, // 1 minute ago
         wordCount: 150,
-      } as StreamingSession;
+      };
       const wpm = getWpm(session);
       expect(wpm).toBeGreaterThan(140);
       expect(wpm).toBeLessThan(160);
@@ -255,6 +181,16 @@ describe('Streaming Manager', () => {
     it('finalizeSession returns frozen object', () => {
       const final = finalizeSession(createSession(), "done");
       expect(Object.isFrozen(final)).toBe(true);
+    });
+  });
+
+  describe('constants', () => {
+    it('MAX_PARTIAL_LENGTH is 200', () => {
+      expect(MAX_PARTIAL_LENGTH).toBe(200);
+    });
+
+    it('STALE_THRESHOLD_MS is 3000', () => {
+      expect(STALE_THRESHOLD_MS).toBe(3000);
     });
   });
 });

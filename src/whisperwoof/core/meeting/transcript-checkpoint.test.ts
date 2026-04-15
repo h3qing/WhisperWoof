@@ -11,8 +11,8 @@ const MeetingTranscriptCheckpoint = (await import('../../../helpers/meetingTrans
   ?? (await import('../../../helpers/meetingTranscriptCheckpoint'));
 
 describe('MeetingTranscriptCheckpoint', () => {
-  let checkpoint;
-  let databaseManager;
+  let checkpoint: any;
+  let databaseManager: any;
 
   beforeEach(() => {
     vi.useFakeTimers();

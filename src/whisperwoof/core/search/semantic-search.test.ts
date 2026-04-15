@@ -22,7 +22,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   tokenize,
   termFrequency,
@@ -66,13 +65,13 @@ describe("tokenize", () => {
 
 describe("termFrequency", () => {
   it("computes document-length-normalized frequency", () => {
-    const tf = termFrequency(["hello", "world", "hello"]);
+    const tf = termFrequency(["hello", "world", "hello"]) as Record<string, number>;
     expect(tf.hello).toBeCloseTo(2 / 3);
     expect(tf.world).toBeCloseTo(1 / 3);
   });
 
   it("returns 1 for a single-token document", () => {
-    expect(termFrequency(["test"]).test).toBe(1);
+    expect((termFrequency(["test"]) as Record<string, number>).test).toBe(1);
   });
 
   it("returns an empty map for an empty token list", () => {
@@ -87,18 +86,18 @@ describe("inverseDocumentFrequency", () => {
       ["hello", "earth"],
       ["hello", "mars"],
     ];
-    const idf = inverseDocumentFrequency(corpus);
-    expect(idf.mars).toBeGreaterThan(idf.hello);
+    const idf = inverseDocumentFrequency(corpus) as Record<string, number>;
+    expect(idf.mars!).toBeGreaterThan(idf.hello!);
   });
 
   it("assigns lower IDF to common terms", () => {
     const corpus = [["common"], ["common"], ["common"], ["rare"]];
-    const idf = inverseDocumentFrequency(corpus);
-    expect(idf.common).toBeLessThan(idf.rare);
+    const idf = inverseDocumentFrequency(corpus) as Record<string, number>;
+    expect(idf.common!).toBeLessThan(idf.rare!);
   });
 
   it("uses smoothed IDF (guaranteed > 0 for every term)", () => {
-    const idf = inverseDocumentFrequency([["only"]]);
+    const idf = inverseDocumentFrequency([["only"]]) as Record<string, number>;
     expect(idf.only).toBeGreaterThan(0);
   });
 });
@@ -148,15 +147,15 @@ describe("end-to-end similarity ranking", () => {
 
   it("ranks bug / auth queries above unrelated docs", () => {
     const scores = searchDocs("authentication bug fix");
-    expect(scores[0]).toBeGreaterThan(scores[1]); // bug doc > meeting doc
-    expect(scores[2]).toBeGreaterThan(scores[1]); // auth error doc > meeting doc
-    expect(scores[0]).toBeGreaterThan(scores[3]); // bug doc > groceries doc
+    expect(scores[0]!).toBeGreaterThan(scores[1]!); // bug doc > meeting doc
+    expect(scores[2]!).toBeGreaterThan(scores[1]!); // auth error doc > meeting doc
+    expect(scores[0]!).toBeGreaterThan(scores[3]!); // bug doc > groceries doc
   });
 
   it("ranks meeting queries above other docs", () => {
     const scores = searchDocs("meeting schedule team");
-    expect(scores[1]).toBeGreaterThan(scores[0]);
-    expect(scores[1]).toBeGreaterThan(scores[3]);
+    expect(scores[1]!).toBeGreaterThan(scores[0]!);
+    expect(scores[1]!).toBeGreaterThan(scores[3]!);
   });
 
   it("scores unrelated queries low across the board", () => {

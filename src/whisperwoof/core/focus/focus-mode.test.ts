@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   SPRINT_PRESETS,
   MIN_DURATION,
@@ -149,7 +148,7 @@ describe("markSessionEnded", () => {
     const started = new Date("2026-03-30T10:00:00Z");
     const session = { ...createSessionObject(), startedAt: started.toISOString() };
     const endedAt = new Date("2026-03-30T10:25:00Z");
-    const ended = markSessionEnded(session, "Discussed 3 project ideas", endedAt.getTime());
+    const ended = markSessionEnded(session, "Discussed 3 project ideas" as any, endedAt.getTime());
 
     expect(ended.isActive).toBe(false);
     expect(ended.endedAt).toBe(endedAt.toISOString());

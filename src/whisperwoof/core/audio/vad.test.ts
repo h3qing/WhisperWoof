@@ -3,76 +3,19 @@
  *
  * Tests energy-based speech/silence classification, audio trimming,
  * speech segments, and auto-stop logic. Pure math — no audio hardware.
+ *
+ * Imports the real helpers from `bridge/vad.js`, which is the same
+ * module used at runtime. Previously these were reimplemented inline
+ * in the test, risking drift.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-// Re-implement pure VAD logic for testing
+vi.mock("../../../helpers/debugLogger", () => ({
+  log: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+}));
 
-function calculateRms(samples: Float32Array): number {
-  if (!samples || samples.length === 0) return 0;
-  let sum = 0;
-  for (let i = 0; i < samples.length; i++) {
-    sum += samples[i] * samples[i];
-  }
-  return Math.sqrt(sum / samples.length);
-}
-
-interface Frame {
-  frameIndex: number;
-  startSample: number;
-  rms: number;
-  isSpeech: boolean;
-}
-
-function analyzeFrames(
-  samples: Float32Array,
-  sampleRate = 16000,
-  config: { silenceThreshold?: number; frameSizeSamples?: number } = {},
-): Frame[] {
-  const threshold = config.silenceThreshold ?? 0.01;
-  const frameSize = config.frameSizeSamples ?? 480;
-  const frames: Frame[] = [];
-
-  for (let i = 0; i < samples.length; i += frameSize) {
-    const end = Math.min(i + frameSize, samples.length);
-    const frame = samples.subarray(i, end);
-    const rms = calculateRms(frame);
-    frames.push({ frameIndex: frames.length, startSample: i, rms, isSpeech: rms >= threshold });
-  }
-
-  return frames;
-}
-
-function getSpeechRatio(samples: Float32Array, sampleRate = 16000, config = {}): number {
-  const frames = analyzeFrames(samples, sampleRate, config);
-  const speechFrames = frames.filter((f) => f.isSpeech).length;
-  return frames.length > 0 ? speechFrames / frames.length : 0;
-}
-
-function shouldAutoStop(
-  recentRmsValues: number[],
-  frameIntervalMs: number,
-  config: { silenceThreshold?: number; autoStopSilenceMs?: number; minRecordingMs?: number } = {},
-  recordingDurationMs = 0,
-): { shouldStop: boolean; silenceDurationMs: number } {
-  const threshold = config.silenceThreshold ?? 0.01;
-  const autoStopMs = config.autoStopSilenceMs ?? 1500;
-  const minRecording = config.minRecordingMs ?? 500;
-
-  if (recordingDurationMs < minRecording) {
-    return { shouldStop: false, silenceDurationMs: 0 };
-  }
-
-  let silenceFrames = 0;
-  for (let i = recentRmsValues.length - 1; i >= 0; i--) {
-    if (recentRmsValues[i] < threshold) silenceFrames++;
-    else break;
-  }
-
-  const silenceDurationMs = silenceFrames * frameIntervalMs;
-  return { shouldStop: silenceDurationMs >= autoStopMs, silenceDurationMs };
-}
+import { calculateRms, analyzeFrames, getSpeechRatio, shouldAutoStop } from '../../bridge/vad';
 
 // Helper: generate a sine wave (speech-like)
 function generateSpeech(durationMs: number, sampleRate = 16000, amplitude = 0.3): Float32Array {
@@ -127,20 +70,20 @@ describe('Voice Activity Detection', () => {
     it('classifies silence frames as non-speech', () => {
       const silence = generateSilence(500);
       const frames = analyzeFrames(silence);
-      expect(frames.every((f) => !f.isSpeech)).toBe(true);
+      expect(frames.every((f: { isSpeech: boolean }) => !f.isSpeech)).toBe(true);
     });
 
     it('classifies speech frames as speech', () => {
       const speech = generateSpeech(500);
       const frames = analyzeFrames(speech);
-      expect(frames.every((f) => f.isSpeech)).toBe(true);
+      expect(frames.every((f: { isSpeech: boolean }) => f.isSpeech)).toBe(true);
     });
 
     it('handles mixed speech and silence', () => {
       const audio = concat(generateSilence(300), generateSpeech(300), generateSilence(300));
       const frames = analyzeFrames(audio);
-      const speechFrames = frames.filter((f) => f.isSpeech).length;
-      const silenceFrames = frames.filter((f) => !f.isSpeech).length;
+      const speechFrames = frames.filter((f: { isSpeech: boolean }) => f.isSpeech).length;
+      const silenceFrames = frames.filter((f: { isSpeech: boolean }) => !f.isSpeech).length;
       expect(speechFrames).toBeGreaterThan(0);
       expect(silenceFrames).toBeGreaterThan(0);
     });
@@ -149,7 +92,7 @@ describe('Voice Activity Detection', () => {
       const audio = generateSpeech(200);
       const frames = analyzeFrames(audio);
       for (let i = 0; i < frames.length; i++) {
-        expect(frames[i].frameIndex).toBe(i);
+        expect(frames[i]!.frameIndex).toBe(i);
       }
     });
   });

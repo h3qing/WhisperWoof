@@ -3,7 +3,32 @@
 All notable changes to WhisperWoof will be documented in this file.
 WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
-## [Unreleased] — Engineering Review Cleanup + Upstream Catch-Up + Latency Infra + Website
+## [Unreleased]
+
+## [1.11.0] - 2026-04-14 — Hotkey Fix + Plugin Setup + Obsidian Integration + Zero TS Errors
+
+### New Features
+- **Fn+letter key consumption via CGEventTap** — rewrote `macos-globe-listener.swift` from `NSEvent.addGlobalMonitorForEvents` (read-only) to `CGEventTapCreate` with `headInsertEventTap`. When Fn is held, routing key presses (T/N/P) are consumed before reaching the focused app. No more "ttttt" typed into text fields. Falls back to the original read-only monitor if Accessibility permission is not granted.
+- **Fn+N now actually saves markdown** — previously Fn+N and Fn+P silently fell through to paste-at-cursor. Both routes now have real dispatch handlers: Fn+N calls `whisperwoofSaveMarkdown` (saves `.md` file with toast confirmation), Fn+P tags entry for project routing.
+- **Fn+letter combos force push-to-talk** — regardless of global activation mode (push vs tap/toggle), Fn+letter combos always behave as hold-to-record, release-to-stop. Plain Fn still respects the user's activation mode preference.
+- **Guided plugin setup flow** — toggling a plugin ON for the first time shows an inline setup card with instructions, a link to the service's developer portal, a password-masked API key input, and a test button. Works for all 5 first-party plugins.
+- **TickTick plugin added** — was missing from the default plugin list despite having permission definitions and MCP server code. Now shows alongside Todoist, Notion, Calendar, and Slack.
+- **Markdown notes with YAML frontmatter** — saved notes now include `title`, `date`, `source`, and `app` frontmatter for Obsidian compatibility.
+- **Notes directory configurable via UI** — Settings > Notes > "Change Folder" opens a native macOS folder picker. Point to your Obsidian vault or iCloud folder. Persisted in `whisperwoof-settings.json`.
+- **Mando head in route toasts** — Fn+T (clipboard), Fn+N (note), Fn+P (project) toasts now show the Mando mascot head as an icon. Toast component gained an `icon` prop.
+
+### Fixes
+- **All 15 `debugLogger.error("msg:", error)` sites in `ipcHandlers.js` now log actual error messages** instead of `{}`. Error objects don't JSON-serialize (message/stack aren't enumerable), so every caught error rendered as an empty object.
+- **Plugin default list auto-merges** — existing saved plugin files automatically gain new default plugins (like TickTick) and backfill setup metadata on load. No manual reconfiguration needed.
+
+### Refactor
+- **Test-truthfulness refactor: 31 of ~35 files done (all buckets complete).** Bucket C: 6 more files wired to real source (`app-automation`, `conversation-memory`, `streaming-manager`, `daily-digest`, `entry-chains`, `entry-templates`). Bucket D: `vad` (Pattern 1) and `telegram-sync` (Pattern 2) refactored. `smart-clipboard` documented as not-feasible (inline SQL needs `better-sqlite3`).
+- **TypeScript strict-mode errors: 313 to 0.** Fixed all errors across 30+ files: type annotations on mock objects, non-null assertions on array access, removed 23 stale `@ts-expect-error` directives, added `Window.electronAPI` type declaration, fixed `ModelAdvisor` record access, `TuningBench` DP array types, `SmartClipboard` board color access.
+
+### Tests
+- 44 test files / 808 tests (up from 800). Zero regressions.
+
+## [1.10.0] - 2026-04-12 — Engineering Cleanup + Security Fix + Latency Infra + Upstream Catch-Up
 
 ### Website
 - **Combined "floating assistant" + "raw voice in, polished text out" demo sections** into one condensed mock-window card with Mando head, waveform, raw input, and polished output all in a single visual. Removed the separate "Meet your floating assistant" preview section.

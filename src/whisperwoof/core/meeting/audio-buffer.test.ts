@@ -21,6 +21,13 @@ const { default: MeetingAudioBuffer } = await import(
   "../../../helpers/meetingAudioBuffer"
 ).then((m) => ({ default: m.default ?? m }));
 
+interface BufferStopResult {
+  sessionId: string | null;
+  files: string[];
+  totalBytes: Record<string, number>;
+  dir?: string;
+}
+
 // WAV constants matching the source
 const SAMPLE_RATE = 24000;
 const BITS_PER_SAMPLE = 16;
@@ -85,10 +92,10 @@ describe("MeetingAudioBuffer", () => {
       expect(typeof sessionId).toBe("string");
       expect(sessionId.length).toBeGreaterThan(0);
 
-      const sessionDir = buffer.getSessionDir();
+      const sessionDir = buffer.getSessionDir()!;
       expect(sessionDir).toContain(`meeting-audio-${sessionId}`);
       expect(fs.existsSync(sessionDir)).toBe(true);
-      expect(fs.statSync(sessionDir).isDirectory()).toBe(true);
+      expect(fs.statSync(sessionDir!).isDirectory()).toBe(true);
     });
 
     it("sets isActive to true after starting", () => {
@@ -111,10 +118,10 @@ describe("MeetingAudioBuffer", () => {
       const pcm = makePcmChunk(4800);
       buffer.writeChunk(pcm, "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.files).toHaveLength(1);
 
-      const fileData = fs.readFileSync(result.files[0]);
+      const fileData = fs.readFileSync(result.files[0]!);
       expect(fileData.length).toBe(WAV_HEADER_SIZE + 4800);
     });
 
@@ -124,10 +131,10 @@ describe("MeetingAudioBuffer", () => {
       buffer.writeChunk(makePcmChunk(2000), "mic");
       buffer.writeChunk(makePcmChunk(500), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.files).toHaveLength(1);
 
-      const fileData = fs.readFileSync(result.files[0]);
+      const fileData = fs.readFileSync(result.files[0]!);
       expect(fileData.length).toBe(WAV_HEADER_SIZE + 3500);
     });
 
@@ -136,7 +143,7 @@ describe("MeetingAudioBuffer", () => {
       buffer.writeChunk(makePcmChunk(100), "mic");
       buffer.writeChunk(makePcmChunk(200), "mic");
 
-      const result = buffer.stop();
+      const result = buffer.stop() as BufferStopResult;
       expect(result.totalBytes.mic).toBe(300);
     });
 
@@ -166,8 +173,8 @@ describe("MeetingAudioBuffer", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(9600), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
-      const fileData = fs.readFileSync(result.files[0]);
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      const fileData = fs.readFileSync(result.files[0]!);
       const header = parseWavHeader(fileData);
 
       expect(header.riffTag).toBe("RIFF");
@@ -180,8 +187,8 @@ describe("MeetingAudioBuffer", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(4800), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
-      const fileData = fs.readFileSync(result.files[0]);
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      const fileData = fs.readFileSync(result.files[0]!);
       const header = parseWavHeader(fileData);
 
       expect(header.audioFormat).toBe(1); // PCM
@@ -196,8 +203,8 @@ describe("MeetingAudioBuffer", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(9600), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
-      const fileData = fs.readFileSync(result.files[0]);
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      const fileData = fs.readFileSync(result.files[0]!);
       const header = parseWavHeader(fileData);
 
       expect(header.dataSize).toBe(9600);
@@ -209,8 +216,8 @@ describe("MeetingAudioBuffer", () => {
       const pcm = makePcmChunk(100);
       buffer.writeChunk(pcm, "mic");
 
-      const result = buffer.stop({ keepFiles: true });
-      const fileData = fs.readFileSync(result.files[0]);
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      const fileData = fs.readFileSync(result.files[0]!);
       const pcmSection = fileData.subarray(WAV_HEADER_SIZE);
 
       expect(pcmSection.length).toBe(100);
@@ -228,14 +235,14 @@ describe("MeetingAudioBuffer", () => {
       (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(now + SEGMENT_DURATION_MS + 1);
       buffer.writeChunk(makePcmChunk(2000), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.files).toHaveLength(2);
       expect(result.totalBytes.mic).toBe(3000);
 
-      const file1 = fs.readFileSync(result.files[0]);
+      const file1 = fs.readFileSync(result.files[0]!);
       expect(parseWavHeader(file1).dataSize).toBe(1000);
 
-      const file2 = fs.readFileSync(result.files[1]);
+      const file2 = fs.readFileSync(result.files[1]!);
       expect(parseWavHeader(file2).dataSize).toBe(2000);
     });
 
@@ -251,11 +258,11 @@ describe("MeetingAudioBuffer", () => {
       (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(now + 2 * SEGMENT_DURATION_MS + 2);
       buffer.writeChunk(makePcmChunk(100), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.files).toHaveLength(3);
-      expect(path.basename(result.files[0])).toBe("mic-0000.wav");
-      expect(path.basename(result.files[1])).toBe("mic-0001.wav");
-      expect(path.basename(result.files[2])).toBe("mic-0002.wav");
+      expect(path.basename(result.files[0]!)).toBe("mic-0000.wav");
+      expect(path.basename(result.files[1]!)).toBe("mic-0001.wav");
+      expect(path.basename(result.files[2]!)).toBe("mic-0002.wav");
     });
 
     it("each rotated segment is a valid WAV file", () => {
@@ -267,7 +274,7 @@ describe("MeetingAudioBuffer", () => {
       (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(now + SEGMENT_DURATION_MS + 1);
       buffer.writeChunk(makePcmChunk(700), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       for (const filePath of result.files) {
         const data = fs.readFileSync(filePath);
         const header = parseWavHeader(data);
@@ -285,7 +292,7 @@ describe("MeetingAudioBuffer", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(1000), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.sessionId).toBeDefined();
       expect(result.files).toHaveLength(1);
       expect(result.totalBytes.mic).toBe(1000);
@@ -310,11 +317,11 @@ describe("MeetingAudioBuffer", () => {
     it("allows a new session after stop", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(100), "mic");
-      const result1 = buffer.stop({ keepFiles: true });
+      const result1 = buffer.stop({ keepFiles: true }) as BufferStopResult;
 
       buffer.start();
       buffer.writeChunk(makePcmChunk(200), "mic");
-      const result2 = buffer.stop({ keepFiles: true });
+      const result2 = buffer.stop({ keepFiles: true }) as BufferStopResult;
 
       expect(result2.sessionId).not.toBe(result1.sessionId);
       expect(result2.files).toHaveLength(1);
@@ -327,24 +334,24 @@ describe("MeetingAudioBuffer", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(500), "mic");
       buffer.writeChunk(makePcmChunk(500), "system");
-      const sessionDir = buffer.getSessionDir();
+      const sessionDir = buffer.getSessionDir()!;
 
       buffer.stop();
-      expect(fs.existsSync(sessionDir)).toBe(true);
+      expect(fs.existsSync(sessionDir!)).toBe(true);
 
       buffer.cleanupFiles();
-      expect(fs.existsSync(sessionDir)).toBe(false);
+      expect(fs.existsSync(sessionDir!)).toBe(false);
     });
 
     it("accepts an explicit directory path", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(500), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
-      expect(fs.existsSync(result.dir)).toBe(true);
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      expect(fs.existsSync(result.dir!)).toBe(true);
 
-      buffer.cleanupFiles(result.dir);
-      expect(fs.existsSync(result.dir)).toBe(false);
+      buffer.cleanupFiles(result.dir!);
+      expect(fs.existsSync(result.dir!)).toBe(false);
     });
 
     it("is a no-op when there is nothing to clean up", () => {
@@ -358,7 +365,7 @@ describe("MeetingAudioBuffer", () => {
       buffer.writeChunk(makePcmChunk(1000), "mic");
       buffer.writeChunk(makePcmChunk(2000), "system");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       expect(result.files).toHaveLength(2);
       expect(result.totalBytes.mic).toBe(1000);
       expect(result.totalBytes.system).toBe(2000);
@@ -374,7 +381,7 @@ describe("MeetingAudioBuffer", () => {
       buffer.writeChunk(makePcmChunk(100), "mic");
       buffer.writeChunk(makePcmChunk(100), "system");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       const basenames = result.files.map((f: string) => path.basename(f));
       expect(basenames).toContain("mic-0000.wav");
       expect(basenames).toContain("system-0000.wav");
@@ -391,7 +398,7 @@ describe("MeetingAudioBuffer", () => {
       (Date.now as ReturnType<typeof vi.fn>).mockReturnValue(now + SEGMENT_DURATION_MS + 1);
       buffer.writeChunk(makePcmChunk(200), "mic");
 
-      const result = buffer.stop({ keepFiles: true });
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
       const micFiles = result.files.filter((f: string) => path.basename(f).startsWith("mic-"));
       const systemFiles = result.files.filter((f: string) => path.basename(f).startsWith("system-"));
 

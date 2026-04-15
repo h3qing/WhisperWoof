@@ -1,76 +1,21 @@
 /**
  * Tests for Entry Templates — structured capture formats
+ *
+ * Imports from the actual pure module (no duplicated implementation).
  */
 
 import { describe, it, expect } from 'vitest';
 
-// Re-implement rendering logic for testing
+// Import from the pure module — no electron/fs side effects
+const { BUILT_IN_TEMPLATES, renderTemplateFromObject, getNextSectionFromObject } = require('../../bridge/entry-templates-pure');
 
-interface Section {
-  id: string;
-  label: string;
-  prompt: string;
-  required: boolean;
-}
-
-interface Template {
-  id: string;
-  name: string;
-  sections: Section[];
-  outputFormat: string;
-  builtIn: boolean;
-}
-
-const STANDUP: Template = {
-  id: "builtin-standup",
-  name: "Daily Standup",
-  sections: [
-    { id: "yesterday", label: "Yesterday", prompt: "What did you work on yesterday?", required: true },
-    { id: "today", label: "Today", prompt: "What are you working on today?", required: true },
-    { id: "blockers", label: "Blockers", prompt: "Any blockers?", required: false },
-  ],
-  outputFormat: "## Daily Standup\n\n**Yesterday:**\n{{yesterday}}\n\n**Today:**\n{{today}}\n\n**Blockers:**\n{{blockers}}",
-  builtIn: true,
-};
-
-const BUG_REPORT: Template = {
-  id: "builtin-bug",
-  name: "Bug Report",
-  sections: [
-    { id: "summary", label: "Summary", prompt: "What's the bug?", required: true },
-    { id: "steps", label: "Steps", prompt: "How to reproduce?", required: true },
-    { id: "expected", label: "Expected", prompt: "What should happen?", required: true },
-    { id: "actual", label: "Actual", prompt: "What actually happens?", required: true },
-  ],
-  outputFormat: "## Bug Report\n\n**Summary:** {{summary}}\n\n**Steps:**\n{{steps}}\n\n**Expected:** {{expected}}\n\n**Actual:** {{actual}}",
-  builtIn: true,
-};
-
-function renderTemplate(template: Template, values: Record<string, string>): { success: boolean; output?: string; error?: string } {
-  for (const section of template.sections) {
-    if (section.required && (!values[section.id] || !values[section.id].trim())) {
-      return { success: false, error: `Required section "${section.label}" is empty` };
-    }
-  }
-
-  let output = template.outputFormat;
-  for (const section of template.sections) {
-    const value = (values[section.id] || "").trim() || "(none)";
-    output = output.replace(new RegExp(`\\{\\{${section.id}\\}\\}`, "g"), value);
-  }
-
-  return { success: true, output };
-}
-
-function getNextSection(template: Template, filled: Record<string, string>): Section | null {
-  const filledIds = new Set(Object.keys(filled));
-  return template.sections.find((s) => !filledIds.has(s.id)) || null;
-}
+const STANDUP = BUILT_IN_TEMPLATES.find((t: any) => t.id === "builtin-standup");
+const BUG_REPORT = BUILT_IN_TEMPLATES.find((t: any) => t.id === "builtin-bug");
 
 describe('Entry Templates', () => {
-  describe('renderTemplate', () => {
+  describe('renderTemplateFromObject', () => {
     it('renders standup template', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "Fixed the login bug",
         today: "Working on the dashboard",
         blockers: "None",
@@ -82,7 +27,7 @@ describe('Entry Templates', () => {
     });
 
     it('renders bug report template', () => {
-      const result = renderTemplate(BUG_REPORT, {
+      const result = renderTemplateFromObject(BUG_REPORT, {
         summary: "Login page crashes",
         steps: "1. Open login\n2. Click submit",
         expected: "Login succeeds",
@@ -94,7 +39,7 @@ describe('Entry Templates', () => {
     });
 
     it('fails when required section is empty', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "Fixed bugs",
         // today is missing (required)
       });
@@ -103,7 +48,7 @@ describe('Entry Templates', () => {
     });
 
     it('allows empty optional sections', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "Fixed bugs",
         today: "Dashboard work",
         // blockers is optional
@@ -113,7 +58,7 @@ describe('Entry Templates', () => {
     });
 
     it('replaces all placeholders', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "A",
         today: "B",
         blockers: "C",
@@ -121,21 +66,27 @@ describe('Entry Templates', () => {
       expect(result.output).not.toContain("{{");
       expect(result.output).not.toContain("}}");
     });
+
+    it('returns error for null template', () => {
+      const result = renderTemplateFromObject(null, { foo: "bar" });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Template not found");
+    });
   });
 
-  describe('getNextSection', () => {
+  describe('getNextSectionFromObject', () => {
     it('returns first section when nothing filled', () => {
-      const next = getNextSection(STANDUP, {});
+      const next = getNextSectionFromObject(STANDUP, {});
       expect(next?.id).toBe("yesterday");
     });
 
     it('returns second section when first is filled', () => {
-      const next = getNextSection(STANDUP, { yesterday: "Done" });
+      const next = getNextSectionFromObject(STANDUP, { yesterday: "Done" });
       expect(next?.id).toBe("today");
     });
 
     it('returns null when all sections filled', () => {
-      const next = getNextSection(STANDUP, {
+      const next = getNextSectionFromObject(STANDUP, {
         yesterday: "A",
         today: "B",
         blockers: "C",
@@ -144,37 +95,43 @@ describe('Entry Templates', () => {
     });
 
     it('skips to unfilled sections', () => {
-      const next = getNextSection(BUG_REPORT, {
+      const next = getNextSectionFromObject(BUG_REPORT, {
         summary: "Bug",
         steps: "1. Click",
       });
       expect(next?.id).toBe("expected");
     });
+
+    it('returns null for null template', () => {
+      expect(getNextSectionFromObject(null, {})).toBeNull();
+    });
   });
 
   describe('built-in templates', () => {
-    const builtIns = [STANDUP, BUG_REPORT];
+    it('has 5 built-in templates', () => {
+      expect(BUILT_IN_TEMPLATES).toHaveLength(5);
+    });
 
     it('all have unique IDs', () => {
-      const ids = builtIns.map((t) => t.id);
+      const ids = BUILT_IN_TEMPLATES.map((t: any) => t.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('all are marked builtIn', () => {
-      for (const t of builtIns) {
-        expect(t.builtIn).toBe(true);
+      for (const t of BUILT_IN_TEMPLATES) {
+        expect((t as any).builtIn).toBe(true);
       }
     });
 
     it('all have at least one section', () => {
-      for (const t of builtIns) {
-        expect(t.sections.length).toBeGreaterThan(0);
+      for (const t of BUILT_IN_TEMPLATES) {
+        expect((t as any).sections.length).toBeGreaterThan(0);
       }
     });
 
     it('all sections have id, label, prompt', () => {
-      for (const t of builtIns) {
-        for (const s of t.sections) {
+      for (const t of BUILT_IN_TEMPLATES) {
+        for (const s of (t as any).sections) {
           expect(s.id).toBeTruthy();
           expect(s.label).toBeTruthy();
           expect(s.prompt).toBeTruthy();
@@ -183,9 +140,9 @@ describe('Entry Templates', () => {
     });
 
     it('output format references all section IDs', () => {
-      for (const t of builtIns) {
-        for (const s of t.sections) {
-          expect(t.outputFormat).toContain(`{{${s.id}}}`);
+      for (const t of BUILT_IN_TEMPLATES) {
+        for (const s of (t as any).sections) {
+          expect((t as any).outputFormat).toContain(`{{${s.id}}}`);
         }
       }
     });
@@ -193,7 +150,7 @@ describe('Entry Templates', () => {
 
   describe('validation', () => {
     it('whitespace-only values count as empty', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "   ",
         today: "Work",
       });
@@ -201,7 +158,7 @@ describe('Entry Templates', () => {
     });
 
     it('trims values before rendering', () => {
-      const result = renderTemplate(STANDUP, {
+      const result = renderTemplateFromObject(STANDUP, {
         yesterday: "  Fixed bugs  ",
         today: "  Dashboard  ",
       });

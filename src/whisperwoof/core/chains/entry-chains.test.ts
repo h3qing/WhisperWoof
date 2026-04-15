@@ -1,71 +1,29 @@
 /**
  * Tests for Entry Chaining — link/unlink, tree traversal, cycle detection
+ *
+ * Imports from the actual pure module (no duplicated implementation).
  */
 
 import { describe, it, expect } from 'vitest';
 
-// Simulate chain logic with in-memory structures
+// Import from the pure module — no electron/db side effects
+const { isAncestor, getChainRoot, getChainEntries, getParent, getChildren } = require('../../bridge/entry-chains-pure');
 
 interface ChainLink {
   childId: string;
   parentId: string;
 }
 
-function isAncestor(potentialAncestor: string, entryId: string, links: ChainLink[]): boolean {
-  let current = entryId;
-  const visited = new Set<string>();
-
-  while (current) {
-    if (current === potentialAncestor) return true;
-    if (visited.has(current)) return false;
-    visited.add(current);
-
-    const link = links.find((l) => l.childId === current);
-    current = link ? link.parentId : "";
-  }
-
-  return false;
-}
-
-function getChainRoot(entryId: string, links: ChainLink[]): string {
-  let current = entryId;
-  const visited = new Set<string>();
-
-  while (true) {
-    const link = links.find((l) => l.childId === current);
-    if (!link) return current;
-    if (visited.has(link.parentId)) return current;
-    visited.add(current);
-    current = link.parentId;
-  }
-}
-
-function getChain(entryId: string, links: ChainLink[], entries: string[]): string[] {
-  const rootId = getChainRoot(entryId, links);
-  const result: string[] = [];
-  const queue = [rootId];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (visited.has(current)) continue;
-    visited.add(current);
-    if (entries.includes(current)) result.push(current);
-
-    const children = links.filter((l) => l.parentId === current).map((l) => l.childId);
-    queue.push(...children);
-  }
-
-  return result;
-}
-
-function getParent(entryId: string, links: ChainLink[]): string | null {
-  const link = links.find((l) => l.childId === entryId);
-  return link ? link.parentId : null;
-}
-
-function getChildren(entryId: string, links: ChainLink[]): string[] {
-  return links.filter((l) => l.parentId === entryId).map((l) => l.childId);
+function createLookup(links: ChainLink[]) {
+  return {
+    findParent(childId: string): string | null {
+      const link = links.find((l) => l.childId === childId);
+      return link ? link.parentId : null;
+    },
+    findChildren(parentId: string): string[] {
+      return links.filter((l) => l.parentId === parentId).map((l) => l.childId);
+    },
+  };
 }
 
 describe('Entry Chaining', () => {
@@ -74,23 +32,23 @@ describe('Entry Chaining', () => {
     { childId: "B", parentId: "A" },
     { childId: "C", parentId: "B" },
   ];
-  const allEntries = ["A", "B", "C", "D"];
+  const lookup = createLookup(links);
 
   describe('getChainRoot', () => {
     it('finds root from any entry in chain', () => {
-      expect(getChainRoot("C", links)).toBe("A");
-      expect(getChainRoot("B", links)).toBe("A");
-      expect(getChainRoot("A", links)).toBe("A"); // root itself
+      expect(getChainRoot("C", lookup)).toBe("A");
+      expect(getChainRoot("B", lookup)).toBe("A");
+      expect(getChainRoot("A", lookup)).toBe("A"); // root itself
     });
 
     it('returns self for unlinked entry', () => {
-      expect(getChainRoot("D", links)).toBe("D");
+      expect(getChainRoot("D", lookup)).toBe("D");
     });
   });
 
-  describe('getChain', () => {
+  describe('getChainEntries', () => {
     it('returns all entries in chain from any member', () => {
-      const chain = getChain("C", links, allEntries);
+      const chain = getChainEntries("C", lookup);
       expect(chain).toContain("A");
       expect(chain).toContain("B");
       expect(chain).toContain("C");
@@ -98,62 +56,60 @@ describe('Entry Chaining', () => {
     });
 
     it('returns single entry for unlinked', () => {
-      expect(getChain("D", links, allEntries)).toEqual(["D"]);
+      expect(getChainEntries("D", lookup)).toEqual(["D"]);
     });
 
     it('root traversal returns full chain', () => {
-      expect(getChain("A", links, allEntries)).toHaveLength(3);
+      expect(getChainEntries("A", lookup)).toHaveLength(3);
     });
   });
 
   describe('getParent', () => {
     it('returns parent for child', () => {
-      expect(getParent("B", links)).toBe("A");
-      expect(getParent("C", links)).toBe("B");
+      expect(getParent("B", lookup)).toBe("A");
+      expect(getParent("C", lookup)).toBe("B");
     });
 
     it('returns null for root', () => {
-      expect(getParent("A", links)).toBeNull();
+      expect(getParent("A", lookup)).toBeNull();
     });
 
     it('returns null for unlinked', () => {
-      expect(getParent("D", links)).toBeNull();
+      expect(getParent("D", lookup)).toBeNull();
     });
   });
 
   describe('getChildren', () => {
     it('returns children', () => {
-      expect(getChildren("A", links)).toEqual(["B"]);
-      expect(getChildren("B", links)).toEqual(["C"]);
+      expect(getChildren("A", lookup)).toEqual(["B"]);
+      expect(getChildren("B", lookup)).toEqual(["C"]);
     });
 
     it('returns empty for leaf', () => {
-      expect(getChildren("C", links)).toEqual([]);
+      expect(getChildren("C", lookup)).toEqual([]);
     });
 
     it('returns empty for unlinked', () => {
-      expect(getChildren("D", links)).toEqual([]);
+      expect(getChildren("D", lookup)).toEqual([]);
     });
   });
 
   describe('isAncestor (cycle detection)', () => {
     it('detects direct ancestor', () => {
-      expect(isAncestor("A", "B", links)).toBe(true);
+      expect(isAncestor("A", "B", lookup)).toBe(true);
     });
 
     it('detects transitive ancestor', () => {
-      expect(isAncestor("A", "C", links)).toBe(true);
+      expect(isAncestor("A", "C", lookup)).toBe(true);
     });
 
     it('non-ancestor returns false', () => {
-      expect(isAncestor("C", "A", links)).toBe(false);
-      expect(isAncestor("D", "A", links)).toBe(false);
+      expect(isAncestor("C", "A", lookup)).toBe(false);
+      expect(isAncestor("D", "A", lookup)).toBe(false);
     });
 
     it('self-link detected (entry is its own ancestor)', () => {
-      // isAncestor("A", "A") returns true — prevents self-linking
-      // (linkEntries also has a direct childId === parentId check)
-      expect(isAncestor("A", "A", links)).toBe(true);
+      expect(isAncestor("A", "A", lookup)).toBe(true);
     });
   });
 
@@ -165,7 +121,7 @@ describe('Entry Chaining', () => {
 
     it('cannot create cycle', () => {
       // If we try to link A → C (A as child of C), isAncestor(A, C) = true
-      expect(isAncestor("A", "C", links)).toBe(true); // A is ancestor of C
+      expect(isAncestor("A", "C", lookup)).toBe(true); // A is ancestor of C
     });
 
     it('entry can only have one parent', () => {
@@ -182,19 +138,20 @@ describe('Entry Chaining', () => {
       { childId: "D", parentId: "A" },
       { childId: "C", parentId: "B" },
     ];
+    const branchLookup = createLookup(branchLinks);
 
     it('getChildren returns multiple children', () => {
-      expect(getChildren("A", branchLinks)).toEqual(["B", "D"]);
+      expect(getChildren("A", branchLookup)).toEqual(["B", "D"]);
     });
 
-    it('getChain from any leaf includes all members', () => {
-      const chain = getChain("C", branchLinks, allEntries);
+    it('getChainEntries from any leaf includes all members', () => {
+      const chain = getChainEntries("C", branchLookup);
       expect(chain).toHaveLength(4); // A, B, C, D
     });
 
     it('root is still A', () => {
-      expect(getChainRoot("D", branchLinks)).toBe("A");
-      expect(getChainRoot("C", branchLinks)).toBe("A");
+      expect(getChainRoot("D", branchLookup)).toBe("A");
+      expect(getChainRoot("C", branchLookup)).toBe("A");
     });
   });
 });

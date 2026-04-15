@@ -1,11 +1,14 @@
 /**
  * Tests for Telegram Companion Sync — inbox import logic
  *
- * Tests the inbox parsing and entry transformation.
- * File I/O and Telegram API are not tested — pure logic only.
+ * Imports `transformEntry` and `filterPending` from the pure source
+ * module at src/whisperwoof/bridge/telegram-sync-pure.js, which is the
+ * same implementation the production `importPendingEntries` delegates to.
+ * File I/O, polling, and Electron APIs are out of scope.
  */
 
 import { describe, it, expect } from 'vitest';
+import { transformEntry, filterPending } from "../../bridge/telegram-sync-pure";
 
 interface TelegramInboxEntry {
   id: string;
@@ -19,39 +22,13 @@ interface TelegramInboxEntry {
   imported: boolean;
 }
 
-interface BfEntry {
+interface TransformedEntry {
   source: string;
   rawText: string;
   polished: string | null;
   routedTo: string;
-  hotkeyUsed: string | null;
   durationMs: number | null;
-  projectId: string | null;
-  audioPath: string | null;
   metadata: Record<string, unknown>;
-}
-
-// Re-implement the transform logic for testing
-function transformEntry(entry: TelegramInboxEntry): BfEntry {
-  return {
-    source: "import",
-    rawText: entry.rawText,
-    polished: entry.polished || null,
-    routedTo: "telegram-companion",
-    hotkeyUsed: null,
-    durationMs: entry.durationSec ? entry.durationSec * 1000 : null,
-    projectId: null,
-    audioPath: null,
-    metadata: {
-      telegramFrom: entry.from,
-      telegramChatId: entry.chatId,
-      telegramEntryId: entry.id,
-    },
-  };
-}
-
-function filterPending(entries: TelegramInboxEntry[]): TelegramInboxEntry[] {
-  return entries.filter((e) => !e.imported);
 }
 
 const SAMPLE_ENTRIES: TelegramInboxEntry[] = [
@@ -100,12 +77,12 @@ describe('Telegram Companion Sync', () => {
     });
 
     it('returns empty array when all imported', () => {
-      const allImported = SAMPLE_ENTRIES.map((e) => ({ ...e, imported: true }));
+      const allImported = SAMPLE_ENTRIES.map((e: TelegramInboxEntry) => ({ ...e, imported: true }));
       expect(filterPending(allImported)).toHaveLength(0);
     });
 
     it('returns all when none imported', () => {
-      const noneImported = SAMPLE_ENTRIES.map((e) => ({ ...e, imported: false }));
+      const noneImported = SAMPLE_ENTRIES.map((e: TelegramInboxEntry) => ({ ...e, imported: false }));
       expect(filterPending(noneImported)).toHaveLength(3);
     });
 
@@ -116,7 +93,7 @@ describe('Telegram Companion Sync', () => {
 
   describe('transformEntry', () => {
     it('converts telegram entry to bf_entry format', () => {
-      const result = transformEntry(SAMPLE_ENTRIES[0]);
+      const result = transformEntry(SAMPLE_ENTRIES[0]!) as TransformedEntry;
       expect(result.source).toBe("import");
       expect(result.rawText).toBe("Remind me to call Sarah");
       expect(result.routedTo).toBe("telegram-companion");
@@ -129,44 +106,44 @@ describe('Telegram Companion Sync', () => {
     });
 
     it('handles null duration', () => {
-      const result = transformEntry(SAMPLE_ENTRIES[2]);
+      const result = transformEntry(SAMPLE_ENTRIES[2]!) as TransformedEntry;
       expect(result.durationMs).toBeNull();
     });
 
     it('preserves polished text if present', () => {
-      const withPolish = { ...SAMPLE_ENTRIES[0], polished: "Remind me to call Sarah." };
-      const result = transformEntry(withPolish);
+      const withPolish = { ...SAMPLE_ENTRIES[0]!, polished: "Remind me to call Sarah." };
+      const result = transformEntry(withPolish) as TransformedEntry;
       expect(result.polished).toBe("Remind me to call Sarah.");
     });
 
     it('sets polished to null when not present', () => {
-      const result = transformEntry(SAMPLE_ENTRIES[0]);
+      const result = transformEntry(SAMPLE_ENTRIES[0]!) as TransformedEntry;
       expect(result.polished).toBeNull();
     });
 
     it('always sets source to "import"', () => {
       for (const entry of SAMPLE_ENTRIES) {
-        expect(transformEntry(entry).source).toBe("import");
+        expect((transformEntry(entry) as TransformedEntry).source).toBe("import");
       }
     });
 
     it('always routes to telegram-companion', () => {
       for (const entry of SAMPLE_ENTRIES) {
-        expect(transformEntry(entry).routedTo).toBe("telegram-companion");
+        expect((transformEntry(entry) as TransformedEntry).routedTo).toBe("telegram-companion");
       }
     });
   });
 
   describe('metadata', () => {
     it('includes telegram-specific fields', () => {
-      const result = transformEntry(SAMPLE_ENTRIES[0]);
+      const result = transformEntry(SAMPLE_ENTRIES[0]!) as TransformedEntry;
       expect(result.metadata).toHaveProperty("telegramFrom");
       expect(result.metadata).toHaveProperty("telegramChatId");
       expect(result.metadata).toHaveProperty("telegramEntryId");
     });
 
     it('does not leak other fields into metadata', () => {
-      const result = transformEntry(SAMPLE_ENTRIES[0]);
+      const result = transformEntry(SAMPLE_ENTRIES[0]!) as TransformedEntry;
       expect(Object.keys(result.metadata)).toHaveLength(3);
     });
   });

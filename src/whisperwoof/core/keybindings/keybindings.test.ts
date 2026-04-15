@@ -14,7 +14,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   DEFAULT_KEYBINDINGS,
   CATEGORIES,
@@ -180,7 +179,7 @@ describe("DEFAULT_KEYBINDINGS integrity", () => {
   });
 
   it("every default binding belongs to a real category", () => {
-    const categoryIds = new Set((CATEGORIES as { id: string }[]).map((c) => c.id));
+    const categoryIds = new Set((CATEGORIES as unknown as { id: string }[]).map((c) => c.id));
     for (const binding of Object.values(DEFAULT_KEYBINDINGS) as { category: string }[]) {
       expect(categoryIds.has(binding.category)).toBe(true);
     }

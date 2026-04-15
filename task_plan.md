@@ -174,12 +174,27 @@ v1.9.0 shipped + unreleased eng-review cleanup (758 tests, 13 of 35 test-truthfu
 - [x] Delete unused 636-line `SqliteProvider` class + correct architecture docs
 - [x] STT config error at boot — "not signed into cloud" was treated as an error, and `debugLogger.error("msg:", error)` rendered Error objects as `{}`. Fixed both.
 - [x] **Security**: fix API key leak in `stripApiKeys` — filter was `String.includes("apiKey")` (lowercase) but app stores keys as `openaiApiKey` (capital `A`), so every settings export leaked every plaintext key. Caught by the test-truthfulness refactor.
-- [ ] Test-truthfulness refactor — **13 of 35 files done, Bucket B complete.** See `docs/test-truthfulness-refactor.md` for remaining Bucket C/D work.
+- [x] Test-truthfulness refactor — **31 of ~35 files done, all buckets complete.** `smart-clipboard` documented as not-feasible (inline SQL needs `better-sqlite3`). See `docs/test-truthfulness-refactor.md`.
 - [x] Surgical upstream cherry-picks: brace-expansion + xmldom security bumps, JSON.parse validation in prompts, Gemma 4 local models (E2B/E4B + 31B/26B MoE)
 - [ ] Full upstream merge (deferred — 177 commits remaining, heavy overlap on ipcHandlers.js / agent / meeting files; needs its own session)
-- [ ] Sweep the 17 remaining `debugLogger.error("msg:", error)` sites in `ipcHandlers.js` that silently render as `{}`
-- **Status:** in progress
+- [x] Sweep the 15 remaining `debugLogger.error("msg:", error)` sites in `ipcHandlers.js` — all converted to template literals with `error.message`
+- [x] TypeScript strict-mode errors: 313 → 0 across all whisperwoof files
+- **Status:** complete (except full upstream merge, deferred)
 - **Depends on:** Phase 12 complete ✓
+
+### Phase 14: Hotkey Fix + Plugin Setup + Obsidian Integration (v1.11.0)
+- [x] CGEventTap rewrite of `macos-globe-listener.swift` — key consumption for Fn+letter combos
+- [x] Fn+N actually saves markdown (was silently falling through to paste-at-cursor)
+- [x] Fn+P tags entry for project routing (was silently falling through)
+- [x] Fn+letter combos force push-to-talk in toggle mode
+- [x] TickTick plugin added to defaults
+- [x] Guided plugin setup flow (inline setup card with API key input, test, save)
+- [x] Markdown notes with YAML frontmatter (Obsidian compatible)
+- [x] Notes directory configurable via UI (Settings > Notes > Change Folder)
+- [x] Mando head icon in route toasts
+- [x] Toast component `icon` prop
+- **Status:** complete
+- **Depends on:** Phase 13 complete ✓
 
 ## Key Questions
 1. Ollama latency: Can Llama 3.2 3B polish <1s on M1? (Benchmark in Phase 1a)

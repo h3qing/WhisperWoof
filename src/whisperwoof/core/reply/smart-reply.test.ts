@@ -16,7 +16,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   isReplyIntent,
   getReplyMode,

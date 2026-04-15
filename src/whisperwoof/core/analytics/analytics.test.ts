@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-// @ts-expect-error — CommonJS module, no TS declarations
 import {
   computePolishStats,
   computeStreaks,
@@ -78,7 +77,7 @@ describe("computeStreaks", () => {
     for (let i = 0; i < 5; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      days.push(d.toISOString().split("T")[0]);
+      days.push(d.toISOString().split("T")[0]!);
     }
     const { current } = computeStreaks(days);
     expect(current).toBe(5);
@@ -119,10 +118,10 @@ describe("fillHourGaps", () => {
     const sparse = [{ hour: 9, count: 5 }, { hour: 14, count: 3 }];
     const filled = fillHourGaps(sparse);
     expect(filled).toHaveLength(24);
-    expect(filled[0].count).toBe(0);
-    expect(filled[9].count).toBe(5);
-    expect(filled[14].count).toBe(3);
-    expect(filled[23].count).toBe(0);
+    expect(filled[0]!.count).toBe(0);
+    expect(filled[9]!.count).toBe(5);
+    expect(filled[14]!.count).toBe(3);
+    expect(filled[23]!.count).toBe(0);
   });
 
   it("returns a full 24-element zero array for empty input", () => {
@@ -134,7 +133,7 @@ describe("fillHourGaps", () => {
   it("orders hours 0..23 in the result regardless of input order", () => {
     const filled = fillHourGaps([{ hour: 14, count: 1 }, { hour: 2, count: 1 }]);
     for (let i = 0; i < 24; i++) {
-      expect(filled[i].hour).toBe(i);
+      expect(filled[i]!.hour).toBe(i);
     }
   });
 });

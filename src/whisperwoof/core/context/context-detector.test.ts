@@ -15,7 +15,6 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-// @ts-expect-error — CommonJS module, no TS declarations
 import { getPresetForApp, getAppPresetMap } from "../../bridge/context-detector";
 
 describe("getPresetForApp", () => {
@@ -86,9 +85,9 @@ describe("app preset map coverage", () => {
   });
 
   it("getAppPresetMap returns a copy so callers can't mutate the source", () => {
-    const first = getAppPresetMap();
+    const first = getAppPresetMap() as Record<string, string | null>;
     first["com.evil.hacker"] = "professional";
-    const second = getAppPresetMap();
+    const second = getAppPresetMap() as Record<string, string | null>;
     expect(second["com.evil.hacker"]).toBeUndefined();
   });
 

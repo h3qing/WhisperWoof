@@ -15,6 +15,7 @@
  */
 
 const debugLogger = require("../../helpers/debugLogger");
+const pure = require("./entry-chains-pure");
 
 let db = null;
 
@@ -84,25 +85,26 @@ function unlinkEntry(childId) {
   return { success: true, removed: result.changes > 0 };
 }
 
+function dbLookup() {
+  return {
+    findParent(childId) {
+      const link = db.prepare("SELECT parent_id FROM bf_entry_chains WHERE child_id = ?").get(childId);
+      return link ? link.parent_id : null;
+    },
+    findChildren(parentId) {
+      return db.prepare("SELECT child_id FROM bf_entry_chains WHERE parent_id = ?")
+        .all(parentId)
+        .map((r) => r.child_id);
+    },
+  };
+}
+
 /**
  * Check if potentialAncestor is an ancestor of entryId (cycle detection).
  */
 function isAncestor(potentialAncestor, entryId) {
   if (!db) return false;
-
-  let current = entryId;
-  const visited = new Set();
-
-  while (current) {
-    if (current === potentialAncestor) return true;
-    if (visited.has(current)) return false; // Safety: break infinite loops
-    visited.add(current);
-
-    const link = db.prepare("SELECT parent_id FROM bf_entry_chains WHERE child_id = ?").get(current);
-    current = link ? link.parent_id : null;
-  }
-
-  return false;
+  return pure.isAncestor(potentialAncestor, entryId, dbLookup());
 }
 
 // --- Chain traversal ---
@@ -112,17 +114,7 @@ function isAncestor(potentialAncestor, entryId) {
  */
 function getChainRoot(entryId) {
   if (!db) return entryId;
-
-  let current = entryId;
-  const visited = new Set();
-
-  while (true) {
-    const link = db.prepare("SELECT parent_id FROM bf_entry_chains WHERE child_id = ?").get(current);
-    if (!link) return current; // No parent → this is the root
-    if (visited.has(link.parent_id)) return current; // Cycle safety
-    visited.add(current);
-    current = link.parent_id;
-  }
+  return pure.getChainRoot(entryId, dbLookup());
 }
 
 /**
@@ -131,39 +123,21 @@ function getChainRoot(entryId) {
 function getChain(entryId) {
   if (!db) return [];
 
-  const rootId = getChainRoot(entryId);
+  const lookup = dbLookup();
+  const entryIds = pure.getChainEntries(entryId, lookup);
 
-  // BFS from root
-  const entries = [];
-  const queue = [rootId];
-  const visited = new Set();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (visited.has(current)) continue;
-    visited.add(current);
-
+  return entryIds.map((id) => {
     const entry = db.prepare(
       "SELECT id, created_at, source, raw_text, polished FROM bf_entries WHERE id = ?"
-    ).get(current);
-
-    if (entry) {
-      entries.push({
-        id: entry.id,
-        createdAt: entry.created_at,
-        source: entry.source,
-        text: entry.polished || entry.raw_text || "",
-      });
-    }
-
-    // Get children
-    const children = db.prepare("SELECT child_id FROM bf_entry_chains WHERE parent_id = ?").all(current);
-    for (const child of children) {
-      queue.push(child.child_id);
-    }
-  }
-
-  return entries;
+    ).get(id);
+    if (!entry) return null;
+    return {
+      id: entry.id,
+      createdAt: entry.created_at,
+      source: entry.source,
+      text: entry.polished || entry.raw_text || "",
+    };
+  }).filter(Boolean);
 }
 
 /**
@@ -171,8 +145,7 @@ function getChain(entryId) {
  */
 function getParent(entryId) {
   if (!db) return null;
-  const link = db.prepare("SELECT parent_id FROM bf_entry_chains WHERE child_id = ?").get(entryId);
-  return link ? link.parent_id : null;
+  return pure.getParent(entryId, dbLookup());
 }
 
 /**
@@ -180,9 +153,7 @@ function getParent(entryId) {
  */
 function getChildren(entryId) {
   if (!db) return [];
-  return db.prepare("SELECT child_id FROM bf_entry_chains WHERE parent_id = ?")
-    .all(entryId)
-    .map((r) => r.child_id);
+  return pure.getChildren(entryId, dbLookup());
 }
 
 /**

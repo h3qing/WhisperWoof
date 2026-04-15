@@ -842,6 +842,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // WhisperWoof: Markdown notes (Fn+N)
   whisperwoofSaveMarkdown: (text) => ipcRenderer.invoke("whisperwoof-save-markdown", text),
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
+  whisperwoofSetNotesDir: (dir) => ipcRenderer.invoke("whisperwoof-set-notes-dir", dir),
+  whisperwoofPickNotesDir: () => ipcRenderer.invoke("whisperwoof-pick-notes-dir"),
 
   // WhisperWoof: History entries (voice + clipboard unified view)
   whisperwoofGetEntries: (limit, offset) => ipcRenderer.invoke("whisperwoof-get-entries", limit, offset),

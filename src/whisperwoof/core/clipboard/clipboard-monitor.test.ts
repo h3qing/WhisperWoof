@@ -82,7 +82,7 @@ describe('ClipboardMonitor', () => {
       vi.advanceTimersByTime(100);
 
       expect(onCapture).toHaveBeenCalledTimes(1);
-      const entry: ClipboardEntry = onCapture.mock.calls[0][0];
+      const entry: ClipboardEntry = onCapture.mock.calls[0]![0];
       expect(entry.text).toBe('Hello clipboard');
       expect(entry.concealed).toBe(false);
       expect(entry.timestamp).toBeTruthy();
@@ -100,8 +100,8 @@ describe('ClipboardMonitor', () => {
       vi.advanceTimersByTime(100);
 
       expect(onCapture).toHaveBeenCalledTimes(2);
-      expect(onCapture.mock.calls[0][0].text).toBe('First');
-      expect(onCapture.mock.calls[1][0].text).toBe('Second');
+      expect(onCapture.mock.calls[0]![0].text).toBe('First');
+      expect(onCapture.mock.calls[1]![0].text).toBe('Second');
     });
 
     it('does not capture empty clipboard', () => {
@@ -191,7 +191,7 @@ describe('ClipboardMonitor', () => {
       vi.advanceTimersByTime(100);
 
       expect(onCapture).toHaveBeenCalledTimes(1);
-      const entry: ClipboardEntry = onCapture.mock.calls[0][0];
+      const entry: ClipboardEntry = onCapture.mock.calls[0]![0];
 
       expect(entry).toHaveProperty('text', 'Test text');
       expect(entry).toHaveProperty('concealed', false);
@@ -224,7 +224,7 @@ describe('ClipboardMonitor', () => {
       vi.advanceTimersByTime(100);
 
       expect(onCapture).toHaveBeenCalledTimes(1);
-      expect(onCapture.mock.calls[0][0].text).toBe('Recovered');
+      expect(onCapture.mock.calls[0]![0].text).toBe('Recovered');
 
       consoleSpy.mockRestore();
     });
