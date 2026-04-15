@@ -1820,6 +1820,17 @@ class IPCHandlers {
       }
     });
 
+    // WhisperWoof: Local model checker — hardware detection + model recommendation
+    ipcMain.handle("whisperwoof-check-local-model", async (_event, currentModelId) => {
+      try {
+        const { checkLocalModel } = require("../whisperwoof/bridge/model-checker");
+        return await checkLocalModel(currentModelId);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] check-local-model failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
     // WhisperWoof: LLM provider management (BYOM)
     ipcMain.handle("whisperwoof-get-providers", async () => {
       try {

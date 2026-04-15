@@ -7,6 +7,7 @@ import {
   SettingsGroup,
   SettingsRow,
 } from "../../../components/ui/SettingsSection";
+import ModelChecker from "./ModelChecker";
 
 // WhisperWoof-specific electronAPI methods (exposed in preload.js).
 interface WhisperWoofSettingsAPI {
@@ -239,6 +240,11 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
               className="h-7 w-40 rounded-md border border-border/50 dark:border-white/10 bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-primary/30"
             />
           </SettingsRow>
+
+          <ModelChecker
+            currentModel={state.ollamaModel}
+            onSelectModel={handleModelChange}
+          />
 
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-foreground/80">

@@ -674,6 +674,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetProviders: () => ipcRenderer.invoke("whisperwoof-get-providers"),
   whisperwoofSaveEntry: (entry) => ipcRenderer.invoke("whisperwoof-save-entry", entry),
 
+  // WhisperWoof: Local model checker
+  whisperwoofCheckLocalModel: (currentModelId) => ipcRenderer.invoke("whisperwoof-check-local-model", currentModelId),
+
   // WhisperWoof: Adaptive style learning
   whisperwoofGetStyleStats: () => ipcRenderer.invoke("whisperwoof-get-style-stats"),
   whisperwoofClearStyleExamples: () => ipcRenderer.invoke("whisperwoof-clear-style-examples"),
