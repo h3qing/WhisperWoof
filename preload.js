@@ -828,6 +828,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetVocabularyForApp: (bundleId) => ipcRenderer.invoke("whisperwoof-get-vocabulary-for-app", bundleId),
   whisperwoofGetTrackedApps: () => ipcRenderer.invoke("whisperwoof-get-tracked-apps"),
 
+  // WhisperWoof: Vocabulary packs
+  whisperwoofGetAvailablePacks: () => ipcRenderer.invoke("whisperwoof-get-available-packs"),
+  whisperwoofGetPackDetails: (packId) => ipcRenderer.invoke("whisperwoof-get-pack-details", packId),
+  whisperwoofEnablePack: (packId) => ipcRenderer.invoke("whisperwoof-enable-pack", packId),
+  whisperwoofDisablePack: (packId) => ipcRenderer.invoke("whisperwoof-disable-pack", packId),
+  whisperwoofTogglePackEntry: (packId, word) => ipcRenderer.invoke("whisperwoof-toggle-pack-entry", packId, word),
+  whisperwoofGetEnabledPackIds: () => ipcRenderer.invoke("whisperwoof-get-enabled-pack-ids"),
+  whisperwoofGetPackEnhancedPrompt: (bundleId) => ipcRenderer.invoke("whisperwoof-get-pack-enhanced-prompt", bundleId),
+
   // WhisperWoof: Telegram companion
   whisperwoofTelegramSyncStatus: () => ipcRenderer.invoke("whisperwoof-telegram-sync-status"),
   whisperwoofTelegramImportNow: () => ipcRenderer.invoke("whisperwoof-telegram-import-now"),

@@ -162,6 +162,22 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return words.length > 0 ? words.join(", ") : null;
   }
 
+  /**
+   * Get the pack-enhanced dictionary prompt (user vocab + enabled packs).
+   * Falls back to the basic custom dictionary if the pack API is unavailable.
+   */
+  async getPackEnhancedDictionaryPrompt() {
+    try {
+      if (window.electronAPI?.whisperwoofGetPackEnhancedPrompt) {
+        const prompt = await window.electronAPI.whisperwoofGetPackEnhancedPrompt();
+        if (prompt) return prompt;
+      }
+    } catch {
+      // Fall through to basic dictionary
+    }
+    return this.getCustomDictionaryPrompt();
+  }
+
   setCallbacks({
     onStateChange,
     onError,
@@ -591,8 +607,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         options.language = language;
       }
 
-      // Add custom dictionary as initial prompt to help Whisper recognize specific words
-      const dictionaryPrompt = this.getCustomDictionaryPrompt();
+      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words
+      const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
       if (dictionaryPrompt) {
         options.initialPrompt = dictionaryPrompt;
       }
@@ -1180,7 +1196,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       opts.sendLogs = "false";
     }
 
-    const dictionaryPrompt = this.getCustomDictionaryPrompt();
+    const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
     if (dictionaryPrompt) opts.prompt = dictionaryPrompt;
 
     // Use withSessionRefresh to handle AUTH_EXPIRED automatically
@@ -1363,11 +1379,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         formData.append("language", language);
       }
 
-      // Add custom dictionary as prompt hint for cloud transcription
+      // Add custom dictionary + vocabulary packs as prompt hint for cloud transcription
       // Groq Whisper API limits prompt to 896 chars; OpenAI ~900 chars.
       // Truncate at last comma boundary so we never send a partial word.
       const MAX_PROMPT_CHARS = provider === "groq" ? 896 : 900;
-      let dictionaryPrompt = this.getCustomDictionaryPrompt();
+      let dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
       if (dictionaryPrompt) {
         if (dictionaryPrompt.length > MAX_PROMPT_CHARS) {
           const originalLength = dictionaryPrompt.length;

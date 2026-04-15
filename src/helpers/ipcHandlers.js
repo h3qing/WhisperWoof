@@ -2541,10 +2541,87 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-get-stt-hints", async (_event, bundleId) => {
       try {
         const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
-        return getSttHints(bundleId || undefined);
+        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
+        const userHints = getSttHints(bundleId || undefined);
+        // Return pack-enhanced prompt string (merged user + pack hints, truncated to fit Whisper limit)
+        const prompt = getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+        return prompt ? prompt.split(", ") : userHints;
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-stt-hints failed: ${error.message}`);
         return [];
+      }
+    });
+
+    // WhisperWoof: Vocabulary packs
+    ipcMain.handle("whisperwoof-get-available-packs", async () => {
+      try {
+        const { getAvailablePacks } = require("../whisperwoof/bridge/vocabulary-packs");
+        return getAvailablePacks();
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-available-packs failed: ${error.message}`);
+        return [];
+      }
+    });
+
+    ipcMain.handle("whisperwoof-get-pack-details", async (_event, packId) => {
+      try {
+        const { getPackDetails } = require("../whisperwoof/bridge/vocabulary-packs");
+        return getPackDetails(packId);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-pack-details failed: ${error.message}`);
+        return null;
+      }
+    });
+
+    ipcMain.handle("whisperwoof-enable-pack", async (_event, packId) => {
+      try {
+        const { enablePackById } = require("../whisperwoof/bridge/vocabulary-packs");
+        return enablePackById(packId);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] enable-pack failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-disable-pack", async (_event, packId) => {
+      try {
+        const { disablePackById } = require("../whisperwoof/bridge/vocabulary-packs");
+        return disablePackById(packId);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] disable-pack failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-toggle-pack-entry", async (_event, packId, word) => {
+      try {
+        const { togglePackEntryById } = require("../whisperwoof/bridge/vocabulary-packs");
+        return togglePackEntryById(packId, word);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] toggle-pack-entry failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-get-enabled-pack-ids", async () => {
+      try {
+        const { getEnabledPackIds } = require("../whisperwoof/bridge/vocabulary-packs");
+        return getEnabledPackIds();
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-enabled-pack-ids failed: ${error.message}`);
+        return [];
+      }
+    });
+
+    ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (_event, bundleId) => {
+      try {
+        const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
+        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
+        const userHints = getSttHints(bundleId || undefined);
+        return getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-pack-enhanced-prompt failed: ${error.message}`);
+        return "";
       }
     });
 
