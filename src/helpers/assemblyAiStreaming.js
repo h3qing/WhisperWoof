@@ -45,6 +45,10 @@ class AssemblyAiStreaming {
       encoding: "pcm_s16le",
       format_turns: "true",
       token: options.token,
+      // End-of-utterance detection: finalize a turn after 300ms of silence.
+      // Default is longer (~700-1000ms). Lower values reduce perceived latency
+      // at the cost of potentially splitting mid-pause sentences.
+      end_utterance_silence_threshold: "300",
     });
     if (options.language && options.language !== "auto") {
       params.set("speech_model", "universal-streaming-multilingual");

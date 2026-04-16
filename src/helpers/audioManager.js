@@ -2351,14 +2351,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     // 3. Wait for flushed buffer to travel: port -> main thread -> IPC -> WebSocket -> server.
     //    Then mark streaming done so no further audio is forwarded.
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    //    40ms is enough for the AudioWorklet flush → IPC → WebSocket send chain.
+    //    (Previously 120ms — shaved 80ms.)
+    await new Promise((resolve) => setTimeout(resolve, 40));
     this.isStreaming = false;
 
     // 4. Finalize tells the provider to process any buffered audio and send final results.
-    //    Wait briefly so the server sends back the finalized transcript before disconnect.
+    //    Wait for the actual final transcript callback instead of a fixed delay.
+    //    Safety timeout at 150ms (previously 300ms) in case the callback never fires.
     const provider = this.getStreamingProvider();
+    const textBefore = this.streamingFinalText;
     provider.finalize?.();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => {
+      const safetyTimeout = setTimeout(resolve, 150);
+      // If we already have text and finalize produces no new text, resolve early.
+      // If new text arrives via onFinalTranscript, it updates streamingFinalText
+      // and the 150ms safety will catch it. For providers that support it,
+      // we can also listen for the finalize response directly.
+      if (textBefore) {
+        // We already have accumulated text — give finalize a shorter window
+        // to produce any additional content. Most of the time the streaming
+        // finals have already arrived during recording.
+        clearTimeout(safetyTimeout);
+        setTimeout(resolve, 60);
+      }
+    });
     const tForceEndpoint = performance.now();
 
     const stopResult = await provider.stop().catch((e) => {

@@ -130,6 +130,15 @@ class DeepgramStreaming {
       model,
       punctuate: "true",
       interim_results: "true",
+      // Endpointing: finalize a segment after 300ms of silence.
+      // Without this, Deepgram waits longer to decide if the user is still
+      // speaking, adding 300-500ms to the perceived latency.
+      endpointing: "300",
+      // Emit an UtteranceEnd event after 1000ms of continuous silence.
+      // This is the "user is truly done speaking" signal.
+      utterance_end_ms: "1000",
+      // VAD events: receive SpeechStarted notifications for UI feedback.
+      vad_events: "true",
     });
     if (lang) {
       params.set("language", lang);
@@ -680,7 +689,14 @@ class DeepgramStreaming {
           const transcript = message.channel?.alternatives?.[0]?.transcript;
           if (!transcript) break;
 
-          if (message.is_final || message.from_finalize) {
+          // Three kinds of "final" in Deepgram:
+          //   is_final:      regular VAD-based final segment
+          //   speech_final:  endpointing-triggered final (faster — fires after
+          //                  endpointing silence threshold, e.g. 300ms)
+          //   from_finalize: response to our explicit Finalize message
+          const isFinal = message.is_final || message.speech_final || message.from_finalize;
+
+          if (isFinal) {
             const trimmed = transcript.trim();
             if (trimmed) {
               this.finalSegments.push(trimmed);
@@ -689,6 +705,8 @@ class DeepgramStreaming {
               debugLogger.debug("Deepgram final transcript", {
                 text: trimmed.slice(0, 100),
                 totalAccumulated: this.accumulatedText.length,
+                speechFinal: !!message.speech_final,
+                fromFinalize: !!message.from_finalize,
               });
             }
           } else {
@@ -699,10 +717,12 @@ class DeepgramStreaming {
 
         case "UtteranceEnd":
           debugLogger.debug("Deepgram utterance end");
+          this.onUtteranceEnd?.();
           break;
 
         case "SpeechStarted":
           debugLogger.debug("Deepgram speech started");
+          this.onSpeechStarted?.();
           break;
 
         case "Error":
