@@ -185,6 +185,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onPartialTranscript,
     onStreamingCommit,
     onRmsUpdate,
+    onMicReady,
   }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
@@ -192,6 +193,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onPartialTranscript = onPartialTranscript;
     this.onStreamingCommit = onStreamingCommit;
     this._onRmsUpdate = onRmsUpdate ?? null;
+    this.onMicReady = onMicReady ?? null;
   }
 
   setSkipReasoning(skip) {
@@ -302,8 +304,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return false;
       }
 
+      const tStart = performance.now();
       const constraints = await this.getAudioConstraints();
       const micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const tMicAcquired = performance.now();
 
       const audioTrack = micStream.getAudioTracks()[0];
       if (audioTrack) {
@@ -315,6 +319,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             deviceId: settings.deviceId?.slice(0, 20) + "...",
             sampleRate: settings.sampleRate,
             channelCount: settings.channelCount,
+            getUserMediaMs: Math.round(tMicAcquired - tStart),
           },
           "audio"
         );
@@ -396,7 +401,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
 
-      return true;
+      return { success: true, micAcquiredAt: tMicAcquired };
     } catch (error) {
       let errorTitle = "Recording Error";
       let errorDescription = `Failed to access microphone: ${error.message}`;
@@ -2124,6 +2129,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const tPipeline = performance.now();
 
+      // WhisperWoof: mic is NOW ready to receive speech — audio frames are
+      // flowing through the AudioWorklet pipeline. The WebSocket connection
+      // below is for transcription delivery, not audio capture. Signal the
+      // caller so it can mark micOpen + play the start cue immediately.
+      this.onMicReady?.({ micAcquiredAt: tMedia, micOpenAt: tPipeline });
+
       // 3. Register IPC event listeners BEFORE connecting, so no transcript
       //    events are lost during the connect handshake.
       this.streamingFinalText = "";
@@ -2241,7 +2252,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         logger.debug("Applying deferred streaming stop requested during startup", {}, "streaming");
         return this.stopStreamingRecording();
       }
-      return true;
+      return { success: true, micAcquiredAt: tMedia, micOpenAt: tPipeline };
     } catch (error) {
       this.streamingStartInProgress = false;
       this.stopRequestedDuringStreamingStart = false;

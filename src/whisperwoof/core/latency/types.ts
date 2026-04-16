@@ -14,7 +14,8 @@
  * here is the order they occur at runtime:
  *
  *   hotkey        user pressed Fn / toggle hotkey fired
- *   micOpen       AudioContext started, mic is actually capturing
+ *   micAcquired   getUserMedia resolved — OS mic driver is streaming samples
+ *   micOpen       audio pipeline connected, ready to receive speech
  *   micStop       recording stopped (Fn release / VAD end / manual stop)
  *   sttStart      audio blob handed to the STT backend
  *   sttEnd        raw transcript string returned
@@ -25,6 +26,7 @@
  */
 export type PipelineStage =
   | "hotkey"
+  | "micAcquired"
   | "micOpen"
   | "micStop"
   | "sttStart"
@@ -59,6 +61,17 @@ export interface PipelineTimings {
   readonly perceivedMs: number | null;
   /** `hotkey` → `pasteEnd`. End-to-end including the user's speaking time. */
   readonly totalMs: number | null;
+  /**
+   * `hotkey` → `micOpen`. Total startup latency — the gap the user feels
+   * between pressing the button and hearing the start cue / seeing the
+   * recording indicator. This is the metric we're optimizing.
+   */
+  readonly startupMs: number | null;
+  /**
+   * `hotkey` → `micAcquired`. Time spent in getUserMedia (OS mic driver
+   * init). Dominant on cold start (~500ms macOS), fast on warm (~10-30ms).
+   */
+  readonly micAcquireMs: number | null;
 }
 
 /**

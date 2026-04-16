@@ -97,6 +97,8 @@ export class LatencyTracker {
       pasteMs: this.duration("pasteStart", "pasteEnd"),
       perceivedMs: this.duration("micStop", "pasteEnd"),
       totalMs: this.duration("hotkey", "pasteEnd"),
+      startupMs: this.duration("hotkey", "micOpen"),
+      micAcquireMs: this.duration("hotkey", "micAcquired"),
     };
   }
 }

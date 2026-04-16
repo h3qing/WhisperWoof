@@ -59,16 +59,38 @@ export const useAudioRecording = (toast, options = {}) => {
         }
       }
 
-      const didStart = audioManagerRef.current.shouldUseStreaming()
+      const result = audioManagerRef.current.shouldUseStreaming()
         ? await audioManagerRef.current.startStreamingRecording()
         : await audioManagerRef.current.startRecording();
 
+      // Result is either `false` (didn't start) or `{ success: true, micAcquiredAt, micOpenAt? }`
+      const didStart = result && result.success;
+
       if (didStart) {
-        tracker.mark("micOpen");
+        // Mark micAcquired with the precise timestamp from audioManager
+        // (captured right after getUserMedia resolved, before pipeline setup).
+        // In streaming mode, onMicReady may have already marked this.
+        if (result.micAcquiredAt != null && !tracker.has("micAcquired")) {
+          tracker.mark("micAcquired", result.micAcquiredAt);
+        }
+
+        // In streaming mode, micOpen was already marked by the onMicReady
+        // callback (fires at pipeline-connect, before WS). For non-streaming,
+        // mark it now — the MediaRecorder is already capturing.
+        if (!tracker.has("micOpen")) {
+          tracker.mark("micOpen", result.micOpenAt);
+        }
+
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
         }
-        void playStartCue();
+
+        // Start cue may have already been played by onMicReady (streaming).
+        // Guard against double-play via the micOpen mark — if onMicReady
+        // already fired, micOpen is set and the cue was already played.
+        if (!result.micOpenAt) {
+          void playStartCue();
+        }
       } else {
         // Recording never actually started — discard the half-formed tracker.
         latencyTrackerRef.current = null;
@@ -141,6 +163,18 @@ export const useAudioRecording = (toast, options = {}) => {
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.resumeMediaPlayback?.();
         }
+      },
+      // WhisperWoof: streaming mic-ready callback. Fires when the audio
+      // pipeline is connected (after getUserMedia + AudioWorklet) but BEFORE
+      // the WebSocket connects. This lets us mark micOpen + play the start
+      // cue 50-200ms earlier than waiting for the full startStreamingRecording.
+      onMicReady: ({ micAcquiredAt, micOpenAt }) => {
+        const tracker = latencyTrackerRef.current;
+        if (tracker) {
+          if (micAcquiredAt != null) tracker.mark("micAcquired", micAcquiredAt);
+          tracker.mark("micOpen", micOpenAt);
+        }
+        void playStartCue();
       },
       onPartialTranscript: (text) => {
         setPartialTranscript(text);
@@ -410,6 +444,8 @@ export const useAudioRecording = (toast, options = {}) => {
               {
                 perceivedMs: pMs,
                 budget,
+                startupMs: capturedTimings.startupMs,
+                micAcquireMs: capturedTimings.micAcquireMs,
                 speakingMs: capturedTimings.speakingMs,
                 sttMs: capturedTimings.sttMs,
                 polishMs: capturedTimings.polishMs,
