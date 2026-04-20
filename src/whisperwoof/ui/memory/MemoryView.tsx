@@ -1,9 +1,9 @@
 /**
- * MemoryView — Context-Aware Vocabulary Dashboard
+ * MemoryView — Context-Aware Vocabulary + Word Packs Dashboard
  *
- * Shows words WhisperWoof has learned, grouped by app context.
- * Auto-learned from corrections, manual additions secondary.
- * Replaces the old flat DictionaryView.
+ * Two sections:
+ *   1. Your Words — auto-learned + manually added vocabulary, grouped by app context
+ *   2. Word Packs — curated vocabulary packs with enable/disable + per-entry editing
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -13,10 +13,14 @@ import {
   Plus,
   Trash2,
   Zap,
-  Mic,
   Pencil,
   Search,
   X,
+  Package,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
 
@@ -31,7 +35,6 @@ interface VocabEntry {
   readonly source: string;
   readonly usageCount: number;
   readonly appContexts?: Record<string, { count: number; firstSeen: string; lastSeen: string }>;
-  // Added by getVocabularyForApp
   readonly appCount?: number;
   readonly appFirstSeen?: string;
   readonly appLastSeen?: string;
@@ -53,6 +56,36 @@ interface VocabStats {
   readonly topUsed: readonly { word: string; usageCount: number }[];
 }
 
+interface PackSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly version: string;
+  readonly author: string;
+  readonly category: string;
+  readonly tags: readonly string[];
+  readonly entryCount: number;
+  readonly categories: Record<string, number>;
+  readonly enabled: boolean;
+  readonly installedVersion: string | null;
+  readonly disabledEntryCount: number;
+}
+
+interface PackEntry {
+  readonly word: string;
+  readonly alternatives?: readonly string[];
+  readonly category?: string;
+}
+
+interface PackDetails {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly entries: readonly PackEntry[];
+  readonly enabled: boolean;
+  readonly disabledEntries: readonly string[];
+}
+
 interface MemoryAPI {
   whisperwoofGetVocabulary?: (options?: Record<string, unknown>) => Promise<VocabEntry[]>;
   whisperwoofGetVocabularyStats?: () => Promise<VocabStats>;
@@ -60,6 +93,11 @@ interface MemoryAPI {
   whisperwoofGetVocabularyForApp?: (bundleId: string) => Promise<VocabEntry[]>;
   whisperwoofAddWord?: (word: string, options?: Record<string, unknown>) => Promise<{ success: boolean; entry?: VocabEntry }>;
   whisperwoofRemoveWord?: (id: string) => Promise<{ success: boolean }>;
+  whisperwoofGetAvailablePacks?: () => Promise<PackSummary[]>;
+  whisperwoofGetPackDetails?: (packId: string) => Promise<PackDetails | null>;
+  whisperwoofEnablePack?: (packId: string) => Promise<{ success: boolean }>;
+  whisperwoofDisablePack?: (packId: string) => Promise<{ success: boolean }>;
+  whisperwoofTogglePackEntry?: (packId: string, word: string) => Promise<{ success: boolean }>;
 }
 
 function getAPI(): MemoryAPI {
@@ -98,31 +136,18 @@ function appName(bundleId: string): string {
   return APP_NAMES[bundleId] || bundleId.split(".").pop() || bundleId;
 }
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
-
 // --- Sub-components ---
 
 function SourceBadge({ source }: { readonly source: string }) {
   const isAuto = source === "auto-learn";
   return (
     <span className={cn(
-      "text-[10px] px-1.5 py-0.5 rounded",
+      "text-[11px] px-1.5 py-0.5 rounded font-medium",
       isAuto
-        ? "bg-emerald-500/10 text-emerald-500/70"
+        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
         : source === "import"
-          ? "bg-blue-500/10 text-blue-500/70"
-          : "bg-foreground/[0.04] text-muted-foreground/60"
+          ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          : "bg-foreground/[0.05] text-muted-foreground/70"
     )}>
       {isAuto ? "auto" : source}
     </span>
@@ -136,37 +161,198 @@ function WordRow({
   readonly entry: VocabEntry;
   readonly onDelete: (id: string) => void;
 }) {
-  const appCount = entry.appContexts ? Object.keys(entry.appContexts).length : 0;
+  const contexts = entry.appContexts ? Object.entries(entry.appContexts) : [];
 
   return (
-    <div className="group flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-foreground/[0.02] dark:hover:bg-white/[0.03] transition-colors">
+    <div className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-foreground/[0.03] dark:hover:bg-white/[0.03] transition-colors border-b border-border/8 dark:border-white/4 last:border-b-0">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-foreground">{entry.word}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-sm font-medium text-foreground">{entry.word}</span>
           <SourceBadge source={entry.source} />
           {entry.usageCount > 0 && (
-            <span className="text-[10px] text-muted-foreground/50 flex items-center gap-0.5">
-              <Zap size={9} /> {entry.usageCount}x
+            <span className="text-[11px] text-muted-foreground/60 flex items-center gap-0.5">
+              <Zap size={10} className="text-amber-500/60" /> {entry.usageCount}x
             </span>
           )}
         </div>
-        {appCount > 0 && (
-          <div className="flex items-center gap-1 mt-0.5">
-            {Object.entries(entry.appContexts || {}).slice(0, 4).map(([bid, ctx]) => (
-              <span key={bid} className="text-[9px] text-muted-foreground/40">
-                {appName(bid)} ({ctx.count})
+        {contexts.length > 0 && (
+          <div className="flex items-center gap-2 mt-1">
+            {contexts.slice(0, 4).map(([bid, ctx]) => (
+              <span key={bid} className="text-[11px] text-muted-foreground/50 flex items-center gap-1">
+                <Monitor size={9} className="text-muted-foreground/30" />
+                {appName(bid)}
+                <span className="text-muted-foreground/35">({ctx.count})</span>
               </span>
             ))}
-            {appCount > 4 && <span className="text-[9px] text-muted-foreground/30">+{appCount - 4} more</span>}
+            {contexts.length > 4 && (
+              <span className="text-[11px] text-muted-foreground/40">+{contexts.length - 4} more</span>
+            )}
           </div>
         )}
       </div>
       <button
         onClick={() => onDelete(entry.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground/30 hover:text-red-400 transition-all"
+        className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-muted-foreground/30 hover:text-red-400 transition-all"
       >
-        <Trash2 size={11} />
+        <Trash2 size={13} />
       </button>
+    </div>
+  );
+}
+
+// --- Vocabulary Pack components ---
+
+function PackCard({
+  pack,
+  onToggle,
+  onExpand,
+  isExpanded,
+}: {
+  readonly pack: PackSummary;
+  readonly onToggle: (packId: string, enabled: boolean) => void;
+  readonly onExpand: (packId: string) => void;
+  readonly isExpanded: boolean;
+}) {
+  const categoryList = Object.entries(pack.categories).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="rounded-lg border border-border/15 dark:border-white/6 overflow-hidden">
+      <button
+        onClick={() => onExpand(pack.id)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+      >
+        <Package size={16} className={cn(
+          "shrink-0",
+          pack.enabled ? "text-primary" : "text-muted-foreground/40"
+        )} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">{pack.name}</span>
+            <span className="text-[11px] text-muted-foreground/50">{pack.entryCount} words</span>
+            {pack.disabledEntryCount > 0 && (
+              <span className="text-[11px] text-muted-foreground/40 flex items-center gap-0.5">
+                <EyeOff size={9} /> {pack.disabledEntryCount} hidden
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground/60 mt-0.5 truncate">{pack.description}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(pack.id, !pack.enabled); }}
+            className={cn(
+              "w-8 h-[18px] rounded-full relative transition-colors",
+              pack.enabled ? "bg-primary" : "bg-foreground/10 dark:bg-white/10"
+            )}
+          >
+            <span className={cn(
+              "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform",
+              pack.enabled ? "left-[16px]" : "left-[2px]"
+            )} />
+          </button>
+          {isExpanded ? <ChevronDown size={14} className="text-muted-foreground/40" /> : <ChevronRight size={14} className="text-muted-foreground/40" />}
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-border/10 dark:border-white/4">
+          {/* Category chips */}
+          {categoryList.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 px-4 pt-3 pb-1">
+              {categoryList.map(([cat, count]) => (
+                <span key={cat} className="text-[11px] px-2 py-0.5 rounded-full bg-foreground/[0.04] dark:bg-white/[0.04] text-muted-foreground/60">
+                  {cat} ({count})
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Entries are loaded by the parent (PackEntriesList) */}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PackEntriesList({
+  packId,
+  onToggleEntry,
+}: {
+  readonly packId: string;
+  readonly onToggleEntry: (packId: string, word: string) => void;
+}) {
+  const [details, setDetails] = useState<PackDetails | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const api = getAPI();
+    api.whisperwoofGetPackDetails?.(packId).then((d) => setDetails(d ?? null));
+  }, [packId]);
+
+  if (!details) {
+    return <div className="px-4 py-3 text-xs text-muted-foreground/40">Loading...</div>;
+  }
+
+  const disabledSet = new Set(details.disabledEntries);
+  const filtered = search.trim()
+    ? details.entries.filter((e) => e.word.toLowerCase().includes(search.toLowerCase()))
+    : details.entries;
+
+  return (
+    <div className="px-4 pb-3">
+      {details.entries.length > 15 && (
+        <div className="relative mb-2">
+          <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/30" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter words..."
+            className="w-full text-xs bg-transparent border border-border/15 dark:border-white/6 rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/30 placeholder:text-muted-foreground/30"
+          />
+        </div>
+      )}
+      <div className="max-h-64 overflow-y-auto space-y-0">
+        {filtered.map((entry) => {
+          const isDisabled = disabledSet.has(entry.word);
+          return (
+            <div
+              key={entry.word}
+              className="flex items-center gap-2.5 py-1.5 px-1 group"
+            >
+              <button
+                onClick={() => onToggleEntry(packId, entry.word)}
+                className={cn(
+                  "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                  isDisabled
+                    ? "border-foreground/10 dark:border-white/10 bg-transparent"
+                    : "border-primary/40 bg-primary/10 text-primary"
+                )}
+              >
+                {!isDisabled && <Check size={10} strokeWidth={3} />}
+              </button>
+              <span className={cn(
+                "text-sm transition-colors",
+                isDisabled ? "text-muted-foreground/30 line-through" : "text-foreground/80"
+              )}>
+                {entry.word}
+              </span>
+              {entry.alternatives && entry.alternatives.length > 0 && (
+                <span className="text-[11px] text-muted-foreground/35 italic truncate">
+                  ({entry.alternatives.join(", ")})
+                </span>
+              )}
+              {entry.category && (
+                <span className="text-[10px] text-muted-foreground/30 ml-auto shrink-0">
+                  {entry.category}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {search && filtered.length === 0 && (
+        <p className="text-xs text-muted-foreground/40 py-2 text-center italic">No matches</p>
+      )}
     </div>
   );
 }
@@ -188,6 +374,10 @@ export default function MemoryView({ className }: MemoryViewProps) {
   const [isAddingWord, setIsAddingWord] = useState(false);
   const [newWord, setNewWord] = useState("");
 
+  // Vocabulary packs state
+  const [packs, setPacks] = useState<PackSummary[]>([]);
+  const [expandedPack, setExpandedPack] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
     try {
       const api = getAPI();
@@ -201,40 +391,25 @@ export default function MemoryView({ className }: MemoryViewProps) {
         setAllWords(wordsData);
         setTrackedApps(appsData as TrackedApp[]);
         setError(null);
-      } else {
-        // Demo data
-        setStats({
-          total: 12, max: 1000, autoLearned: 8, manual: 4,
-          categories: { technical: 5, names: 3, general: 4 },
-          trackedApps: [
-            { bundleId: "com.microsoft.VSCode", wordCount: 7, totalUsage: 34 },
-            { bundleId: "com.tinyspeck.slackmacgap", wordCount: 5, totalUsage: 18 },
-            { bundleId: "com.apple.mail", wordCount: 3, totalUsage: 8 },
-          ],
-          topUsed: [
-            { word: "Supabase", usageCount: 12 },
-            { word: "WhisperWoof", usageCount: 9 },
-            { word: "Heqing", usageCount: 7 },
-          ],
-        });
-        setTrackedApps([
-          { bundleId: "com.microsoft.VSCode", wordCount: 7, totalUsage: 34 },
-          { bundleId: "com.tinyspeck.slackmacgap", wordCount: 5, totalUsage: 18 },
-          { bundleId: "com.apple.mail", wordCount: 3, totalUsage: 8 },
-        ]);
-        setAllWords([
-          { id: "1", word: "Supabase", category: "technical", alternatives: [], createdAt: new Date().toISOString(), source: "auto-learn", usageCount: 12, appContexts: { "com.microsoft.VSCode": { count: 10, firstSeen: "2026-03-25", lastSeen: "2026-04-01" }, "com.tinyspeck.slackmacgap": { count: 2, firstSeen: "2026-03-28", lastSeen: "2026-03-30" } } },
-          { id: "2", word: "Heqing", category: "names", alternatives: ["he ching"], createdAt: new Date().toISOString(), source: "manual", usageCount: 7, appContexts: { "com.tinyspeck.slackmacgap": { count: 5, firstSeen: "2026-03-24", lastSeen: "2026-04-01" }, "com.apple.mail": { count: 2, firstSeen: "2026-03-26", lastSeen: "2026-03-29" } } },
-          { id: "3", word: "WhisperWoof", category: "names", alternatives: ["whisper woof"], createdAt: new Date().toISOString(), source: "auto-learn", usageCount: 9, appContexts: { "com.microsoft.VSCode": { count: 6, firstSeen: "2026-03-24", lastSeen: "2026-04-01" }, "com.tinyspeck.slackmacgap": { count: 3, firstSeen: "2026-03-25", lastSeen: "2026-03-31" } } },
-          { id: "4", word: "kubectl", category: "technical", alternatives: ["kube control", "kube c t l"], createdAt: new Date().toISOString(), source: "auto-learn", usageCount: 5, appContexts: { "com.microsoft.VSCode": { count: 4, firstSeen: "2026-03-26", lastSeen: "2026-04-01" }, "com.googlecode.iterm2": { count: 1, firstSeen: "2026-03-30", lastSeen: "2026-03-30" } } },
-        ]);
       }
     } catch {
       setError("Unable to load Memory data.");
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchPacks = useCallback(async () => {
+    try {
+      const api = getAPI();
+      if (api.whisperwoofGetAvailablePacks) {
+        const packsData = await api.whisperwoofGetAvailablePacks();
+        setPacks(packsData);
+      }
+    } catch {
+      // Non-critical — packs section just won't show
+    }
+  }, []);
+
+  useEffect(() => { fetchData(); fetchPacks(); }, [fetchData, fetchPacks]);
 
   // Fetch app-specific words when selecting an app tab
   useEffect(() => {
@@ -243,7 +418,6 @@ export default function MemoryView({ className }: MemoryViewProps) {
     if (api.whisperwoofGetVocabularyForApp) {
       api.whisperwoofGetVocabularyForApp(selectedApp).then(setAppWords).catch(() => {});
     } else {
-      // Demo: filter from allWords
       setAppWords(allWords.filter((w) => w.appContexts?.[selectedApp]));
     }
   }, [selectedApp, allWords]);
@@ -276,10 +450,37 @@ export default function MemoryView({ className }: MemoryViewProps) {
     }
   };
 
+  const handleTogglePack = async (packId: string, enable: boolean) => {
+    const api = getAPI();
+    const fn = enable ? api.whisperwoofEnablePack : api.whisperwoofDisablePack;
+    if (fn) {
+      await fn(packId);
+      fetchPacks();
+    }
+  };
+
+  const handleExpandPack = (packId: string) => {
+    setExpandedPack((prev) => (prev === packId ? null : packId));
+  };
+
+  const handleTogglePackEntry = async (packId: string, word: string) => {
+    const api = getAPI();
+    if (api.whisperwoofTogglePackEntry) {
+      await api.whisperwoofTogglePackEntry(packId, word);
+      // Re-expand to refresh entries
+      setExpandedPack(null);
+      setTimeout(() => setExpandedPack(packId), 0);
+      fetchPacks();
+    }
+  };
+
   const displayWords = selectedApp ? appWords : allWords;
   const filteredWords = searchQuery.trim()
     ? displayWords.filter((w) => w.word.toLowerCase().includes(searchQuery.toLowerCase()))
     : displayWords;
+
+  const enabledPackCount = packs.filter((p) => p.enabled).length;
+  const totalPackWords = packs.filter((p) => p.enabled).reduce((sum, p) => sum + p.entryCount - p.disabledEntryCount, 0);
 
   if (error) {
     return (
@@ -295,34 +496,34 @@ export default function MemoryView({ className }: MemoryViewProps) {
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Header */}
-      <div className="px-5 py-3 border-b border-border/15 dark:border-white/6 shrink-0">
+      <div className="px-5 py-4 border-b border-border/15 dark:border-white/6 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-              <Brain size={14} className="text-primary/70" />
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Brain size={16} className="text-primary/70" />
               Memory
             </h2>
             {stats && (
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+              <p className="text-xs text-muted-foreground/70 mt-1">
                 {stats.total} words learned
                 {stats.autoLearned > 0 && ` (${stats.autoLearned} auto, ${stats.manual} manual)`}
-                {trackedApps.length > 0 && ` across ${trackedApps.length} apps`}
+                {totalPackWords > 0 && ` + ${totalPackWords} from packs`}
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search words..."
-                className="w-36 text-xs bg-transparent border border-border/20 dark:border-white/8 rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/40 placeholder:text-muted-foreground/30"
+                className="w-40 text-xs bg-transparent border border-border/20 dark:border-white/8 rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/40 placeholder:text-muted-foreground/30"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground">
-                  <X size={10} />
+                  <X size={11} />
                 </button>
               )}
             </div>
@@ -333,19 +534,19 @@ export default function MemoryView({ className }: MemoryViewProps) {
                   value={newWord}
                   onChange={(e) => setNewWord(e.target.value)}
                   placeholder="Word or phrase"
-                  className="w-32 text-xs bg-transparent border border-border/30 dark:border-white/10 rounded-md px-2 py-1.5 outline-none focus:border-primary/40"
+                  className="w-36 text-xs bg-transparent border border-border/30 dark:border-white/10 rounded-md px-2 py-1.5 outline-none focus:border-primary/40"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddWord(); if (e.key === "Escape") setIsAddingWord(false); }}
                 />
-                <button onClick={handleAddWord} className="p-1 rounded text-primary hover:bg-primary/10"><Pencil size={12} /></button>
-                <button onClick={() => setIsAddingWord(false)} className="p-1 rounded text-muted-foreground hover:bg-foreground/5"><X size={12} /></button>
+                <button onClick={handleAddWord} className="p-1.5 rounded text-primary hover:bg-primary/10"><Pencil size={13} /></button>
+                <button onClick={() => setIsAddingWord(false)} className="p-1.5 rounded text-muted-foreground hover:bg-foreground/5"><X size={13} /></button>
               </div>
             ) : (
               <button
                 onClick={() => setIsAddingWord(true)}
-                className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-foreground px-2 py-1.5 rounded-md border border-border/20 dark:border-white/6 hover:border-border/40 transition-all"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-foreground px-2.5 py-1.5 rounded-md border border-border/20 dark:border-white/6 hover:border-border/40 transition-all"
               >
-                <Plus size={11} /> Add word
+                <Plus size={12} /> Add word
               </button>
             )}
           </div>
@@ -353,11 +554,11 @@ export default function MemoryView({ className }: MemoryViewProps) {
 
         {/* App context tabs */}
         {trackedApps.length > 0 && (
-          <div className="flex items-center gap-1 overflow-x-auto pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => setSelectedApp(null)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
                 selectedApp === null
                   ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.03]"
@@ -370,13 +571,13 @@ export default function MemoryView({ className }: MemoryViewProps) {
                 key={app.bundleId}
                 onClick={() => setSelectedApp(app.bundleId)}
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
                   selectedApp === app.bundleId
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.03]"
                 )}
               >
-                <Monitor size={10} />
+                <Monitor size={11} />
                 {appName(app.bundleId)} ({app.wordCount})
               </button>
             ))}
@@ -384,34 +585,75 @@ export default function MemoryView({ className }: MemoryViewProps) {
         )}
       </div>
 
-      {/* Word list */}
+      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
+        {/* Your Words section */}
         {filteredWords.length === 0 && !searchQuery && allWords.length === 0 ? (
-          // Empty state — onboarding
-          <div className="flex flex-col items-center justify-center h-full text-center px-8 py-12">
+          <div className="flex flex-col items-center justify-center py-16 text-center px-8">
             <Brain size={36} className="text-muted-foreground/20 mb-4" />
             <p className="text-sm font-medium text-foreground/70 mb-1.5">Memory learns as you talk</p>
-            <p className="text-xs text-muted-foreground/50 leading-relaxed max-w-[280px] mb-4">
+            <p className="text-xs text-muted-foreground/60 leading-relaxed max-w-[300px] mb-4">
               Start dictating in different apps. When you correct a transcription,
               Memory auto-learns the right word and remembers which app you were in.
             </p>
-            <div className="rounded-lg border border-border/20 dark:border-white/6 bg-foreground/[0.02] dark:bg-white/[0.02] px-4 py-3 max-w-[280px]">
-              <p className="text-[11px] text-foreground/50 leading-relaxed">
-                <span className="font-medium text-foreground/70">How it works:</span> You say "deploy to supabase."
+            <div className="rounded-lg border border-border/20 dark:border-white/6 bg-foreground/[0.02] dark:bg-white/[0.02] px-4 py-3 max-w-[300px]">
+              <p className="text-xs text-foreground/60 leading-relaxed">
+                <span className="font-medium text-foreground/80">How it works:</span> You say "deploy to supabase."
                 Whisper hears "deploy to super base." You fix it. Memory learns "Supabase"
                 and tags it to VS Code.
               </p>
             </div>
           </div>
-        ) : filteredWords.length === 0 && searchQuery ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-xs text-muted-foreground/40 italic">No words matching "{searchQuery}"</p>
-          </div>
         ) : (
-          <div className="py-1">
-            {filteredWords.map((entry) => (
-              <WordRow key={entry.id} entry={entry} onDelete={handleDeleteWord} />
-            ))}
+          <>
+            {filteredWords.length === 0 && searchQuery ? (
+              <div className="flex items-center justify-center h-32">
+                <p className="text-xs text-muted-foreground/50 italic">No words matching "{searchQuery}"</p>
+              </div>
+            ) : (
+              <div className="py-1 px-2">
+                {filteredWords.map((entry) => (
+                  <WordRow key={entry.id} entry={entry} onDelete={handleDeleteWord} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Word Packs section */}
+        {packs.length > 0 && (
+          <div className="px-5 py-4 border-t border-border/10 dark:border-white/4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Package size={14} className="text-primary/60" />
+                Word Packs
+              </h3>
+              <span className="text-xs text-muted-foreground/50">
+                {enabledPackCount} of {packs.length} active
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground/50 mb-3 leading-relaxed">
+              Curated vocabulary sets that help speech recognition get tricky words right.
+              Enable a pack to add its words to your STT hints.
+            </p>
+            <div className="space-y-2">
+              {packs.map((pack) => (
+                <div key={pack.id}>
+                  <PackCard
+                    pack={pack}
+                    onToggle={handleTogglePack}
+                    onExpand={handleExpandPack}
+                    isExpanded={expandedPack === pack.id}
+                  />
+                  {expandedPack === pack.id && (
+                    <PackEntriesList
+                      packId={pack.id}
+                      onToggleEntry={handleTogglePackEntry}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -419,11 +661,11 @@ export default function MemoryView({ className }: MemoryViewProps) {
       {/* Footer stats */}
       {stats && stats.topUsed.length > 0 && !searchQuery && (
         <div className="px-5 py-2.5 border-t border-border/10 dark:border-white/4 shrink-0">
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground/40">
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground/50">
             <span>Top words:</span>
             {stats.topUsed.slice(0, 3).map((w) => (
-              <span key={w.word} className="text-foreground/50">
-                {w.word} <span className="text-muted-foreground/30">({w.usageCount}x)</span>
+              <span key={w.word} className="text-foreground/60">
+                {w.word} <span className="text-muted-foreground/40">({w.usageCount}x)</span>
               </span>
             ))}
           </div>
