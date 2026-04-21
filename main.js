@@ -695,41 +695,15 @@ async function startApp() {
     }
   }
 
-  // Set up meeting mode hotkey
-  const meetingHotkeyCallback = () => {
-    if (hotkeyManager.isInListeningMode()) return;
-    debugLogger.info("Meeting hotkey triggered", {}, "meeting");
-    meetingDetectionEngine?.startManualMeeting();
-  };
-
+  // Meeting mode hotkey removed — meeting detection is automatic
+  // (calendar events, process detection, mic activity).
+  // Clear any previously saved meeting hotkey to avoid ghost registrations.
   const savedMeetingKey = environmentManager.getMeetingKey?.() || "";
   if (savedMeetingKey) {
-    const result = await hotkeyManager.registerSlot(
-      "meeting",
-      savedMeetingKey,
-      meetingHotkeyCallback
-    );
-    debugLogger.info(
-      "Meeting hotkey startup registration",
-      { savedMeetingKey, ...result },
-      "meeting"
-    );
+    hotkeyManager.unregisterSlot("meeting");
+    environmentManager.saveMeetingKey("");
+    debugLogger.info("Cleared legacy meeting hotkey", { savedMeetingKey }, "meeting");
   }
-
-  ipcMain.handle("register-meeting-hotkey", async (_event, hotkey) => {
-    if (hotkey) {
-      const result = await hotkeyManager.registerSlot("meeting", hotkey, meetingHotkeyCallback);
-      if (result.success) {
-        environmentManager.saveMeetingKey(hotkey);
-        return { success: true };
-      }
-      return { success: false, message: result.error };
-    } else {
-      hotkeyManager.unregisterSlot("meeting");
-      environmentManager.saveMeetingKey("");
-      return { success: true };
-    }
-  });
 
   // Phase 2: Initialize remaining managers after windows are visible
   initializeDeferredManagers();

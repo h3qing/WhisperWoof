@@ -16,7 +16,6 @@ export default function AgentModeSettings() {
     agentKey,
     setAgentKey,
     dictationKey,
-    meetingKey,
     agentModel,
     setAgentModel,
     agentProvider,
@@ -49,11 +48,10 @@ export default function AgentModeSettings() {
         hotkey,
         {
           "settingsPage.general.hotkey.title": dictationKey,
-          "settingsPage.general.meetingHotkey.title": meetingKey,
         },
         t
       ),
-    [dictationKey, meetingKey, t]
+    [dictationKey, t]
   );
 
   return (

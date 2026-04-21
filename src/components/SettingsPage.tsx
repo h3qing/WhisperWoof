@@ -685,8 +685,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     customReasoningApiKey,
     setCustomReasoningApiKey,
     setDictationKey,
-    meetingKey,
-    setMeetingKey,
     autoLearnCorrections,
     setAutoLearnCorrections,
     updateTranscriptionSettings,
@@ -874,46 +872,16 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     showAlert: showAlertDialog,
   });
 
-  const meetingRegisterFn = useCallback(async (hotkey: string) => {
-    const result = await window.electronAPI?.registerMeetingHotkey?.(hotkey);
-    return result ?? { success: false, message: "Electron API unavailable" };
-  }, []);
-
-  const { registerHotkey: registerMeetingHotkey, isRegistering: isMeetingHotkeyRegistering } =
-    useHotkeyRegistration({
-      onSuccess: (registeredHotkey) => {
-        setMeetingKey(registeredHotkey);
-      },
-      showSuccessToast: false,
-      showErrorToast: true,
-      showAlert: showAlertDialog,
-      registerFn: meetingRegisterFn,
-    });
-
   const validateDictationHotkey = useCallback(
     (hotkey: string) =>
       validateHotkeyForSlot(
         hotkey,
         {
-          "settingsPage.general.meetingHotkey.title": meetingKey,
           "agentMode.settings.hotkey": agentKey,
         },
         t
       ),
-    [meetingKey, agentKey, t]
-  );
-
-  const validateMeetingHotkey = useCallback(
-    (hotkey: string) =>
-      validateHotkeyForSlot(
-        hotkey,
-        {
-          "settingsPage.general.hotkey.title": dictationKey,
-          "agentMode.settings.hotkey": agentKey,
-        },
-        t
-      ),
-    [dictationKey, agentKey, t]
+    [agentKey, t]
   );
 
   const [isUsingNativeShortcut, setIsUsingNativeShortcut] = useState(false);
@@ -2825,37 +2793,6 @@ EOF`,
               </SettingsPanel>
             </div>
 
-            {/* Meeting Mode Hotkey */}
-            <div>
-              <SectionHeader
-                title={t("settingsPage.general.meetingHotkey.title")}
-                description={t("settingsPage.general.meetingHotkey.description")}
-              />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <HotkeyInput
-                    value={meetingKey}
-                    onChange={async (newHotkey) => {
-                      await registerMeetingHotkey(newHotkey);
-                    }}
-                    disabled={isMeetingHotkeyRegistering}
-                    validate={validateMeetingHotkey}
-                  />
-                  {meetingKey && (
-                    <button
-                      onClick={async () => {
-                        await window.electronAPI?.registerMeetingHotkey?.("");
-                        setMeetingKey("");
-                      }}
-                      disabled={isMeetingHotkeyRegistering}
-                      className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-                    >
-                      {t("settingsPage.general.meetingHotkey.clear")}
-                    </button>
-                  )}
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
           </div>
         );
 
