@@ -4,7 +4,7 @@
 Fork OpenWhispr and build WhisperWoof: a voice-first personal automation tool that transcribes, polishes (local LLM), routes (hotkey-driven), and stores (unified capture layer) voice and clipboard input.
 
 ## Current Phase
-v1.9.0 shipped + unreleased eng-review cleanup (758 tests, 13 of 35 test-truthfulness files refactored [Bucket B complete], 5 surgical upstream cherry-picks, STT config error fixed, API key export leak fixed). Next: Bucket C test refactor OR switch to Phase 11 (code signing + notarization) once Apple Developer cert arrives.
+v1.12.0 shipped (882 tests, 46 test files). Live transcript ticker in floating indicator + meeting hotkey removed. Next: Phase 11 (code signing + notarization) or full upstream merge.
 
 ## Phases
 
@@ -195,6 +195,16 @@ v1.9.0 shipped + unreleased eng-review cleanup (758 tests, 13 of 35 test-truthfu
 - [x] Toast component `icon` prop
 - **Status:** complete
 - **Depends on:** Phase 13 complete ✓
+
+### Phase 15: Live Transcript Ticker + Meeting Hotkey Removal (v1.12.0)
+- [x] Live transcript ticker in floating indicator (streaming STT partial text, right-to-left flow, fade mask)
+- [x] Settings toggle: "Show live transcript" (default ON, localStorage `whisperwoof-live-transcript`)
+- [x] Graceful fallback to "Listening..." for batch mode (local Whisper)
+- [x] Remove meeting hotkey (Cmd+Shift+N conflict with browser incognito)
+- [x] One-time cleanup of saved meeting hotkey on startup
+- [x] Remove meeting hotkey UI from Settings, settingsStore, useSettings, types, AgentModeSettings
+- **Status:** complete
+- **Depends on:** Phase 14 complete ✓
 
 ## Key Questions
 1. Ollama latency: Can Llama 3.2 3B polish <1s on M1? (Benchmark in Phase 1a)

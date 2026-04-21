@@ -5,6 +5,17 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-04-21 — Live Transcript Ticker + Meeting Hotkey Removal
+
+### New Features
+- **Live transcript ticker in floating indicator** — when using a streaming STT provider (Deepgram or OpenAI Realtime), the floating indicator now shows your words streaming in real-time as you speak, replacing the static "Listening..." label. Text flows right-to-left with a fade mask — newest words on the right, older words scroll off the left edge. Falls back to "Listening..." for batch mode (local Whisper). Togglable in Settings > WhisperWoof > Indicator > "Show live transcript" (default: ON).
+
+### Fixes
+- **Removed meeting hotkey (Cmd+Shift+N conflict)** — the global meeting hotkey conflicted with browser incognito window shortcuts and caused unexpected window resizes. Meeting detection is already automatic via calendar events, process detection, and mic activity — the manual hotkey was redundant. Any previously saved meeting hotkey is cleared on startup. The Meeting Mode Hotkey section has been removed from Settings.
+
+### Tests
+- 46 test files / 882 tests — all green.
+
 ## [1.11.0] - 2026-04-14 — Hotkey Fix + Plugin Setup + Obsidian Integration + Zero TS Errors
 
 ### New Features

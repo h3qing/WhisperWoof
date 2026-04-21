@@ -1,5 +1,43 @@
 # Progress Log
 
+## 2026-04-21 — Session: Live transcript ticker + meeting hotkey removal + v1.12.0
+
+### Live transcript ticker in floating indicator
+- Explored streaming STT partial transcript pipeline — Deepgram and OpenAI
+  Realtime already emit `onPartialTranscript` callbacks, wired through
+  `audioManager.js` → `useAudioRecording.js` → `partialTranscript` state.
+  Data was flowing but never rendered.
+- Added `partialTranscript` prop to `WhisperWoofIndicator` in `App.jsx`.
+  When speaking + streaming STT active, replaces "Listening..." with a
+  right-to-left ticker: `overflow: hidden` + `justify-content: flex-end`
+  + CSS mask gradient for smooth left-edge fade.
+- Falls back to "Listening..." for batch mode (local Whisper) since no
+  partial transcripts are available.
+- Added `whisperwoof-live-transcript` toggle in Settings > WhisperWoof >
+  Indicator (default: ON). Follows existing localStorage pattern.
+- Discussed local streaming options (chunked inference, whisper.cpp --stream
+  mode) — decided not worth the CPU tradeoff for now.
+
+### Meeting hotkey removal
+- `Command+Shift+N` global hotkey for meeting mode conflicted with browser
+  incognito window shortcut — triggered unexpected window resize via
+  `snapControlPanelToMeetingMode()`.
+- Meeting detection is already automatic (calendar events, process detection,
+  mic activity), so the manual hotkey was redundant.
+- Removed: hotkey callback + registration in `main.js`, IPC handler
+  `register-meeting-hotkey`, Settings UI section, `meetingKey` from
+  settingsStore/useSettings/types, validation references in
+  AgentModeSettings and SettingsPage.
+- Added one-time cleanup on startup: unregisters any saved meeting hotkey
+  and clears it from `.env`.
+
+### v1.12.0 release
+- VERSION, package.json, CHANGELOG, WhisperWoofSettings version display,
+  README badge all updated.
+
+### Test results
+- 46 test files / 882 tests — all green.
+
 ## 2026-04-12 — Session: v1.10.0 release + debugLogger sweep + Bucket C complete + hotkey redesign plan
 
 ### Release

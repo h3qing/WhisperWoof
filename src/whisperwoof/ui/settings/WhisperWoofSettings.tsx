@@ -355,7 +355,7 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
             </button>
           </SettingsRow>
           <SettingsRow label="Version" description="WhisperWoof version number.">
-            <span className="text-xs text-muted-foreground font-mono">v0.7.0</span>
+            <span className="text-xs text-muted-foreground font-mono">v1.12.0</span>
           </SettingsRow>
           <SettingsRow label="Debug mode" description="Show pipeline timing (STT + polish) after each transcription.">
             <Toggle
