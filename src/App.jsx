@@ -36,11 +36,12 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full', partialTranscript = '' }) => {
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
   const isIdle = !recording && !isProcessing;
+  const showLiveTranscript = localStorage.getItem("whisperwoof-live-transcript") !== "false";
 
   // Pick a new verb each time processing starts (stable during processing)
   const processingVerbRef = useRef(pickProcessingVerb());
@@ -134,7 +135,26 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
         whiteSpace: 'nowrap',
       }}>
         {isSpeaking ? (
-          <span style={{ color: '#E8A060', fontWeight: 600 }}>Listening...</span>
+          showLiveTranscript && partialTranscript ? (
+            <div style={{
+              maxWidth: '180px',
+              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              maskImage: 'linear-gradient(to right, transparent 0%, black 20%)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 20%)',
+            }}>
+              <span style={{
+                color: '#E8A060',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}>
+                {partialTranscript}
+              </span>
+            </div>
+          ) : (
+            <span style={{ color: '#E8A060', fontWeight: 600 }}>Listening...</span>
+          )
         ) : isRecordingSilent ? (
           <span style={{ color: 'rgba(232,213,195,0.5)' }}>Waiting for voice...</span>
         ) : isProcessing ? (
@@ -354,7 +374,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, isSpeaking, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -580,6 +600,7 @@ export default function App() {
                   recording={isRecording}
                   animated={isRecording || isProcessing}
                   mode={localStorage.getItem("indicatorStyle") || "full"}
+                  partialTranscript={partialTranscript}
                 />
               </div>
             </button>

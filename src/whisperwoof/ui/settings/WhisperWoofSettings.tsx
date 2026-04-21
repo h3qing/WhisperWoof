@@ -42,6 +42,7 @@ interface SettingsState {
   readonly presets: readonly PolishPreset[];
   readonly customPrompt: string;
   readonly clipboardEnabled: boolean;
+  readonly liveTranscriptEnabled: boolean;
   readonly notesDir: string;
   readonly notesDirLoading: boolean;
 }
@@ -55,6 +56,7 @@ function buildInitialState(): SettingsState {
     presets: [],
     customPrompt: localStorage.getItem("whisperwoof-custom-prompt") || "",
     clipboardEnabled: localStorage.getItem("whisperwoof-clipboard-enabled") !== "false",
+    liveTranscriptEnabled: localStorage.getItem("whisperwoof-live-transcript") !== "false",
     notesDir: "",
     notesDirLoading: true,
   };
@@ -154,6 +156,11 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
     } catch {
       // Toggle failed — keep previous state
     }
+  }, []);
+
+  const handleLiveTranscriptToggle = useCallback((checked: boolean) => {
+    localStorage.setItem("whisperwoof-live-transcript", String(checked));
+    setState((prev) => ({ ...prev, liveTranscriptEnabled: checked }));
   }, []);
 
   const handleOpenNotesFolder = useCallback(async () => {
@@ -308,6 +315,18 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
           <p className="text-xs text-muted-foreground/70 font-mono truncate" title={state.notesDir}>
             {state.notesDirLoading ? "Loading..." : state.notesDir}
           </p>
+        </SettingsGroup>
+      </SettingsSection>
+
+      {/* Indicator */}
+      <SettingsSection title="Indicator">
+        <SettingsGroup>
+          <SettingsRow label="Show live transcript" description="Display streaming text in the floating indicator while you speak.">
+            <Toggle
+              checked={state.liveTranscriptEnabled}
+              onChange={handleLiveTranscriptToggle}
+            />
+          </SettingsRow>
         </SettingsGroup>
       </SettingsSection>
 
