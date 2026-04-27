@@ -308,3 +308,52 @@ describe('OllamaService constructor', () => {
     expect(callArgs[0]).toContain('http://remote:9999');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Default system prompt content
+// ---------------------------------------------------------------------------
+
+describe('Default system prompt', () => {
+  it('includes list formatting instructions', async () => {
+    mockFetch.mockResolvedValueOnce(ollamaChatResponse('polished'));
+
+    const service = new OllamaService();
+    await service.polish('test input');
+
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    const systemPrompt: string = body.messages[0].content;
+
+    expect(systemPrompt).toMatch(/each item on its own line/i);
+    expect(systemPrompt).toMatch(/numbered or bulleted list/i);
+  });
+
+  it('includes paragraph separation instructions', async () => {
+    mockFetch.mockResolvedValueOnce(ollamaChatResponse('polished'));
+
+    const service = new OllamaService();
+    await service.polish('test input');
+
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    const systemPrompt: string = body.messages[0].content;
+
+    expect(systemPrompt).toMatch(/different topic/i);
+    expect(systemPrompt).toMatch(/new paragraph/i);
+    expect(systemPrompt).toMatch(/blank line/i);
+  });
+
+  it('custom systemPrompt overrides default list/paragraph instructions', async () => {
+    mockFetch.mockResolvedValueOnce(ollamaChatResponse('custom result'));
+
+    const service = new OllamaService();
+    await service.polish('test input', { systemPrompt: 'Just fix typos.' });
+
+    const callArgs = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(callArgs[1].body as string);
+    const systemPrompt: string = body.messages[0].content;
+
+    expect(systemPrompt).toBe('Just fix typos.');
+    expect(systemPrompt).not.toMatch(/each item on its own line/i);
+  });
+});
