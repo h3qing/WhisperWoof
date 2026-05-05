@@ -1391,7 +1391,8 @@
   "models": {
     "descriptions": {
       "parakeet": {
-        "parakeet_tdt_0_6b_v3": "Schnelle mehrsprachige ASR mit automatischer Spracherkennung (25 Sprachen)"
+        "parakeet_tdt_0_6b_v3": "Schnelle mehrsprachige ASR mit automatischer Spracherkennung (25 Sprachen)",
+        "parakeet_unified_en_0_6b": "Englisch-only ASR mit Spitzen-Genauigkeit (5,91% durchschnittliche WER)"
       },
       "whisper": {
         "tiny": "Am schnellsten, geringere Qualität",
