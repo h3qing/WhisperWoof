@@ -43,6 +43,8 @@ const StorageManager = React.lazy(() => import("../whisperwoof/ui/storage/Storag
 const TuningBench = React.lazy(() => import("../whisperwoof/ui/tuning/TuningBench"));
 const CommandBar = React.lazy(() => import("../whisperwoof/ui/command-bar/CommandBar"));
 
+import { MeetingRecordingPill } from "../whisperwoof/ui/indicator/MeetingRecordingPill";
+
 export default function ControlPanel() {
   const { t } = useTranslation();
   const history = useTranscriptions();
@@ -445,8 +447,30 @@ export default function ControlPanel() {
     return null;
   };
 
+  const handleMeetingPillJump = useCallback(
+    (noteId: number) => {
+      setActiveNoteId(noteId);
+      setActiveView("personal-notes");
+    },
+    [],
+  );
+
+  const handleMeetingPillStop = useCallback(async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = window.electronAPI as any;
+    try {
+      await api?.whisperwoofMeetingEnd?.();
+    } catch {
+      /* IPC failure surfaces via main-process logging */
+    }
+  }, []);
+
   return (
     <div className="h-screen bg-background flex flex-col">
+      <MeetingRecordingPill
+        onJumpToNote={handleMeetingPillJump}
+        onStopMeeting={handleMeetingPillStop}
+      />
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}
