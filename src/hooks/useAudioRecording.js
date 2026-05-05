@@ -370,7 +370,7 @@ export const useAudioRecording = (toast, options = {}) => {
           const routedTo = routeMap[hotkeyUsed] ?? "paste-at-cursor";
 
           const isStreaming = result.source?.includes("streaming");
-          const { keepTranscriptionInClipboard } = getSettings();
+          const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
 
           tracker?.mark("pasteStart");
           if (routedTo === "copy-to-clipboard") {
@@ -410,8 +410,7 @@ export const useAudioRecording = (toast, options = {}) => {
               variant: "default",
               duration: 3000,
             });
-          } else {
-            // Default: paste at cursor
+          } else if (autoPasteEnabled) {
             const pasteStart = performance.now();
             await audioManagerRef.current.safePaste(textToPaste, {
               ...(isStreaming ? { fromStreaming: true } : {}),
@@ -426,6 +425,22 @@ export const useAudioRecording = (toast, options = {}) => {
               },
               "streaming"
             );
+          } else {
+            if (keepTranscriptionInClipboard) {
+              await navigator.clipboard.writeText(textToPaste);
+            }
+            logger.info(
+              "WhisperWoof auto-paste disabled — skipped paste-at-cursor",
+              { hotkeyUsed, textLength: textToPaste.length, copiedToClipboard: keepTranscriptionInClipboard },
+              "whisperwoof"
+            );
+            toast({
+              icon: MandoToastIcon,
+              title: t("hooks.audioRecording.autoPasteDisabled", "Transcribed (auto-paste off)"),
+              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+              variant: "default",
+              duration: 3000,
+            });
           }
           tracker?.mark("pasteEnd");
 

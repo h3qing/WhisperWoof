@@ -64,6 +64,7 @@ const BOOLEAN_SETTINGS = new Set([
   "meetingAutoStart",
   "isSignedIn",
   "agentEnabled",
+  "autoPasteEnabled",
   "keepTranscriptionInClipboard",
   "dataRetentionEnabled",
 ]);
@@ -106,6 +107,7 @@ export interface SettingsState
   meetingAudioDetection: boolean;
   meetingAutoStart: boolean;
   panelStartPosition: "bottom-right" | "center" | "bottom-left";
+  autoPasteEnabled: boolean;
   keepTranscriptionInClipboard: boolean;
 
   setUseLocalWhisper: (value: boolean) => void;
@@ -156,6 +158,7 @@ export interface SettingsState
   setMeetingProcessDetection: (value: boolean) => void;
   setMeetingAudioDetection: (value: boolean) => void;
   setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => void;
+  setAutoPasteEnabled: (value: boolean) => void;
   setKeepTranscriptionInClipboard: (value: boolean) => void;
   setIsSignedIn: (value: boolean) => void;
 
@@ -309,6 +312,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
     return "center" as const; // WhisperWoof: center by default
   })(),
+  autoPasteEnabled: readBoolean("autoPasteEnabled", true),
   keepTranscriptionInClipboard: readBoolean("keepTranscriptionInClipboard", false),
   isSignedIn: readBoolean("isSignedIn", false),
 
@@ -496,6 +500,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
   },
 
+  setAutoPasteEnabled: createBooleanSetter("autoPasteEnabled"),
   setKeepTranscriptionInClipboard: createBooleanSetter("keepTranscriptionInClipboard"),
 
   setIsSignedIn: (value: boolean) => {
