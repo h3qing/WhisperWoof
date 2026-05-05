@@ -1204,7 +1204,20 @@ declare global {
         action: string
       ) => Promise<{ success: boolean }>;
       onNavigateToMeetingNote?: (
-        callback: (data: { noteId: number; folderId: number; event: any }) => void
+        callback: (data: {
+          noteId: number;
+          folderId: number;
+          event: any;
+          trigger?: "manual" | "calendar-join" | "auto-detect";
+        }) => void
+      ) => () => void;
+      onMeetingState?: (
+        callback: (data: {
+          isRecording: boolean;
+          noteId: number | null;
+          noteTitle: string | null;
+          trigger: "manual" | "calendar-join" | "auto-detect" | null;
+        }) => void
       ) => () => void;
       onUpdateNotificationData?: (
         callback: (data: { version: string; releaseDate?: string }) => void

@@ -659,6 +659,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     (callback) => (_event, data) => callback(data)
   ),
 
+  onMeetingState: registerListener(
+    "meeting-state",
+    (callback) => (_event, data) => callback(data)
+  ),
+
   onUpdateNotificationData: registerListener(
     "update-notification-data",
     (callback) => (_event, data) => callback(data)

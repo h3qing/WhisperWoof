@@ -21,12 +21,48 @@ class MeetingDetectionEngine {
     this.preferences = { processDetection: true, audioDetection: true, autoStart: false };
     this._userRecording = false;
     this._meetingModeActive = false;
+    this._meetingState = {
+      isRecording: false,
+      noteId: null,
+      noteTitle: null,
+      trigger: null,
+    };
     this._notificationQueue = [];
     this._postRecordingCooldown = null;
-    this._runningMeetingProcesses = new Set(); // track detected meeting apps
+    this._runningMeetingProcesses = new Set();
     this._preMeetingTimer = null;
     this._preMeetingNotifiedIds = new Set();
     this._bindListeners();
+  }
+
+  _emitMeetingState(next) {
+    this._meetingState = { ...this._meetingState, ...next };
+    if (typeof this.windowManager?.sendToControlPanel === "function") {
+      this.windowManager.sendToControlPanel("meeting-state", { ...this._meetingState });
+    }
+  }
+
+  _setMeetingMode(active, payload = {}) {
+    const prev = this._meetingModeActive;
+    this._meetingModeActive = active;
+    if (prev !== active) {
+      debugLogger.info("Meeting mode active state changed", { active }, "meeting");
+    }
+    if (active) {
+      this._emitMeetingState({
+        isRecording: true,
+        noteId: payload.noteId ?? null,
+        noteTitle: payload.noteTitle ?? null,
+        trigger: payload.trigger ?? null,
+      });
+    } else {
+      this._emitMeetingState({
+        isRecording: false,
+        noteId: null,
+        noteTitle: null,
+        trigger: null,
+      });
+    }
   }
 
   _bindListeners() {
@@ -205,11 +241,16 @@ class MeetingDetectionEngine {
       const detection = this.activeDetections.get(detectionId);
 
       if (action === "start" && detection) {
-        this._meetingModeActive = true;
         const eventSummary = detection.event?.summary || "New note";
 
         const noteResult = this.databaseManager.saveNote(eventSummary, "", "meeting");
         const meetingsFolder = this.databaseManager.getMeetingsFolder();
+
+        this._setMeetingMode(true, {
+          noteId: noteResult?.note?.id ?? null,
+          noteTitle: eventSummary,
+          trigger: "calendar-join",
+        });
 
         if (noteResult?.note?.id && meetingsFolder?.id) {
           await this.windowManager.createControlPanelWindow();
@@ -218,6 +259,7 @@ class MeetingDetectionEngine {
             noteId: noteResult.note.id,
             folderId: meetingsFolder.id,
             event: detection.event,
+            trigger: "calendar-join",
           });
         }
 
@@ -231,7 +273,7 @@ class MeetingDetectionEngine {
         }
       }
     } catch (error) {
-      this._meetingModeActive = false;
+      this._setMeetingMode(false);
       debugLogger.error(
         "Error handling notification response",
         { error: error?.message, detectionId, action },
@@ -244,7 +286,6 @@ class MeetingDetectionEngine {
   }
 
   async startManualMeeting() {
-    this._meetingModeActive = true;
     debugLogger.info("Starting manual meeting", {}, "meeting");
 
     const event = {
@@ -273,6 +314,12 @@ class MeetingDetectionEngine {
       return;
     }
 
+    this._setMeetingMode(true, {
+      noteId: noteResult.note.id,
+      noteTitle: event.summary,
+      trigger: "manual",
+    });
+
     this.broadcastToWindows("note-added", noteResult.note);
 
     await this.windowManager.createControlPanelWindow();
@@ -282,6 +329,7 @@ class MeetingDetectionEngine {
       noteId: noteResult.note.id,
       folderId: meetingsFolder.id,
       event,
+      trigger: "manual",
     });
   }
 
@@ -336,9 +384,8 @@ class MeetingDetectionEngine {
     this.audioActivityDetector.dismiss();
   }
 
-  setMeetingModeActive(active) {
-    this._meetingModeActive = active;
-    debugLogger.info("Meeting mode active state changed", { active }, "meeting");
+  setMeetingModeActive(active, payload) {
+    this._setMeetingMode(active, payload);
   }
 
   setUserRecording(active) {
@@ -493,7 +540,7 @@ class MeetingDetectionEngine {
     this.meetingProcessDetector.stop();
     this.audioActivityDetector.stop();
     this.activeDetections.clear();
-    this._meetingModeActive = false;
+    this._setMeetingMode(false);
     this._runningMeetingProcesses.clear();
     if (this._postRecordingCooldown) {
       clearTimeout(this._postRecordingCooldown);
