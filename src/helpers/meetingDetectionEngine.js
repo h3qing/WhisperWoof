@@ -241,6 +241,12 @@ class MeetingDetectionEngine {
       const detection = this.activeDetections.get(detectionId);
 
       if (action === "start" && detection) {
+        // Flip the suppression flag synchronously so any concurrent
+        // _handleDetection call sees we're already in a meeting and bails.
+        // The IPC emission with the full payload happens below, once we
+        // have the noteId from saveNote().
+        this._meetingModeActive = true;
+
         const eventSummary = detection.event?.summary || "New note";
 
         const noteResult = this.databaseManager.saveNote(eventSummary, "", "meeting");
@@ -288,6 +294,11 @@ class MeetingDetectionEngine {
   async startManualMeeting() {
     debugLogger.info("Starting manual meeting", {}, "meeting");
 
+    // Suppression flag flips synchronously so any concurrent auto-detect
+    // sees we're already in a meeting and bails. Full IPC payload emits
+    // below once we have the noteId.
+    this._meetingModeActive = true;
+
     const event = {
       id: `manual-${Date.now()}`,
       calendar_id: "__manual__",
@@ -311,6 +322,7 @@ class MeetingDetectionEngine {
         { noteId: noteResult?.note?.id, folderId: meetingsFolder?.id },
         "meeting"
       );
+      this._setMeetingMode(false);
       return;
     }
 

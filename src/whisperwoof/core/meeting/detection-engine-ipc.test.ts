@@ -163,4 +163,47 @@ describe("meeting-state IPC channel", () => {
       trigger: null,
     });
   });
+
+  // Regression: ISSUE-QA-001 — race window where saveNote ran while
+  // _meetingModeActive was still false, allowing a concurrent
+  // _handleDetection call to start a second meeting.
+  // Found by /qa on 2026-05-05.
+  it("startManualMeeting flips _meetingModeActive synchronously before saveNote runs", async () => {
+    interface EngineWithDeps {
+      databaseManager: { saveNote: ReturnType<typeof vi.fn> };
+      _meetingModeActive: boolean;
+      startManualMeeting: () => Promise<void>;
+    }
+    const e = env.engine as unknown as EngineWithDeps;
+    let flagDuringSaveNote: boolean | null = null;
+    e.databaseManager.saveNote = vi.fn(() => {
+      flagDuringSaveNote = e._meetingModeActive;
+      return { note: { id: 42 } };
+    });
+
+    await e.startManualMeeting();
+
+    expect(flagDuringSaveNote).toBe(true);
+    expect(e._meetingModeActive).toBe(true);
+  });
+
+  // Regression: ISSUE-QA-001 — manual meeting saveNote failure left the
+  // synchronous flag set, blocking all future detections.
+  // Found by /qa on 2026-05-05.
+  it("startManualMeeting resets _meetingModeActive when saveNote returns no note", async () => {
+    interface EngineWithDeps {
+      databaseManager: { saveNote: ReturnType<typeof vi.fn> };
+      _meetingModeActive: boolean;
+      startManualMeeting: () => Promise<void>;
+    }
+    const e = env.engine as unknown as EngineWithDeps;
+    e.databaseManager.saveNote = vi.fn(() => ({ note: null }));
+
+    await e.startManualMeeting();
+
+    expect(e._meetingModeActive).toBe(false);
+    const stateMessages = env.sent.filter((m) => m.channel === "meeting-state");
+    const last = stateMessages[stateMessages.length - 1];
+    expect((last.payload as { isRecording: boolean }).isRecording).toBe(false);
+  });
 });
