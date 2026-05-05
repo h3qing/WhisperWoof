@@ -27,6 +27,13 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
+import {
+  EXPORT_MIME_TYPES,
+  exportFilename,
+  formatEntries,
+  type ExportFormat,
+  type ExportableEntry,
+} from "./exportFormats";
 
 // --- Types ---
 
@@ -131,6 +138,7 @@ export default function StorageManager() {
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("json");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchUsage = useCallback(async () => {
@@ -223,15 +231,16 @@ export default function StorageManager() {
     const api = getAPI();
     if (!api.whisperwoofStorageExport) return;
     const ids = selected.size > 0 ? [...selected] : undefined;
-    const data = await api.whisperwoofStorageExport(ids);
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const data = (await api.whisperwoofStorageExport(ids)) as ExportableEntry[];
+    const body = formatEntries(data, exportFormat);
+    const blob = new Blob([body], { type: EXPORT_MIME_TYPES[exportFormat] });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `whisperwoof-export-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = exportFilename(exportFormat);
     a.click();
     URL.revokeObjectURL(url);
-    showResult(`Exported ${data.length} entries`);
+    showResult(`Exported ${data.length} entries (${exportFormat.toUpperCase()})`);
   };
 
   const handleExportAndDelete = () => {
@@ -332,12 +341,23 @@ export default function StorageManager() {
           >
             <Trash2 size={11} /> Delete older than 90 days
           </button>
-          <button
-            onClick={handleExportSelected}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all"
-          >
-            <Download size={11} /> Export {selected.size > 0 ? `${selected.size} selected` : "all"}
-          </button>
+          <div className="flex items-center gap-1">
+            <select
+              aria-label="Export format"
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+              className="text-xs px-2 py-1.5 rounded-md border border-border/20 dark:border-white/6 bg-transparent text-muted-foreground/70 hover:text-foreground transition-all outline-none focus:ring-1 focus:ring-primary/30"
+            >
+              <option value="json">JSON</option>
+              <option value="txt">TXT</option>
+            </select>
+            <button
+              onClick={handleExportSelected}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all"
+            >
+              <Download size={11} /> Export {selected.size > 0 ? `${selected.size} selected` : "all"}
+            </button>
+          </div>
         </div>
 
         {/* Notification */}
