@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "./index.css";
-import { X } from "lucide-react";
+import { CancelRecordingButton } from "./whisperwoof/ui/indicator/CancelRecordingButton";
 import { useToast } from "./components/ui/Toast";
 import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
@@ -511,24 +511,14 @@ export default function App() {
             }
           }}
         >
-          {(isRecording || isProcessing) && isHovered && (
-            <button
-              aria-label={
-                isRecording ? t("app.buttons.cancelRecording") : t("app.buttons.cancelProcessing")
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                isRecording ? cancelRecording() : cancelProcessing();
-              }}
-              className="group/cancel w-5 h-5 rounded-full bg-surface-2/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-colors duration-150 shadow-sm backdrop-blur-sm"
-            >
-              <X
-                size={10}
-                strokeWidth={2.5}
-                className="text-foreground group-hover/cancel:text-destructive-foreground transition-colors duration-150"
-              />
-            </button>
-          )}
+          <CancelRecordingButton
+            isRecording={isRecording}
+            isProcessing={isProcessing}
+            onCancelRecording={cancelRecording}
+            onCancelProcessing={cancelProcessing}
+            recordingLabel={t("app.buttons.cancelRecording")}
+            processingLabel={t("app.buttons.cancelProcessing")}
+          />
           <Tooltip
             content={micProps.tooltip}
             align={
