@@ -7,6 +7,7 @@ import {
   SettingsGroup,
   SettingsRow,
 } from "../../../components/ui/SettingsSection";
+import { useSettingsStore } from "../../../stores/settingsStore";
 
 // WhisperWoof-specific electronAPI methods (exposed in preload.js).
 interface WhisperWoofSettingsAPI {
@@ -68,6 +69,8 @@ interface WhisperWoofSettingsProps {
 
 export default function WhisperWoofSettings({ className }: WhisperWoofSettingsProps) {
   const [state, setState] = useState<SettingsState>(buildInitialState);
+  const autoPasteEnabled = useSettingsStore((s) => s.autoPasteEnabled);
+  const setAutoPasteEnabled = useSettingsStore((s) => s.setAutoPasteEnabled);
 
   // Check Ollama availability on mount
   useEffect(() => {
@@ -272,6 +275,12 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
       {/* Clipboard */}
       <SettingsSection title="Clipboard">
         <SettingsGroup>
+          <SettingsRow label="Auto-paste after dictation" description="When off, transcribed text is not pasted at the cursor; copy it from history if needed.">
+            <Toggle
+              checked={autoPasteEnabled}
+              onChange={setAutoPasteEnabled}
+            />
+          </SettingsRow>
           <SettingsRow label="Enable clipboard monitoring" description="Capture clipboard text to build searchable history.">
             <Toggle
               checked={state.clipboardEnabled}
