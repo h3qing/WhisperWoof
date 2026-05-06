@@ -17,14 +17,12 @@ const INITIAL_STATE: MeetingState = {
 
 export interface MeetingRecordingPillViewProps {
   state: MeetingState;
-  isSpeaking?: boolean;
   onJumpToNote?: (noteId: number) => void;
   onStopMeeting?: () => void;
 }
 
 export function MeetingRecordingPillView({
   state,
-  isSpeaking = false,
   onJumpToNote,
   onStopMeeting,
 }: MeetingRecordingPillViewProps) {
@@ -50,7 +48,7 @@ export function MeetingRecordingPillView({
     >
       <span
         aria-hidden
-        className={`w-1.5 h-1.5 rounded-full ${isSpeaking ? "bg-destructive animate-pulse" : "bg-destructive/70"}`}
+        className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse"
       />
       <Mic size={11} className="text-foreground/80" aria-hidden />
       <span className="text-xs font-medium text-foreground max-w-[200px] truncate">{title}</span>
@@ -67,7 +65,6 @@ export function MeetingRecordingPillView({
 }
 
 export interface MeetingRecordingPillProps {
-  isSpeaking?: boolean;
   onJumpToNote?: (noteId: number) => void;
   onStopMeeting?: () => void;
 }
@@ -80,7 +77,6 @@ function defaultSubscribe(callback: (state: MeetingState) => void): () => void {
 }
 
 export function MeetingRecordingPill({
-  isSpeaking,
   onJumpToNote,
   onStopMeeting,
 }: MeetingRecordingPillProps) {
@@ -93,7 +89,6 @@ export function MeetingRecordingPill({
   return (
     <MeetingRecordingPillView
       state={state}
-      isSpeaking={isSpeaking}
       onJumpToNote={onJumpToNote}
       onStopMeeting={onStopMeeting}
     />
