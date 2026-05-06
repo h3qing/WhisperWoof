@@ -70,8 +70,7 @@ export interface MeetingRecordingPillProps {
 }
 
 function defaultSubscribe(callback: (state: MeetingState) => void): () => void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const api = (window as any).electronAPI;
+  const api = (window as unknown as { electronAPI?: { onMeetingState?: (cb: (state: MeetingState) => void) => () => void } }).electronAPI;
   if (!api?.onMeetingState) return () => {};
   return api.onMeetingState(callback);
 }
