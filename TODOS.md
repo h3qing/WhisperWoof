@@ -49,3 +49,21 @@
 **Depends on / blocked by:** `bf_entry_segments` schema (also unblocks diarization).
 
 **Start here:** Co-design the segments schema with diarization (above) so one migration handles both features.
+
+---
+
+## secretCrypto + plugin-bridge — scope blocked
+
+**What:** PR #5 from the 2026-05-04 cherry-pick batch. Originally scoped as "swap safeStorage for keyring + AES-256-GCM at `plugin-bridge.js:62`."
+
+**Why blocked:** Inspection on 2026-05-04 showed the eng-review's premise was wrong: `src/whisperwoof/bridge/plugin-bridge.js:62` is a comment, not a `safeStorage` call. Plugin env values are only set in `process.env` at runtime, never persisted. There is no migration target.
+
+**Three honest options for the user to decide:**
+
+1. **Skip until plugin secret persistence is actually wanted (recommended).** Today the bug is "plugin keys are lost on restart" — fix that whenever it actually matters.
+2. **Expand scope to implement persistence + encryption.** Real feature, ~100 lines, adds `@napi-rs/keyring` native dependency requiring `electron-rebuild`.
+3. **Add unused `secretCrypto` helper.** Dead code; violates CLAUDE.md "don't add features beyond what the task requires."
+
+**Context:** Eng-review decision D4 (2026-05-04) chose option 2-style scope ("Minimal: keyring + AES-256-GCM for plugin keys only") under the false premise that there was a safeStorage migration. With the premise corrected, the user should re-decide.
+
+**Start here:** When option 2 is picked, the design also needs to answer: what happens to the in-memory `process.env[KEY] = value` writes when keys come from disk on restart? Does the MCP child process inherit them, or do we need to spawn it after decrypt completes?
