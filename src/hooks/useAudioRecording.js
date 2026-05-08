@@ -281,66 +281,28 @@ export const useAudioRecording = (toast, options = {}) => {
             }
           }
 
-          // WhisperWoof: Ollama text polish (if available)
-          let textToPaste = result.text;
-          let rawText = result.rawText ?? result.text;
+          // Polish already happened upstream in audioManager.processTranscription
+          // (gated by Intelligence > "Enable text cleanup"). result.text is
+          // polished output, result.rawText is the unpolished transcript.
+          // See audioManager.js:648 for the canonical polish call.
+          const textToPaste = result.text;
+          const rawText = result.rawText ?? result.text;
+          const wasPolished = !!result.rawText && result.rawText !== result.text;
+          timings.polishMs = result.timings?.reasoningProcessingDurationMs ?? 0;
 
-          const polishEnabled = localStorage.getItem("whisperwoof-polish-enabled") !== "false";
+          if (wasPolished) {
+            const captureCount = parseInt(localStorage.getItem("whisperwoof_capture_count") || "0", 10);
+            const isLearningMode = captureCount < 20;
+            localStorage.setItem("whisperwoof_capture_count", String(captureCount + 1));
 
-          if (polishEnabled) {
-            try {
-              tracker?.mark("polishStart");
-              const polishStart = performance.now();
-              const polishPreset = localStorage.getItem("whisperwoof-polish-preset") || "clean";
-              const customPrompt = localStorage.getItem("whisperwoof-custom-prompt") || "";
-              const polishProvider = localStorage.getItem("whisperwoof-polish-provider") || "ollama";
-              const polishModel = localStorage.getItem("whisperwoof-polish-model") || "";
-              const polishApiKey = localStorage.getItem(`whisperwoof-${polishProvider}-api-key`) || "";
-              const polishResult = await window.electronAPI?.whisperwoofOllamaPolish?.(
-                transcribedText,
-                {
-                  preset: polishPreset,
-                  customPrompt,
-                  provider: polishProvider,
-                  model: polishModel || undefined,
-                  apiKey: polishApiKey || undefined,
-                }
-              );
-              timings.polishMs = Math.round(performance.now() - polishStart);
-              tracker?.mark("polishEnd");
-            if (polishResult?.polished && polishResult.text) {
-              rawText = transcribedText;
-              textToPaste = polishResult.text;
-              logger.info(
-                "WhisperWoof Ollama polish applied",
-                {
-                  inputLen: transcribedText.length,
-                  outputLen: polishResult.text.length,
-                  elapsed: polishResult.elapsed,
-                },
-                "whisperwoof"
-              );
-
-              // WhisperWoof: Learning mode — show polish before/after
-              const captureCount = parseInt(localStorage.getItem("whisperwoof_capture_count") || "0", 10);
-              const isLearningMode = captureCount < 20;
-              localStorage.setItem("whisperwoof_capture_count", String(captureCount + 1));
-
-              if (isLearningMode && polishResult.polished) {
-                toast({
-                  title: "\u2728 Text polished",
-                  description: `"${polishResult.text.slice(0, 60)}${polishResult.text.length > 60 ? '...' : ''}"`,
-                  variant: "default",
-                  duration: 5000,
-                });
-              }
+            if (isLearningMode) {
+              toast({
+                title: "\u2728 Text polished",
+                description: `"${textToPaste.slice(0, 60)}${textToPaste.length > 60 ? "..." : ""}"`,
+                variant: "default",
+                duration: 5000,
+              });
             }
-            } catch (polishError) {
-              timings.polishMs = Math.round(performance.now() - (pipelineStart + (timings.polishMs || 0)));
-              logger.warn("WhisperWoof Ollama polish failed", { error: polishError }, "whisperwoof");
-            }
-          } else {
-            timings.polishMs = 0; // skipped
           }
 
           // WhisperWoof: Log full pipeline timing
