@@ -7,7 +7,7 @@
  * calls (`polishWithProvider`) are out of scope.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../../../helpers/debugLogger", () => ({
   log: vi.fn(),
@@ -17,7 +17,13 @@ vi.mock("../../../helpers/debugLogger", () => ({
   error: vi.fn(),
 }));
 
-import { PROVIDERS, getProviders, validateConfig } from "../../bridge/llm-providers";
+import {
+  PROVIDERS,
+  getProviders,
+  validateConfig,
+  resolveOllamaModel,
+  PREFERRED_OLLAMA_FALLBACKS,
+} from "../../bridge/llm-providers";
 
 describe("provider registry", () => {
   it("has 4 providers", () => {
@@ -118,5 +124,96 @@ describe("model listings", () => {
   it("groq lists fast inference models", () => {
     expect(PROVIDERS.groq.models).toContain("llama-3.1-8b-instant");
     expect(PROVIDERS.groq.models).toContain("llama-3.3-70b-versatile");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveOllamaModel — fallback when the configured model isn't installed
+// ---------------------------------------------------------------------------
+
+const mockFetch = vi.fn();
+
+beforeEach(() => {
+  mockFetch.mockReset();
+  vi.stubGlobal("fetch", mockFetch);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function tagsResponse(models: string[]): Response {
+  return new Response(
+    JSON.stringify({ models: models.map((name) => ({ name })) }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  );
+}
+
+describe("resolveOllamaModel", () => {
+  // Cache lasts 30s — use a unique baseUrl per test so the cache doesn't
+  // mask behavior under test. The cache itself is exercised separately.
+  let counter = 0;
+  const freshUrl = () => `http://localhost:11434/test-${counter++}`;
+
+  it("returns the requested model when it is installed", async () => {
+    mockFetch.mockResolvedValueOnce(tagsResponse(["llama3.2:1b", "qwen2.5:3b"]));
+    const out = await resolveOllamaModel(freshUrl(), "qwen2.5:3b");
+    expect(out.fellBack).toBe(false);
+    expect(out.model).toBe("qwen2.5:3b");
+  });
+
+  it("falls back to a preferred installed model when the configured one is missing", async () => {
+    mockFetch.mockResolvedValueOnce(
+      tagsResponse(["moondream:latest", "qwen2.5:3b", "llama3.2:1b"]),
+    );
+    const out = await resolveOllamaModel(freshUrl(), "qwen3.5-2b-q4_k_m");
+    expect(out.fellBack).toBe(true);
+    expect(out.model).toBe("qwen2.5:3b");
+    expect(out.requested).toBe("qwen3.5-2b-q4_k_m");
+    expect(out.available).toContain("qwen2.5:3b");
+  });
+
+  it("prefers higher-quality models from the ranked fallback list", () => {
+    // Sanity-check: the static list is in the order documented in the source
+    expect(PREFERRED_OLLAMA_FALLBACKS[0]).toBe("qwen2.5:3b");
+    expect(PREFERRED_OLLAMA_FALLBACKS).toContain("llama3.2:3b");
+    expect(PREFERRED_OLLAMA_FALLBACKS).toContain("llama3.2:1b");
+  });
+
+  it("falls back to the first installed model when none match the preferred list", async () => {
+    mockFetch.mockResolvedValueOnce(tagsResponse(["mistral:7b", "phi3:mini"]));
+    const out = await resolveOllamaModel(freshUrl(), "qwen3.5-2b-q4_k_m");
+    expect(out.fellBack).toBe(true);
+    expect(out.model).toBe("mistral:7b");
+  });
+
+  it("does not fall back when /api/tags is unreachable", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
+    const out = await resolveOllamaModel(freshUrl(), "some-model:latest");
+    expect(out.fellBack).toBe(false);
+    expect(out.model).toBe("some-model:latest");
+  });
+
+  it("does not fall back when /api/tags returns no models", async () => {
+    mockFetch.mockResolvedValueOnce(tagsResponse([]));
+    const out = await resolveOllamaModel(freshUrl(), "missing:latest");
+    expect(out.fellBack).toBe(false);
+    expect(out.model).toBe("missing:latest");
+  });
+
+  it("does not fall back on a non-OK /api/tags response", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
+    const out = await resolveOllamaModel(freshUrl(), "missing:latest");
+    expect(out.fellBack).toBe(false);
+    expect(out.model).toBe("missing:latest");
+  });
+
+  it("caches /api/tags so repeated calls don't re-fetch", async () => {
+    const url = freshUrl();
+    mockFetch.mockResolvedValueOnce(tagsResponse(["llama3.2:1b"]));
+    await resolveOllamaModel(url, "llama3.2:1b");
+    await resolveOllamaModel(url, "llama3.2:1b");
+    await resolveOllamaModel(url, "qwen3.5-2b-q4_k_m");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

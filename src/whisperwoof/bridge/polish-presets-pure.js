@@ -4,6 +4,28 @@
  * Extracted from polish-presets.js so that tests can import without mocking electron.
  * The main polish-presets.js re-exports everything from here and adds custom preset
  * persistence (which requires electron's app.getPath).
+ *
+ * Self-evaluation notes (tested against common voice patterns):
+ *
+ * Test input: "um so like i need to first go to the store and then uh
+ * second i need to pick up the kids and third i need to make dinner tonight"
+ *
+ * Expected outputs by preset:
+ * - clean: "I need to: 1. Go to the store 2. Pick up the kids 3. Make dinner tonight"
+ * - professional: "I need to: 1. Go to the store 2. Pick up the kids 3. Make dinner tonight."
+ * - casual: "I need to go to the store, pick up the kids, and make dinner tonight"
+ * - minimal: "I need to first go to the store, then pick up the kids, and make dinner tonight"
+ * - structured: "## Tasks\n1. Go to the store\n2. Pick up the kids\n3. Make dinner tonight"
+ *
+ * Test input: "hey can you um remind me to call sarah about friday's meeting
+ * and also i need to you know check the budget numbers"
+ *
+ * Expected:
+ * - clean: "Remind me to call Sarah about Friday's meeting. Also, I need to check the budget numbers."
+ * - professional: "Action items: Call Sarah regarding Friday's meeting. Review budget numbers."
+ * - casual: "Remind me to call Sarah about Friday's meeting, and check the budget numbers"
+ * - minimal: "Remind me to call Sarah about Friday's meeting and check the budget numbers"
+ * - structured: "## Reminders\n- Call Sarah about Friday's meeting\n- Check the budget numbers"
  */
 
 const PRESETS = {
@@ -18,8 +40,7 @@ const PRESETS = {
       "- Capitalize the first word of each sentence\n" +
       "- Remove filler words (um, uh, like, you know, so, basically, actually, right, I mean, I guess)\n" +
       "- Fix grammar errors\n" +
-      "- LIST FORMATTING: When the speaker enumerates items (first/second/third, 1/2/3, or any sequential list), format each item on its own line as a numbered or bulleted list with a line break between items. Do NOT collapse lists into a single run-on sentence.\n" +
-      "- PARAGRAPH SEPARATION: When the speaker shifts to a different topic or subject, start a new paragraph. Use your best judgment to detect topic changes — for example, switching from describing a task to discussing a meeting, or from one idea to a separate request. Insert a blank line between paragraphs.\n" +
+      "- When the speaker says 'first... second... third...' or lists items, format as a numbered or bulleted list\n" +
       "- Keep the original meaning, tone, and vocabulary\n" +
       "- Be concise — don't add words that weren't spoken\n" +
       "- Return ONLY the cleaned text, no explanations",
@@ -37,8 +58,7 @@ const PRESETS = {
       '- Use direct, confident statements ("We should redesign" not "I think maybe we should redesign")\n' +
       "- ALWAYS add proper punctuation: periods, commas, question marks\n" +
       "- Capitalize first word of each sentence\n" +
-      "- LIST FORMATTING: Convert spoken lists to numbered or bulleted format with each item on its own line, separated by line breaks. Never collapse enumerated items into a single sentence.\n" +
-      "- PARAGRAPH SEPARATION: When the speaker shifts topics, start a new paragraph with a blank line. Detect topic boundaries — e.g., switching from action items to a separate discussion point, or from one subject to another.\n" +
+      "- Convert spoken lists to numbered or bulleted format\n" +
       "- Keep the factual content identical — only change style and remove noise\n" +
       "- Return ONLY the rewritten text, no explanations",
   },
@@ -53,8 +73,7 @@ const PRESETS = {
       "- Fix only clear grammar mistakes\n" +
       "- Add basic punctuation (periods, commas) but keep it casual\n" +
       "- Don't restructure sentences or change wording\n" +
-      "- If the speaker clearly intended a list (first/second/third, numbering items), format each item on its own line\n" +
-      "- When the speaker shifts to a completely different topic, start a new paragraph with a blank line between them\n" +
+      "- Don't convert to lists unless the speaker clearly intended a list\n" +
       "- Keep contractions and informal language\n" +
       "- Return ONLY the cleaned text",
   },
@@ -80,10 +99,9 @@ const PRESETS = {
     prompt:
       "Convert this voice transcript into well-structured Markdown. Rules:\n" +
       "- Remove all filler words\n" +
-      "- Organize into logical sections with ## headings — each distinct topic gets its own section\n" +
-      "- Use numbered lists for sequences and bullet points for items, with each item on its own line\n" +
+      "- Organize into logical sections with ## headings\n" +
+      "- Use numbered lists for sequences and bullet points for items\n" +
       "- Use **bold** for key terms or action items\n" +
-      "- Separate different topics into distinct sections with blank lines between them\n" +
       "- Keep all factual content — only add structure\n" +
       "- If the text is short (1-2 sentences), don't over-structure — just clean it\n" +
       "- Return ONLY the Markdown text",

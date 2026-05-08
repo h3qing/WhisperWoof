@@ -15,12 +15,87 @@
 
 const debugLogger = require("../../helpers/debugLogger");
 
+// --- Ollama model resolution ---
+//
+// When the configured Ollama model isn't installed, polish requests 404
+// silently. We pre-check /api/tags and, if necessary, fall back to a known-
+// good installed model. /api/tags is cached briefly so a misconfigured model
+// doesn't add an extra HTTP round-trip to every polish call.
+
+const OLLAMA_TAGS_CACHE_TTL_MS = 30_000;
+const ollamaTagsCache = new Map(); // baseUrl → { models, expiresAt }
+
+// Ranked by polish quality on dictation transcripts at the small-model size
+// most users run locally. First match in the list wins.
+const PREFERRED_OLLAMA_FALLBACKS = [
+  "qwen2.5:3b",
+  "llama3.2:3b",
+  "qwen2.5:7b",
+  "llama3.1:8b",
+  "llama3.2:1b",
+];
+
+async function fetchOllamaInstalledModels(baseUrl) {
+  const cached = ollamaTagsCache.get(baseUrl);
+  if (cached && cached.expiresAt > Date.now()) return cached.models;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2000);
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const models = (data?.models || []).map((m) => m?.name).filter(Boolean);
+    ollamaTagsCache.set(baseUrl, {
+      models,
+      expiresAt: Date.now() + OLLAMA_TAGS_CACHE_TTL_MS,
+    });
+    return models;
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+async function resolveOllamaModel(baseUrl, requestedModel) {
+  const installed = await fetchOllamaInstalledModels(baseUrl);
+  // /api/tags unreachable → trust the configured model, let the chat call fail loud.
+  if (!installed) return { model: requestedModel, fellBack: false };
+  if (installed.includes(requestedModel)) {
+    return { model: requestedModel, fellBack: false };
+  }
+  if (installed.length === 0) {
+    return { model: requestedModel, fellBack: false };
+  }
+  const preferred = PREFERRED_OLLAMA_FALLBACKS.find((name) => installed.includes(name));
+  return {
+    model: preferred || installed[0],
+    fellBack: true,
+    requested: requestedModel,
+    available: installed,
+  };
+}
+
 // --- Provider implementations ---
 
 async function polishOllama(text, systemPrompt, options) {
   const baseUrl = options.baseUrl || "http://localhost:11434";
-  const model = options.model || "llama3.2:1b";
-  const timeoutMs = options.timeoutMs || 5000;
+  const requestedModel = options.model || "llama3.2:1b";
+  // 15s default — covers cold-start of 1B-3B models on Apple Silicon.
+  // Warm calls return in <2s; the timeout only matters when ollama unloads
+  // the model after its keep-alive window or after a fresh `ollama serve`.
+  const timeoutMs = options.timeoutMs || 15000;
+
+  const resolved = await resolveOllamaModel(baseUrl, requestedModel);
+  if (resolved.fellBack) {
+    debugLogger.warn("[WhisperWoof] Configured Ollama model not installed — falling back", {
+      requested: resolved.requested,
+      using: resolved.model,
+      available: resolved.available,
+    });
+  }
+  const model = resolved.model;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -253,7 +328,7 @@ async function polishWithProvider(text, systemPrompt, config = {}) {
       model: config.model || provider.defaultModel,
       apiKey: config.apiKey,
       baseUrl: config.baseUrl,
-      timeoutMs: config.timeoutMs || (providerId === "ollama" ? 5000 : 10000),
+      timeoutMs: config.timeoutMs || (providerId === "ollama" ? 15000 : 10000),
     });
 
     if (!result) {
@@ -282,4 +357,7 @@ module.exports = {
   polishWithProvider,
   validateConfig,
   PROVIDERS,
+  // Exported for tests; not part of the public surface.
+  resolveOllamaModel,
+  PREFERRED_OLLAMA_FALLBACKS,
 };

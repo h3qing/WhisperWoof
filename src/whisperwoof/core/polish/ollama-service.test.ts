@@ -314,7 +314,7 @@ describe('OllamaService constructor', () => {
 // ---------------------------------------------------------------------------
 
 describe('Default system prompt', () => {
-  it('includes list formatting instructions', async () => {
+  it('contains the core cleanup instruction', async () => {
     mockFetch.mockResolvedValueOnce(ollamaChatResponse('polished'));
 
     const service = new OllamaService();
@@ -324,11 +324,16 @@ describe('Default system prompt', () => {
     const body = JSON.parse(callArgs[1].body as string);
     const systemPrompt: string = body.messages[0].content;
 
-    expect(systemPrompt).toMatch(/each item on its own line/i);
-    expect(systemPrompt).toMatch(/numbered or bulleted list/i);
+    expect(systemPrompt).toMatch(/grammar/i);
+    expect(systemPrompt).toMatch(/punctuation/i);
+    expect(systemPrompt).toMatch(/return only/i);
   });
 
-  it('includes paragraph separation instructions', async () => {
+  // Regression guard: small models (1B-3B) latch onto subjective instructions
+  // like "detect topic changes" and "format each item on its own line", which
+  // produce duplicated paragraphs, Title Case, and "Here is the cleaned-up
+  // version:" preambles. Keep the default prompt minimal and direct.
+  it('does NOT include subjective topic-detection rules', async () => {
     mockFetch.mockResolvedValueOnce(ollamaChatResponse('polished'));
 
     const service = new OllamaService();
@@ -338,12 +343,12 @@ describe('Default system prompt', () => {
     const body = JSON.parse(callArgs[1].body as string);
     const systemPrompt: string = body.messages[0].content;
 
-    expect(systemPrompt).toMatch(/different topic/i);
-    expect(systemPrompt).toMatch(/new paragraph/i);
-    expect(systemPrompt).toMatch(/blank line/i);
+    expect(systemPrompt).not.toMatch(/different topic/i);
+    expect(systemPrompt).not.toMatch(/new paragraph/i);
+    expect(systemPrompt).not.toMatch(/each item on its own line/i);
   });
 
-  it('custom systemPrompt overrides default list/paragraph instructions', async () => {
+  it('custom systemPrompt fully overrides the default', async () => {
     mockFetch.mockResolvedValueOnce(ollamaChatResponse('custom result'));
 
     const service = new OllamaService();
@@ -354,6 +359,5 @@ describe('Default system prompt', () => {
     const systemPrompt: string = body.messages[0].content;
 
     expect(systemPrompt).toBe('Just fix typos.');
-    expect(systemPrompt).not.toMatch(/each item on its own line/i);
   });
 });
