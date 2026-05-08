@@ -5,6 +5,20 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Refactor
+- **Consolidated text polish onto OpenWhispr's canonical reasoning path.** WhisperWoof previously shipped a parallel polish stack (Ollama backend, BYOM panel, 5 presets, custom-prompt textbox, free-text model field) layered on top of OpenWhispr's existing Intelligence panel (model picker with downloads, Prompt Studio, llama-server backend). Two overlapping UIs, two overlapping backends, only one of which actually ran on dictation. Removed the duplication: dictation polish now flows through `audioManager.processTranscription` → `ReasoningService.processText` → llama-server, gated by Intelligence > "Enable text cleanup". The "Polish (Ollama)" section is gone from WhisperWoof Settings; cleanup is configured in Intelligence + Prompt Studio.
+- **Eliminated double polish.** `useAudioRecording.js` was calling `whisperwoofOllamaPolish` after `audioManager.processTranscription` had already polished the transcript — wasting ~3-4s every dictation on a redundant inference pass. Removed.
+
+### Fixes
+- **Reverted overzealous polish prompt rewrite (commit `dddf61f87`).** The added "PARAGRAPH SEPARATION: detect topic changes" and "do NOT collapse" rules caused small Ollama models (`llama3.2:1b/3b`) to duplicate paragraphs, apply random Title Case, prepend "Here is the cleaned-up version:" preambles, and refuse simple inputs. Restored the simpler pre-rewrite prompts; tests now guard against re-introducing the offending rules.
+- **Ollama model fallback** in `llm-providers.js` — when the configured Ollama model isn't installed, polish silently 404'd. Now pre-checks `/api/tags` (cached 30s) and falls back to a ranked list of preferred models (`qwen2.5:3b → llama3.2:3b → ... → llama3.2:1b`) with a clear log warning. Bumped Ollama timeout 5s → 15s for cold-start of 1B-3B models on Apple Silicon.
+
+### Performance
+- **llama-server pre-warm at startup.** When `sync-startup-preferences` fires (on app boot via `useSettings` mount), if local reasoning is enabled, `modelManager.prewarmServer(modelId)` starts loading the model in parallel with whatever else is happening — saving ~10-15s on the first dictation after launch. Idempotent (`serverManager.start` returns early if already running).
+
+### Tests
+- 53 test files / 963 tests — all green.
+
 ## [1.12.0] - 2026-04-21 — Live Transcript Ticker + Meeting Hotkey Removal
 
 ### New Features

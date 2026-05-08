@@ -4,7 +4,7 @@
 
 WhisperWoof is a voice-first personal automation tool. Fork of OpenWhispr (Electron 39 + React 19 + TypeScript + Tailwind v4 + Vite).
 
-Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotkey-driven routing → Storage
+Core pipeline: Voice → STT (Whisper/Parakeet, local) → LLM Polish (OpenWhispr's `ReasoningService` → bundled llama-server, configured in Intelligence) → Hotkey-driven routing → Storage
 
 ## Planning & Progress
 
@@ -20,7 +20,9 @@ Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotk
 - **Storage** — Main process owns `better-sqlite3` directly in `src/whisperwoof/bridge/app-init.js`; it creates `bf_entries`, `bf_projects`, `bf_snippets`, `bf_snippet_boards`, `bf_audit_log`, and the FTS5 index. A `StorageProvider` TypeScript interface lives in `src/whisperwoof/core/storage/` for the pipeline module, but is not instantiated at runtime. The renderer reads/writes exclusively via IPC handlers in `src/helpers/ipcHandlers.js`.
 - **Hotkey = intent** — Key combo determines destination. No LLM intent detection. Fn+letter combos detected via native `.keyDown` monitor in globe-listener (e.g. Fn+T → clipboard, Fn+N → markdown, Fn+P → project).
 - **MCP for plugins** (Phase 2) — Plugins are MCP servers. WhisperWoof is an MCP client.
-- **Local-first** — No mandatory cloud dependency. Ollama is optional (graceful degradation to raw transcript).
+- **Polish** — Goes through OpenWhispr's existing reasoning stack: `audioManager.processTranscription` (`src/helpers/audioManager.js:648`) calls `ReasoningService.processText` before firing `onTranscriptionComplete`. Local mode uses bundled `llama-server` (llama.cpp) with models managed in Intelligence > AI Text Enhancement. Cloud providers (OpenAI / Anthropic / Gemini / Custom) supported through the same `ReasoningService` class. Prompt source is `src/locales/en/prompts.json` `cleanupPrompt`, overridable in Prompt Studio. The legacy WhisperWoof Ollama polish stack (`src/whisperwoof/bridge/{polish-presets-pure,polish-presets,llm-providers,ollama-bridge}.js`, `src/whisperwoof/core/polish/ollama-service.ts`, `whisperwoof-ollama-polish` IPC) is unwired but still on disk pending Phase-2 deletion.
+- **Local-first** — No mandatory cloud dependency. Local reasoning runs via bundled `llama-server`; downloaded models live under `~/.cache/openwhispr/`. Cleanup gracefully degrades to raw transcript if `useReasoningModel` is off or no model is selected.
+- **Pre-warm** — `sync-startup-preferences` (`ipcHandlers.js`) calls `modelManager.prewarmServer(reasoningModel)` on app boot when local reasoning is enabled, so the first dictation doesn't pay the model-load cost. Idempotent.
 - **Bridge pattern** — `src/whisperwoof/bridge/` is the ONLY place that imports OpenWhispr code. All other WhisperWoof code is isolated.
 
 ## Key Files (after fork setup)
@@ -29,7 +31,9 @@ Core pipeline: Voice → STT (Whisper/Parakeet) → LLM Polish (Ollama) → Hotk
 src/whisperwoof/                 ← ALL WhisperWoof additions
   core/                       ← Main process (strict TypeScript)
     storage/                  StorageProvider interface + shared types (runtime DB lives in bridge/app-init.js)
-    polish/                   OllamaService (adapts OpenWhispr's ReasoningService)
+    polish/                   Legacy Ollama polish service (unwired; pending Phase-2 deletion).
+                              Active polish path is OpenWhispr's ReasoningService called from
+                              audioManager.processTranscription.
     router/                   HotkeyRouter (route definitions + dispatch)
     clipboard/                ClipboardMonitor (NSPasteboard polling)
     pipeline/                 Orchestrates STT → Polish → Route

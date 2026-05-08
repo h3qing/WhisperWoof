@@ -1778,6 +1778,18 @@ class IPCHandlers {
       if (prefs.reasoningProvider === "local" && prefs.reasoningModel) {
         setVars.REASONING_PROVIDER = "local";
         setVars.LOCAL_REASONING_MODEL = prefs.reasoningModel;
+
+        // Pre-warm llama-server so the first dictation doesn't pay the
+        // model-load cost (~10-15s for Qwen3.5 2B on Apple Silicon).
+        // Idempotent: serverManager.start returns early if already running
+        // with the same model, so re-firing on every settings sync is safe.
+        const modelManager = require("./modelManagerBridge").default;
+        modelManager.prewarmServer(prefs.reasoningModel).catch((err) => {
+          debugLogger.warn("Failed to pre-warm llama-server at startup", {
+            modelId: prefs.reasoningModel,
+            error: err.message,
+          });
+        });
       } else if (prefs.reasoningProvider && prefs.reasoningProvider !== "local") {
         clearVars.push("REASONING_PROVIDER", "LOCAL_REASONING_MODEL");
         const modelManager = require("./modelManagerBridge").default;

@@ -62,10 +62,10 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 </table>
 
 ```
-Voice ──▶ Local STT (Whisper/Parakeet)
+Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
               │
               ▼
-         Local LLM Polish (Ollama)
+         Local LLM Polish (bundled llama-server)
          Removes filler, fixes grammar
               │
               ▼
@@ -88,7 +88,7 @@ Voice ──▶ Local STT (Whisper/Parakeet)
 
 ### Core Pipeline
 - **Local voice-to-text** — Whisper STT on your machine. No cloud, no latency, no data leaving your laptop.
-- **AI text polish** — Ollama removes filler, fixes grammar, adds punctuation. 5 presets or write your own.
+- **AI text polish** — Bundled llama-server (Qwen, Llama, Gemma, etc., all downloadable in-app) removes filler, fixes grammar, adds punctuation. Customizable via Prompt Studio.
 - **Hotkey-driven routing** — Different combos send voice to different destinations. Explicit, not magic.
 
 ### Capture & History
@@ -119,7 +119,7 @@ Voice ──▶ Local STT (Whisper/Parakeet)
 - **Source tracking** — Know if a snippet was typed manually, AI-generated, or captured from voice.
 
 ### Privacy & Design
-- **Privacy lock** — One toggle blocks ALL cloud access. Ollama-only, zero network.
+- **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
 - **MCP plugins** — Route voice to Todoist, Notion, Slack. Any MCP server works as a plugin.
 - **Mando's ears** — The floating indicator has dog ears that perk up when you speak.
 
@@ -141,16 +141,13 @@ npm start
 
 **Or download the app directly:** [Latest .dmg release (Apple Silicon)](https://github.com/h3qing/whisperwoof/releases/latest)
 
-**Optional** — install Ollama for AI text polishing:
-```bash
-brew install ollama && ollama pull llama3.2:1b && ollama serve
-```
+The app bundles `llama-server` (llama.cpp) for local LLM polish — no extra install required. On first run, open **Settings → Intelligence** and download a model (Qwen 2-3B is a great default for polish on Apple Silicon).
 
 ### Requirements
 
 - **macOS** (Apple Silicon recommended)
 - **Microphone** (built-in or external)
-- **Ollama** (optional) — for local AI text polish. [Install Ollama](https://ollama.com/)
+- **A local LLM model** (optional) — downloadable from in-app Settings → Intelligence. Polish degrades gracefully to raw transcript if disabled.
 
 <br>
 
@@ -171,7 +168,7 @@ brew install ollama && ollama pull llama3.2:1b && ollama serve
 |---|---|
 | Runtime | Electron 39 + React 19 + TypeScript + Tailwind CSS v4 |
 | STT | OpenAI Whisper / NVIDIA Parakeet (local) |
-| LLM Polish | Ollama (local, optional — works without it) |
+| LLM Polish | Bundled `llama-server` (llama.cpp). Cloud providers (OpenAI, Anthropic, Gemini) optional. |
 | Storage | SQLite + Kysely ORM + FTS5 full-text search |
 | Plugins | Model Context Protocol (MCP) |
 
@@ -194,7 +191,7 @@ brew install ollama && ollama pull llama3.2:1b && ollama serve
 
 WhisperWoof is a fork of **[OpenWhispr](https://github.com/OpenWhispr/openwhispr)** — we're grateful to the OpenWhispr team for building such a solid foundation.
 
-Also built on: [OpenAI Whisper](https://github.com/openai/whisper) · [NVIDIA Parakeet](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) · [Ollama](https://ollama.com/) · [Model Context Protocol](https://modelcontextprotocol.io/)
+Also built on: [OpenAI Whisper](https://github.com/openai/whisper) · [Distil-Whisper](https://github.com/huggingface/distil-whisper) · [NVIDIA Parakeet](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) · [llama.cpp](https://github.com/ggml-org/llama.cpp) · [Model Context Protocol](https://modelcontextprotocol.io/)
 
 <br>
 
