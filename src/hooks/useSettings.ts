@@ -88,6 +88,29 @@ function useSettingsInternal() {
     });
   }, []);
 
+  // One-shot cleanup of orphan polish localStorage keys. After the polish
+  // consolidation (commits a3f10398b / 8e9bf64b1 / c69f3a1d5), nothing reads
+  // these keys — all polish settings now flow through ReasoningService /
+  // settingsStore. Sentinel ensures this runs only once per user.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("whisperwoof-polish-cleanup-v1")) return;
+    const orphanKeys = [
+      "whisperwoof-polish-enabled",
+      "whisperwoof-polish-preset",
+      "whisperwoof-custom-prompt",
+      "whisperwoof-polish-provider",
+      "whisperwoof-polish-model",
+      "whisperwoof-ollama-model",
+      "whisperwoof-openai-api-key",
+      "whisperwoof-anthropic-api-key",
+      "whisperwoof-groq-api-key",
+      "whisperwoof-ollama-api-key",
+    ];
+    orphanKeys.forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("whisperwoof-polish-cleanup-v1", "done");
+  }, []);
+
   // Listen for dictionary updates from main process (auto-learn corrections)
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI?.onDictionaryUpdated) return;
