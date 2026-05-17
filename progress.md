@@ -1,5 +1,235 @@
 # Progress Log
 
+## 2026-05-17 — Session: Polish-consolidation audit + 4 follow-up fixes
+
+Did a thorough code audit of the three polish-architecture consolidation
+commits from the previous session (`6b4255877`, `bb045db38`, `16ec5b256`).
+
+### Findings
+The `bb045db38` commit message claimed the WhisperWoof Ollama polish stack
+was "now-unwired pending Phase-2 deletion." Audit found 5 live callers still
+on the stack:
+
+1. `CommandBar.tsx:85` — `/note` route polishes via `whisperwoofOllamaPolish`
+2. `CommandBar.tsx:116` — default paste-at-cursor polishes via `whisperwoofOllamaPolish`
+3. `ipcHandlers.js:2990` — `whisperwoof-import-audio` polishes file imports
+4. `ipcHandlers.js:3063` — `whisperwoof-meeting-end` polishes meeting transcripts
+5. `tuning-bench.js:127` — Pipeline Tuning Bench (dev-only — intentional)
+
+Other audit findings:
+- **Inconsistent polish behavior**: dictation now uses OpenWhispr's
+  `cleanupPrompt`; the 4 surviving non-dictation surfaces still use the
+  WhisperWoof PRESETS + style-learner + context-detector + vibe-coding +
+  language-detect + backtrack stack. Same user, same settings, different
+  prompts depending on the entry's source.
+- **Pre-warm scope mismatch**: `sync-startup-preferences` deps in
+  `useSettings.ts` don't include `useReasoningModel`. Toggling text cleanup
+  off doesn't stop the server; toggling on mid-session doesn't pre-warm.
+- **Orphan IPC handlers**: `whisperwoof-ollama-check`,
+  `whisperwoof-get-polish-presets`, save/delete custom-preset — handlers
+  registered, preload bindings exposed, but no live source callers after
+  WhisperWoofSettings.tsx was rewritten.
+- **Orphan localStorage keys** persist in user state (no migration).
+- **`wasPolished` boolean** in `useAudioRecording.js:290` can mis-report
+  when polish produces output identical to input.
+- `src/dist/` confirmed not tracked.
+
+### Fixes shipped (4 commits via parallel agents in worktrees)
+
+User decision on the prompt-consistency question: respect the original
+OpenWhispr open-source `cleanupPrompt` everywhere — don't preserve the
+WhisperWoof PRESETS / middleware for the non-dictation surfaces.
+
+1. **`a3f10398b refactor(polish): route CommandBar/file-import/meeting-end
+   through ReasoningService`** — added `polishViaReasoning()` helper in
+   `CommandBar.tsx` mirroring `audioManager.processTranscription`.
+   Stripped inline `polishWithOllama` from `whisperwoof-import-audio` and
+   `whisperwoof-meeting-end` IPC handlers (they return raw transcripts now;
+   polish is a renderer-layer concern). Deleted `whisperwoof-ollama-polish`
+   IPC + preload binding. WhisperWoof Ollama stack now used only by
+   `tuning-bench.js` (dev-only).
+2. **`8e9bf64b1 fix(polish): gate llama-server pre-warm on useReasoningModel
+   toggle`** — added `useReasoningModel` to `useSettings.ts` destructure,
+   payload, dep array. In `sync-startup-preferences`, env vars still set
+   when local+model are configured, but `prewarmServer` is gated on the
+   toggle; when off, `stopServer` runs to free RAM.
+3. **`c69f3a1d5 chore(polish): remove 4 orphan IPC handlers after polish
+   consolidation`** — deleted `whisperwoof-ollama-check`,
+   `whisperwoof-get-polish-presets`, `whisperwoof-save-custom-preset`,
+   `whisperwoof-delete-custom-preset` + their preload bindings.
+   Conservatively kept the underlying helpers in `polish-presets.js`
+   intact for tuning-bench.
+4. **`73bf4319c chore(polish): one-shot cleanup of orphan
+   whisperwoof-polish-* localStorage keys`** — sentinel-gated useEffect in
+   `useSettings.ts` removes 10 orphan keys
+   (`whisperwoof-polish-enabled`, `-preset`, `-custom-prompt`, `-provider`,
+   `-model`, `whisperwoof-ollama-model`, and 4 `*-api-key` keys).
+
+### Orchestration notes
+Ran 4 parallel agents in `git worktree` isolation. Agent D initially
+halted because its worktree branched from a stale commit where the keys
+were still live; re-ran after merging A/B/C to main. Cherry-pick of C
+conflicted with A in `ipcHandlers.js` + `preload.js` (deletion-vs-deletion
+at neighboring lines); resolved by deleting both sides.
+
+### Test results
+- 53 test files / 963 tests passing on the merged tip.
+- Typecheck error count unchanged (10 pre-existing).
+- No manual UI/dev-server testing yet.
+
+### Open threads
+- Phase-2 deletion of the WhisperWoof Ollama polish modules — now safe to
+  delete IF `tuning-bench.js` is also retired or rewritten. Re-evaluate
+  whether tuning-bench is still earning its weight.
+- The cgevent-tap-spike artifact (`resources/cgevent-tap-spike{,.swift}`)
+  is still untracked. Decide: commit under `resources/` w/ a README, or
+  delete.
+- `/office-hours` pass on diarization design — still the next major
+  feature blocker.
+
+## 2026-05-04 → 2026-05-07 — Sessions: Eng-review cherry-pick batch + polish-architecture consolidation
+
+### Upstream cherry-pick batch (PRs #95–#101)
+Eng review on 2026-05-04 split the upstream OpenWhispr cherry-pick queue into
+small ship-now PRs vs. things that need design work. Documented the split in
+the new `TODOS.md`. Shipped this week:
+
+- **#95** `feat(parakeet): add parakeet-unified-en-0.6b model` — registered
+  the 0.6B Parakeet variant alongside the existing 1.1B; smaller download
+  for users who don't need the bigger model.
+- **#96** `feat: extract CancelRecordingButton, always-visible during
+  recording` — pulled the cancel control out into its own component so it
+  renders independently of the indicator's hover state. Previously it only
+  showed on hover, which made aborting a runaway recording feel hidden.
+- **#97** `feat: add autoPasteEnabled toggle (default on)` — surfaced
+  upstream's no-paste mode. Some users want polished text in clipboard but
+  NOT auto-pasted (e.g., they're routing to a different app via Cmd+V
+  themselves).
+- **#98** `feat: add TXT format option to entry export` — JSON|TXT dropdown
+  in StorageManager. SRT was in the upstream commit too but deferred (D6):
+  `bf_entries` has no per-segment timing, so SRT would be a single cue
+  spanning the whole recording — worse than nothing. SRT will land with
+  the `bf_entry_segments` schema that also unblocks diarization.
+- **#99** `feat(meeting): add meeting-state IPC channel + trigger field`
+  — main-process broadcasts meeting lifecycle (started/stopped/source) over
+  a new IPC channel so the renderer can react without polling.
+- **#101** `feat(meeting): MeetingRecordingPill — floating banner during
+  recording` — small pill UI that surfaces "meeting recording in progress"
+  to the user, subscribing to the #99 IPC channel.
+
+Deferred via `TODOS.md`:
+- **Diarization (~PR #6)** — represents ~70% of the upstream effort
+  (b187f3a14 → aec6f74f6 → ef1533a02 → 10fb4adbf → 78a2b82d0). Needs an
+  /office-hours pass on model storage path, on-disk size budget, opt-in
+  policy, and privacy model. Also depends on the `bf_entry_segments`
+  schema. **Start here:** run `/office-hours` with the upstream commit
+  list.
+- **SRT export** — blocked on the same segments schema. Co-design with
+  diarization.
+- **secretCrypto (PR #5)** — scope-blocked. Inspection on 2026-05-04
+  showed the review's premise was wrong: `plugin-bridge.js:62` is a
+  comment, not a `safeStorage` call. Plugin env values are only set in
+  `process.env` at runtime, never persisted. Recorded in TODOS.md so we
+  don't re-investigate.
+
+### Polish-architecture consolidation (three commits, 2026-05-07)
+Long-standing duplication: WhisperWoof shipped a parallel polish stack
+(Ollama backend, BYOM panel, 5 presets, custom-prompt textbox, free-text
+model field) layered on top of OpenWhispr's existing Intelligence panel
+(model picker w/ downloads, Prompt Studio, llama-server backend). Two
+overlapping UIs, two overlapping backends, only one of which actually ran
+on dictation. Tackled this in three commits:
+
+1. **`6b4255877` fix(polish): revert overzealous prompt rewrite + add
+   Ollama model fallback.** The `dddf61f87` "list formatting + paragraph
+   separation" prompt rewrite was actively making polish worse on the
+   default local models (`llama3.2:1b/3b`) — duplicated paragraphs, random
+   Title Case, "Here is the cleaned-up version:" preambles, refusals on
+   simple inputs. Side-by-side tested old vs. new prompt across four
+   representative dictation samples; new prompt was worse on every
+   diverging case. Restored pre-`dddf61f87` prompts in
+   `polish-presets-pure.js` + `ollama-service.ts` default; added tests
+   guarding against re-introduction of the offending rules. Also added a
+   model-fallback resolver in `llm-providers.js`: pre-checks `/api/tags`
+   (cached 30s) and falls back through a ranked list
+   (`qwen2.5:3b → llama3.2:3b → … → llama3.2:1b`) with a clear log
+   warning. Bumped Ollama timeout 5s → 15s for 1B-3B cold start on
+   Apple Silicon.
+
+2. **`bb045db38` refactor(polish): route dictation polish through
+   OpenWhispr's reasoning.** Pulled the trigger on consolidation. Removed
+   the redundant `whisperwoofOllamaPolish` call from
+   `src/hooks/useAudioRecording.js` — `audioManager.processTranscription`
+   (line 648) was already polishing via `ReasoningService` before firing
+   `onTranscriptionComplete`, so the second polish was running every
+   dictation on already-cleaned text. Observed cost: ~3-4s of pure waste
+   per call. Now `useAudioRecording` just consumes `result.text`
+   (polished) + `result.rawText` (raw) from audioManager and keeps the
+   learning-mode toast.
+
+   Dropped the "Polish (Ollama)" `SettingsSection` from
+   `src/whisperwoof/ui/settings/WhisperWoofSettings.tsx` (Enable polish
+   toggle, Style dropdown, Model textbox, Custom instructions textarea).
+   Text cleanup is now configured exclusively in **Intelligence > Enable
+   text cleanup + Prompt Studio**. Polish is gated by `useReasoningModel`,
+   uses the configured `reasoningModel`, reads `cleanupPrompt` from
+   `src/locales/en/prompts.json` (overridable in Prompt Studio).
+
+   Legacy WhisperWoof Ollama polish modules left on disk pending Phase-2
+   deletion (kept change reversible): `polish-presets*.js`,
+   `llm-providers.js`, `ollama-bridge.js`, `ollama-service.ts`, IPC
+   handlers `whisperwoof-ollama-polish` / `whisperwoof-ollama-check` /
+   `whisperwoof-get-polish-presets`, and WhisperWoof-only middleware
+   (style-learner, vibe-coding, backtrack, language-detect,
+   context-detector).
+
+3. **`16ec5b256` perf(polish)+docs: pre-warm llama-server + catch up
+   CHANGELOG/CLAUDE/README.** When `sync-startup-preferences` fires on app
+   boot (via `useSettings` useEffect mount), if local reasoning is enabled
+   and `reasoningModel` is configured,
+   `modelManager.prewarmServer(reasoningModel)` is called fire-and-forget.
+   Saves ~10-15s on the first dictation after launch (Qwen3.5 2B model-load
+   cost on Apple Silicon). Idempotent — `serverManager.start` returns early
+   if already running with the same model, so re-firing on settings
+   changes is safe.
+
+   Documentation catch-up:
+   - `CLAUDE.md` — rewrote Architecture > Polish bullet to describe the
+     new flow (`audioManager.processTranscription` → `ReasoningService` →
+     `llama-server`); flagged legacy Ollama stack as unwired pending
+     Phase-2 deletion. Added a Pre-warm bullet. Updated Key Files tree
+     comment for `src/whisperwoof/core/polish/`.
+   - `README.md` — pipeline diagram now reads "bundled llama-server"
+     instead of "Ollama"; "AI text polish" copy mentions Prompt Studio
+     rather than 5 presets; Quick Start drops the `brew install ollama`
+     step (the app bundles llama-server); requirements + tech stack +
+     credits updated to reflect llama.cpp + Distil-Whisper.
+   - `CHANGELOG.md` — `[Unreleased]` entries covering revert, fallback,
+     consolidation, double-polish removal, and pre-warm.
+
+### Uncommitted on disk
+- `resources/cgevent-tap-spike` + `cgevent-tap-spike.swift` — 111-line
+  Swift proof-of-concept for `CGEventTapCreate` at `.cgSessionEventTap` /
+  `.headInsertEventTap` that consumes Fn+T/N/P keyDown+keyUp before the
+  focused app sees them (returns `nil` from the tap callback). Built
+  2026-04-14 — same day v1.11.0 shipped the CGEventTap rewrite of
+  `macos-globe-listener.swift`. This is the standalone prototype that
+  informed that rewrite, kept as a reference implementation but never
+  committed. Safe to delete; or commit under `resources/` if we want it
+  preserved for future tap experiments.
+
+### Test results
+- 53 test files / 963 tests — all green.
+
+### Open threads for next session
+- Phase-2 deletion of the unwired WhisperWoof Ollama polish stack (now
+  that the consolidation has had time to bake).
+- Decide whether to keep the cgevent-tap-spike artifact (commit under
+  `resources/` w/ README, or delete).
+- `/office-hours` pass on diarization design (see TODOS.md). This is the
+  next major feature — the `bf_entry_segments` schema design unlocks both
+  diarization and SRT export.
+
 ## 2026-04-21 — Session: Live transcript ticker + meeting hotkey removal + v1.12.0
 
 ### Live transcript ticker in floating indicator
