@@ -1813,16 +1813,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: Ollama text polish — separate from OpenWhispr's reasoning system
-    ipcMain.handle("whisperwoof-ollama-polish", async (event, text, options) => {
-      try {
-        const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-        return await polishWithOllama(text, options);
-      } catch (error) {
-        return { success: true, text, polished: false, error: error.message };
-      }
-    });
-
     ipcMain.handle("whisperwoof-ollama-check", async () => {
       try {
         const { checkOllamaAvailable } = require("../whisperwoof/bridge/ollama-bridge");
@@ -2985,18 +2975,16 @@ class IPCHandlers {
         );
 
         if (transcription.success && transcription.text) {
-          let polished = null;
-          try {
-            const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-            const polishResult = await polishWithOllama(transcription.text);
-            if (polishResult.polished) polished = polishResult.text;
-          } catch { /* polish failed, use raw */ }
-
+          // Polish is a renderer-layer concern (routes through ReasoningService
+          // with the canonical cleanupPrompt and the user's useReasoningModel
+          // setting). The IPC returns the raw transcript; if a caller wants
+          // polished output, it can run ReasoningService.processText on rawText
+          // and update the entry via whisperwoofUpdateEntry.
           const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
           const entry = saveWhisperWoofEntry({
             source: "import",
             rawText: transcription.text,
-            polished,
+            polished: null,
             routedTo: null,
             hotkeyUsed: null,
             durationMs: null,
@@ -3007,7 +2995,7 @@ class IPCHandlers {
 
           return {
             success: true,
-            text: polished || transcription.text,
+            text: transcription.text,
             rawText: transcription.text,
             entryId: entry?.id,
             filename: result.filename,
@@ -3056,22 +3044,16 @@ class IPCHandlers {
           return { success: false, error: "No active meeting" };
         }
 
-        // Optionally polish transcript via Ollama
-        let polished = null;
-        if (result.transcript) {
-          try {
-            const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-            const polishResult = await polishWithOllama(result.transcript);
-            if (polishResult.polished) polished = polishResult.text;
-          } catch { /* polish failed, use raw transcript */ }
-        }
-
-        // Save to bf_entries
+        // Polish is a renderer-layer concern (routes through ReasoningService
+        // with the canonical cleanupPrompt and the user's useReasoningModel
+        // setting). The IPC returns the raw transcript; if a caller wants
+        // polished output, it can run ReasoningService.processText on transcript
+        // and update the entry via whisperwoofUpdateEntry.
         const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
         const entry = saveWhisperWoofEntry({
           source: "meeting",
           rawText: result.transcript,
-          polished,
+          polished: null,
           routedTo: null,
           hotkeyUsed: null,
           durationMs: result.durationMs,
@@ -3088,7 +3070,7 @@ class IPCHandlers {
           success: true,
           meetingId: result.id,
           transcript: result.transcript,
-          polished,
+          polished: null,
           durationMs: result.durationMs,
           segmentCount: result.segmentCount,
           transcriptOnly: result.transcriptOnly,

@@ -672,8 +672,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateNotificationReady: () => ipcRenderer.invoke("update-notification-ready"),
   updateNotificationRespond: (action) => ipcRenderer.invoke("update-notification-respond", action),
 
-  // WhisperWoof: Text polish (BYOM — multiple LLM providers)
-  whisperwoofOllamaPolish: (text, options) => ipcRenderer.invoke("whisperwoof-ollama-polish", text, options),
+  // WhisperWoof: Ollama availability check (still surfaced for diagnostics).
+  // Note: production polish is no longer routed through Ollama — see
+  // ReasoningService in the renderer (uses the canonical cleanupPrompt). The
+  // legacy WhisperWoof polish stack is retained only for tuning-bench.js.
   whisperwoofOllamaCheck: () => ipcRenderer.invoke("whisperwoof-ollama-check"),
   whisperwoofGetPolishPresets: () => ipcRenderer.invoke("whisperwoof-get-polish-presets"),
   whisperwoofGetProviders: () => ipcRenderer.invoke("whisperwoof-get-providers"),
