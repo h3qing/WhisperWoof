@@ -1828,15 +1828,6 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-ollama-check", async () => {
-      try {
-        const { checkOllamaAvailable } = require("../whisperwoof/bridge/ollama-bridge");
-        return await checkOllamaAvailable();
-      } catch {
-        return { available: false, models: [] };
-      }
-    });
-
     // WhisperWoof: LLM provider management (BYOM)
     ipcMain.handle("whisperwoof-get-providers", async () => {
       try {
@@ -2734,12 +2725,6 @@ class IPCHandlers {
         debugLogger.log(`[WhisperWoof] expand-snippet failed: ${error.message}`);
         return null;
       }
-    });
-
-    // WhisperWoof: Polish presets (personality selection)
-    ipcMain.handle("whisperwoof-get-polish-presets", async () => {
-      const { getPolishPresets } = require("../whisperwoof/bridge/polish-presets");
-      return getPolishPresets();
     });
 
     // WhisperWoof: Save entry to bf_entries table
@@ -6194,23 +6179,6 @@ class IPCHandlers {
       try {
         const tb = require("../whisperwoof/bridge/tuning-bench");
         tb.deleteVariant(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
-    });
-
-    // --- Custom Modes ---
-
-    ipcMain.handle("whisperwoof-save-custom-preset", async (_event, preset) => {
-      try {
-        const { saveCustomPreset } = require("../whisperwoof/bridge/polish-presets");
-        return saveCustomPreset(preset);
-      } catch (error) { return null; }
-    });
-
-    ipcMain.handle("whisperwoof-delete-custom-preset", async (_event, id) => {
-      try {
-        const { deleteCustomPreset } = require("../whisperwoof/bridge/polish-presets");
-        deleteCustomPreset(id);
         return { success: true };
       } catch (error) { return { success: false }; }
     });
