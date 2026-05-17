@@ -850,8 +850,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     const startTime = Date.now();
 
+    // Cap polish at POLISH_TIMEOUT_MS (default 3s). On timeout the caller
+    // catches and falls back to the raw transcript — better to ship raw fast
+    // than block dictation on a cold-starting model or a stalled provider.
+    const timeoutMs = parseInt(
+      (typeof process !== "undefined" && process.env && process.env.POLISH_TIMEOUT_MS) || "3000",
+      10
+    );
+
     try {
-      const result = await ReasoningService.processText(text, model, agentName);
+      let timeoutHandle;
+      const polishPromise = ReasoningService.processText(text, model, agentName);
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          const err = new Error(`Polish timed out after ${timeoutMs}ms`);
+          err.code = "POLISH_TIMEOUT";
+          reject(err);
+        }, timeoutMs);
+      });
+
+      let result;
+      try {
+        result = await Promise.race([polishPromise, timeoutPromise]);
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      }
 
       const processingTime = Date.now() - startTime;
 
@@ -870,6 +893,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         model,
         processingTimeMs: processingTime,
         error: error.message,
+        timedOut: error.code === "POLISH_TIMEOUT",
         stack: error.stack,
       });
 
@@ -953,6 +977,22 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       logger.logReasoning("TRANSCRIPTION_EMPTY_SKIPPING_REASONING", {
         source,
         reason: "Empty text after normalization",
+      });
+      return normalizedText;
+    }
+
+    // Skip polish for very short transcripts: an LLM round-trip on text this
+    // short typically costs more than the cleanup is worth (and often returns
+    // the input unchanged). Threshold overridable via env for power users.
+    const skipThreshold = parseInt(
+      (typeof process !== "undefined" && process.env && process.env.POLISH_SKIP_CHARS) || "25",
+      10
+    );
+    if (Number.isFinite(skipThreshold) && skipThreshold > 0 && normalizedText.length < skipThreshold) {
+      logger.logReasoning("REASONING_SKIPPED_SHORT_TEXT", {
+        source,
+        textLength: normalizedText.length,
+        threshold: skipThreshold,
       });
       return normalizedText;
     }

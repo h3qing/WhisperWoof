@@ -302,11 +302,20 @@ class IPCHandlers {
       }
     }
     if (changed) {
-      debugLogger.debug("Synced startup env vars", {
+      debugLogger.info("Synced startup env vars", {
         set: Object.keys(setVars),
         cleared: clearVars.filter((k) => !process.env[k]),
       });
-      this.environmentManager.saveAllKeysToEnvFile().catch(() => {});
+      // Surface persistence failures: when the userData .env can't be written,
+      // every subsequent app launch loses pre-warm because main.js boot relies
+      // on REASONING_PROVIDER / LOCAL_REASONING_MODEL being present. Silent
+      // catch hid this for weeks — see 2026-05-17 audit.
+      this.environmentManager.saveAllKeysToEnvFile().catch((err) => {
+        debugLogger.warn("Failed to persist startup env vars to userData .env", {
+          error: err && err.message ? err.message : String(err),
+          keys: Object.keys(setVars),
+        });
+      });
     }
   }
 

@@ -16,6 +16,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ### Performance
 - **llama-server pre-warm at startup.** When `sync-startup-preferences` fires (on app boot via `useSettings` mount), if local reasoning is enabled, `modelManager.prewarmServer(modelId)` starts loading the model in parallel with whatever else is happening — saving ~10-15s on the first dictation after launch. Idempotent (`serverManager.start` returns early if already running).
+- **Skip polish for short transcripts.** Dictations under 25 characters now short-circuit before the reasoning round-trip — LLM cleanup on text this short usually returns the input unchanged and just adds latency. Tested: a 15-char dictation that previously paid the full polish round-trip (13s cold / ~500ms warm) now skips it entirely. Threshold overridable via `POLISH_SKIP_CHARS` env var.
+- **Polish timeout + raw fallback (3s cap).** Wrapped `ReasoningService.processText` in `Promise.race` with a 3s default timeout. On timeout (cold-starting model, stalled provider, etc.), the caller catches and falls back to the raw transcript — better to ship raw fast than block dictation. Threshold overridable via `POLISH_TIMEOUT_MS`.
+- **Surface env-write persistence failures.** The `_syncStartupEnv` handler was silently catching `saveAllKeysToEnvFile` errors — a real persistence bug observed on 2026-05-17 (user's `.env` hadn't been updated in a month despite reasoning settings being active) was invisible in logs. Replaced `.catch(() => {})` with a `debugLogger.warn` so future failures become diagnosable. When the userData `.env` doesn't get written, every subsequent boot loses pre-warm (main.js gates on `REASONING_PROVIDER` being present).
 
 ### Tests
 - 53 test files / 963 tests — all green.
