@@ -131,6 +131,7 @@ function useSettingsInternal() {
     parakeetModel,
     reasoningProvider,
     reasoningModel,
+    useReasoningModel,
   } = store;
 
   useEffect(() => {
@@ -144,6 +145,7 @@ function useSettingsInternal() {
         model: model || undefined,
         reasoningProvider,
         reasoningModel: reasoningProvider === "local" ? reasoningModel : undefined,
+        useReasoningModel,
       })
       .catch((err) =>
         logger.warn(
@@ -159,6 +161,7 @@ function useSettingsInternal() {
     parakeetModel,
     reasoningProvider,
     reasoningModel,
+    useReasoningModel,
   ]);
 
   return {

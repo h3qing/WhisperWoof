@@ -1776,20 +1776,35 @@ class IPCHandlers {
       }
 
       if (prefs.reasoningProvider === "local" && prefs.reasoningModel) {
+        // Configuration is independent of active use: persist env vars whenever
+        // local + model are set so the renderer/reasoning service can pick them
+        // up later. Only the prewarm (active RAM use) is gated by the master
+        // useReasoningModel toggle below.
         setVars.REASONING_PROVIDER = "local";
         setVars.LOCAL_REASONING_MODEL = prefs.reasoningModel;
 
-        // Pre-warm llama-server so the first dictation doesn't pay the
-        // model-load cost (~10-15s for Qwen3.5 2B on Apple Silicon).
-        // Idempotent: serverManager.start returns early if already running
-        // with the same model, so re-firing on every settings sync is safe.
         const modelManager = require("./modelManagerBridge").default;
-        modelManager.prewarmServer(prefs.reasoningModel).catch((err) => {
-          debugLogger.warn("Failed to pre-warm llama-server at startup", {
-            modelId: prefs.reasoningModel,
-            error: err.message,
+        if (prefs.useReasoningModel) {
+          // Pre-warm llama-server so the first dictation doesn't pay the
+          // model-load cost (~10-15s for Qwen3.5 2B on Apple Silicon).
+          // Idempotent: serverManager.start returns early if already running
+          // with the same model, so re-firing on every settings sync is safe.
+          modelManager.prewarmServer(prefs.reasoningModel).catch((err) => {
+            debugLogger.warn("Failed to pre-warm llama-server at startup", {
+              modelId: prefs.reasoningModel,
+              error: err.message,
+            });
           });
-        });
+        } else {
+          // Master toggle is off — stop server to free RAM. Mirrors the
+          // cloud-switch stop path below so flipping the toggle off mid-session
+          // releases resources without waiting for an app restart.
+          modelManager.stopServer().catch((err) => {
+            debugLogger.warn("Failed to stop llama-server (useReasoningModel off)", {
+              error: err.message,
+            });
+          });
+        }
       } else if (prefs.reasoningProvider && prefs.reasoningProvider !== "local") {
         clearVars.push("REASONING_PROVIDER", "LOCAL_REASONING_MODEL");
         const modelManager = require("./modelManagerBridge").default;
