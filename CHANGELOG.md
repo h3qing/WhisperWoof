@@ -5,6 +5,8 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-05-18 — Polish Architecture Consolidation + Speed Wins
+
 ### Refactor
 - **Consolidated text polish onto OpenWhispr's canonical reasoning path.** WhisperWoof previously shipped a parallel polish stack (Ollama backend, BYOM panel, 5 presets, custom-prompt textbox, free-text model field) layered on top of OpenWhispr's existing Intelligence panel (model picker with downloads, Prompt Studio, llama-server backend). Two overlapping UIs, two overlapping backends, only one of which actually ran on dictation. Removed the duplication: dictation polish now flows through `audioManager.processTranscription` → `ReasoningService.processText` → llama-server, gated by Intelligence > "Enable text cleanup". The "Polish (Ollama)" section is gone from WhisperWoof Settings; cleanup is configured in Intelligence + Prompt Studio.
 - **Eliminated double polish.** `useAudioRecording.js` was calling `whisperwoofOllamaPolish` after `audioManager.processTranscription` had already polished the transcript — wasting ~3-4s every dictation on a redundant inference pass. Removed.
