@@ -18,9 +18,6 @@ const DEFAULT_MAX_TOKENS = 1024;
 const DEFAULT_SYSTEM_PROMPT =
   'You are a transcript polisher. Clean up the following raw voice transcript: ' +
   'fix grammar, punctuation, and formatting. Keep the original meaning. ' +
-  'When the speaker lists items (first/second/third, numbered items, or sequential steps), ' +
-  'format each item on its own line as a numbered or bulleted list. ' +
-  'When the speaker shifts to a different topic, start a new paragraph with a blank line between them. ' +
   'Return ONLY the polished text, nothing else.';
 
 // ---------------------------------------------------------------------------

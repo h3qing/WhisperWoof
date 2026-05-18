@@ -450,6 +450,7 @@ declare global {
         model?: string;
         reasoningProvider: string;
         reasoningModel?: string;
+        useReasoningModel?: boolean;
       }) => Promise<void>;
 
       // Clipboard operations

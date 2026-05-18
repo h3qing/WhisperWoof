@@ -302,11 +302,20 @@ class IPCHandlers {
       }
     }
     if (changed) {
-      debugLogger.debug("Synced startup env vars", {
+      debugLogger.info("Synced startup env vars", {
         set: Object.keys(setVars),
         cleared: clearVars.filter((k) => !process.env[k]),
       });
-      this.environmentManager.saveAllKeysToEnvFile().catch(() => {});
+      // Surface persistence failures: when the userData .env can't be written,
+      // every subsequent app launch loses pre-warm because main.js boot relies
+      // on REASONING_PROVIDER / LOCAL_REASONING_MODEL being present. Silent
+      // catch hid this for weeks — see 2026-05-17 audit.
+      this.environmentManager.saveAllKeysToEnvFile().catch((err) => {
+        debugLogger.warn("Failed to persist startup env vars to userData .env", {
+          error: err && err.message ? err.message : String(err),
+          keys: Object.keys(setVars),
+        });
+      });
     }
   }
 
@@ -1776,8 +1785,35 @@ class IPCHandlers {
       }
 
       if (prefs.reasoningProvider === "local" && prefs.reasoningModel) {
+        // Configuration is independent of active use: persist env vars whenever
+        // local + model are set so the renderer/reasoning service can pick them
+        // up later. Only the prewarm (active RAM use) is gated by the master
+        // useReasoningModel toggle below.
         setVars.REASONING_PROVIDER = "local";
         setVars.LOCAL_REASONING_MODEL = prefs.reasoningModel;
+
+        const modelManager = require("./modelManagerBridge").default;
+        if (prefs.useReasoningModel) {
+          // Pre-warm llama-server so the first dictation doesn't pay the
+          // model-load cost (~10-15s for Qwen3.5 2B on Apple Silicon).
+          // Idempotent: serverManager.start returns early if already running
+          // with the same model, so re-firing on every settings sync is safe.
+          modelManager.prewarmServer(prefs.reasoningModel).catch((err) => {
+            debugLogger.warn("Failed to pre-warm llama-server at startup", {
+              modelId: prefs.reasoningModel,
+              error: err.message,
+            });
+          });
+        } else {
+          // Master toggle is off — stop server to free RAM. Mirrors the
+          // cloud-switch stop path below so flipping the toggle off mid-session
+          // releases resources without waiting for an app restart.
+          modelManager.stopServer().catch((err) => {
+            debugLogger.warn("Failed to stop llama-server (useReasoningModel off)", {
+              error: err.message,
+            });
+          });
+        }
       } else if (prefs.reasoningProvider && prefs.reasoningProvider !== "local") {
         clearVars.push("REASONING_PROVIDER", "LOCAL_REASONING_MODEL");
         const modelManager = require("./modelManagerBridge").default;
@@ -1798,25 +1834,6 @@ class IPCHandlers {
         return { success: true, text: result };
       } catch (error) {
         return { success: false, error: error.message };
-      }
-    });
-
-    // WhisperWoof: Ollama text polish — separate from OpenWhispr's reasoning system
-    ipcMain.handle("whisperwoof-ollama-polish", async (event, text, options) => {
-      try {
-        const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-        return await polishWithOllama(text, options);
-      } catch (error) {
-        return { success: true, text, polished: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-ollama-check", async () => {
-      try {
-        const { checkOllamaAvailable } = require("../whisperwoof/bridge/ollama-bridge");
-        return await checkOllamaAvailable();
-      } catch {
-        return { available: false, models: [] };
       }
     });
 
@@ -2719,12 +2736,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: Polish presets (personality selection)
-    ipcMain.handle("whisperwoof-get-polish-presets", async () => {
-      const { getPolishPresets } = require("../whisperwoof/bridge/polish-presets");
-      return getPolishPresets();
-    });
-
     // WhisperWoof: Save entry to bf_entries table
     ipcMain.handle("whisperwoof-save-entry", async (event, entry) => {
       try {
@@ -2973,18 +2984,16 @@ class IPCHandlers {
         );
 
         if (transcription.success && transcription.text) {
-          let polished = null;
-          try {
-            const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-            const polishResult = await polishWithOllama(transcription.text);
-            if (polishResult.polished) polished = polishResult.text;
-          } catch { /* polish failed, use raw */ }
-
+          // Polish is a renderer-layer concern (routes through ReasoningService
+          // with the canonical cleanupPrompt and the user's useReasoningModel
+          // setting). The IPC returns the raw transcript; if a caller wants
+          // polished output, it can run ReasoningService.processText on rawText
+          // and update the entry via whisperwoofUpdateEntry.
           const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
           const entry = saveWhisperWoofEntry({
             source: "import",
             rawText: transcription.text,
-            polished,
+            polished: null,
             routedTo: null,
             hotkeyUsed: null,
             durationMs: null,
@@ -2995,7 +3004,7 @@ class IPCHandlers {
 
           return {
             success: true,
-            text: polished || transcription.text,
+            text: transcription.text,
             rawText: transcription.text,
             entryId: entry?.id,
             filename: result.filename,
@@ -3044,22 +3053,16 @@ class IPCHandlers {
           return { success: false, error: "No active meeting" };
         }
 
-        // Optionally polish transcript via Ollama
-        let polished = null;
-        if (result.transcript) {
-          try {
-            const { polishWithOllama } = require("../whisperwoof/bridge/ollama-bridge");
-            const polishResult = await polishWithOllama(result.transcript);
-            if (polishResult.polished) polished = polishResult.text;
-          } catch { /* polish failed, use raw transcript */ }
-        }
-
-        // Save to bf_entries
+        // Polish is a renderer-layer concern (routes through ReasoningService
+        // with the canonical cleanupPrompt and the user's useReasoningModel
+        // setting). The IPC returns the raw transcript; if a caller wants
+        // polished output, it can run ReasoningService.processText on transcript
+        // and update the entry via whisperwoofUpdateEntry.
         const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
         const entry = saveWhisperWoofEntry({
           source: "meeting",
           rawText: result.transcript,
-          polished,
+          polished: null,
           routedTo: null,
           hotkeyUsed: null,
           durationMs: result.durationMs,
@@ -3076,7 +3079,7 @@ class IPCHandlers {
           success: true,
           meetingId: result.id,
           transcript: result.transcript,
-          polished,
+          polished: null,
           durationMs: result.durationMs,
           segmentCount: result.segmentCount,
           transcriptOnly: result.transcriptOnly,
@@ -6185,23 +6188,6 @@ class IPCHandlers {
       try {
         const tb = require("../whisperwoof/bridge/tuning-bench");
         tb.deleteVariant(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
-    });
-
-    // --- Custom Modes ---
-
-    ipcMain.handle("whisperwoof-save-custom-preset", async (_event, preset) => {
-      try {
-        const { saveCustomPreset } = require("../whisperwoof/bridge/polish-presets");
-        return saveCustomPreset(preset);
-      } catch (error) { return null; }
-    });
-
-    ipcMain.handle("whisperwoof-delete-custom-preset", async (_event, id) => {
-      try {
-        const { deleteCustomPreset } = require("../whisperwoof/bridge/polish-presets");
-        deleteCustomPreset(id);
         return { success: true };
       } catch (error) { return { success: false }; }
     });

@@ -672,10 +672,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateNotificationReady: () => ipcRenderer.invoke("update-notification-ready"),
   updateNotificationRespond: (action) => ipcRenderer.invoke("update-notification-respond", action),
 
-  // WhisperWoof: Text polish (BYOM — multiple LLM providers)
-  whisperwoofOllamaPolish: (text, options) => ipcRenderer.invoke("whisperwoof-ollama-polish", text, options),
-  whisperwoofOllamaCheck: () => ipcRenderer.invoke("whisperwoof-ollama-check"),
-  whisperwoofGetPolishPresets: () => ipcRenderer.invoke("whisperwoof-get-polish-presets"),
   whisperwoofGetProviders: () => ipcRenderer.invoke("whisperwoof-get-providers"),
   whisperwoofSaveEntry: (entry) => ipcRenderer.invoke("whisperwoof-save-entry", entry),
 
@@ -938,10 +934,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofTuningGetVariants: (testCaseId) => ipcRenderer.invoke("whisperwoof-tuning-get-variants", testCaseId),
   whisperwoofTuningRunVariant: (config) => ipcRenderer.invoke("whisperwoof-tuning-run-variant", config),
   whisperwoofTuningDeleteVariant: (id) => ipcRenderer.invoke("whisperwoof-tuning-delete-variant", id),
-
-  // Custom Modes
-  whisperwoofSaveCustomPreset: (preset) => ipcRenderer.invoke("whisperwoof-save-custom-preset", preset),
-  whisperwoofDeleteCustomPreset: (id) => ipcRenderer.invoke("whisperwoof-delete-custom-preset", id),
 
   // Eval Dataset
   whisperwoofRateTranscription: (params) => ipcRenderer.invoke("whisperwoof-rate-transcription", params),

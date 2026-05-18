@@ -5,6 +5,26 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-05-18 — Polish Architecture Consolidation + Speed Wins
+
+### Refactor
+- **Consolidated text polish onto OpenWhispr's canonical reasoning path.** WhisperWoof previously shipped a parallel polish stack (Ollama backend, BYOM panel, 5 presets, custom-prompt textbox, free-text model field) layered on top of OpenWhispr's existing Intelligence panel (model picker with downloads, Prompt Studio, llama-server backend). Two overlapping UIs, two overlapping backends, only one of which actually ran on dictation. Removed the duplication: dictation polish now flows through `audioManager.processTranscription` → `ReasoningService.processText` → llama-server, gated by Intelligence > "Enable text cleanup". The "Polish (Ollama)" section is gone from WhisperWoof Settings; cleanup is configured in Intelligence + Prompt Studio.
+- **Eliminated double polish.** `useAudioRecording.js` was calling `whisperwoofOllamaPolish` after `audioManager.processTranscription` had already polished the transcript — wasting ~3-4s every dictation on a redundant inference pass. Removed.
+- **Routed CommandBar (Cmd+K), file-import, and meeting-end polish through `ReasoningService`.** Three remaining production callers were still on the parallel WhisperWoof Ollama polish stack — `CommandBar.tsx` (`/note` route + default paste-at-cursor) called `whisperwoofOllamaPolish` directly, and the `whisperwoof-import-audio` + `whisperwoof-meeting-end` IPC handlers in `ipcHandlers.js` invoked `polishWithOllama` inline. All three now use the canonical `cleanupPrompt` and the user's `useReasoningModel` setting. CommandBar mirrors `audioManager.processTranscription` directly. The two IPC handlers return raw transcripts and save with `polished: null`, leaving polish as a renderer-layer concern (clean separation: IPC handles audio→text; polish is a UI setting that may not even be enabled). Deleted the now-dead `whisperwoof-ollama-polish` IPC handler and the `whisperwoofOllamaPolish` preload binding. The legacy Ollama polish stack is retained only because `src/whisperwoof/bridge/tuning-bench.js` (dev-only preset-comparison bench) still uses it directly.
+
+### Fixes
+- **Reverted overzealous polish prompt rewrite (commit `dddf61f87`).** The added "PARAGRAPH SEPARATION: detect topic changes" and "do NOT collapse" rules caused small Ollama models (`llama3.2:1b/3b`) to duplicate paragraphs, apply random Title Case, prepend "Here is the cleaned-up version:" preambles, and refuse simple inputs. Restored the simpler pre-rewrite prompts; tests now guard against re-introducing the offending rules.
+- **Ollama model fallback** in `llm-providers.js` — when the configured Ollama model isn't installed, polish silently 404'd. Now pre-checks `/api/tags` (cached 30s) and falls back to a ranked list of preferred models (`qwen2.5:3b → llama3.2:3b → ... → llama3.2:1b`) with a clear log warning. Bumped Ollama timeout 5s → 15s for cold-start of 1B-3B models on Apple Silicon.
+
+### Performance
+- **llama-server pre-warm at startup.** When `sync-startup-preferences` fires (on app boot via `useSettings` mount), if local reasoning is enabled, `modelManager.prewarmServer(modelId)` starts loading the model in parallel with whatever else is happening — saving ~10-15s on the first dictation after launch. Idempotent (`serverManager.start` returns early if already running).
+- **Skip polish for short transcripts.** Dictations under 25 characters now short-circuit before the reasoning round-trip — LLM cleanup on text this short usually returns the input unchanged and just adds latency. Tested: a 15-char dictation that previously paid the full polish round-trip (13s cold / ~500ms warm) now skips it entirely. Threshold overridable via `POLISH_SKIP_CHARS` env var.
+- **Polish timeout + raw fallback (3s cap).** Wrapped `ReasoningService.processText` in `Promise.race` with a 3s default timeout. On timeout (cold-starting model, stalled provider, etc.), the caller catches and falls back to the raw transcript — better to ship raw fast than block dictation. Threshold overridable via `POLISH_TIMEOUT_MS`.
+- **Surface env-write persistence failures.** The `_syncStartupEnv` handler was silently catching `saveAllKeysToEnvFile` errors — a real persistence bug observed on 2026-05-17 (user's `.env` hadn't been updated in a month despite reasoning settings being active) was invisible in logs. Replaced `.catch(() => {})` with a `debugLogger.warn` so future failures become diagnosable. When the userData `.env` doesn't get written, every subsequent boot loses pre-warm (main.js gates on `REASONING_PROVIDER` being present).
+
+### Tests
+- 53 test files / 963 tests — all green.
+
 ## [1.12.0] - 2026-04-21 — Live Transcript Ticker + Meeting Hotkey Removal
 
 ### New Features

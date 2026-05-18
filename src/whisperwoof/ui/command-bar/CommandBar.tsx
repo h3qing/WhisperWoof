@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Command, X } from "lucide-react";
+import ReasoningService from "../../../services/ReasoningService";
+import { getSettings, getEffectiveReasoningModel } from "../../../stores/settingsStore";
 
 /**
  * Command Bar (Cmd+K) — Type text directly into the WhisperWoof pipeline.
@@ -9,7 +11,40 @@ import { Command, X } from "lucide-react";
  *   /note Meeting notes  → saves as markdown
  *   /project Ideas       → captures to project
  *   (no prefix)          → default paste-at-cursor + polish
+ *
+ * Polish routes through OpenWhispr's ReasoningService (same path as dictation),
+ * gated on the same `useReasoningModel` setting and using the canonical
+ * `cleanupPrompt`. No polish when the setting is off or no model selected.
  */
+
+/**
+ * Polish text via ReasoningService (mirrors audioManager.processTranscription).
+ * Returns { text, polished } where polished=true only if reasoning actually ran.
+ */
+async function polishViaReasoning(text: string): Promise<{ text: string; polished: boolean }> {
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (!trimmed) return { text: trimmed, polished: false };
+
+  try {
+    const settings = getSettings();
+    if (!settings.useReasoningModel) return { text: trimmed, polished: false };
+
+    const model = getEffectiveReasoningModel();
+    if (!model) return { text: trimmed, polished: false };
+
+    const agentName =
+      typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem("agentName") || null
+        : null;
+
+    const result = await ReasoningService.processText(trimmed, model, agentName);
+    const clean = typeof result === "string" ? result.trim() : "";
+    if (!clean) return { text: trimmed, polished: false };
+    return { text: clean, polished: true };
+  } catch {
+    return { text: trimmed, polished: false };
+  }
+}
 
 interface CommandBarProps {
   readonly isOpen: boolean;
@@ -82,15 +117,15 @@ export default function CommandBar({ isOpen, onClose }: CommandBarProps) {
     try {
       if (route?.destination === "save-as-markdown" && text) {
         // Polish first, then save
-        const polishResult = await api?.whisperwoofOllamaPolish?.(text);
-        const polished = polishResult?.polished ? polishResult.text : text;
+        const polishResult = await polishViaReasoning(text);
+        const polished = polishResult.polished ? polishResult.text : text;
         await api?.whisperwoofSaveMarkdown?.(polished);
 
         // Save to bf_entries
         await api?.whisperwoofSaveEntry?.({
           source: "voice",
           rawText: text,
-          polished: polishResult?.polished ? polished : null,
+          polished: polishResult.polished ? polished : null,
           routedTo: "save-as-markdown",
           hotkeyUsed: "Cmd+K",
           durationMs: null,
@@ -113,14 +148,14 @@ export default function CommandBar({ isOpen, onClose }: CommandBarProps) {
         });
       } else {
         // Default: polish and paste at cursor
-        const polishResult = await api?.whisperwoofOllamaPolish?.(text);
-        const polished = polishResult?.polished ? polishResult.text : text;
+        const polishResult = await polishViaReasoning(text);
+        const polished = polishResult.polished ? polishResult.text : text;
         await api?.pasteText?.(polished);
 
         await api?.whisperwoofSaveEntry?.({
           source: "voice",
           rawText: text,
-          polished: polishResult?.polished ? polished : null,
+          polished: polishResult.polished ? polished : null,
           routedTo: route?.destination || "paste-at-cursor",
           hotkeyUsed: "Cmd+K",
           durationMs: null,
