@@ -36,21 +36,33 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full', partialTranscript = '' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing' }) => {
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
   const isIdle = !recording && !isProcessing;
   const showLiveTranscript = localStorage.getItem("whisperwoof-live-transcript") !== "false";
 
-  // Pick a new verb each time processing starts (stable during processing)
+  // Keep the dog-pun flavor for the transcription phase, switch to a clear
+  // "Polishing…" once the reasoning step starts, and after ~8s surface a
+  // "still working" hint so a slow/cold run is distinguishable from a hang.
+  const [processingSlow, setProcessingSlow] = useState(false);
   const processingVerbRef = useRef(pickProcessingVerb());
-  const wasProcessingRef = useRef(false);
-  if (isProcessing && !wasProcessingRef.current) {
+  useEffect(() => {
+    if (!isProcessing) {
+      setProcessingSlow(false);
+      return;
+    }
     processingVerbRef.current = pickProcessingVerb();
-  }
-  wasProcessingRef.current = isProcessing;
-  const processingVerb = processingVerbRef.current;
+    const id = setTimeout(() => setProcessingSlow(true), 8000);
+    return () => clearTimeout(id);
+  }, [isProcessing]);
+
+  const processingLabel = processingSlow
+    ? 'Still working…'
+    : processingPhase === 'polishing'
+      ? 'Polishing…'
+      : processingVerbRef.current;
 
   // Waveform bars — 20 bars with bell-curve heights
   const barCount = 20;
@@ -125,7 +137,11 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
       />
 
       {/* Status text */}
-      <div style={{
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
         display: 'flex',
         alignItems: 'center',
         gap: '4px',
@@ -136,7 +152,7 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
       }}>
         {isSpeaking ? (
           showLiveTranscript && partialTranscript ? (
-            <div style={{
+            <div aria-hidden="true" style={{
               maxWidth: '180px',
               overflow: 'hidden',
               display: 'flex',
@@ -158,7 +174,7 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
         ) : isRecordingSilent ? (
           <span style={{ color: 'rgba(232,213,195,0.5)' }}>Waiting for voice...</span>
         ) : isProcessing ? (
-          <span style={{ color: '#A06A3C', animation: 'mandoBreath 1.5s ease-in-out infinite' }}>{processingVerb}</span>
+          <span style={{ color: '#A06A3C', animation: 'mandoBreath 1.5s ease-in-out infinite' }}>{processingLabel}</span>
         ) : (
           <span style={{ color: 'rgba(232,213,195,0.35)' }}>Hold Fn to record</span>
         )}
@@ -374,7 +390,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, processingPhase, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -531,6 +547,13 @@ export default function App() {
           >
             <button
               ref={buttonRef}
+              aria-label={
+                micState === "recording"
+                  ? t("app.mic.ariaRecording", { defaultValue: "Recording. Release to transcribe." })
+                  : micState === "processing"
+                    ? t("app.mic.ariaProcessing", { defaultValue: "Processing dictation" })
+                    : t("app.mic.ariaIdle", { defaultValue: "Start dictation" })
+              }
               onMouseDown={(e) => {
                 setIsCommandMenuOpen(false);
                 setDragStartPos({ x: e.clientX, y: e.clientY });
@@ -591,6 +614,7 @@ export default function App() {
                   animated={isRecording || isProcessing}
                   mode={localStorage.getItem("indicatorStyle") || "full"}
                   partialTranscript={partialTranscript}
+                  processingPhase={processingPhase}
                 />
               </div>
             </button>

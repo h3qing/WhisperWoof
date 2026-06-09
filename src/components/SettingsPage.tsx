@@ -53,6 +53,7 @@ import { useAgentName } from "../utils/agentName";
 import { useWhisper } from "../hooks/useWhisper";
 import { usePermissions } from "../hooks/usePermissions";
 import { useSystemAudioPermission } from "../hooks/useSystemAudioPermission";
+import PermissionsSection from "./ui/PermissionsSection";
 import { useClipboard } from "../hooks/useClipboard";
 import { useUpdater } from "../hooks/useUpdater";
 
@@ -63,6 +64,9 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getPlatform, getCachedPlatform } from "../utils/platform";
 import { getDefaultHotkey, formatHotkeyLabel } from "../utils/hotkeys";
+// The canonical shortcut defaults live in src/whisperwoof/bridge/keybindings-pure.js,
+// but that module is CommonJS (main-process) and can't be imported into the renderer's
+// ESM build — SHORTCUT_CHEATSHEET below mirrors it. Keep in sync if those defaults change.
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import { Toggle } from "./ui/toggle";
 import DeveloperSection from "./DeveloperSection";
@@ -626,6 +630,32 @@ function AiModelsSection({
     </div>
   );
 }
+
+const SHORTCUT_CHEATSHEET: Array<{ group: string; items: Array<{ key: string; label: string }> }> = [
+  {
+    group: "Recording",
+    items: [
+      { key: "Fn", label: "Toggle recording / paste at cursor" },
+      { key: "CommandOrControl+K", label: "Command bar" },
+    ],
+  },
+  {
+    group: "Routing",
+    items: [
+      { key: "Fn+T", label: "Route to todo" },
+      { key: "Fn+N", label: "Save as Markdown" },
+      { key: "Fn+P", label: "Route to project" },
+    ],
+  },
+  {
+    group: "Navigation",
+    items: [
+      { key: "CommandOrControl+H", label: "Open history" },
+      { key: "CommandOrControl+P", label: "Open projects" },
+      { key: "CommandOrControl+,", label: "Open settings" },
+    ],
+  },
+];
 
 export default function SettingsPage({ activeSection = "general" }: SettingsPageProps) {
   const {
@@ -2793,6 +2823,36 @@ EOF`,
               </SettingsPanel>
             </div>
 
+            {/* Shortcut cheatsheet — sourced from keybindings-pure.js so it can't drift */}
+            <div>
+              <SectionHeader
+                title={t("settingsPage.hotkeys.shortcutsTitle", { defaultValue: "Keyboard shortcuts" })}
+                description={t("settingsPage.hotkeys.shortcutsDescription", {
+                  defaultValue: "Hold a combo while dictating to route where your words go.",
+                })}
+              />
+              <SettingsPanel>
+                {SHORTCUT_CHEATSHEET.map((group) => (
+                  <SettingsPanelRow key={group.group}>
+                    <p className="text-xs font-medium text-muted-foreground/80 mb-2">{group.group}</p>
+                    <div className="space-y-1.5">
+                      {group.items.map((b) => (
+                        <div
+                          key={b.key + b.label}
+                          className="flex items-center justify-between gap-4"
+                        >
+                          <span className="text-sm text-foreground/90">{b.label}</span>
+                          <kbd className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                            {formatHotkeyLabel(b.key)}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
+                  </SettingsPanelRow>
+                ))}
+              </SettingsPanel>
+            </div>
+
           </div>
         );
 
@@ -3114,6 +3174,18 @@ EOF`,
       case "privacyData":
         return (
           <div className="space-y-6">
+            {/* Permissions — also reachable via the legacy "permissions" deep-link */}
+            <div>
+              <SectionHeader
+                title={t("settingsPage.permissions.title", { defaultValue: "Permissions" })}
+                description={t("settingsPage.permissions.description", {
+                  defaultValue:
+                    "Grant the system access WhisperWoof needs. Accessibility powers auto-paste and the Fn routing shortcuts.",
+                })}
+              />
+              <PermissionsSection permissions={permissionsHook} systemAudio={systemAudio} />
+            </div>
+
             {/* Privacy */}
             <div>
               <SectionHeader

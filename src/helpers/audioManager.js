@@ -186,6 +186,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onStreamingCommit,
     onRmsUpdate,
     onMicReady,
+    onProcessingPhase,
   }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
@@ -194,6 +195,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onStreamingCommit = onStreamingCommit;
     this._onRmsUpdate = onRmsUpdate ?? null;
     this.onMicReady = onMicReady ?? null;
+    this.onProcessingPhase = onProcessingPhase ?? null;
   }
 
   setSkipReasoning(skip) {
@@ -842,6 +844,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processWithReasoningModel(text, model, agentName) {
+    // Signal the polish phase so the UI can switch "Transcribing…" → "Polishing…".
+    this.onProcessingPhase?.("polishing");
     logger.logReasoning("CALLING_REASONING_SERVICE", {
       model,
       agentName,

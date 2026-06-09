@@ -21,6 +21,8 @@ export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // "idle" | "transcribing" | "polishing" — drives the indicator's phase label.
+  const [processingPhase, setProcessingPhase] = useState("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -143,6 +145,9 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
+        // Processing starts with STT; audioManager emits onProcessingPhase('polishing')
+        // when the reasoning step begins. Reset to idle when processing ends.
+        setProcessingPhase(isProcessing ? "transcribing" : "idle");
         if (!isRecording) setIsSpeaking(false);
         if (!isStreaming) {
           setPartialTranscript("");
@@ -178,6 +183,9 @@ export const useAudioRecording = (toast, options = {}) => {
       },
       onPartialTranscript: (text) => {
         setPartialTranscript(text);
+      },
+      onProcessingPhase: (phase) => {
+        setProcessingPhase(phase);
       },
       onTranscriptionComplete: async (result) => {
         if (getSettings().pauseMediaOnDictation) {
@@ -575,6 +583,7 @@ export const useAudioRecording = (toast, options = {}) => {
   return {
     isRecording,
     isProcessing,
+    processingPhase,
     isStreaming,
     isSpeaking,
     transcript,

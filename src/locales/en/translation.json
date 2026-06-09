@@ -168,7 +168,7 @@
       "systemAudioDescription": "Captures other participants' audio from calls and meetings. We never record your screen.",
       "optional": "Optional",
       "recommended": "Recommended",
-      "accessibilityTroubleshooting": "Not detected? Try removing WhisperWoof from Accessibility in System Settings, then re-add it and toggle it on. You can skip this and continue — text will copy to clipboard instead of auto-pasting."
+      "accessibilityTroubleshooting": "Not detected? Try removing WhisperWoof from Accessibility in System Settings, then re-add it and toggle it on. You can skip this and continue, but auto-paste and the Fn routing shortcuts (Fn+T, Fn+N, Fn+P) won't work — dictated text will only copy to the clipboard."
     },
     "transcription": {
       "title": "Transcription Setup",
