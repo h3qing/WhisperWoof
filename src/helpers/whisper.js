@@ -11,6 +11,7 @@ const {
 } = require("./downloadUtils");
 const WhisperServerManager = require("./whisperServer");
 const { getModelsDirForService } = require("./modelDirUtils");
+const { WHISPER_FALLBACK_PREFERENCE, pickBestDownloadedModel } = require("./whisperModelFallback");
 
 const modelRegistryData = require("../models/modelRegistryData.json");
 
@@ -263,6 +264,28 @@ class WhisperManager {
 
     // Check if model exists — auto-download if missing
     if (!fs.existsSync(modelPath)) {
+      // Seamless fallback: if the selected model isn't downloaded but the user
+      // already has a better (non-tiny) model on disk, use that immediately —
+      // no download wait, and multilingual-first so a zh/en user isn't silently
+      // downgraded onto an English-only or near-useless `tiny` model. The result
+      // is tagged (requestedModel/modelUsed) so the renderer can surface it
+      // instead of degrading silently. Only `tiny`/nothing downloaded → fall
+      // through to downloading the model the user actually asked for.
+      const downloadedModels = WHISPER_FALLBACK_PREFERENCE.filter(
+        (id) => id !== "tiny" && fs.existsSync(this.getModelPath(id))
+      );
+      const bestAvailable = pickBestDownloadedModel(downloadedModels);
+      if (bestAvailable && bestAvailable !== model) {
+        debugLogger.info(
+          `[Whisper] Model "${model}" not downloaded — using best available "${bestAvailable}"`
+        );
+        const result = await this.transcribeLocalWhisper(audioBlob, {
+          ...options,
+          model: bestAvailable,
+        });
+        return { ...result, requestedModel: model, modelUsed: bestAvailable };
+      }
+
       debugLogger.info(`[Whisper] Model "${model}" not found, attempting auto-download...`);
       try {
         // Try to download the requested model, fall back to "tiny" (75MB) for speed

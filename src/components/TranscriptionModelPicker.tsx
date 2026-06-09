@@ -76,8 +76,14 @@ function LocalModelCard({
 }: LocalModelCardProps) {
   const { t } = useTranslation();
   const handleClick = () => {
-    if (isDownloaded && !isSelected) {
+    if (isSelected || isCancelling) return;
+    if (isDownloaded) {
       onSelect();
+    } else if (!isDownloading) {
+      // One click = "use this model": download it now. It auto-selects when the
+      // download finishes (see onDownload wiring), so there's no dead
+      // "selected but not downloaded, does nothing" state to confuse people.
+      onDownload();
     }
   };
 
@@ -86,7 +92,7 @@ function LocalModelCard({
       onClick={handleClick}
       className={`relative w-full text-left overflow-hidden rounded-md border transition-colors duration-200 group ${
         isSelected ? cardStyles.modelCard.selected : cardStyles.modelCard.default
-      } ${isDownloaded && !isSelected ? "cursor-pointer" : ""}`}
+      } ${!isSelected && !isDownloading ? "cursor-pointer" : ""}`}
     >
       {isSelected && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-linear-to-b from-primary via-primary to-primary/80 rounded-l-md" />
@@ -712,6 +718,11 @@ export default function TranscriptionModelPicker({
               isCancelling={isCancelling}
               recommended={info.recommended}
               provider="whisper"
+              languageLabel={
+                modelId.startsWith("distil")
+                  ? t("transcription.whisper.englishOnly", { defaultValue: "English" })
+                  : t("transcription.whisper.multilingual", { defaultValue: "Multilingual" })
+              }
               onSelect={() => handleWhisperModelSelect(modelId)}
               onDelete={() => handleDelete(modelId)}
               onDownload={() =>

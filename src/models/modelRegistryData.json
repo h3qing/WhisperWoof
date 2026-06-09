@@ -38,6 +38,16 @@
       "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
       "descriptionKey": "models.descriptions.parakeet.parakeet_tdt_0_6b_v3"
     },
+    "parakeet-tdt-0.6b-v2": {
+      "name": "Parakeet TDT 0.6B v2 (English)",
+      "description": "English-optimized ASR with top-tier English accuracy. Predecessor to the multilingual v3; same fast on-device transducer.",
+      "size": "482MB",
+      "sizeMb": 482,
+      "language": "en",
+      "supportedLanguages": ["en"],
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2",
+      "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
+    },
     "parakeet-unified-en-0.6b": {
       "name": "Parakeet Unified EN 0.6B",
       "description": "English-only ASR with state-of-the-art accuracy (5.91% avg WER)",
@@ -130,9 +140,9 @@
       "description": "Latest distilled model. Best speed/quality ratio. English-optimized.",
       "descriptionKey": "models.descriptions.whisper.distil_large_v35",
       "fileName": "ggml-distil-large-v3.5.bin",
-      "size": "756MB",
-      "expectedSizeBytes": 756000000,
-      "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3.5-ggml/resolve/main/ggml-distil-large-v3.5.bin",
+      "size": "1.5GB",
+      "expectedSizeBytes": 1519521155,
+      "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3.5-ggml/resolve/main/ggml-model.bin",
       "recommended": true,
       "speed": "fast",
       "quality": "highest",

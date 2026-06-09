@@ -1,4 +1,4 @@
-const { clipboard, systemPreferences } = require("electron");
+const { clipboard } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const { killProcess } = require("../utils/process");
 const path = require("path");
@@ -70,6 +70,10 @@ function writeClipboardInRenderer(webContents, text) {
 class ClipboardManager {
   constructor() {
     this.accessibilityCache = { value: null, expiresAt: 0 };
+    // Whether we've surfaced the macOS Accessibility system prompt this session
+    // (see requestAccessibilityPermission). Guards against re-prompting on every
+    // failed paste.
+    this._accessibilityPromptRequested = false;
     this.commandAvailabilityCache = new Map();
     this.nircmdPath = null;
     this.nircmdChecked = false;
@@ -1553,6 +1557,14 @@ class ClipboardManager {
     throw err;
   }
 
+  // Indirection around electron's systemPreferences so this paste-permission
+  // logic stays unit-testable: tests override this method instead of mocking the
+  // module (Vitest in this project does not intercept a CJS require("electron")
+  // inside source files — only ESM imports).
+  _systemPreferences() {
+    return require("electron").systemPreferences;
+  }
+
   async checkAccessibilityPermissions(silent = false) {
     if (process.platform !== "darwin") return true;
 
@@ -1563,7 +1575,7 @@ class ClipboardManager {
       }
     }
 
-    const allowed = systemPreferences.isTrustedAccessibilityClient(false);
+    const allowed = this._systemPreferences().isTrustedAccessibilityClient(false);
 
     if (!silent) {
       this.accessibilityCache = {
@@ -1572,11 +1584,32 @@ class ClipboardManager {
       };
 
       if (!allowed) {
-        this.showAccessibilityDialog("not allowed assistive access");
+        this.requestAccessibilityPermission();
       }
     }
 
     return allowed;
+  }
+
+  // Surface the macOS Accessibility prompt the FIRST time a paste actually needs
+  // it. The paste path's own check uses isTrustedAccessibilityClient(false)
+  // (silent — it never prompts), so without this call the app is never added to
+  // System Settings → Privacy & Security → Accessibility, and the user is left to
+  // add the binary by hand (especially painful for the unsigned dev Electron
+  // build). Passing `true` shows the system prompt AND registers the app in that
+  // list, turning "grant" into a single toggle. Guarded to once per session so a
+  // denied user isn't re-prompted on every subsequent paste.
+  requestAccessibilityPermission() {
+    if (process.platform !== "darwin") return false;
+    if (this._accessibilityPromptRequested) return false;
+    this._accessibilityPromptRequested = true;
+    try {
+      return this._systemPreferences().isTrustedAccessibilityClient(true);
+    } catch {
+      // API unavailable for some reason — fall back to the guidance dialog.
+      this.showAccessibilityDialog("not allowed assistive access");
+      return false;
+    }
   }
 
   showAccessibilityDialog(testError) {

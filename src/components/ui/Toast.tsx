@@ -148,6 +148,8 @@ const ToastViewport: React.FC<{
 
   return (
     <div
+      role="region"
+      aria-label="Notifications"
       className={cn(
         "fixed z-[100] flex flex-col gap-1.5 pointer-events-none",
         isDictationPanel ? "bottom-20 right-6" : "bottom-5 right-5"
@@ -235,6 +237,8 @@ const Toast: React.FC<
 
   return (
     <div
+      role={isDestructive ? "alert" : "status"}
+      aria-atomic="true"
       className={cn(
         "group toast-surface pointer-events-auto relative flex w-75 overflow-hidden",
         "rounded-[5px]",
