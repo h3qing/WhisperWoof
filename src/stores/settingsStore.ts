@@ -250,9 +250,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
 
-  useReasoningModel: readBoolean("useReasoningModel", false), // WhisperWoof: disabled — we use Ollama polish instead of llama.cpp reasoning (was adding 40s!)
+  // WhisperWoof: polish ON by default and local-first. Onboarding's Smart Cleanup
+  // step downloads a model and sets reasoningModel; until then this no-ops cleanly
+  // (processTranscription returns the raw transcript when reasoningModel is empty).
+  useReasoningModel: readBoolean("useReasoningModel", true),
   reasoningModel: readString("reasoningModel", ""),
-  reasoningProvider: readString("reasoningProvider", "openai"),
+  reasoningProvider: readString("reasoningProvider", "local"),
 
   openaiApiKey: readString("openaiApiKey", ""),
   anthropicApiKey: readString("anthropicApiKey", ""),

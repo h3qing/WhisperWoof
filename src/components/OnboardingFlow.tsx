@@ -11,6 +11,7 @@ import {
   Shield,
   Command,
   UserCircle,
+  Sparkles,
 } from "lucide-react";
 import TitleBar from "./TitleBar";
 import WindowControls from "./WindowControls";
@@ -36,6 +37,7 @@ import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
+import SmartCleanupStep from "./SmartCleanupStep";
 import { areRequiredPermissionsMet } from "../utils/permissions";
 
 interface OnboardingFlowProps {
@@ -46,7 +48,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { t } = useTranslation();
   const { isSignedIn } = useAuth();
 
-  const getMaxStep = () => (isSignedIn ? 2 : 3);
+  const getMaxStep = () => (isSignedIn ? 3 : 4);
 
   const [currentStep, setCurrentStep, removeCurrentStep] = useLocalStorage(
     "onboardingCurrentStep",
@@ -126,11 +128,13 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       ? [
           { title: t("onboarding.steps.welcome"), icon: UserCircle },
           { title: t("onboarding.steps.setup"), icon: Settings },
+          { title: "Cleanup", icon: Sparkles },
           { title: t("onboarding.steps.activation"), icon: Command },
         ]
       : [
           { title: t("onboarding.steps.welcome"), icon: UserCircle },
           { title: t("onboarding.steps.setup"), icon: Settings },
+          { title: "Cleanup", icon: Sparkles },
           { title: t("onboarding.steps.permissions"), icon: Shield },
           { title: t("onboarding.steps.activation"), icon: Command },
         ];
@@ -178,7 +182,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   // Auto-register default hotkey when entering the activation step
   // (step 3 for non-signed-in, step 2 for signed-in users)
-  const activationStepIndex = isSignedIn && !skipAuth ? 2 : 3;
+  const activationStepIndex = isSignedIn && !skipAuth ? 3 : 4;
 
   useEffect(() => {
     if (currentStep !== activationStepIndex) {
@@ -444,7 +448,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 2: // Permissions (only for non-signed-in users) or Activation (for signed-in users)
+      case 2: // Smart Cleanup (polish setup)
+        return <SmartCleanupStep />;
+
+      case 3: // Permissions (non-signed-in users) or Activation (for signed-in users)
         // For signed-in users, this is the activation step
         if (isSignedIn && !skipAuth) {
           return renderActivationStep();
@@ -472,7 +479,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
         );
 
-      case 3: // Activation (only for non-signed-in users)
+      case 4: // Activation (only for non-signed-in users)
         return renderActivationStep();
 
       default:
@@ -585,16 +592,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           }
           return openaiApiKey.trim().length > 0; // Default to OpenAI
         }
-      case 2: {
-        // For signed-in users, this is activation step
+      case 2:
+        return true; // Smart Cleanup — optional, always skippable
+      case 3: {
+        // For signed-in users, this is the activation step
         if (isSignedIn && !skipAuth) {
           return hotkey.trim() !== "";
         }
 
-        // For non-signed-in users, this is permissions step
+        // For non-signed-in users, this is the permissions step
         return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
       }
-      case 3:
+      case 4:
         return hotkey.trim() !== ""; // Activation step for non-signed-in users
       default:
         return false;
