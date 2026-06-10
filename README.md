@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.12.0-C87B3A?style=flat-square" alt="v1.12.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.15.0-C87B3A?style=flat-square" alt="v1.15.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-882%20passing-brightgreen?style=flat-square" alt="882 tests passing">
+  <img src="https://img.shields.io/badge/tests-862%20passing-brightgreen?style=flat-square" alt="862 tests passing">
 </p>
 
 <p align="center">
@@ -87,13 +87,13 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 <td width="50%" valign="top">
 
 ### Core Pipeline
-- **Local voice-to-text** — Whisper STT on your machine. No cloud, no latency, no data leaving your laptop.
-- **AI text polish** — Bundled llama-server (Qwen, Llama, Gemma, etc., all downloadable in-app) removes filler, fixes grammar, adds punctuation. Customizable via Prompt Studio.
+- **Local voice-to-text** — Whisper STT on your machine (multilingual incl. Chinese), or opt into NVIDIA Parakeet for faster English/European dictation. No cloud, no latency, no data leaving your laptop.
+- **Smart Cleanup, on by default** — A small bundled local model (llama-server) removes filler, fixes grammar, assembles spoken emails, and keeps your voice. Set up in one click during onboarding; tuned prompt + thinking-mode disabled for ~250ms polish. Customizable in Prompt Studio.
 - **Hotkey-driven routing** — Different combos send voice to different destinations. Explicit, not magic.
 
 ### Capture & History
-- **Unified clipboard + voice history** — Everything you say or copy, searchable. Images too.
-- **Audio playback** — Tap any entry to replay the original recording.
+- **Clipboard timeline** — A condensed, card-based timeline of everything you copy: grouped by day, click to re-copy, with the source app (Messages, Chrome…) and image thumbnails.
+- **Voice history + audio playback** — Tap any entry to replay the original recording.
 - **Full-text search** — SQLite FTS5 across all your voice and clipboard entries.
 
 </td>
@@ -112,11 +112,10 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 - **Transcript checkpoints** — Saved to SQLite every 60s. Survives crashes and network drops.
 - **Auto-reconnect** — WebSocket reconnection with backoff + session rotation at 25 minutes.
 
-### Smart Clipboard
-- **Kanban board** — Organize reusable text snippets into boards (Greetings, Work, Code, etc.)
-- **Quick paste** — Copy any snippet with one click. Hotkey paste with Cmd+Shift+1-9.
-- **Frequency tracking** — See which snippets you use most. Sorted by usage count.
-- **Source tracking** — Know if a snippet was typed manually, AI-generated, or captured from voice.
+### Local-first by design
+- **Runs entirely on-device** — Bundled STT (whisper.cpp / sherpa-onnx) and a bundled local LLM (llama.cpp). No account, no cloud dependency, nothing leaves your Mac by default.
+- **Cloud is opt-in** — OpenAI / Anthropic / Gemini work if you want them, behind your own keys. A privacy lock blocks all cloud access in one toggle.
+- **Graceful degradation** — No reasoning model? You still get a clean raw transcript. Selected model missing? It falls back to the best one on disk.
 
 ### Privacy & Design
 - **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
@@ -167,8 +166,8 @@ The app bundles `llama-server` (llama.cpp) for local LLM polish — no extra ins
 | Layer | Technology |
 |---|---|
 | Runtime | Electron 39 + React 19 + TypeScript + Tailwind CSS v4 |
-| STT | OpenAI Whisper / NVIDIA Parakeet (local) |
-| LLM Polish | Bundled `llama-server` (llama.cpp). Cloud providers (OpenAI, Anthropic, Gemini) optional. |
+| STT | Whisper (whisper.cpp, default — multilingual) / NVIDIA Parakeet (sherpa-onnx, opt-in — fast, English + European), both local |
+| LLM Polish | Bundled `llama-server` (llama.cpp), on by default. Cloud providers (OpenAI, Anthropic, Gemini) optional. |
 | Storage | SQLite + Kysely ORM + FTS5 full-text search |
 | Plugins | Model Context Protocol (MCP) |
 
@@ -177,7 +176,7 @@ The app bundles `llama-server` (llama.cpp) for local LLM polish — no extra ins
 ## Roadmap
 
 - [x] **Phase 0** — Fork + security hardening + test infrastructure
-- [x] **Phase 1** — Core pipeline: StorageProvider, Ollama polish, hotkey routing, features
+- [x] **Phase 1** — Core pipeline: StorageProvider, local LLM polish, hotkey routing, features
 - [x] **Phase 2** — MCP plugin system (Todoist, Notion, Slack, Calendar)
 - [x] **Phase 3** — Polish, onboarding, public release (v1.0)
 - [x] **Phases 4–10** — Competitive features, AI intelligence, vibe coding, streaming, templates
