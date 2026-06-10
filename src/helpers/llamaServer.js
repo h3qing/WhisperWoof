@@ -417,6 +417,12 @@ class LlamaServerManager {
       temperature: options.temperature ?? 0.7,
       max_tokens: options.max_tokens ?? 512,
       stream: false,
+      // Disable Qwen3/Qwen3.5 "thinking" mode. Without this the model spends the
+      // whole token budget emitting <think>… (≈4s, finish_reason=length, empty
+      // content) which blows past POLISH_TIMEOUT_MS and silently falls back to the
+      // raw transcript. With it, cleanup runs in ~250ms. No-op for templates that
+      // don't reference enable_thinking. See eval/bench-stt.sh latency notes.
+      chat_template_kwargs: { enable_thinking: false },
     });
 
     return new Promise((resolve, reject) => {

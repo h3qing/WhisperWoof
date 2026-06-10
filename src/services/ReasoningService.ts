@@ -1150,6 +1150,13 @@ class ReasoningService extends BaseReasoningService {
       stream: true,
     };
 
+    // Local Qwen3/Qwen3.5 default to "thinking" mode, which burns the token
+    // budget on <think>… and stalls dictation/CommandBar polish. Disable it for
+    // local models (no-op for templates that don't use enable_thinking).
+    if (isLocalProvider) {
+      requestBody.chat_template_kwargs = { enable_thinking: false };
+    }
+
     const maxTokens = config.maxTokens || Math.max(4096, TOKEN_LIMITS.MAX_TOKENS);
 
     if (useOldTokenParam) {

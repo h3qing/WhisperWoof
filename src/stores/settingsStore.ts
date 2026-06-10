@@ -226,11 +226,14 @@ function invalidateApiKeyCaches(
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
   useLocalWhisper: readBoolean("useLocalWhisper", true), // WhisperWoof: local-first by default
-  whisperModel: readString("whisperModel", "small"), // WhisperWoof: "small" for better accuracy (244MB vs 74MB "base")
-  localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
-    ? "nvidia"
-    : "whisper") as LocalTranscriptionProvider,
-  parakeetModel: readString("parakeetModel", ""),
+  whisperModel: readString("whisperModel", "small"), // fallback STT if user switches off Parakeet
+  // WhisperWoof: default to NVIDIA Parakeet TDT 0.6b — fast on-device transducer that is
+  // both quicker and more accurate than comparable Whisper tiers, for a Wispr Flow-like
+  // instant feel. Whisper stays available as an alternative in Settings.
+  localTranscriptionProvider: (readString("localTranscriptionProvider", "nvidia") === "whisper"
+    ? "whisper"
+    : "nvidia") as LocalTranscriptionProvider,
+  parakeetModel: readString("parakeetModel", "parakeet-tdt-0.6b-v3"),
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
   fallbackWhisperModel: readString("fallbackWhisperModel", "base"),
