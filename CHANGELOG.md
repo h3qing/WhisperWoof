@@ -5,6 +5,8 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-06-10 — Local Polish: Tuned, On by Default, Legacy Stack Removed
+
 ### Added
 - **Smart Cleanup is now set up during onboarding and on by default.** Polish (the filler-removal / grammar / formatting pass) was off by default and never surfaced in onboarding — so new users got raw transcription and never saw the feature, and the tuned `cleanupPrompt` never ran. The default comment even referenced the long-deleted Ollama path ("was adding 40s!"). Added a new onboarding step (Welcome → STT → **Smart Cleanup** → Permissions → Activation, `src/components/SmartCleanupStep.tsx`) that one-click downloads a recommended small local model (Qwen 2B, ~1.3 GB) via `useModelDownload` and enables local polish; fully skippable. Defaults flipped: `useReasoningModel` → `true`, `reasoningProvider` → `local` (local-first, consistent with `useLocalWhisper`). Until a model is downloaded the path no-ops cleanly (raw transcript), so existing users and skippers see no regression; boot prewarm (`sync-startup-preferences`) covers first-dictation latency.
 
