@@ -131,11 +131,25 @@ function createFtsTables(db) {
   `);
 }
 
+// Best-effort capture of the app that was frontmost when the clipboard changed
+// (a reliable proxy for "where this was copied from"). Only called on an actual
+// new capture, so the ~50ms NSWorkspace lookup doesn't run on every poll tick.
+async function captureSourceApp() {
+  try {
+    const { detectActiveApp } = require("./context-detector");
+    const app = await detectActiveApp();
+    if (!app || !app.name) return undefined;
+    return { name: app.name, bundleId: app.bundleId || "" };
+  } catch {
+    return undefined;
+  }
+}
+
 function startClipboardMonitor() {
   // Poll every 500ms for clipboard changes
   lastClipboardText = clipboard.readText() || "";
 
-  clipboardInterval = setInterval(() => {
+  clipboardInterval = setInterval(async () => {
     try {
       // Check for image on clipboard FIRST (image copy may also have text)
       const img = clipboard.readImage();
@@ -159,6 +173,7 @@ function startClipboardMonitor() {
           const thumbPath = path.join(imgDir, `${imgId}_thumb.png`);
           fs.writeFileSync(thumbPath, thumb.toPNG());
 
+          const sourceApp = await captureSourceApp();
           saveWhisperWoofEntry({
             source: "clipboard",
             rawText: `[Image ${imgSize.width}\u00d7${imgSize.height}]`,
@@ -168,7 +183,7 @@ function startClipboardMonitor() {
             durationMs: null,
             projectId: null,
             audioPath: imgPath,
-            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath },
+            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath, sourceApp },
           });
 
           debugLogger.debug("[WhisperWoof] Clipboard image captured", {
@@ -197,6 +212,7 @@ function startClipboardMonitor() {
       lastClipboardText = currentText;
 
       // Save to bf_entries
+      const sourceApp = await captureSourceApp();
       saveWhisperWoofEntry({
         source: "clipboard",
         rawText: currentText,
@@ -206,7 +222,7 @@ function startClipboardMonitor() {
         durationMs: null,
         projectId: null,
         audioPath: null,
-        metadata: {},
+        metadata: { sourceApp },
       });
 
       debugLogger.debug("[WhisperWoof] Clipboard entry captured", {

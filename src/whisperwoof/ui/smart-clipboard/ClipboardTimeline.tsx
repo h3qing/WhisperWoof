@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Clipboard, Image as ImageIcon, Copy, Trash2, Search, Check, ArrowRightLeft } from "lucide-react";
+import { Clipboard, Image as ImageIcon, Copy, Trash2, Search, Check, ArrowRightLeft, AppWindow } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
 import type { Entry } from "../../core/storage/types";
 
@@ -17,21 +17,62 @@ const PAGE_SIZE = 50;
 interface ClipboardApi {
   whisperwoofGetEntriesBySource?: (source: string, limit: number, offset: number) => Promise<Entry[]>;
   whisperwoofDeleteEntry?: (id: string) => Promise<void>;
+  whisperwoofGetImage?: (imagePath: string) => Promise<{ success: boolean; data?: string }>;
   writeClipboard?: (text: string) => Promise<unknown>;
 }
 function getApi(): ClipboardApi {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((window as unknown as { electronAPI?: ClipboardApi }).electronAPI) ?? {};
 }
 
+interface ClipboardMeta {
+  type?: string;
+  width?: number;
+  height?: number;
+  thumbPath?: string;
+  sourceApp?: { name: string; bundleId: string };
+}
+function meta(e: Entry): ClipboardMeta {
+  return (e.metadata as ClipboardMeta) ?? {};
+}
 function isImageEntry(e: Entry): boolean {
-  return (e.metadata as { type?: string })?.type === "image";
+  return meta(e).type === "image";
 }
 function entryText(e: Entry): string {
   return e.polished ?? e.rawText ?? "";
 }
 function charCount(e: Entry): number {
   return entryText(e).length;
+}
+
+/** Loads a clipboard image thumbnail (base64) via IPC and renders it. */
+function Thumb({ path }: { readonly path: string }) {
+  const [data, setData] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getApi()
+      .whisperwoofGetImage?.(path)
+      .then((res) => {
+        if (!cancelled && res?.success && res.data) setData(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  if (!data) {
+    return (
+      <div className="w-10 h-10 rounded-md bg-foreground/[0.05] flex items-center justify-center">
+        <ImageIcon size={14} className="text-muted-foreground/50" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={`data:image/png;base64,${data}`}
+      alt="Clipboard image"
+      className="w-10 h-10 rounded-md object-cover border border-border/30"
+    />
+  );
 }
 
 function timeOfDay(iso: string): string {
@@ -63,7 +104,8 @@ interface CardProps {
 function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
   const image = isImageEntry(entry);
   const text = entryText(entry);
-  const meta = entry.metadata as { width?: number; height?: number };
+  const m = meta(entry);
+  const sourceApp = m.sourceApp?.name;
 
   return (
     <div
@@ -75,13 +117,19 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
       onClick={() => !image && onCopy(entry)}
       title={image ? "Image capture" : "Click to copy"}
     >
-      <div className="shrink-0 mt-0.5 w-6 h-6 rounded-md bg-foreground/[0.04] dark:bg-white/[0.05] flex items-center justify-center">
-        {image ? (
-          <ImageIcon size={13} className="text-muted-foreground/70" />
-        ) : (
-          <Clipboard size={13} className="text-muted-foreground/70" />
-        )}
-      </div>
+      {image && m.thumbPath ? (
+        <div className="shrink-0">
+          <Thumb path={m.thumbPath} />
+        </div>
+      ) : (
+        <div className="shrink-0 mt-0.5 w-6 h-6 rounded-md bg-foreground/[0.04] dark:bg-white/[0.05] flex items-center justify-center">
+          {image ? (
+            <ImageIcon size={13} className="text-muted-foreground/70" />
+          ) : (
+            <Clipboard size={13} className="text-muted-foreground/70" />
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-w-0">
         <p
@@ -90,9 +138,14 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
             image ? "" : "line-clamp-2 whitespace-pre-wrap break-words font-[450]"
           )}
         >
-          {image ? `Image · ${meta.width ?? "?"}×${meta.height ?? "?"}` : text}
+          {image ? `Image · ${m.width ?? "?"}×${m.height ?? "?"}` : text}
         </p>
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
+          {sourceApp && (
+            <span className="inline-flex items-center gap-0.5 text-muted-foreground/80" title={`Copied from ${sourceApp}`}>
+              <AppWindow size={9} /> {sourceApp}
+            </span>
+          )}
           <span>{timeOfDay(entry.createdAt)}</span>
           {!image && <span>· {charCount(entry).toLocaleString()} chars</span>}
           {entry.routedTo && (
