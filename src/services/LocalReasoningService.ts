@@ -13,7 +13,7 @@ interface LocalReasoningConfig {
 class LocalReasoningService extends BaseReasoningService {
   async processText(
     text: string,
-    modelId: string = "qwen2.5-7b-instruct-q5_k_m",
+    modelId: string = "qwen3.5-2b-q4_k_m",
     agentName: string | null = null,
     config: LocalReasoningConfig = {}
   ): Promise<string> {
