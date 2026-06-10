@@ -504,10 +504,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "transcription"
       );
 
+      // Parakeet only covers English + 24 European languages. If the user picked it
+      // but set a language it can't do (e.g. Chinese), transcribe with Whisper instead
+      // — otherwise Parakeet returns empty and surfaces a misleading "No audio detected".
+      const baseLang = getBaseLanguageCode(s.preferredLanguage);
+      const parakeetUnsupportedLang =
+        localProvider === "nvidia" &&
+        !!baseLang &&
+        validateLanguageForModel(s.preferredLanguage, parakeetModel) === undefined;
+      const effectiveProvider = parakeetUnsupportedLang ? "whisper" : localProvider;
+      if (parakeetUnsupportedLang) {
+        logger.info(
+          "Routing to Whisper: Parakeet does not support the selected language",
+          { language: baseLang, parakeetModel },
+          "transcription"
+        );
+      }
+
       let result;
       let activeModel;
       if (useLocalWhisper) {
-        if (localProvider === "nvidia") {
+        if (effectiveProvider === "nvidia") {
           activeModel = parakeetModel;
           result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
         } else {

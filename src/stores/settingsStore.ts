@@ -226,13 +226,14 @@ function invalidateApiKeyCaches(
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
   useLocalWhisper: readBoolean("useLocalWhisper", true), // WhisperWoof: local-first by default
-  whisperModel: readString("whisperModel", "small"), // fallback STT if user switches off Parakeet
-  // WhisperWoof: default to NVIDIA Parakeet TDT 0.6b — fast on-device transducer that is
-  // both quicker and more accurate than comparable Whisper tiers, for a Wispr Flow-like
-  // instant feel. Whisper stays available as an alternative in Settings.
-  localTranscriptionProvider: (readString("localTranscriptionProvider", "nvidia") === "whisper"
-    ? "whisper"
-    : "nvidia") as LocalTranscriptionProvider,
+  whisperModel: readString("whisperModel", "small"), // multilingual; handles Chinese + 90+ languages
+  // WhisperWoof: default to Whisper — it's multilingual (incl. Chinese/CJK), so it's the safe
+  // default for everyone. Parakeet TDT is faster but only covers English + 24 European languages
+  // (no CJK), so it's offered as an opt-in speed choice in Settings, not the default. When a user
+  // does pick Parakeet but their language isn't supported, audioManager auto-routes to Whisper.
+  localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
+    ? "nvidia"
+    : "whisper") as LocalTranscriptionProvider,
   parakeetModel: readString("parakeetModel", "parakeet-tdt-0.6b-v3"),
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
@@ -776,6 +777,19 @@ export async function initializeSettings(): Promise<void> {
     const migratedLang = isBrowser ? localStorage.getItem("preferredLanguage") : null;
     if (migratedLang && migratedLang !== state.preferredLanguage) {
       useSettingsStore.setState({ preferredLanguage: migratedLang });
+    }
+
+    // One-time: undo the short-lived Parakeet-default experiment. Parakeet can't
+    // transcribe Chinese/CJK, so multilingual users who got auto-moved onto it
+    // (and saw misleading "No audio detected") are moved back to Whisper. Runs once;
+    // deliberately re-selecting Parakeet afterwards sticks.
+    if (isBrowser && localStorage.getItem("whisperwoof-parakeet-default-reverted") !== "true") {
+      if (state.localTranscriptionProvider === "nvidia") {
+        localStorage.setItem("localTranscriptionProvider", "whisper");
+        useSettingsStore.setState({ localTranscriptionProvider: "whisper" });
+        logger.info("Reverted Parakeet default to Whisper (one-time migration)", {}, "settings");
+      }
+      localStorage.setItem("whisperwoof-parakeet-default-reverted", "true");
     }
 
     // Sync dictionary from SQLite <-> localStorage
