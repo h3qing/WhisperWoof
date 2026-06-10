@@ -1414,8 +1414,6 @@ declare global {
       whisperwoofClearStyleExamples: () => Promise<{ success: boolean }>;
       whisperwoofGetStyleExamples: () => Promise<Array<{ polished: string; edited: string; timestamp: string; editRatio: number }>>;
 
-      // WhisperWoof — LLM providers (BYOM)
-      whisperwoofGetProviders: () => Promise<Array<{ id: string; name: string; description: string; requiresApiKey: boolean; defaultModel: string; models: string[] }>>;
 
       // WhisperWoof — Voice editing commands
       whisperwoofVoiceCommand: (spokenText: string, selectedText: string, options?: Record<string, unknown>) => Promise<{ success: boolean; text?: string; isCommand: boolean; command?: string; error?: string }>;

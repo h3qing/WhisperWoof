@@ -1837,17 +1837,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: LLM provider management (BYOM)
-    ipcMain.handle("whisperwoof-get-providers", async () => {
-      try {
-        const { getProviders } = require("../whisperwoof/bridge/llm-providers");
-        return getProviders();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-providers failed: ${error.message}`);
-        return [];
-      }
-    });
-
     // WhisperWoof: Adaptive style learning
     ipcMain.handle("whisperwoof-get-style-stats", async () => {
       try {
@@ -6135,61 +6124,6 @@ class IPCHandlers {
         debugLogger.log(`[WhisperWoof] storage-cleanup-orphans failed: ${error.message}`);
         return { removed: 0, bytes: 0 };
       }
-    });
-
-    // --- Pipeline Tuning Bench ---
-
-    ipcMain.handle("whisperwoof-tuning-get-configs", async () => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getAvailableConfigs();
-      } catch (error) { return { presets: [], providers: [] }; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-save-test", async (_event, testCase) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.saveTestCase(testCase);
-      } catch (error) { return null; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-get-tests", async () => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getTestCases();
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-delete-test", async (_event, id) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        tb.deleteTestCase(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-get-variants", async (_event, testCaseId) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getVariantsForTest(testCaseId);
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-run-variant", async (_event, config) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return await tb.runVariant(config);
-      } catch (error) {
-        return { id: null, status: "error", error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-delete-variant", async (_event, id) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        tb.deleteVariant(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
     });
 
     // --- Eval Dataset ---

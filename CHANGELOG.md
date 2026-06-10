@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Removed
+- **Deleted the "Voice Style" (TuningBench) feature and the entire legacy Ollama polish stack.** TuningBench was the last consumer keeping the legacy stack alive, and it tuned a pipeline that no longer ships — legacy presets via a separate Ollama install — rather than the production `cleanupPrompt` + llama-server path. Removed the UI (`src/whisperwoof/ui/tuning/`), its 7 IPC handlers + preload bridges + `electron.ts`/`api.ts` type decls, the "Voice Style" sidebar entry, and the now-unreachable `whisperwoof-get-providers` handler. Deleted the dead modules `tuning-bench.js`, `ollama-bridge.js`, `polish-presets.js`, `polish-presets-pure.js`, `llm-providers.js`, `core/polish/ollama-service.ts`, the `core/polish/{index,types}.ts` barrel (zero runtime importers), and the obsolete `eval/run-eval.js` (it benchmarked the legacy preset prompts, not the shipping prompt). Completes the deletion deferred in v1.13.0. Net −14 files; 905 tests pass; renderer builds clean.
+
+### Changed
+- **Tuned the production dictation cleanup prompt for local models.** Measured the real `cleanupPrompt` (not the legacy presets the old eval tested) against local models on realistic raw-STT transcripts. Added three validated, regression-free rules: assemble spoken emails/URLs (`"john at acme dot com"` → `john@acme.com`), preserve the speaker's point of view (`"remind me to X"` no longer rewritten as a request to the reader), and fully resolve self-corrections (`"the blue one, no wait the green one"` → keep only green). Applied to `src/locales/en/prompts.json` and the synced `src/config/promptData.json`. New faithful eval harness lives in `eval/run-polish-eval.js` + `eval/polish-cases.json`.
+
 ## [1.14.0] - 2026-06-10 — STT Reliability + Transcription UX
 
 ### Fixes

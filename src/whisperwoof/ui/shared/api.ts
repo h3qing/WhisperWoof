@@ -60,10 +60,6 @@ export interface ElectronAPI {
   whisperwoofStorageExport?: (ids?: string[]) => Promise<unknown[]>;
   whisperwoofStorageCleanupOrphans?: () => Promise<{ removed: number; bytes: number }>;
 
-  // Tuning Bench
-  whisperwoofTuningGetConfigs?: () => Promise<{ presets: string[]; providers: { provider: string; models: string[] }[] }>;
-  whisperwoofTuningRunVariant?: (config: Record<string, string>) => Promise<Record<string, unknown>>;
-
   // Transcription
   transcribeLocalWhisper?: (blob: ArrayBuffer, opts: Record<string, unknown>) => Promise<{ text?: string; error?: string }>;
 
