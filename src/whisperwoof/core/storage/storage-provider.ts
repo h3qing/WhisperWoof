@@ -7,7 +7,7 @@
  * Immutability: All returned objects are readonly. Updates return new objects.
  */
 
-import type { Entry, Project, SearchFilters, ImportResult, Snippet, SnippetBoard } from './types';
+import type { Entry, Project, SearchFilters, ImportResult } from './types';
 
 export interface StorageProvider {
   // Entry CRUD
@@ -26,22 +26,6 @@ export interface StorageProvider {
   getProjects(): Promise<readonly Project[]>;
   updateProject(id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>): Promise<Project>;
   deleteProject(id: string): Promise<void>;
-
-  // Smart Clipboard — Snippet CRUD
-  saveSnippet(snippet: Omit<Snippet, 'id' | 'createdAt' | 'updatedAt' | 'useCount' | 'lastUsedAt'>): Promise<Snippet>;
-  getSnippet(id: string): Promise<Snippet | null>;
-  getSnippetsByBoard(boardId: string): Promise<readonly Snippet[]>;
-  getAllSnippets(): Promise<readonly Snippet[]>;
-  updateSnippet(id: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>): Promise<Snippet>;
-  deleteSnippet(id: string): Promise<void>;
-  recordSnippetUse(id: string): Promise<Snippet>;
-
-  // Smart Clipboard — Board CRUD
-  saveBoard(board: Omit<SnippetBoard, 'id' | 'createdAt'>): Promise<SnippetBoard>;
-  getBoard(id: string): Promise<SnippetBoard | null>;
-  getBoards(): Promise<readonly SnippetBoard[]>;
-  updateBoard(id: string, updates: Partial<Omit<SnippetBoard, 'id' | 'createdAt'>>): Promise<SnippetBoard>;
-  deleteBoard(id: string): Promise<void>;
 
   // Migration
   exportAll(): AsyncIterable<Entry>;

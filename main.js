@@ -589,15 +589,8 @@ async function startApp() {
   }
 
   // WhisperWoof: Initialize WhisperWoof subsystems
-  const { initializeWhisperWoof, getWhisperWoofDb } = require("./src/whisperwoof/bridge/app-init");
+  const { initializeWhisperWoof } = require("./src/whisperwoof/bridge/app-init");
   await initializeWhisperWoof();
-
-  // WhisperWoof: Register snippet hotkeys (Cmd+Shift+1-9 for quick paste)
-  const { registerSnippetHotkeys } = require("./src/whisperwoof/bridge/snippet-hotkeys");
-  const wwDb = getWhisperWoofDb();
-  if (wwDb && clipboardManager) {
-    registerSnippetHotkeys(wwDb, clipboardManager);
-  }
 
   // Electron's file:// sends no Origin header, which Neon Auth rejects.
   session.defaultSession.webRequest.onBeforeSendHeaders(
@@ -1194,10 +1187,6 @@ if (gotSingleInstanceLock) {
   });
 
   app.on("will-quit", () => {
-    // WhisperWoof: Unregister snippet hotkeys
-    const { unregisterSnippetHotkeys } = require("./src/whisperwoof/bridge/snippet-hotkeys");
-    unregisterSnippetHotkeys();
-
     // WhisperWoof: Flush vocabulary cache to disk
     try {
       const { flushToDisk } = require("./src/whisperwoof/bridge/vocabulary");

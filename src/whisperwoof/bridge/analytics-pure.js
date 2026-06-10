@@ -112,7 +112,6 @@ function fillHourGaps(hourCounts) {
 }
 
 const VOICE_COMMAND_PREFIX = "voice-command:";
-const SNIPPET_PREFIX = "snippet:";
 
 /**
  * Extract a voice-command name from a `routed_to` field.
@@ -122,17 +121,6 @@ function extractCommandName(routedTo) {
   if (!routedTo) return "";
   return routedTo.startsWith(VOICE_COMMAND_PREFIX)
     ? routedTo.slice(VOICE_COMMAND_PREFIX.length)
-    : routedTo;
-}
-
-/**
- * Extract a snippet trigger phrase from a `routed_to` field.
- * `"snippet:my email"` → `"my email"`.
- */
-function extractSnippetTrigger(routedTo) {
-  if (!routedTo) return "";
-  return routedTo.startsWith(SNIPPET_PREFIX)
-    ? routedTo.slice(SNIPPET_PREFIX.length)
     : routedTo;
 }
 
@@ -147,7 +135,6 @@ function getEmptyDashboard() {
     sourceBreakdown: [],
     polishStats: { totalPolished: 0, totalRaw: 0, avgCharsSaved: 0, polishRate: 0 },
     topCommands: [],
-    topSnippets: [],
     busiestHours: [],
     averageDuration: { avgMs: 0, totalMs: 0, count: 0 },
     streaks: { current: 0, longest: 0 },
@@ -159,8 +146,6 @@ module.exports = {
   computeStreaks,
   fillHourGaps,
   extractCommandName,
-  extractSnippetTrigger,
   getEmptyDashboard,
   VOICE_COMMAND_PREFIX,
-  SNIPPET_PREFIX,
 };

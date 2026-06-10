@@ -13,10 +13,8 @@ const {
   computeStreaks,
   fillHourGaps,
   extractCommandName,
-  extractSnippetTrigger,
   getEmptyDashboard,
   VOICE_COMMAND_PREFIX,
-  SNIPPET_PREFIX,
 } = require("./analytics-pure");
 
 let db = null;
@@ -44,7 +42,6 @@ function getDashboard(options = {}) {
       sourceBreakdown: getSourceBreakdown(),
       polishStats: getPolishStats(),
       topCommands: getTopCommands(10),
-      topSnippets: getTopSnippets(10),
       busiestHours: getBusiestHours(),
       averageDuration: getAverageDuration(),
       streaks: getStreaks(),
@@ -129,23 +126,6 @@ function getTopCommands(limit) {
   }));
 }
 
-function getTopSnippets(limit) {
-  // Snippets are stored in routed_to as "snippet:my email" etc.
-  const rows = db.prepare(`
-    SELECT routed_to, COUNT(*) as count
-    FROM bf_entries
-    WHERE routed_to LIKE '${SNIPPET_PREFIX}%'
-    GROUP BY routed_to
-    ORDER BY count DESC
-    LIMIT ?
-  `).all(limit);
-
-  return rows.map((r) => ({
-    trigger: extractSnippetTrigger(r.routed_to),
-    count: r.count,
-  }));
-}
-
 function getBusiestHours() {
   const rows = db.prepare(`
     SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
@@ -187,7 +167,6 @@ module.exports = {
   getSourceBreakdown,
   getPolishStats,
   getTopCommands,
-  getTopSnippets,
   getBusiestHours,
   getAverageDuration,
   getStreaks,

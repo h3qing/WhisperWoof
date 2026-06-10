@@ -841,13 +841,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofTelegramSyncStatus: () => ipcRenderer.invoke("whisperwoof-telegram-sync-status"),
   whisperwoofTelegramImportNow: () => ipcRenderer.invoke("whisperwoof-telegram-import-now"),
 
-  // WhisperWoof: Voice snippets
-  whisperwoofGetSnippets: () => ipcRenderer.invoke("whisperwoof-get-snippets"),
-  whisperwoofAddSnippet: (trigger, body) => ipcRenderer.invoke("whisperwoof-add-snippet", trigger, body),
-  whisperwoofUpdateSnippet: (id, updates) => ipcRenderer.invoke("whisperwoof-update-snippet", id, updates),
-  whisperwoofRemoveSnippet: (id) => ipcRenderer.invoke("whisperwoof-remove-snippet", id),
-  whisperwoofExpandSnippet: (text) => ipcRenderer.invoke("whisperwoof-expand-snippet", text),
-
   // WhisperWoof: Markdown notes (Fn+N)
   whisperwoofSaveMarkdown: (text) => ipcRenderer.invoke("whisperwoof-save-markdown", text),
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
@@ -905,18 +898,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofUpdateProjectIntegration: (projectId, pluginId) => ipcRenderer.invoke("whisperwoof-update-project-integration", projectId, pluginId),
   whisperwoofGetProjectIntegrations: () => ipcRenderer.invoke("whisperwoof-get-project-integrations"),
   whisperwoofDispatchEntry: (entryId, pluginId, text) => ipcRenderer.invoke("whisperwoof-dispatch-entry", entryId, pluginId, text),
-
-  // Smart Clipboard
-  whisperwoofGetBoards: () => ipcRenderer.invoke("whisperwoof-get-boards"),
-  whisperwoofSaveBoard: (board) => ipcRenderer.invoke("whisperwoof-save-board", board),
-  whisperwoofUpdateBoard: (id, updates) => ipcRenderer.invoke("whisperwoof-update-board", id, updates),
-  whisperwoofDeleteBoard: (id) => ipcRenderer.invoke("whisperwoof-delete-board", id),
-  whisperwoofGetAllSnippets: () => ipcRenderer.invoke("whisperwoof-get-all-snippets"),
-  whisperwoofSaveSnippet: (snippet) => ipcRenderer.invoke("whisperwoof-save-snippet", snippet),
-  whisperwoofScUpdateSnippet: (id, updates) => ipcRenderer.invoke("whisperwoof-sc-update-snippet", id, updates),
-  whisperwoofDeleteSnippet: (id) => ipcRenderer.invoke("whisperwoof-delete-snippet", id),
-  whisperwoofRecordSnippetUse: (id) => ipcRenderer.invoke("whisperwoof-record-snippet-use", id),
-  whisperwoofSuggestSnippets: (limit) => ipcRenderer.invoke("whisperwoof-suggest-snippets", limit),
 
   // Storage Manager
   whisperwoofStorageUsage: () => ipcRenderer.invoke("whisperwoof-storage-usage"),

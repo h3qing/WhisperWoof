@@ -15,10 +15,8 @@ import {
   computeStreaks,
   fillHourGaps,
   extractCommandName,
-  extractSnippetTrigger,
   getEmptyDashboard,
   VOICE_COMMAND_PREFIX,
-  SNIPPET_PREFIX,
 } from "../../bridge/analytics-pure";
 
 describe("computePolishStats", () => {
@@ -145,19 +143,12 @@ describe("routed_to prefix extraction", () => {
     expect(extractCommandName(`${VOICE_COMMAND_PREFIX}summarize`)).toBe("summarize");
   });
 
-  it("extracts the trigger phrase after the snippet prefix", () => {
-    expect(extractSnippetTrigger(`${SNIPPET_PREFIX}my email`)).toBe("my email");
-    expect(extractSnippetTrigger(`${SNIPPET_PREFIX}standup update`)).toBe("standup update");
-  });
-
   it("leaves strings without the expected prefix unchanged", () => {
     expect(extractCommandName("paste-at-cursor")).toBe("paste-at-cursor");
-    expect(extractSnippetTrigger("markdown-file")).toBe("markdown-file");
   });
 
   it("returns empty string for null / undefined input", () => {
     expect(extractCommandName(null)).toBe("");
-    expect(extractSnippetTrigger(undefined)).toBe("");
   });
 });
 
@@ -169,7 +160,6 @@ describe("getEmptyDashboard", () => {
     expect(empty.sourceBreakdown).toEqual([]);
     expect(empty.polishStats.polishRate).toBe(0);
     expect(empty.topCommands).toEqual([]);
-    expect(empty.topSnippets).toEqual([]);
     expect(empty.busiestHours).toEqual([]);
     expect(empty.averageDuration.avgMs).toBe(0);
     expect(empty.streaks).toEqual({ current: 0, longest: 0 });
