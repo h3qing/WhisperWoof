@@ -2822,6 +2822,16 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle("whisperwoof-get-entries-by-source", async (_event, source, limit, offset) => {
+      try {
+        const { getWhisperWoofEntriesBySource } = require("../whisperwoof/bridge/app-init");
+        return getWhisperWoofEntriesBySource(source, limit, offset);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-entries-by-source failed: ${error.message}`);
+        return [];
+      }
+    });
+
     ipcMain.handle("whisperwoof-search-entries", async (_event, query, limit) => {
       try {
         const { searchWhisperWoofEntries } = require("../whisperwoof/bridge/app-init");

@@ -444,6 +444,14 @@ function getWhisperWoofEntries(limit = 50, offset = 0) {
   return rows.map(mapRow);
 }
 
+function getWhisperWoofEntriesBySource(source, limit = 50, offset = 0) {
+  if (!whisperwoofDb) return [];
+  const rows = whisperwoofDb.prepare(
+    'SELECT * FROM bf_entries WHERE source = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+  ).all(source, limit, offset);
+  return rows.map(mapRow);
+}
+
 function searchWhisperWoofEntries(query, limit = 50) {
   if (!whisperwoofDb) return [];
   const rows = whisperwoofDb.prepare(
@@ -711,6 +719,7 @@ module.exports = {
   shutdownWhisperWoof,
   saveWhisperWoofEntry,
   getWhisperWoofEntries,
+  getWhisperWoofEntriesBySource,
   searchWhisperWoofEntries,
   deleteWhisperWoofEntry,
   toggleWhisperWoofFavorite,

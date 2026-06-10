@@ -856,6 +856,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // WhisperWoof: History entries (voice + clipboard unified view)
   whisperwoofGetEntries: (limit, offset) => ipcRenderer.invoke("whisperwoof-get-entries", limit, offset),
+  whisperwoofGetEntriesBySource: (source, limit, offset) =>
+    ipcRenderer.invoke("whisperwoof-get-entries-by-source", source, limit, offset),
   whisperwoofSearchEntries: (query, limit) => ipcRenderer.invoke("whisperwoof-search-entries", query, limit),
   whisperwoofDeleteEntry: (id) => ipcRenderer.invoke("whisperwoof-delete-entry", id),
   whisperwoofToggleFavorite: (id) => ipcRenderer.invoke("whisperwoof-toggle-favorite", id),
