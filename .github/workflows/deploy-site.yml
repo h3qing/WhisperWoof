@@ -1,0 +1,32 @@
+name: Deploy site
+
+# Single source of truth: website/ on main. This publishes it to the gh-pages
+# branch (which GitHub Pages serves) on every push that touches website/, so the
+# repo source and the live site can never drift apart again.
+
+on:
+  push:
+    branches: [main]
+    paths: ["website/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish website/ to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./website
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "deploy site from ${{ github.sha }}"
