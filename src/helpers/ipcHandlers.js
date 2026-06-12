@@ -1837,17 +1837,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: LLM provider management (BYOM)
-    ipcMain.handle("whisperwoof-get-providers", async () => {
-      try {
-        const { getProviders } = require("../whisperwoof/bridge/llm-providers");
-        return getProviders();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-providers failed: ${error.message}`);
-        return [];
-      }
-    });
-
     // WhisperWoof: Adaptive style learning
     ipcMain.handle("whisperwoof-get-style-stats", async () => {
       try {
@@ -2685,56 +2674,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: Voice snippets (trigger → expand)
-    ipcMain.handle("whisperwoof-get-snippets", async () => {
-      try {
-        const { getSnippets } = require("../whisperwoof/bridge/snippets");
-        return getSnippets();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-snippets failed: ${error.message}`);
-        return [];
-      }
-    });
-
-    ipcMain.handle("whisperwoof-add-snippet", async (_event, trigger, body) => {
-      try {
-        const { addSnippet } = require("../whisperwoof/bridge/snippets");
-        return addSnippet(trigger, body);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] add-snippet failed: ${error.message}`);
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-update-snippet", async (_event, id, updates) => {
-      try {
-        const { updateSnippet } = require("../whisperwoof/bridge/snippets");
-        return updateSnippet(id, updates);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] update-snippet failed: ${error.message}`);
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-remove-snippet", async (_event, id) => {
-      try {
-        const { removeSnippet } = require("../whisperwoof/bridge/snippets");
-        return removeSnippet(id);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] remove-snippet failed: ${error.message}`);
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-expand-snippet", async (_event, text) => {
-      try {
-        const { expandSnippet } = require("../whisperwoof/bridge/snippets");
-        return expandSnippet(text);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] expand-snippet failed: ${error.message}`);
-        return null;
-      }
-    });
 
     // WhisperWoof: Save entry to bf_entries table
     ipcMain.handle("whisperwoof-save-entry", async (event, entry) => {
@@ -2829,6 +2768,16 @@ class IPCHandlers {
         return getWhisperWoofEntries(limit, offset);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-entries failed: ${error.message}`);
+        return [];
+      }
+    });
+
+    ipcMain.handle("whisperwoof-get-entries-by-source", async (_event, source, limit, offset) => {
+      try {
+        const { getWhisperWoofEntriesBySource } = require("../whisperwoof/bridge/app-init");
+        return getWhisperWoofEntriesBySource(source, limit, offset);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-entries-by-source failed: ${error.message}`);
         return [];
       }
     });
@@ -5946,118 +5895,6 @@ class IPCHandlers {
       return { success: true };
     });
 
-    // --- Smart Clipboard IPC handlers ---
-
-    ipcMain.handle("whisperwoof-get-boards", async () => {
-      try {
-        const { getSmartClipboardBoards } = require("../whisperwoof/bridge/app-init");
-        return getSmartClipboardBoards();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-boards failed: ${error.message}`);
-        return [];
-      }
-    });
-
-    ipcMain.handle("whisperwoof-save-board", async (_event, board) => {
-      try {
-        if (!board || typeof board.name !== "string" || !board.name.trim()) return null;
-        if (typeof board.position !== "number" || board.position < 0) return null;
-        if (typeof board.color !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(board.color)) return null;
-        const { saveSmartClipboardBoard } = require("../whisperwoof/bridge/app-init");
-        return saveSmartClipboardBoard(board);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] save-board failed: ${error.message}`);
-        return null;
-      }
-    });
-
-    ipcMain.handle("whisperwoof-update-board", async (_event, id, updates) => {
-      try {
-        const { updateSmartClipboardBoard } = require("../whisperwoof/bridge/app-init");
-        return updateSmartClipboardBoard(id, updates);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] update-board failed: ${error.message}`);
-        return null;
-      }
-    });
-
-    ipcMain.handle("whisperwoof-delete-board", async (_event, id) => {
-      try {
-        const { deleteSmartClipboardBoard } = require("../whisperwoof/bridge/app-init");
-        deleteSmartClipboardBoard(id);
-        return { success: true };
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] delete-board failed: ${error.message}`);
-        return { success: false };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-get-all-snippets", async () => {
-      try {
-        const { getAllSmartClipboardSnippets } = require("../whisperwoof/bridge/app-init");
-        return getAllSmartClipboardSnippets();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-all-snippets failed: ${error.message}`);
-        return [];
-      }
-    });
-
-    ipcMain.handle("whisperwoof-save-snippet", async (_event, snippet) => {
-      try {
-        if (!snippet || typeof snippet.content !== "string") return null;
-        if (typeof snippet.title !== "string" || !snippet.title.trim()) return null;
-        if (typeof snippet.boardId !== "string") return null;
-        const validSources = new Set(["human", "ai", "voice"]);
-        if (!validSources.has(snippet.source)) return null;
-        const { saveSmartClipboardSnippet } = require("../whisperwoof/bridge/app-init");
-        return saveSmartClipboardSnippet(snippet);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] save-snippet failed: ${error.message}`);
-        return null;
-      }
-    });
-
-    ipcMain.handle("whisperwoof-sc-update-snippet", async (_event, id, updates) => {
-      try {
-        const { updateSmartClipboardSnippet } = require("../whisperwoof/bridge/app-init");
-        return updateSmartClipboardSnippet(id, updates);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] sc-update-snippet failed: ${error.message}`);
-        return null;
-      }
-    });
-
-    ipcMain.handle("whisperwoof-delete-snippet", async (_event, id) => {
-      try {
-        const { deleteSmartClipboardSnippet } = require("../whisperwoof/bridge/app-init");
-        deleteSmartClipboardSnippet(id);
-        return { success: true };
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] delete-snippet failed: ${error.message}`);
-        return { success: false };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-record-snippet-use", async (_event, id) => {
-      try {
-        const { recordSmartClipboardSnippetUse } = require("../whisperwoof/bridge/app-init");
-        return recordSmartClipboardSnippetUse(id);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] record-snippet-use failed: ${error.message}`);
-        return null;
-      }
-    });
-
-    ipcMain.handle("whisperwoof-suggest-snippets", async (_event, limit) => {
-      try {
-        const { suggestSnippetsFromHistory } = require("../whisperwoof/bridge/app-init");
-        return suggestSnippetsFromHistory(typeof limit === "number" ? limit : 10);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] suggest-snippets failed: ${error.message}`);
-        return [];
-      }
-    });
-
     // --- Storage Manager ---
 
     ipcMain.handle("whisperwoof-storage-usage", async () => {
@@ -6135,61 +5972,6 @@ class IPCHandlers {
         debugLogger.log(`[WhisperWoof] storage-cleanup-orphans failed: ${error.message}`);
         return { removed: 0, bytes: 0 };
       }
-    });
-
-    // --- Pipeline Tuning Bench ---
-
-    ipcMain.handle("whisperwoof-tuning-get-configs", async () => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getAvailableConfigs();
-      } catch (error) { return { presets: [], providers: [] }; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-save-test", async (_event, testCase) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.saveTestCase(testCase);
-      } catch (error) { return null; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-get-tests", async () => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getTestCases();
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-delete-test", async (_event, id) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        tb.deleteTestCase(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-get-variants", async (_event, testCaseId) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return tb.getVariantsForTest(testCaseId);
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-run-variant", async (_event, config) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        return await tb.runVariant(config);
-      } catch (error) {
-        return { id: null, status: "error", error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-tuning-delete-variant", async (_event, id) => {
-      try {
-        const tb = require("../whisperwoof/bridge/tuning-bench");
-        tb.deleteVariant(id);
-        return { success: true };
-      } catch (error) { return { success: false }; }
     });
 
     // --- Eval Dataset ---

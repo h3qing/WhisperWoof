@@ -5,7 +5,6 @@
  * migration, or sharing between machines.
  *
  * Exported data:
- * - Snippets (trigger phrases → text blocks)
  * - Vocabulary (custom words, categories, alternatives)
  * - Style examples (adaptive learning before/after pairs)
  * - Plugin configs (enabled, hotkey bindings)
@@ -28,7 +27,6 @@ const {
 const USER_DATA = app.getPath("userData");
 
 const CONFIG_FILES = {
-  snippets: path.join(USER_DATA, "whisperwoof-snippets.json"),
   vocabulary: path.join(USER_DATA, "whisperwoof-vocabulary.json"),
   styleExamples: path.join(USER_DATA, "whisperwoof-style-examples.json"),
   plugins: path.join(USER_DATA, "whisperwoof-plugins.json"),
@@ -96,7 +94,6 @@ function exportSettings(options = {}) {
 
   // Count what's included
   const stats = {
-    snippets: Array.isArray(data.snippets) ? data.snippets.length : 0,
     vocabulary: Array.isArray(data.vocabulary) ? data.vocabulary.length : 0,
     styleExamples: Array.isArray(data.styleExamples) ? data.styleExamples.length : 0,
     plugins: Array.isArray(data.plugins) ? data.plugins.length : 0,

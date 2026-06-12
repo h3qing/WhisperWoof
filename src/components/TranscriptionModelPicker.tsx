@@ -312,6 +312,8 @@ export default function TranscriptionModelPicker({
   const ensureValidCloudSelectionRef = useRef<(() => void) | null>(null);
   const selectedLocalModelRef = useRef(selectedLocalModel);
   const onLocalModelSelectRef = useRef(onLocalModelSelect);
+  // The provider actually used for dictation (not the tab being viewed).
+  const activeProviderRef = useRef(selectedLocalProvider);
 
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialogs();
   const colorScheme: ColorScheme = variant === "settings" ? "purple" : "blue";
@@ -327,8 +329,15 @@ export default function TranscriptionModelPicker({
   useEffect(() => {
     onLocalModelSelectRef.current = onLocalModelSelect;
   }, [onLocalModelSelect]);
+  useEffect(() => {
+    activeProviderRef.current = selectedLocalProvider;
+  }, [selectedLocalProvider]);
 
   const validateAndSelectModel = useCallback((loadedModels: LocalModel[]) => {
+    // Only auto-correct the selection when Whisper is the ACTIVE provider. Otherwise
+    // browsing the Whisper tab while Parakeet is active would write a Whisper model id
+    // into parakeetModel (the parent maps onLocalModelSelect by the active provider).
+    if (activeProviderRef.current !== "whisper") return;
     const current = selectedLocalModelRef.current;
     if (!current) return;
 
@@ -550,15 +559,15 @@ export default function TranscriptionModelPicker({
     [cloudProviders, onCloudProviderSelect, onCloudModelSelect, setCloudTranscriptionBaseUrl]
   );
 
-  const handleLocalProviderChange = useCallback(
-    (providerId: string) => {
-      const tab = LOCAL_PROVIDER_TABS.find((t) => t.id === providerId);
-      if (tab?.disabled) return;
-      setInternalLocalProvider(providerId);
-      onLocalProviderSelect?.(providerId);
-    },
-    [onLocalProviderSelect]
-  );
+  const handleLocalProviderChange = useCallback((providerId: string) => {
+    const tab = LOCAL_PROVIDER_TABS.find((t) => t.id === providerId);
+    if (tab?.disabled) return;
+    // View-only: switching tabs browses a provider's models. The active provider
+    // (used for dictation) only changes when the user picks a specific model
+    // below. This prevents merely looking at a tab from silently switching what
+    // transcribes your voice — and keeps exactly one model marked "Active".
+    setInternalLocalProvider(providerId);
+  }, []);
 
   const handleWhisperModelSelect = useCallback(
     (modelId: string) => {
@@ -712,7 +721,7 @@ export default function TranscriptionModelPicker({
               description={info.description}
               size={info.size}
               actualSizeMb={model.size_mb}
-              isSelected={modelId === selectedLocalModel}
+              isSelected={selectedLocalProvider === "whisper" && modelId === selectedLocalModel}
               isDownloaded={model.downloaded ?? false}
               isDownloading={isDownloadingModel(modelId)}
               isCancelling={isCancelling}
@@ -797,7 +806,7 @@ export default function TranscriptionModelPicker({
               description={info.description}
               size={info.size}
               actualSizeMb={model.size_mb}
-              isSelected={modelId === selectedLocalModel}
+              isSelected={selectedLocalProvider === "nvidia" && modelId === selectedLocalModel}
               isDownloaded={model.downloaded ?? false}
               isDownloading={isDownloadingParakeetModel(modelId)}
               isCancelling={isCancellingParakeet}
@@ -933,6 +942,18 @@ export default function TranscriptionModelPicker({
               onSelect={handleLocalProviderChange}
               colorScheme="purple"
             />
+            <div className="px-1 pt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span>Active for dictation:</span>
+              <span className="font-medium text-foreground">
+                {selectedLocalProvider === "nvidia" ? "NVIDIA Parakeet" : "OpenAI Whisper"}
+              </span>
+              {internalLocalProvider !== selectedLocalProvider && (
+                <span className="text-muted-foreground/60">
+                  · viewing {internalLocalProvider === "nvidia" ? "Parakeet" : "Whisper"} (pick a model to switch)
+                </span>
+              )}
+            </div>
           </div>
 
           {progressDisplay}

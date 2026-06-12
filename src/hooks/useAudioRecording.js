@@ -207,39 +207,6 @@ export const useAudioRecording = (toast, options = {}) => {
           const pipelineStart = performance.now();
           const timings = {};
 
-          // WhisperWoof: Voice snippets — check for trigger phrases first
-          const snippetsEnabled = localStorage.getItem("whisperwoof-snippets") !== "false";
-          if (snippetsEnabled) {
-            try {
-              const expansion = await window.electronAPI?.whisperwoofExpandSnippet?.(transcribedText);
-              if (expansion?.matched) {
-                setTranscript(expansion.body);
-                await audioManagerRef.current.safePaste(expansion.body, {
-                  restoreClipboard: !getSettings().keepTranscriptionInClipboard,
-                });
-                toast({
-                  title: `\u26A1 Snippet: "${expansion.trigger}"`,
-                  description: expansion.body.slice(0, 60) + (expansion.body.length > 60 ? "..." : ""),
-                  variant: "default",
-                  duration: 2000,
-                });
-                window.electronAPI?.whisperwoofSaveEntry?.({
-                  source: 'voice',
-                  rawText: transcribedText,
-                  polished: expansion.body,
-                  routedTo: `snippet:${expansion.trigger}`,
-                  hotkeyUsed: null,
-                  durationMs: null,
-                  projectId: null,
-                  audioPath: null,
-                  metadata: { snippet: expansion.trigger, matchType: expansion.matchType },
-                });
-                return; // Skip polish + voice commands — snippet handled it
-              }
-            } catch (snippetError) {
-              logger.warn("WhisperWoof snippet expansion failed", { error: snippetError }, "whisperwoof");
-            }
-          }
 
           // WhisperWoof: Voice editing commands — detect before polish
           // If the spoken text is a command (e.g., "rewrite this", "translate to Spanish"),

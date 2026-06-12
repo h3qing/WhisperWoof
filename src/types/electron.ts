@@ -1257,7 +1257,6 @@ declare global {
         sourceBreakdown: Array<{ source: string; count: number }>;
         polishStats: { totalPolished: number; totalRaw: number; avgCharsSaved: number; polishRate: number };
         topCommands: Array<{ command: string; count: number }>;
-        topSnippets: Array<{ trigger: string; count: number }>;
         busiestHours: Array<{ hour: number; count: number }>;
         averageDuration: { avgMs: number; totalMs: number; count: number };
         streaks: { current: number; longest: number };
@@ -1402,20 +1401,11 @@ declare global {
       whisperwoofTelegramSyncStatus: () => Promise<{ running: boolean; inboxPath: string; inboxExists: boolean; pending: number; total: number }>;
       whisperwoofTelegramImportNow: () => Promise<{ success: boolean; imported?: number; error?: string }>;
 
-      // WhisperWoof — Voice snippets
-      whisperwoofGetSnippets: () => Promise<Array<{ id: string; trigger: string; body: string; createdAt: string; usageCount: number }>>;
-      whisperwoofAddSnippet: (trigger: string, body: string) => Promise<{ success: boolean; snippet?: any; error?: string }>;
-      whisperwoofUpdateSnippet: (id: string, updates: { trigger?: string; body?: string }) => Promise<{ success: boolean; error?: string }>;
-      whisperwoofRemoveSnippet: (id: string) => Promise<{ success: boolean; error?: string }>;
-      whisperwoofExpandSnippet: (text: string) => Promise<{ matched: boolean; trigger: string; body: string; matchType: string } | null>;
-
       // WhisperWoof — Adaptive style learning
       whisperwoofGetStyleStats: () => Promise<{ exampleCount: number; maxExamples: number; oldestExample: string | null; newestExample: string | null }>;
       whisperwoofClearStyleExamples: () => Promise<{ success: boolean }>;
       whisperwoofGetStyleExamples: () => Promise<Array<{ polished: string; edited: string; timestamp: string; editRatio: number }>>;
 
-      // WhisperWoof — LLM providers (BYOM)
-      whisperwoofGetProviders: () => Promise<Array<{ id: string; name: string; description: string; requiresApiKey: boolean; defaultModel: string; models: string[] }>>;
 
       // WhisperWoof — Voice editing commands
       whisperwoofVoiceCommand: (spokenText: string, selectedText: string, options?: Record<string, unknown>) => Promise<{ success: boolean; text?: string; isCommand: boolean; command?: string; error?: string }>;

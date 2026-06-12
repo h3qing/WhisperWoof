@@ -5,7 +5,7 @@
  * Components import this instead of defining their own getAPI().
  */
 
-import type { Entry, Snippet, SnippetBoard, SnippetSource } from "../../core/storage/types";
+import type { Entry } from "../../core/storage/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getElectronAPI(): ElectronAPI {
@@ -28,18 +28,6 @@ export interface ElectronAPI {
   whisperwoofDeleteProject?: (id: string) => Promise<{ success: boolean }>;
   whisperwoofGetProjectEntries?: (projectId: string, limit: number) => Promise<Entry[]>;
 
-  // Smart Clipboard
-  whisperwoofGetBoards?: () => Promise<SnippetBoard[]>;
-  whisperwoofSaveBoard?: (board: { name: string; position: number; color: string }) => Promise<SnippetBoard>;
-  whisperwoofUpdateBoard?: (id: string, updates: Partial<SnippetBoard>) => Promise<SnippetBoard>;
-  whisperwoofDeleteBoard?: (id: string) => Promise<void>;
-  whisperwoofGetAllSnippets?: () => Promise<Snippet[]>;
-  whisperwoofSaveSnippet?: (snippet: { content: string; title: string; boardId: string; position: number; source: SnippetSource; hotkey: string | null }) => Promise<Snippet>;
-  whisperwoofScUpdateSnippet?: (id: string, updates: Partial<Snippet>) => Promise<Snippet>;
-  whisperwoofDeleteSnippet?: (id: string) => Promise<void>;
-  whisperwoofRecordSnippetUse?: (id: string) => Promise<Snippet>;
-  whisperwoofSuggestSnippets?: (limit?: number) => Promise<{ text: string; source: string; frequency: number; lastSeen: string }[]>;
-
   // Memory / Vocabulary
   whisperwoofGetVocabulary?: (options?: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
   whisperwoofGetVocabularyStats?: () => Promise<{ total: number; autoLearned?: number; manual?: number; trackedApps?: { bundleId: string; wordCount: number; totalUsage: number }[] }>;
@@ -59,10 +47,6 @@ export interface ElectronAPI {
   whisperwoofStorageDeleteOlder?: (days: number) => Promise<{ deleted: number; filesRemoved: number }>;
   whisperwoofStorageExport?: (ids?: string[]) => Promise<unknown[]>;
   whisperwoofStorageCleanupOrphans?: () => Promise<{ removed: number; bytes: number }>;
-
-  // Tuning Bench
-  whisperwoofTuningGetConfigs?: () => Promise<{ presets: string[]; providers: { provider: string; models: string[] }[] }>;
-  whisperwoofTuningRunVariant?: (config: Record<string, string>) => Promise<Record<string, unknown>>;
 
   // Transcription
   transcribeLocalWhisper?: (blob: ArrayBuffer, opts: Record<string, unknown>) => Promise<{ text?: string; error?: string }>;

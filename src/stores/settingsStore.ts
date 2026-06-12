@@ -226,11 +226,15 @@ function invalidateApiKeyCaches(
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
   useLocalWhisper: readBoolean("useLocalWhisper", true), // WhisperWoof: local-first by default
-  whisperModel: readString("whisperModel", "small"), // WhisperWoof: "small" for better accuracy (244MB vs 74MB "base")
+  whisperModel: readString("whisperModel", "small"), // multilingual; handles Chinese + 90+ languages
+  // WhisperWoof: default to Whisper — it's multilingual (incl. Chinese/CJK), so it's the safe
+  // default for everyone. Parakeet TDT is faster but only covers English + 24 European languages
+  // (no CJK), so it's offered as an opt-in speed choice in Settings, not the default. When a user
+  // does pick Parakeet but their language isn't supported, audioManager auto-routes to Whisper.
   localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
     ? "nvidia"
     : "whisper") as LocalTranscriptionProvider,
-  parakeetModel: readString("parakeetModel", ""),
+  parakeetModel: readString("parakeetModel", "parakeet-tdt-0.6b-v3"),
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
   fallbackWhisperModel: readString("fallbackWhisperModel", "base"),
@@ -250,9 +254,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
 
-  useReasoningModel: readBoolean("useReasoningModel", false), // WhisperWoof: disabled — we use Ollama polish instead of llama.cpp reasoning (was adding 40s!)
+  // WhisperWoof: polish ON by default and local-first. Onboarding's Smart Cleanup
+  // step downloads a model and sets reasoningModel; until then this no-ops cleanly
+  // (processTranscription returns the raw transcript when reasoningModel is empty).
+  useReasoningModel: readBoolean("useReasoningModel", true),
   reasoningModel: readString("reasoningModel", ""),
-  reasoningProvider: readString("reasoningProvider", "openai"),
+  reasoningProvider: readString("reasoningProvider", "local"),
 
   openaiApiKey: readString("openaiApiKey", ""),
   anthropicApiKey: readString("anthropicApiKey", ""),
@@ -770,6 +777,19 @@ export async function initializeSettings(): Promise<void> {
     const migratedLang = isBrowser ? localStorage.getItem("preferredLanguage") : null;
     if (migratedLang && migratedLang !== state.preferredLanguage) {
       useSettingsStore.setState({ preferredLanguage: migratedLang });
+    }
+
+    // One-time: undo the short-lived Parakeet-default experiment. Parakeet can't
+    // transcribe Chinese/CJK, so multilingual users who got auto-moved onto it
+    // (and saw misleading "No audio detected") are moved back to Whisper. Runs once;
+    // deliberately re-selecting Parakeet afterwards sticks.
+    if (isBrowser && localStorage.getItem("whisperwoof-parakeet-default-reverted") !== "true") {
+      if (state.localTranscriptionProvider === "nvidia") {
+        localStorage.setItem("localTranscriptionProvider", "whisper");
+        useSettingsStore.setState({ localTranscriptionProvider: "whisper" });
+        logger.info("Reverted Parakeet default to Whisper (one-time migration)", {}, "settings");
+      }
+      localStorage.setItem("whisperwoof-parakeet-default-reverted", "true");
     }
 
     // Sync dictionary from SQLite <-> localStorage

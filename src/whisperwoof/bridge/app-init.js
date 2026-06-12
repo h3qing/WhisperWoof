@@ -69,32 +69,6 @@ function createWhisperWoofTables(db) {
     CREATE INDEX IF NOT EXISTS idx_bf_entries_created_at ON bf_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_bf_entries_source ON bf_entries(source);
     CREATE INDEX IF NOT EXISTS idx_bf_entries_project_id ON bf_entries(project_id);
-
-    CREATE TABLE IF NOT EXISTS bf_snippet_boards (
-      id          TEXT PRIMARY KEY,
-      name        TEXT NOT NULL,
-      position    INTEGER NOT NULL DEFAULT 0,
-      color       TEXT NOT NULL DEFAULT '#C87B3A',
-      created_at  TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS bf_snippets (
-      id            TEXT PRIMARY KEY,
-      content       TEXT NOT NULL,
-      title         TEXT NOT NULL,
-      board_id      TEXT NOT NULL REFERENCES bf_snippet_boards(id) ON DELETE CASCADE,
-      position      INTEGER NOT NULL DEFAULT 0,
-      source        TEXT NOT NULL CHECK (source IN ('human', 'ai', 'voice')),
-      use_count     INTEGER NOT NULL DEFAULT 0,
-      last_used_at  TEXT,
-      hotkey        TEXT,
-      created_at    TEXT NOT NULL,
-      updated_at    TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bf_snippets_board ON bf_snippets(board_id);
-    CREATE INDEX IF NOT EXISTS idx_bf_snippets_hotkey ON bf_snippets(hotkey);
-    CREATE INDEX IF NOT EXISTS idx_bf_snippets_use ON bf_snippets(use_count DESC);
   `);
 }
 
@@ -131,11 +105,25 @@ function createFtsTables(db) {
   `);
 }
 
+// Best-effort capture of the app that was frontmost when the clipboard changed
+// (a reliable proxy for "where this was copied from"). Only called on an actual
+// new capture, so the ~50ms NSWorkspace lookup doesn't run on every poll tick.
+async function captureSourceApp() {
+  try {
+    const { detectActiveApp } = require("./context-detector");
+    const app = await detectActiveApp();
+    if (!app || !app.name) return undefined;
+    return { name: app.name, bundleId: app.bundleId || "" };
+  } catch {
+    return undefined;
+  }
+}
+
 function startClipboardMonitor() {
   // Poll every 500ms for clipboard changes
   lastClipboardText = clipboard.readText() || "";
 
-  clipboardInterval = setInterval(() => {
+  clipboardInterval = setInterval(async () => {
     try {
       // Check for image on clipboard FIRST (image copy may also have text)
       const img = clipboard.readImage();
@@ -159,6 +147,7 @@ function startClipboardMonitor() {
           const thumbPath = path.join(imgDir, `${imgId}_thumb.png`);
           fs.writeFileSync(thumbPath, thumb.toPNG());
 
+          const sourceApp = await captureSourceApp();
           saveWhisperWoofEntry({
             source: "clipboard",
             rawText: `[Image ${imgSize.width}\u00d7${imgSize.height}]`,
@@ -168,7 +157,7 @@ function startClipboardMonitor() {
             durationMs: null,
             projectId: null,
             audioPath: imgPath,
-            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath },
+            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath, sourceApp },
           });
 
           debugLogger.debug("[WhisperWoof] Clipboard image captured", {
@@ -197,6 +186,7 @@ function startClipboardMonitor() {
       lastClipboardText = currentText;
 
       // Save to bf_entries
+      const sourceApp = await captureSourceApp();
       saveWhisperWoofEntry({
         source: "clipboard",
         rawText: currentText,
@@ -206,7 +196,7 @@ function startClipboardMonitor() {
         durationMs: null,
         projectId: null,
         audioPath: null,
-        metadata: {},
+        metadata: { sourceApp },
       });
 
       debugLogger.debug("[WhisperWoof] Clipboard entry captured", {
@@ -273,20 +263,6 @@ async function initializeWhisperWoof() {
     }
 
     whisperwoofDb = db;
-
-    // Create default "Favorites" board if no boards exist yet
-    try {
-      const boardCount = db.prepare("SELECT COUNT(*) as cnt FROM bf_snippet_boards").get();
-      if (boardCount.cnt === 0) {
-        const id = crypto.randomUUID();
-        db.prepare(
-          "INSERT INTO bf_snippet_boards (id, name, position, color, created_at) VALUES (?, 'Favorites', 0, '#FBBF24', ?)"
-        ).run(id, new Date().toISOString());
-        debugLogger.log("[WhisperWoof] Created default 'Favorites' board");
-      }
-    } catch (err) {
-      debugLogger.debug("[WhisperWoof] Default board creation skipped", { error: err.message });
-    }
 
     debugLogger.log("[WhisperWoof] Database tables initialized");
 
@@ -444,6 +420,14 @@ function getWhisperWoofEntries(limit = 50, offset = 0) {
   return rows.map(mapRow);
 }
 
+function getWhisperWoofEntriesBySource(source, limit = 50, offset = 0) {
+  if (!whisperwoofDb) return [];
+  const rows = whisperwoofDb.prepare(
+    'SELECT * FROM bf_entries WHERE source = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+  ).all(source, limit, offset);
+  return rows.map(mapRow);
+}
+
 function searchWhisperWoofEntries(query, limit = 50) {
   if (!whisperwoofDb) return [];
   const rows = whisperwoofDb.prepare(
@@ -466,35 +450,6 @@ function toggleWhisperWoofFavorite(id) {
   if (!entry) return false;
   const newValue = entry.favorite ? 0 : 1;
   whisperwoofDb.prepare('UPDATE bf_entries SET favorite = ? WHERE id = ?').run(newValue, id);
-
-  // Auto-add to Smart Clipboard "Favorites" board when favoriting
-  if (newValue === 1) {
-    try {
-      const text = entry.polished || entry.raw_text;
-      if (text && text.length >= 2) {
-        // Find the first board (default "Favorites" board)
-        const board = whisperwoofDb.prepare("SELECT id FROM bf_snippet_boards ORDER BY position ASC LIMIT 1").get();
-        if (board) {
-          // Check if this text is already a snippet (avoid duplicates)
-          const existing = whisperwoofDb.prepare("SELECT id FROM bf_snippets WHERE content = ?").get(text);
-          if (!existing) {
-            const snippetId = crypto.randomUUID();
-            const now = new Date().toISOString();
-            const title = text.length > 40 ? text.slice(0, 40).trimEnd() + "..." : text;
-            const source = entry.source === "voice" ? "voice" : "human";
-            const pos = whisperwoofDb.prepare("SELECT COUNT(*) as cnt FROM bf_snippets WHERE board_id = ?").get(board.id).cnt;
-            whisperwoofDb.prepare(
-              "INSERT INTO bf_snippets (id, content, title, board_id, position, source, use_count, last_used_at, hotkey, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)"
-            ).run(snippetId, text, title, board.id, pos, source, now, now);
-            debugLogger.log(`[WhisperWoof] Auto-added favorite to Smart Clipboard: ${snippetId}`);
-          }
-        }
-      }
-    } catch (err) {
-      debugLogger.debug("[WhisperWoof] Auto-add to clipboard failed", { error: err.message });
-    }
-  }
-
   return newValue === 1;
 }
 
@@ -567,150 +522,13 @@ function getProjectIntegrations() {
   return result;
 }
 
-// --- Smart Clipboard: Board + Snippet CRUD ---
-
-function mapSnippetRow(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    content: row.content,
-    title: row.title,
-    boardId: row.board_id,
-    position: row.position,
-    source: row.source,
-    useCount: row.use_count ?? 0,
-    lastUsedAt: row.last_used_at,
-    hotkey: row.hotkey,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapBoardRow(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    position: row.position,
-    color: row.color,
-    createdAt: row.created_at,
-  };
-}
-
-function getSmartClipboardBoards() {
-  if (!whisperwoofDb) return [];
-  const rows = whisperwoofDb.prepare('SELECT * FROM bf_snippet_boards ORDER BY position ASC').all();
-  return rows.map(mapBoardRow);
-}
-
-function saveSmartClipboardBoard({ name, position, color }) {
-  if (!whisperwoofDb) return null;
-  const id = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  whisperwoofDb.prepare(
-    'INSERT INTO bf_snippet_boards (id, name, position, color, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, name, position, color, createdAt);
-  return mapBoardRow(whisperwoofDb.prepare('SELECT * FROM bf_snippet_boards WHERE id = ?').get(id));
-}
-
-function updateSmartClipboardBoard(id, updates) {
-  if (!whisperwoofDb) return null;
-  const sets = [];
-  const vals = [];
-  if ('name' in updates) { sets.push('name = ?'); vals.push(updates.name); }
-  if ('position' in updates) { sets.push('position = ?'); vals.push(updates.position); }
-  if ('color' in updates) { sets.push('color = ?'); vals.push(updates.color); }
-  if (sets.length === 0) return mapBoardRow(whisperwoofDb.prepare('SELECT * FROM bf_snippet_boards WHERE id = ?').get(id));
-  vals.push(id);
-  whisperwoofDb.prepare(`UPDATE bf_snippet_boards SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
-  return mapBoardRow(whisperwoofDb.prepare('SELECT * FROM bf_snippet_boards WHERE id = ?').get(id));
-}
-
-function deleteSmartClipboardBoard(id) {
-  if (!whisperwoofDb) return;
-  whisperwoofDb.prepare('DELETE FROM bf_snippet_boards WHERE id = ?').run(id);
-}
-
-function getAllSmartClipboardSnippets() {
-  if (!whisperwoofDb) return [];
-  const rows = whisperwoofDb.prepare('SELECT * FROM bf_snippets ORDER BY board_id, position ASC').all();
-  return rows.map(mapSnippetRow);
-}
-
-function saveSmartClipboardSnippet({ content, title, boardId, position, source, hotkey }) {
-  if (!whisperwoofDb) return null;
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  whisperwoofDb.prepare(
-    'INSERT INTO bf_snippets (id, content, title, board_id, position, source, use_count, last_used_at, hotkey, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)'
-  ).run(id, content, title, boardId, position, source, hotkey, now, now);
-  return mapSnippetRow(whisperwoofDb.prepare('SELECT * FROM bf_snippets WHERE id = ?').get(id));
-}
-
-function updateSmartClipboardSnippet(id, updates) {
-  if (!whisperwoofDb) return null;
-  const fieldMap = { content: 'content', title: 'title', boardId: 'board_id', position: 'position', source: 'source', hotkey: 'hotkey' };
-  const sets = ['updated_at = ?'];
-  const vals = [new Date().toISOString()];
-  for (const [key, col] of Object.entries(fieldMap)) {
-    if (key in updates) { sets.push(`${col} = ?`); vals.push(updates[key]); }
-  }
-  vals.push(id);
-  whisperwoofDb.prepare(`UPDATE bf_snippets SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
-  return mapSnippetRow(whisperwoofDb.prepare('SELECT * FROM bf_snippets WHERE id = ?').get(id));
-}
-
-function deleteSmartClipboardSnippet(id) {
-  if (!whisperwoofDb) return;
-  whisperwoofDb.prepare('DELETE FROM bf_snippets WHERE id = ?').run(id);
-}
-
-function recordSmartClipboardSnippetUse(id) {
-  if (!whisperwoofDb) return null;
-  const now = new Date().toISOString();
-  whisperwoofDb.prepare('UPDATE bf_snippets SET use_count = use_count + 1, last_used_at = ?, updated_at = ? WHERE id = ?').run(now, now, id);
-  return mapSnippetRow(whisperwoofDb.prepare('SELECT * FROM bf_snippets WHERE id = ?').get(id));
-}
-
-function suggestSnippetsFromHistory(limit = 10) {
-  if (!whisperwoofDb) return [];
-  try {
-    // Find frequently repeated text in voice/clipboard history
-    // Exclude very short (<10 chars) and very long (>500 chars) entries
-    // Exclude text that's already saved as a snippet
-    const rows = whisperwoofDb.prepare(`
-      SELECT
-        COALESCE(e.polished, e.raw_text) AS text,
-        e.source,
-        COUNT(*) AS freq,
-        MAX(e.created_at) AS last_seen
-      FROM bf_entries e
-      WHERE COALESCE(e.polished, e.raw_text) IS NOT NULL
-        AND LENGTH(COALESCE(e.polished, e.raw_text)) BETWEEN 10 AND 500
-        AND COALESCE(e.polished, e.raw_text) NOT IN (SELECT content FROM bf_snippets)
-      GROUP BY COALESCE(e.polished, e.raw_text)
-      HAVING freq >= 2
-      ORDER BY freq DESC
-      LIMIT ?
-    `).all(limit);
-
-    return rows.map((row) => ({
-      text: row.text,
-      source: row.source,
-      frequency: row.freq,
-      lastSeen: row.last_seen,
-    }));
-  } catch (error) {
-    debugLogger.log(`[WhisperWoof] suggestSnippets failed: ${error.message}`);
-    return [];
-  }
-}
 
 module.exports = {
   initializeWhisperWoof,
   shutdownWhisperWoof,
   saveWhisperWoofEntry,
   getWhisperWoofEntries,
+  getWhisperWoofEntriesBySource,
   searchWhisperWoofEntries,
   deleteWhisperWoofEntry,
   toggleWhisperWoofFavorite,
@@ -723,17 +541,7 @@ module.exports = {
   getProjectEntries,
   updateProjectIntegration,
   getProjectIntegrations,
-  // Database access (for snippet hotkeys)
+  // Database access (for storage-manager + other bridge modules)
   getWhisperWoofDb: () => whisperwoofDb,
   // Smart Clipboard
-  getSmartClipboardBoards,
-  saveSmartClipboardBoard,
-  updateSmartClipboardBoard,
-  deleteSmartClipboardBoard,
-  getAllSmartClipboardSnippets,
-  saveSmartClipboardSnippet,
-  updateSmartClipboardSnippet,
-  deleteSmartClipboardSnippet,
-  recordSmartClipboardSnippetUse,
-  suggestSnippetsFromHistory,
 };

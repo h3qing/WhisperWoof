@@ -672,7 +672,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateNotificationReady: () => ipcRenderer.invoke("update-notification-ready"),
   updateNotificationRespond: (action) => ipcRenderer.invoke("update-notification-respond", action),
 
-  whisperwoofGetProviders: () => ipcRenderer.invoke("whisperwoof-get-providers"),
   whisperwoofSaveEntry: (entry) => ipcRenderer.invoke("whisperwoof-save-entry", entry),
 
   // WhisperWoof: Adaptive style learning
@@ -842,13 +841,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofTelegramSyncStatus: () => ipcRenderer.invoke("whisperwoof-telegram-sync-status"),
   whisperwoofTelegramImportNow: () => ipcRenderer.invoke("whisperwoof-telegram-import-now"),
 
-  // WhisperWoof: Voice snippets
-  whisperwoofGetSnippets: () => ipcRenderer.invoke("whisperwoof-get-snippets"),
-  whisperwoofAddSnippet: (trigger, body) => ipcRenderer.invoke("whisperwoof-add-snippet", trigger, body),
-  whisperwoofUpdateSnippet: (id, updates) => ipcRenderer.invoke("whisperwoof-update-snippet", id, updates),
-  whisperwoofRemoveSnippet: (id) => ipcRenderer.invoke("whisperwoof-remove-snippet", id),
-  whisperwoofExpandSnippet: (text) => ipcRenderer.invoke("whisperwoof-expand-snippet", text),
-
   // WhisperWoof: Markdown notes (Fn+N)
   whisperwoofSaveMarkdown: (text) => ipcRenderer.invoke("whisperwoof-save-markdown", text),
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
@@ -857,6 +849,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // WhisperWoof: History entries (voice + clipboard unified view)
   whisperwoofGetEntries: (limit, offset) => ipcRenderer.invoke("whisperwoof-get-entries", limit, offset),
+  whisperwoofGetEntriesBySource: (source, limit, offset) =>
+    ipcRenderer.invoke("whisperwoof-get-entries-by-source", source, limit, offset),
   whisperwoofSearchEntries: (query, limit) => ipcRenderer.invoke("whisperwoof-search-entries", query, limit),
   whisperwoofDeleteEntry: (id) => ipcRenderer.invoke("whisperwoof-delete-entry", id),
   whisperwoofToggleFavorite: (id) => ipcRenderer.invoke("whisperwoof-toggle-favorite", id),
@@ -905,18 +899,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetProjectIntegrations: () => ipcRenderer.invoke("whisperwoof-get-project-integrations"),
   whisperwoofDispatchEntry: (entryId, pluginId, text) => ipcRenderer.invoke("whisperwoof-dispatch-entry", entryId, pluginId, text),
 
-  // Smart Clipboard
-  whisperwoofGetBoards: () => ipcRenderer.invoke("whisperwoof-get-boards"),
-  whisperwoofSaveBoard: (board) => ipcRenderer.invoke("whisperwoof-save-board", board),
-  whisperwoofUpdateBoard: (id, updates) => ipcRenderer.invoke("whisperwoof-update-board", id, updates),
-  whisperwoofDeleteBoard: (id) => ipcRenderer.invoke("whisperwoof-delete-board", id),
-  whisperwoofGetAllSnippets: () => ipcRenderer.invoke("whisperwoof-get-all-snippets"),
-  whisperwoofSaveSnippet: (snippet) => ipcRenderer.invoke("whisperwoof-save-snippet", snippet),
-  whisperwoofScUpdateSnippet: (id, updates) => ipcRenderer.invoke("whisperwoof-sc-update-snippet", id, updates),
-  whisperwoofDeleteSnippet: (id) => ipcRenderer.invoke("whisperwoof-delete-snippet", id),
-  whisperwoofRecordSnippetUse: (id) => ipcRenderer.invoke("whisperwoof-record-snippet-use", id),
-  whisperwoofSuggestSnippets: (limit) => ipcRenderer.invoke("whisperwoof-suggest-snippets", limit),
-
   // Storage Manager
   whisperwoofStorageUsage: () => ipcRenderer.invoke("whisperwoof-storage-usage"),
   whisperwoofStorageEntries: (options) => ipcRenderer.invoke("whisperwoof-storage-entries", options),
@@ -925,15 +907,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofStorageDeleteOlder: (days) => ipcRenderer.invoke("whisperwoof-storage-delete-older", days),
   whisperwoofStorageExport: (ids) => ipcRenderer.invoke("whisperwoof-storage-export", ids),
   whisperwoofStorageCleanupOrphans: () => ipcRenderer.invoke("whisperwoof-storage-cleanup-orphans"),
-
-  // Pipeline Tuning Bench
-  whisperwoofTuningGetConfigs: () => ipcRenderer.invoke("whisperwoof-tuning-get-configs"),
-  whisperwoofTuningSaveTest: (testCase) => ipcRenderer.invoke("whisperwoof-tuning-save-test", testCase),
-  whisperwoofTuningGetTests: () => ipcRenderer.invoke("whisperwoof-tuning-get-tests"),
-  whisperwoofTuningDeleteTest: (id) => ipcRenderer.invoke("whisperwoof-tuning-delete-test", id),
-  whisperwoofTuningGetVariants: (testCaseId) => ipcRenderer.invoke("whisperwoof-tuning-get-variants", testCaseId),
-  whisperwoofTuningRunVariant: (config) => ipcRenderer.invoke("whisperwoof-tuning-run-variant", config),
-  whisperwoofTuningDeleteVariant: (id) => ipcRenderer.invoke("whisperwoof-tuning-delete-variant", id),
 
   // Eval Dataset
   whisperwoofRateTranscription: (params) => ipcRenderer.invoke("whisperwoof-rate-transcription", params),

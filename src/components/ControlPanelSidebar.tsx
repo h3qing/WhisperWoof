@@ -16,7 +16,6 @@ import {
   Puzzle,
   Copy,
   HardDrive,
-  Beaker,
 } from "lucide-react";
 import logoIcon from "../assets/mando-head.svg";
 import { useTranslation } from "react-i18next";
@@ -26,7 +25,7 @@ import { getCachedPlatform } from "../utils/platform";
 
 const platform = getCachedPlatform();
 
-export type ControlPanelView = "home" | "personal-notes" | "dictionary" | "memory" | "upload" | "integrations" | "whisperwoof-history" | "whisperwoof-projects" | "whisperwoof-plugins" | "smart-clipboard" | "storage" | "tuning";
+export type ControlPanelView = "home" | "personal-notes" | "dictionary" | "memory" | "upload" | "integrations" | "whisperwoof-history" | "whisperwoof-projects" | "whisperwoof-plugins" | "smart-clipboard" | "storage";
 
 interface ControlPanelSidebarProps {
   activeView: ControlPanelView;
@@ -90,7 +89,6 @@ export default function ControlPanelSidebar({
     {
       label: "System",
       items: [
-        { id: "tuning", label: "Voice Style", icon: Beaker },
         { id: "storage", label: "Storage", icon: HardDrive },
       ],
     },

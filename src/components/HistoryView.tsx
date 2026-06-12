@@ -12,6 +12,7 @@ import UpcomingMeetings from "./UpcomingMeetings";
 import { useSettingsStore } from "../stores/settingsStore";
 import ClipboardHistory from "../whisperwoof/ui/clipboard-preview/ClipboardHistory";
 import HomeStats from "../whisperwoof/ui/home/HomeStats";
+import ModelStatusBar from "./ModelStatusBar";
 
 interface HistoryViewProps {
   history: TranscriptionItemType[];
@@ -117,6 +118,8 @@ export default function HistoryView({
             target.scrollIntoView({ behavior: "smooth", block: "start" });
           }
         }} />
+        {/* WhisperWoof: active model indicator — what STT + cleanup models are running */}
+        <ModelStatusBar onOpenSettings={onOpenSettings} />
         {showCloudMigrationBanner && (
           <div className="mb-3 relative rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
             <button

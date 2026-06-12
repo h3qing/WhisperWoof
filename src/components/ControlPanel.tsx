@@ -38,9 +38,8 @@ const WhisperWoofHistory = React.lazy(() => import("../whisperwoof/ui/history/Wh
 const WhisperWoofProjects = React.lazy(() => import("../whisperwoof/ui/projects/WhisperWoofProjects"));
 // WhisperWoofSettings moved into SettingsModal as "Voice & Polish" tab
 const WhisperWoofPlugins = React.lazy(() => import("../whisperwoof/ui/plugins/WhisperWoofPlugins"));
-const SmartClipboard = React.lazy(() => import("../whisperwoof/ui/smart-clipboard/SmartClipboard"));
+const ClipboardTimeline = React.lazy(() => import("../whisperwoof/ui/smart-clipboard/ClipboardTimeline"));
 const StorageManager = React.lazy(() => import("../whisperwoof/ui/storage/StorageManager"));
-const TuningBench = React.lazy(() => import("../whisperwoof/ui/tuning/TuningBench"));
 const CommandBar = React.lazy(() => import("../whisperwoof/ui/command-bar/CommandBar"));
 
 import { MeetingRecordingPill } from "../whisperwoof/ui/indicator/MeetingRecordingPill";
@@ -719,17 +718,12 @@ export default function ControlPanel() {
             )}
             {activeView === "smart-clipboard" && (
               <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
-                <SmartClipboard />
+                <ClipboardTimeline />
               </Suspense>
             )}
             {activeView === "storage" && (
               <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
                 <StorageManager />
-              </Suspense>
-            )}
-            {activeView === "tuning" && (
-              <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
-                <TuningBench />
               </Suspense>
             )}
           </div>
