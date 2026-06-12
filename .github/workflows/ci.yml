@@ -66,6 +66,10 @@ jobs:
     runs-on: macos-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [test]
+    # Authenticate the binary-download scripts (whisper.cpp, sherpa-onnx, llama-server)
+    # against the GitHub API — unauthenticated CI requests hit the 60/hr limit → HTTP 403.
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
