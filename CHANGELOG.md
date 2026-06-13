@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-06-14 — Floating indicator fixes
+
+### Fixed
+- **The waveform no longer animates when you're not talking.** Voice-activity detection used a flat RMS threshold (0.005) that sat below many microphones' ambient noise floor, so the indicator "waved" constantly even in silence. It now uses hysteresis — start at a clear voice level (0.02), hold until it drops below 0.012 — so it reacts to your voice, not room noise.
+- **Mando's head shows again during dictation.** The floating panel was 140px tall and the indicator is bottom-anchored, so in the taller "speaking" layout the head (topmost element) was clipped off the top — you saw the waveform but not the dog. The panel is now tall enough (188px) to keep the head visible. (Compounded by the always-on waveform bug above, which held the panel in its tallest layout.)
+
 ## [1.15.0] - 2026-06-10 — Local Polish: Tuned, On by Default, Legacy Stack Removed
 
 ### Performance
