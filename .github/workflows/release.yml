@@ -1,14 +1,50 @@
 name: Release
 
+# Fully automated: bump VERSION (which /ship does) and merge to main, and this
+# builds the macOS app and publishes a GitHub Release with the .dmg/.zip and
+# notes pulled from CHANGELOG.md. No manual tagging or uploads.
+
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths: ["VERSION"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  check:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      should_release: ${{ steps.v.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists — nothing to do."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version v$VERSION — will build and release."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
     name: Build & Release macOS
-    runs-on: macos-14  # Apple Silicon (M1) runner — ensures native modules compile for arm64
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: macos-14 # Apple Silicon — native modules compile for arm64
     permissions:
       contents: write
     steps:
@@ -31,13 +67,20 @@ jobs:
       - name: Compile native binaries
         run: npm run compile:native
 
+      # Bundle on-device engines. Authenticated (GITHUB_TOKEN) to avoid the 60/hr
+      # unauthenticated GitHub API limit. Non-fatal: users can fetch at runtime.
       - name: Download whisper-cpp
-        run: npm run download:whisper-cpp || echo "::warning::whisper-cpp download failed — users will download at runtime"
+        run: npm run download:whisper-cpp || echo "::warning::whisper-cpp download failed — runtime fallback"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download llama-server
-        run: npm run download:llama-server || echo "::warning::llama-server download failed — users will download at runtime"
+        run: npm run download:llama-server || echo "::warning::llama-server download failed — runtime fallback"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download sherpa-onnx (Parakeet)
+        run: npm run download:sherpa-onnx || echo "::warning::sherpa-onnx download failed — runtime fallback"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -48,33 +91,34 @@ jobs:
         run: npx electron-builder --mac --arm64 --config.mac.identity=null --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          V="${{ needs.check.outputs.version }}"
+          {
+            echo "notes<<CHANGELOG_EOF"
+            awk -v ver="$V" '
+              $0 ~ ("^## \\[" ver "\\]") {f=1; next}
+              /^## \[/ {f=0}
+              f {print}
+            ' CHANGELOG.md
+            echo ""
+            echo "### Install"
+            echo "Download the \`.dmg\`, open it, and drag **WhisperWoof** to Applications."
+            echo "Unsigned build — on first launch, right-click the app → **Open**, or run:"
+            echo '```'
+            echo "xattr -dr com.apple.quarantine /Applications/WhisperWoof.app"
+            echo '```'
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "WhisperWoof v${{ steps.version.outputs.VERSION }}"
-          body: |
-            ## WhisperWoof v${{ steps.version.outputs.VERSION }}
-
-            **Download:** Click the `.dmg` file below to install on macOS (Apple Silicon).
-
-            ### Installation
-            1. Download the `.dmg` file
-            2. Open it and drag WhisperWoof to Applications
-            3. Open WhisperWoof from Applications
-            4. macOS may warn "unidentified developer" — right-click → Open to bypass
-
-            ### Optional: Ollama for text polish
-            ```bash
-            brew install ollama && ollama pull llama3.2:1b && ollama serve
-            ```
-
-            See [CHANGELOG.md](https://github.com/h3qing/whisperwoof/blob/main/CHANGELOG.md) for details.
+          tag_name: v${{ needs.check.outputs.version }}
+          name: WhisperWoof v${{ needs.check.outputs.version }}
+          body: ${{ steps.notes.outputs.notes }}
           files: |
             dist/*.dmg
             dist/*.zip
