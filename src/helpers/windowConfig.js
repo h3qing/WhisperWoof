@@ -29,7 +29,7 @@ const FLOATING_OVERLAY_TYPE =
       : "normal";
 
 const WINDOW_SIZES = {
-  BASE: { width: 200, height: 140 }, // WhisperWoof: Mando head + status + waveform (vertical layout)
+  BASE: { width: 220, height: 188 }, // WhisperWoof: Mando head + status + waveform (vertical, bottom-anchored). Tall enough that the head (topmost) isn't clipped in the taller "speaking" layout.
   WITH_MENU: { width: 240, height: 280 },
   WITH_TOAST: { width: 400, height: 500 },
   EXPANDED: { width: 400, height: 500 },

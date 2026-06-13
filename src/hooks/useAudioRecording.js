@@ -154,8 +154,12 @@ export const useAudioRecording = (toast, options = {}) => {
         }
       },
       onRmsUpdate: (rms) => {
-        // Voice activity threshold: RMS > 0.005 means user is speaking
-        setIsSpeaking(rms > 0.005);
+        // Voice-activity detection with hysteresis. The old flat 0.005 threshold
+        // sat below many mics' ambient noise floor, so the indicator "waved"
+        // constantly even in silence. Require a clear voice level to start
+        // (0.02) and hold until it drops below 0.012 to stop — ambient noise
+        // can't reach 0.02, and real speech stays above 0.012.
+        setIsSpeaking((prev) => (prev ? rms > 0.012 : rms > 0.02));
       },
       onError: (error) => {
         const title = getRecordingErrorTitle(error, t);
