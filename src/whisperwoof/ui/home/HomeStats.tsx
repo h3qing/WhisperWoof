@@ -3,7 +3,6 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Sparkles } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
 
 interface Dashboard {
@@ -178,47 +177,6 @@ function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: 
   );
 }
 
-// --- AI-generated insight (uses Ollama if available) ---
-
-function useAIInsight(data: Dashboard | null): string | null {
-  const [insight, setInsight] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!data) return;
-    // Check cache first (refreshes every 6 hours)
-    const cacheKey = "whisperwoof-ai-insight";
-    const cacheTimeKey = "whisperwoof-ai-insight-ts";
-    const cached = localStorage.getItem(cacheKey);
-    const cachedTs = parseInt(localStorage.getItem(cacheTimeKey) || "0");
-    if (cached && Date.now() - cachedTs < 6 * 3600 * 1000) {
-      setInsight(cached);
-      return;
-    }
-
-    // Try LLM generation
-    const api = getAPI();
-    if (typeof api.whisperwoofPolishText !== "function") return;
-
-    const statsPrompt = `You are a fun, concise assistant for a voice dictation app called WhisperWoof. Based on these user stats, write ONE short fun observation (under 15 words). Be warm, specific, playful. No emojis. Examples: "You talk more on Tuesdays than any other day" or "Your voice entries are getting longer this month".
-
-Stats: ${data.summary.todayEntries} entries today, ${data.summary.thisWeekEntries} this week, ${data.summary.thisMonthEntries} this month, ${data.streaks.current}-day streak (best: ${data.streaks.longest}), ${data.summary.totalEntries} total entries, busiest hour: ${data.busiestHours ? data.busiestHours.indexOf(Math.max(...data.busiestHours)) : "unknown"}:00, avg recording: ${data.averageDuration.avgMs > 0 ? (data.averageDuration.avgMs / 1000).toFixed(1) + "s" : "n/a"}.
-
-Write ONLY the observation, nothing else:`;
-
-    (api.whisperwoofPolishText as (text: string, opts: Record<string, unknown>) => Promise<string | null>)(
-      statsPrompt, { preset: "minimal" }
-    ).then((result) => {
-      if (result && result.length > 5 && result.length < 100) {
-        setInsight(result.trim());
-        localStorage.setItem(cacheKey, result.trim());
-        localStorage.setItem(cacheTimeKey, String(Date.now()));
-      }
-    }).catch(() => { /* Ollama not available, use static facts */ });
-  }, [data]);
-
-  return insight;
-}
-
 // --- Main ---
 
 interface HomeStatsProps {
@@ -239,7 +197,6 @@ export default function HomeStats({ onDayClick }: HomeStatsProps) {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const funFacts = useMemo(() => data ? pickFacts(generateFunFacts(data), 3) : [], [data]);
-  const aiInsight = useAIInsight(data);
 
   if (!data || data.summary.totalEntries === 0) return null;
 
@@ -266,14 +223,8 @@ export default function HomeStats({ onDayClick }: HomeStatsProps) {
           </h2>
           <p className="text-[11px] text-[#736858] mt-1">{parts.join(" · ")}</p>
 
-          {/* Fun facts / AI insight */}
+          {/* Fun facts */}
           <div className="mt-3 space-y-1.5">
-            {aiInsight && (
-              <p className="text-[11px] text-[#A06A3C]/70 flex items-start gap-1.5">
-                <Sparkles size={10} className="shrink-0 mt-0.5" />
-                <span>{aiInsight}</span>
-              </p>
-            )}
             {funFacts.map((fact, i) => (
               <p key={i} className="text-[10px] text-[#736858]/70">
                 {fact}

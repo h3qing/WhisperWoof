@@ -1267,9 +1267,6 @@ declare global {
       whisperwoofGetSupportedLanguages: () => Promise<Array<{ code: string; name: string }>>;
 
       // WhisperWoof — Intent capture
-      whisperwoofDetectRambling: (text: string) => Promise<{ score: number; signals: Record<string, number>; isRambling: boolean }>;
-      whisperwoofExtractIntent: (text: string, options?: { mode?: string }) => Promise<{ text: string; mode: string; ramblingScore: number; extracted: boolean; error?: string }>;
-      whisperwoofGetIntentModes: () => Promise<Array<{ id: string; name: string; description: string }>>;
 
       // WhisperWoof — Streaming transcription
       whisperwoofStreamingFormat: (text: string, maxChars?: number) => Promise<string>;
@@ -1290,10 +1287,6 @@ declare global {
       whisperwoofGetAutomationCommands: () => Promise<Array<{ id: string; label: string }>>;
 
       // WhisperWoof — Conversation memory
-      whisperwoofIsMemoryQuery: (text: string) => Promise<boolean>;
-      whisperwoofExtractQueryTopic: (text: string) => Promise<string | null>;
-      whisperwoofAnswerMemoryQuery: (query: string, entries: any[], options?: Record<string, any>) => Promise<{ success: boolean; answer?: string; entriesUsed?: number; entries?: any[]; error?: string }>;
-      whisperwoofGetMemoryExamples: () => Promise<string[]>;
 
       // WhisperWoof — Agentic actions
       whisperwoofDetectAction: (text: string) => Promise<{ id: string; plugin: string; tool: string; label: string } | null>;
@@ -1301,10 +1294,6 @@ declare global {
       whisperwoofGetAvailableActions: () => Promise<Array<{ id: string; plugin: string; label: string }>>;
 
       // WhisperWoof — Screen context
-      whisperwoofGetSelectedText: () => Promise<string | null>;
-      whisperwoofDetectScreenCommand: (text: string) => Promise<{ id: string; prompt: string; label: string } | null>;
-      whisperwoofExecuteScreenCommand: (commandId: string, selectedText?: string, options?: Record<string, any>) => Promise<{ success: boolean; result?: string; command?: string; error?: string }>;
-      whisperwoofGetScreenCommands: () => Promise<Array<{ id: string; label: string }>>;
 
       // WhisperWoof — Entry chaining
       whisperwoofLinkEntries: (childId: string, parentId: string) => Promise<{ success: boolean; error?: string }>;
@@ -1320,9 +1309,6 @@ declare global {
       whisperwoofGetSchedulePresets: () => Promise<Array<{ name: string; prompt: string; time: string; days: number[] }>>;
 
       // WhisperWoof — Smart reply
-      whisperwoofDraftReply: (text: string, options?: { mode?: string; bundleId?: string }) => Promise<{ success: boolean; draft?: string; mode?: string; error?: string }>;
-      whisperwoofIsReplyIntent: (text: string) => Promise<boolean>;
-      whisperwoofGetReplyModes: () => Promise<Array<{ id: string; name: string }>>;
 
       // WhisperWoof — Entry templates
       whisperwoofGetTemplates: () => Promise<any[]>;
@@ -1332,17 +1318,10 @@ declare global {
       whisperwoofGetNextSection: (templateId: string, filledSections: Record<string, string>) => Promise<{ id: string; label: string; prompt: string; required: boolean } | null>;
 
       // WhisperWoof — Semantic search
-      whisperwoofSemanticSearch: (query: string, options?: { limit?: number; minScore?: number; days?: number }) => Promise<Array<{ id: string; text: string; score: number; source: string; createdAt: string }>>;
-      whisperwoofFindSimilar: (entryId: string, options?: { limit?: number }) => Promise<Array<{ id: string; text: string; score: number; source: string; createdAt: string }>>;
 
       // WhisperWoof — Auto-tagging
-      whisperwoofAutoTag: (text: string, existingTagNames?: string[], options?: { useLlm?: boolean }) => Promise<{ tags: string[]; source: string; suggestions?: any[]; error?: string }>;
-      whisperwoofSuggestTagsKeywords: (text: string, existingTagNames?: string[]) => Promise<Array<{ tag: string; score: number; matchedKeywords: string[]; source: string }>>;
 
       // WhisperWoof — Daily digest
-      whisperwoofCreateDigest: (options?: { days?: number }) => Promise<{ success: boolean; digest?: any; error?: string }>;
-      whisperwoofGetDigestHistory: (limit?: number) => Promise<any[]>;
-      whisperwoofGetTodayEntriesCount: () => Promise<number>;
 
       // WhisperWoof — Webhooks
       whisperwoofGetWebhooks: () => Promise<any[]>;
@@ -1395,7 +1374,6 @@ declare global {
       whisperwoofGetSttHints: () => Promise<string[]>;
 
       // WhisperWoof — Backtrack correction
-      whisperwoofDetectBacktrack: (text: string) => Promise<{ hasBacktrack: boolean; signals: string[] }>;
 
       // WhisperWoof — Telegram companion
       whisperwoofTelegramSyncStatus: () => Promise<{ running: boolean; inboxPath: string; inboxExists: boolean; pending: number; total: number }>;
