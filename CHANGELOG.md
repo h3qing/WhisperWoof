@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.2] - 2026-06-14 — Remove dead Ollama-only modules
+
+### Removed
+- **Cut 8 unused Ollama-era feature modules and their wiring (~3,100 lines).** These bridge modules were scaffolding from the legacy WhisperWoof Ollama experiment: each was reachable only through an IPC handler with no renderer caller, so none ran in the shipping app. Removed `auto-tagger`, `semantic-search`, `backtrack`, `intent-capture`, `conversation-memory`, `daily-digest`, `smart-reply`, and `screen-context` — including their `ipcHandlers.js` handlers, `preload.js` bindings, `src/types/electron.ts` declarations, the `daily-digest`/`semantic-search` DB-init blocks in `app-init.js`, and their tests. The separate tag CRUD (`whisperwoof-get-tags` etc.), voice-commands, and agentic-actions are untouched.
+- **Home no longer pings a local LLM for a "fun insight."** `HomeStats` made an Ollama/llama call to generate a one-line observation; it's gone. The static fun facts (streaks, busiest hour, voice %) stay.
+
 ## [1.15.1] - 2026-06-14 — Floating indicator fixes
 
 ### Fixed

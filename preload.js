@@ -680,7 +680,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetStyleExamples: () => ipcRenderer.invoke("whisperwoof-get-style-examples"),
 
   // WhisperWoof: Backtrack correction
-  whisperwoofDetectBacktrack: (text) => ipcRenderer.invoke("whisperwoof-detect-backtrack", text),
 
   // WhisperWoof: Voice Activity Detection
   whisperwoofGetVadConfig: () => ipcRenderer.invoke("whisperwoof-get-vad-config"),
@@ -694,10 +693,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetAutomationCommands: () => ipcRenderer.invoke("whisperwoof-get-automation-commands"),
 
   // WhisperWoof: Conversation memory
-  whisperwoofIsMemoryQuery: (text) => ipcRenderer.invoke("whisperwoof-is-memory-query", text),
-  whisperwoofExtractQueryTopic: (text) => ipcRenderer.invoke("whisperwoof-extract-query-topic", text),
-  whisperwoofAnswerMemoryQuery: (query, entries, options) => ipcRenderer.invoke("whisperwoof-answer-memory-query", query, entries, options),
-  whisperwoofGetMemoryExamples: () => ipcRenderer.invoke("whisperwoof-get-memory-examples"),
 
   // WhisperWoof: Agentic actions
   whisperwoofDetectAction: (text) => ipcRenderer.invoke("whisperwoof-detect-action", text),
@@ -705,10 +700,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetAvailableActions: () => ipcRenderer.invoke("whisperwoof-get-available-actions"),
 
   // WhisperWoof: Screen context
-  whisperwoofGetSelectedText: () => ipcRenderer.invoke("whisperwoof-get-selected-text"),
-  whisperwoofDetectScreenCommand: (text) => ipcRenderer.invoke("whisperwoof-detect-screen-command", text),
-  whisperwoofExecuteScreenCommand: (commandId, selectedText, options) => ipcRenderer.invoke("whisperwoof-execute-screen-command", commandId, selectedText, options),
-  whisperwoofGetScreenCommands: () => ipcRenderer.invoke("whisperwoof-get-screen-commands"),
 
   // WhisperWoof: Entry chaining
   whisperwoofLinkEntries: (childId, parentId) => ipcRenderer.invoke("whisperwoof-link-entries", childId, parentId),
@@ -724,9 +715,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetSchedulePresets: () => ipcRenderer.invoke("whisperwoof-get-schedule-presets"),
 
   // WhisperWoof: Smart reply
-  whisperwoofDraftReply: (text, options) => ipcRenderer.invoke("whisperwoof-draft-reply", text, options),
-  whisperwoofIsReplyIntent: (text) => ipcRenderer.invoke("whisperwoof-is-reply-intent", text),
-  whisperwoofGetReplyModes: () => ipcRenderer.invoke("whisperwoof-get-reply-modes"),
 
   // WhisperWoof: Entry templates
   whisperwoofGetTemplates: () => ipcRenderer.invoke("whisperwoof-get-templates"),
@@ -736,12 +724,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetNextSection: (templateId, filledSections) => ipcRenderer.invoke("whisperwoof-get-next-section", templateId, filledSections),
 
   // WhisperWoof: Semantic search
-  whisperwoofSemanticSearch: (query, options) => ipcRenderer.invoke("whisperwoof-semantic-search", query, options),
-  whisperwoofFindSimilar: (entryId, options) => ipcRenderer.invoke("whisperwoof-find-similar", entryId, options),
 
   // WhisperWoof: Auto-tagging
-  whisperwoofAutoTag: (text, existingTagNames, options) => ipcRenderer.invoke("whisperwoof-auto-tag", text, existingTagNames, options),
-  whisperwoofSuggestTagsKeywords: (text, existingTagNames) => ipcRenderer.invoke("whisperwoof-suggest-tags-keywords", text, existingTagNames),
 
   // WhisperWoof: Webhooks
   whisperwoofGetWebhooks: () => ipcRenderer.invoke("whisperwoof-get-webhooks"),
@@ -752,9 +736,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetDeliveryLog: (limit) => ipcRenderer.invoke("whisperwoof-get-delivery-log", limit),
 
   // WhisperWoof: Daily digest
-  whisperwoofCreateDigest: (options) => ipcRenderer.invoke("whisperwoof-create-digest", options),
-  whisperwoofGetDigestHistory: (limit) => ipcRenderer.invoke("whisperwoof-get-digest-history", limit),
-  whisperwoofGetTodayEntriesCount: () => ipcRenderer.invoke("whisperwoof-get-today-entries-count"),
 
   // WhisperWoof: Keybinding customization
   whisperwoofGetKeybindings: () => ipcRenderer.invoke("whisperwoof-get-keybindings"),
@@ -800,9 +781,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofStreamingDiff: (oldText, newText) => ipcRenderer.invoke("whisperwoof-streaming-diff", oldText, newText),
 
   // WhisperWoof: Intent capture
-  whisperwoofDetectRambling: (text) => ipcRenderer.invoke("whisperwoof-detect-rambling", text),
-  whisperwoofExtractIntent: (text, options) => ipcRenderer.invoke("whisperwoof-extract-intent", text, options),
-  whisperwoofGetIntentModes: () => ipcRenderer.invoke("whisperwoof-get-intent-modes"),
 
   // WhisperWoof: Vibe coding
   whisperwoofGetCodingPrompt: (bundleId, spokenText) => ipcRenderer.invoke("whisperwoof-get-coding-prompt", bundleId, spokenText),

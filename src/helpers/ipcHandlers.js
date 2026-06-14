@@ -1868,18 +1868,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: Backtrack correction
-    ipcMain.handle("whisperwoof-detect-backtrack", async (_event, text) => {
-      try {
-        const { detectBacktrack } = require("../whisperwoof/bridge/backtrack");
-        const signals = detectBacktrack(text);
-        return { hasBacktrack: signals.length > 0, signals: signals.map((s) => s.signal) };
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] detect-backtrack failed: ${error.message}`);
-        return { hasBacktrack: false, signals: [] };
-      }
-    });
-
     // WhisperWoof: Voice Activity Detection
     ipcMain.handle("whisperwoof-get-vad-config", async () => {
       try {
@@ -1916,24 +1904,6 @@ class IPCHandlers {
       catch (error) { return []; }
     });
 
-    // WhisperWoof: Conversation memory
-    ipcMain.handle("whisperwoof-is-memory-query", async (_event, text) => {
-      try { const { isMemoryQuery } = require("../whisperwoof/bridge/conversation-memory"); return isMemoryQuery(text); }
-      catch (error) { return false; }
-    });
-    ipcMain.handle("whisperwoof-extract-query-topic", async (_event, text) => {
-      try { const { extractQueryTopic } = require("../whisperwoof/bridge/conversation-memory"); return extractQueryTopic(text); }
-      catch (error) { return null; }
-    });
-    ipcMain.handle("whisperwoof-answer-memory-query", async (_event, query, entries, options) => {
-      try { const { answerMemoryQuery } = require("../whisperwoof/bridge/conversation-memory"); return await answerMemoryQuery(query, entries, options || {}); }
-      catch (error) { return { success: false, error: error.message }; }
-    });
-    ipcMain.handle("whisperwoof-get-memory-examples", async () => {
-      try { const { getMemoryQueryExamples } = require("../whisperwoof/bridge/conversation-memory"); return getMemoryQueryExamples(); }
-      catch (error) { return []; }
-    });
-
     // WhisperWoof: Agentic actions
     ipcMain.handle("whisperwoof-detect-action", async (_event, text) => {
       try { const { detectActionIntent } = require("../whisperwoof/bridge/agentic-actions"); return detectActionIntent(text); }
@@ -1945,24 +1915,6 @@ class IPCHandlers {
     });
     ipcMain.handle("whisperwoof-get-available-actions", async () => {
       try { const { getAvailableActions } = require("../whisperwoof/bridge/agentic-actions"); return getAvailableActions(); }
-      catch (error) { return []; }
-    });
-
-    // WhisperWoof: Screen context
-    ipcMain.handle("whisperwoof-get-selected-text", async () => {
-      try { const { getSelectedText } = require("../whisperwoof/bridge/screen-context"); return await getSelectedText(); }
-      catch (error) { return null; }
-    });
-    ipcMain.handle("whisperwoof-detect-screen-command", async (_event, text) => {
-      try { const { detectScreenCommand } = require("../whisperwoof/bridge/screen-context"); return detectScreenCommand(text); }
-      catch (error) { return null; }
-    });
-    ipcMain.handle("whisperwoof-execute-screen-command", async (_event, commandId, selectedText, options) => {
-      try { const { executeScreenCommand } = require("../whisperwoof/bridge/screen-context"); return await executeScreenCommand(commandId, selectedText, options); }
-      catch (error) { return { success: false, error: error.message }; }
-    });
-    ipcMain.handle("whisperwoof-get-screen-commands", async () => {
-      try { const { getScreenCommands } = require("../whisperwoof/bridge/screen-context"); return getScreenCommands(); }
       catch (error) { return []; }
     });
 
@@ -2006,20 +1958,6 @@ class IPCHandlers {
       catch (error) { return []; }
     });
 
-    // WhisperWoof: Smart reply
-    ipcMain.handle("whisperwoof-draft-reply", async (_event, text, options) => {
-      try { const { draftReply } = require("../whisperwoof/bridge/smart-reply"); return await draftReply(text, options || {}); }
-      catch (error) { return { success: false, error: error.message }; }
-    });
-    ipcMain.handle("whisperwoof-is-reply-intent", async (_event, text) => {
-      try { const { isReplyIntent } = require("../whisperwoof/bridge/smart-reply"); return isReplyIntent(text); }
-      catch (error) { return false; }
-    });
-    ipcMain.handle("whisperwoof-get-reply-modes", async () => {
-      try { const { getReplyModes } = require("../whisperwoof/bridge/smart-reply"); return getReplyModes(); }
-      catch (error) { return []; }
-    });
-
     // WhisperWoof: Entry templates
     ipcMain.handle("whisperwoof-get-templates", async () => {
       try { const { getAllTemplates } = require("../whisperwoof/bridge/entry-templates"); return getAllTemplates(); }
@@ -2040,36 +1978,6 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-get-next-section", async (_event, templateId, filledSections) => {
       try { const { getNextSection } = require("../whisperwoof/bridge/entry-templates"); return getNextSection(templateId, filledSections); }
       catch (error) { return null; }
-    });
-
-    // WhisperWoof: Semantic search
-    ipcMain.handle("whisperwoof-semantic-search", async (_event, query, options) => {
-      try {
-        const { semanticSearch } = require("../whisperwoof/bridge/semantic-search");
-        return semanticSearch(query, options || {});
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-find-similar", async (_event, entryId, options) => {
-      try {
-        const { findSimilar } = require("../whisperwoof/bridge/semantic-search");
-        return findSimilar(entryId, options || {});
-      } catch (error) { return []; }
-    });
-
-    // WhisperWoof: Auto-tagging
-    ipcMain.handle("whisperwoof-auto-tag", async (_event, text, existingTagNames, options) => {
-      try {
-        const { autoTag } = require("../whisperwoof/bridge/auto-tagger");
-        return await autoTag(text, existingTagNames || [], options || {});
-      } catch (error) { return { tags: [], source: "error", error: error.message }; }
-    });
-
-    ipcMain.handle("whisperwoof-suggest-tags-keywords", async (_event, text, existingTagNames) => {
-      try {
-        const { suggestTagsByKeywords } = require("../whisperwoof/bridge/auto-tagger");
-        return suggestTagsByKeywords(text, existingTagNames || []);
-      } catch (error) { return []; }
     });
 
     // WhisperWoof: Webhooks
@@ -2096,31 +2004,6 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-get-delivery-log", async (_event, limit) => {
       try { const { getDeliveryLog } = require("../whisperwoof/bridge/webhooks"); return getDeliveryLog(limit); }
       catch (error) { return []; }
-    });
-
-    // WhisperWoof: Daily digest
-    ipcMain.handle("whisperwoof-create-digest", async (_event, options) => {
-      try {
-        const { createDailyDigest } = require("../whisperwoof/bridge/daily-digest");
-        return await createDailyDigest(options || {});
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] create-digest failed: ${error.message}`);
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-get-digest-history", async (_event, limit) => {
-      try {
-        const { getDigestHistory } = require("../whisperwoof/bridge/daily-digest");
-        return getDigestHistory(limit);
-      } catch (error) { return []; }
-    });
-
-    ipcMain.handle("whisperwoof-get-today-entries-count", async () => {
-      try {
-        const { getTodayEntries } = require("../whisperwoof/bridge/daily-digest");
-        return getTodayEntries().length;
-      } catch (error) { return 0; }
     });
 
     // WhisperWoof: Keybinding customization
@@ -2379,36 +2262,6 @@ class IPCHandlers {
       }
     });
 
-    // WhisperWoof: Intent capture
-    ipcMain.handle("whisperwoof-detect-rambling", async (_event, text) => {
-      try {
-        const { detectRambling } = require("../whisperwoof/bridge/intent-capture");
-        return detectRambling(text);
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] detect-rambling failed: ${error.message}`);
-        return { score: 0, signals: {}, isRambling: false };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-extract-intent", async (_event, text, options) => {
-      try {
-        const { extractIntent } = require("../whisperwoof/bridge/intent-capture");
-        return await extractIntent(text, options || {});
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] extract-intent failed: ${error.message}`);
-        return { text, mode: "auto", ramblingScore: 0, extracted: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-get-intent-modes", async () => {
-      try {
-        const { getOutputModes } = require("../whisperwoof/bridge/intent-capture");
-        return getOutputModes();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-intent-modes failed: ${error.message}`);
-        return [];
-      }
-    });
 
     // WhisperWoof: Vibe coding
     ipcMain.handle("whisperwoof-get-coding-prompt", async (_event, bundleId, spokenText) => {
