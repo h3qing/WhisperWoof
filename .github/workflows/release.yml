@@ -59,6 +59,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # electron-builder stamps the .dmg/.zip names, Info.plist, and in-app
+      # "About" version from package.json — not VERSION. Sync them so the built
+      # artifacts match the v$VERSION release tag instead of drifting behind.
+      - name: Sync package.json version from VERSION
+        run: npm pkg set version="${{ needs.check.outputs.version }}"
+
       - name: Rebuild native modules for Electron arm64
         run: npx electron-rebuild -f -t prod
         env:
