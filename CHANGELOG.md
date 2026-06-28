@@ -5,6 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.3] - 2026-06-28 — Keep dictation in the language you spoke
+
+### Fixed
+- **Dictating in a non-English language no longer comes back translated to English.** The bundled local cleanup model (Qwen 2B) was biased toward English by the all-English cleanup prompt and its examples, so it intermittently *translated* non-English speech instead of just cleaning it — Chinese dictation, for instance, came back as English. The same-language hint was a single weak line appended at the very end of the prompt, which the small model under-weighted. The fix hoists one short rule — "Output in the same language as the input. Never translate." — to the very top of the cleanup prompt (cleanup mode only; agent-mode "translate this to X" still works, and custom prompts are untouched). Measured on a qwen2.5:3b proxy, Chinese-preserved went from ~2/6 to ~6/6 with English dictation unaffected. `src/config/prompts.ts`.
+
 ## [1.15.2] - 2026-06-14 — Remove dead Ollama-only modules
 
 ### Removed
