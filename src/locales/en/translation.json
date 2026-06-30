@@ -1443,12 +1443,14 @@
         "parakeet_unified_en_0_6b": "English-only ASR with state-of-the-art accuracy (5.91% avg WER)"
       },
       "whisper": {
-        "tiny": "Fastest, lower quality",
-        "base": "Good balance",
-        "small": "Better quality, slower",
-        "medium": "High quality",
-        "large": "Best quality, slowest",
-        "turbo": "Fast with good quality"
+        "tiny": "Fastest, least accurate; weak on Chinese.",
+        "base": "Fast and light; weak on Chinese.",
+        "small": "Balanced speed and accuracy.",
+        "medium": "Accurate multilingual, slower.",
+        "large": "Most accurate, best for Chinese, least language hallucination. Slowest.",
+        "turbo": "Multilingual, fast, accurate — best default for Chinese + English.",
+        "distil_large_v3": "⚠️ English-only. Turns Chinese/other languages into English — do not use unless you dictate only English.",
+        "distil_large_v35": "⚠️ English-only. Turns Chinese/other languages into English — English dictation only."
       },
       "transcription": {
         "openai_gpt_4o_mini_transcribe": "Fast and accurate transcription",

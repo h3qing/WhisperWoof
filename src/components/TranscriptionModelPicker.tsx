@@ -114,21 +114,28 @@ function LocalModelCard({
           )}
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-          <ProviderIcon provider={provider} className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-semibold text-sm text-foreground truncate tracking-tight">
-            {name}
-          </span>
-          <span className="text-xs text-muted-foreground/50 tabular-nums shrink-0">
-            {actualSizeMb ? `${actualSizeMb}MB` : size}
-          </span>
-          {recommended && (
-            <span className={cardStyles.badges.recommended}>{t("common.recommended")}</span>
-          )}
-          {languageLabel && (
-            <span className="text-xs text-muted-foreground/50 font-medium shrink-0">
-              {languageLabel}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <ProviderIcon provider={provider} className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-semibold text-sm text-foreground truncate tracking-tight">
+              {name}
             </span>
+            <span className="text-xs text-muted-foreground/50 tabular-nums shrink-0">
+              {actualSizeMb ? `${actualSizeMb}MB` : size}
+            </span>
+            {recommended && (
+              <span className={cardStyles.badges.recommended}>{t("common.recommended")}</span>
+            )}
+            {languageLabel && (
+              <span className="text-xs text-muted-foreground/50 font-medium shrink-0">
+                {languageLabel}
+              </span>
+            )}
+          </div>
+          {description && (
+            <p className="text-xs text-muted-foreground/60 leading-snug mt-0.5">
+              {description}
+            </p>
           )}
         </div>
 

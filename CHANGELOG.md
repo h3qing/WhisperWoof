@@ -5,11 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
-## [1.15.3] - 2026-06-28 — Keep dictation in the language you spoke
+## [1.15.3] - 2026-06-30 — Reliable multilingual dictation + clearer model picker
 
 ### Fixed
+- **Chinese (and other non-English) dictation no longer comes out as English.** When a custom dictionary or vocabulary pack was set, the app fed those words to Whisper as a decode "initial prompt." An all-English word list biases Whisper's language detection, so on Chinese speech it transcribed (and effectively translated) the audio into English — even when the dictation language was auto. The dictionary prompt is now skipped in auto-detect mode and only applied when a specific dictation language is pinned, where the hint is scoped and safe. English-pinned users keep the dictionary benefit. Verified end-to-end on real recordings: same clip went from English garbage to correct Chinese once the prompt was withheld. `src/helpers/audioManager.js`.
 - **Dictating in a non-English language no longer comes back translated to English.** The bundled local cleanup model (Qwen 2B) was biased toward English by the all-English cleanup prompt and its examples, so it intermittently *translated* non-English speech instead of just cleaning it — Chinese dictation, for instance, came back as English. The same-language hint was a single weak line appended at the very end of the prompt, which the small model under-weighted. The fix hoists one short rule — "Output in the same language as the input. Never translate." — to the very top of the cleanup prompt (cleanup mode only; agent-mode "translate this to X" still works, and custom prompts are untouched). Measured on a qwen2.5:3b proxy, Chinese-preserved went from ~2/6 to ~6/6 with English dictation unaffected. `src/config/prompts.ts`.
 - **Chinese dictation now uses real full-width punctuation with consistent spacing.** Cleanup output is normalized so 句号/逗号 land as full-width `。，？！：；` with a single space after each, instead of stray half-width `.`/`,` or cramped spacing. It runs as a deterministic post-process on the transcript (`normalizeCjkPunctuation`), so it costs the model nothing and only touches punctuation adjacent to a Han character — decimals (`3.14`), times (`5:30`), emails, and URLs are left alone, and English output is untouched. Wired into the dictation path (Whisper + Parakeet + fallback). `src/whisperwoof/core/language/normalize-cjk-punctuation.ts`, `src/helpers/audioManager.js`.
+
+### Changed
+- **The speech-to-text model picker now explains each model.** Every model shows a one-line description of its real tradeoffs (speed, accuracy, multilingual support) — and the English-only "Distil" models now carry a clear ⚠️ warning that they turn Chinese and other languages into English. These descriptions existed in the data but were never rendered. `src/components/TranscriptionModelPicker.tsx`, locale files.
+- **History shows the original transcript next to the cleaned one by default.** When cleanup changed the text, the home list now expands the raw transcript inline instead of hiding it behind a hover-and-click, so you can see what you actually said versus the polished result. `src/components/ui/TranscriptionItem.tsx`.
 
 ## [1.15.2] - 2026-06-14 — Remove dead Ollama-only modules
 

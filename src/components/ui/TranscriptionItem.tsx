@@ -36,7 +36,12 @@ export default function TranscriptionItem({
 }: TranscriptionItemProps) {
   const { t, i18n } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Default the raw transcript open whenever cleanup changed the text, so the
+  // original is visible next to the (possibly wrong) cleaned version without a
+  // hover-and-click. Identical raw/cleaned stay collapsed to avoid clutter.
+  const [isExpanded, setIsExpanded] = useState(
+    item.raw_text !== null && item.raw_text !== item.text
+  );
   const [isRetrying, setIsRetrying] = useState(false);
 
   const timestampSource = item.timestamp.endsWith("Z") ? item.timestamp : `${item.timestamp}Z`;
