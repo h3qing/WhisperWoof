@@ -5,6 +5,7 @@ import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
+import { normalizeCjkPunctuation } from "../whisperwoof/core/language/normalize-cjk-punctuation";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -992,6 +993,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
+    const result = await this._cleanupTranscription(text, source);
+    // Deterministic punctuation pass: Chinese output gets real full-width
+    // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
+    // untouched. Costs the model nothing (pure string transform on the output).
+    return typeof result === "string" ? normalizeCjkPunctuation(result) : result;
+  }
+
+  async _cleanupTranscription(text, source) {
     const normalizedText = typeof text === "string" ? text.trim() : "";
 
     if (!normalizedText) {
