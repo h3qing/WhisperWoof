@@ -632,9 +632,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         options.language = language;
       }
 
-      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words
+      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words.
+      // ONLY when a specific dictation language is pinned: an initial prompt biases Whisper's language
+      // detection, so an English vocab list ("OpenWhispr", "claude", …) turns auto-detected non-English
+      // speech (e.g. Chinese) into English garbage. In auto mode we don't know the language, so skip it.
       const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
-      if (dictionaryPrompt) {
+      if (dictionaryPrompt && language) {
         options.initialPrompt = dictionaryPrompt;
       }
 
