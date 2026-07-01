@@ -5,6 +5,7 @@ import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
+import { normalizeCjkPunctuation } from "../whisperwoof/core/language/normalize-cjk-punctuation";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -631,9 +632,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         options.language = language;
       }
 
-      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words
+      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words.
+      // ONLY when a specific dictation language is pinned: an initial prompt biases Whisper's language
+      // detection, so an English vocab list ("OpenWhispr", "claude", …) turns auto-detected non-English
+      // speech (e.g. Chinese) into English garbage. In auto mode we don't know the language, so skip it.
       const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
-      if (dictionaryPrompt) {
+      if (dictionaryPrompt && language) {
         options.initialPrompt = dictionaryPrompt;
       }
 
@@ -992,6 +996,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
+    const result = await this._cleanupTranscription(text, source);
+    // Deterministic punctuation pass: Chinese output gets real full-width
+    // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
+    // untouched. Costs the model nothing (pure string transform on the output).
+    return typeof result === "string" ? normalizeCjkPunctuation(result) : result;
+  }
+
+  async _cleanupTranscription(text, source) {
     const normalizedText = typeof text === "string" ? text.trim() : "";
 
     if (!normalizedText) {

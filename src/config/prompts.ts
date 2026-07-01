@@ -8,6 +8,16 @@ export const FULL_PROMPT = promptData.FULL_PROMPT;
 /** @deprecated Use FULL_PROMPT — kept for PromptStudio compat */
 export const UNIFIED_SYSTEM_PROMPT = promptData.FULL_PROMPT;
 
+// The cleanup prompt body and its examples are all English, which biases the small
+// bundled local model (Qwen 2B) toward English output — it intermittently TRANSLATES
+// non-English dictation (e.g. Chinese speech comes back as English). One short line
+// at the TOP fixes it; a trailing hint was too weak. Measured on a qwen2.5:3b proxy,
+// this lifted Chinese-preserved from ~2/6 to ~6/6, and a 142-token wordy version did
+// no better. It's a cached prefix, so the per-call cost is ~nil. Cleanup only — agent/
+// custom prompts keep the registry instruction so an explicit "translate this" works.
+export const CLEANUP_LANGUAGE_DIRECTIVE =
+  "Output in the same language as the input. Never translate.";
+
 function getPromptBundle(uiLanguage?: string): PromptBundle {
   const locale = normalizeUiLanguage(uiLanguage || "en");
   const t = i18n.getFixedT(locale, "prompts");
@@ -115,19 +125,29 @@ export function getSystemPrompt(
   }
 
   let prompt: string;
+  let isCleanupMode = false;
   if (promptTemplate) {
     prompt = promptTemplate.replace(/\{\{agentName\}\}/g, name);
   } else {
     const useFullPrompt = transcript ? detectAgentName(transcript, name) : false;
+    isCleanupMode = !useFullPrompt;
     prompt = (useFullPrompt ? prompts.fullPrompt : prompts.cleanupPrompt).replace(
       /\{\{agentName\}\}/g,
       name
     );
   }
 
-  const langInstruction = getLanguageInstruction(language);
-  if (langInstruction) {
-    prompt += "\n\n" + langInstruction;
+  if (isCleanupMode) {
+    // Hoist the same-language rule to the very top so it outweighs the English
+    // formatting examples in the cleanup body (small local models translate
+    // otherwise). This replaces the weak trailing registry instruction for
+    // cleanup — keeping both actually dilutes adherence.
+    prompt = CLEANUP_LANGUAGE_DIRECTIVE + "\n\n" + prompt;
+  } else {
+    const langInstruction = getLanguageInstruction(language);
+    if (langInstruction) {
+      prompt += "\n\n" + langInstruction;
+    }
   }
 
   if (customDictionary && customDictionary.length > 0) {
