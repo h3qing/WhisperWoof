@@ -1307,7 +1307,8 @@
             "step2Title": "Verify it's running"
           },
           "xclip": {
-            "step1Title": "Install xclip"
+            "step1Title": "Install xclip",
+            "step1Desc": "Clipboard helper used for auto-paste on KDE Wayland."
           }
         },
         "xclipDesc": "Clipboard tool for KDE Wayland paste (xclip or xsel)"

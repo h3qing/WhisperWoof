@@ -83,7 +83,7 @@ function createTemplate(config) {
       prompt: s.prompt || "",
       required: s.required !== false,
     })),
-    outputFormat: config.outputFormat || config.sections.map((s) => `**${s.label || "Section"}:**\n{{${s.id || `section-${i}`}}}`).join("\n\n"),
+    outputFormat: config.outputFormat || config.sections.map((s, i) => `**${s.label || "Section"}:**\n{{${s.id || `section-${i}`}}}`).join("\n\n"),
     builtIn: false,
     createdAt: new Date().toISOString(),
   };
