@@ -55,10 +55,12 @@ jobs:
         run: npm ci
 
       - name: Lint
+        # Soft gate until the 24 pre-existing react-hooks errors in src are fixed;
+        # then drop the `|| true` so lint enforces too.
         run: npx eslint . --max-warnings 0 || true
 
       - name: Typecheck
-        run: cd src && npx tsc --noEmit || true
+        run: cd src && npx tsc --noEmit
 
   # macOS build — only on main pushes, not PRs (saves CI minutes)
   build-mac:
