@@ -5,6 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.4] - 2026-07-02 — Dictation polish reliability fix
+
+### Fixed
+- **Dictation cleanup silently stopped running after picking a local AI model in Settings.** Selecting a local model wrote the model *family* name ("qwen", "llama", …) into the reasoning-provider setting, but the app only pre-warms — and keeps alive — the local cleanup engine when that setting is exactly `"local"`. The mismatch skipped the boot pre-warm and actively shut the engine down on every settings sync, so every dictation shipped the raw transcript with no polish and no warning. Provider family ids are now normalized to `"local"` at the sync boundary, so pre-warm fires at boot and the engine stays warm; cloud providers are untouched. `src/hooks/useSettings.ts`, `src/whisperwoof/core/settings/startup-reasoning-prefs.ts` (+ unit tests covering every family id, cloud passthrough, and the "openai" vs "openai-oss" distinction).
+
 ## [1.15.3] - 2026-06-30 — Reliable multilingual dictation + clearer model picker
 
 ### Fixed

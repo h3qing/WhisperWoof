@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef } from
 import { useSettingsStore, initializeSettings } from "../stores/settingsStore";
 import logger from "../utils/logger";
 import { useLocalStorage } from "./useLocalStorage";
+import { normalizeReasoningPrefsForSync } from "../whisperwoof/core/settings/startup-reasoning-prefs";
 import type { LocalTranscriptionProvider } from "../types/electron";
 
 export interface TranscriptionSettings {
@@ -161,13 +162,16 @@ function useSettingsInternal() {
     if (typeof window === "undefined" || !window.electronAPI?.syncStartupPreferences) return;
 
     const model = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
+    // The model picker may persist a local family id ("qwen", "llama", …) as the
+    // provider; main keys prewarm on exactly "local", so normalize before syncing.
+    const reasoningPrefs = normalizeReasoningPrefsForSync(reasoningProvider, reasoningModel);
     window.electronAPI
       .syncStartupPreferences({
         useLocalWhisper,
         localTranscriptionProvider,
         model: model || undefined,
-        reasoningProvider,
-        reasoningModel: reasoningProvider === "local" ? reasoningModel : undefined,
+        reasoningProvider: reasoningPrefs.reasoningProvider,
+        reasoningModel: reasoningPrefs.reasoningModel,
         useReasoningModel,
       })
       .catch((err) =>
