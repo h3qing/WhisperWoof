@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.5] - 2026-07-02 — Health pass: crash fix, KDE guide fix, real CI gates
+
+### Fixed
+- **Creating a custom capture template no longer crashes when a section has no id.** The template's output-format fallback referenced an undeclared loop index, throwing `ReferenceError: i is not defined` the moment it ran. `src/whisperwoof/bridge/entry-templates.js`.
+- **KDE Wayland users can now actually see the xclip setup guide.** The Settings paste-diagnostics panel stored the guide under a `guide` key while the dialog reads `steps`, so clicking the xclip check opened an empty guide. Also adds a step description. `src/components/SettingsPage.tsx`.
+- **All 11 TypeScript errors cleared** — typed unwraps for CJS test imports, missing optional callback keys in the agent overlay, a JSON-cast fix in the model registry, and one `Window.electronAPI` declaration instead of two conflicting ones.
+
+### Changed
+- **CI's "Lint & Typecheck" job can now actually fail.** Both steps were wrapped in `|| true`, so the job was green no matter what — which is how 11 type errors and a lint config break sat unnoticed on main. Typecheck now enforces; lint stays soft until 24 newly-unmasked react-hooks errors are fixed. Plugins lint as ESM. `.github/workflows/ci.yml`, `eslint.config.js`.
+
 ## [1.15.4] - 2026-07-02 — Dictation polish reliability fix
 
 ### Fixed
