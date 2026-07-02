@@ -61,7 +61,6 @@ describe("normalizeCjkPunctuation", () => {
   });
 
   it("handles non-string input defensively", () => {
-    // @ts-expect-error exercising the runtime guard
     expect(normalizeCjkPunctuation(null)).toBe(null);
   });
 });
