@@ -180,6 +180,9 @@ export default function AgentOverlay() {
         setPartialTranscript(text);
       },
       onStreamingCommit: undefined,
+      onRmsUpdate: undefined,
+      onMicReady: undefined,
+      onProcessingPhase: undefined,
     });
     audioManagerRef.current = am;
     return () => {

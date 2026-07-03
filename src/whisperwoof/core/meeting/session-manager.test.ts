@@ -7,9 +7,8 @@ vi.mock("../../../helpers/debugLogger", () => ({
 }));
 
 // We don't need to mock openaiRealtimeStreaming since we inject via StreamingClass
-const MeetingSessionManager =
-  (await import("../../../helpers/meetingSessionManager")).default ??
-  (await import("../../../helpers/meetingSessionManager"));
+const MeetingSessionManager = ((await import("../../../helpers/meetingSessionManager")).default ??
+  (await import("../../../helpers/meetingSessionManager"))) as new (...args: any[]) => any;
 
 const SESSION_MAX_AGE_MS = 25 * 60 * 1000;
 const ROTATION_CHECK_INTERVAL_MS = 30_000;

@@ -1,8 +1,7 @@
 /// <reference types="vite/client" />
 
-// Electron preload bridge — the full shape lives in src/types/electron.ts (outside whisperwoof tsconfig).
-// This minimal declaration silences TS2551 in whisperwoof UI files that access window.electronAPI.
-interface Window {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  electronAPI: any;
-}
+// Electron preload bridge — pull in the real Window.electronAPI declaration from
+// src/types/electron.ts instead of redeclaring it as `any` (a second declaration
+// with a different type is a TS2717 error when the parent src tsconfig compiles
+// both files together).
+/// <reference path="../types/electron.ts" />
