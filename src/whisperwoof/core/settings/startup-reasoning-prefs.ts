@@ -1,13 +1,15 @@
-import modelData from "../../../models/modelRegistryData.json";
+import {
+  LOCAL_REASONING_PROVIDER,
+  isLocalReasoningProvider,
+} from "./local-reasoning-provider";
 
-// ReasoningModelSelector persists the local model-family id ("qwen", "llama",
-// "mistral", "openai-oss", "gemma") into the reasoningProvider setting, but the
-// main process defines local reasoning as reasoningProvider === "local": any
-// other value skips llama-server prewarm and actively stops a running server on
-// every settings sync. Normalize family ids to "local" at the sync boundary.
-const LOCAL_PROVIDER_FAMILY_IDS: ReadonlySet<string> = new Set(
-  (modelData.localProviders ?? []).map((provider: { id: string }) => provider.id)
-);
+// Older builds persisted the local model-family id ("qwen", "llama", "mistral",
+// "openai-oss", "gemma") into the reasoningProvider setting; those values are
+// migrated to the canonical "local" at store init (settingsStore.ts). The main
+// process defines local reasoning as reasoningProvider === "local" — any other
+// value skips llama-server prewarm and actively stops a running server on every
+// settings sync — so keep normalizing at the sync boundary as a safety net for
+// un-migrated values (old settings backups, a second window racing the migration).
 
 export interface NormalizedReasoningPrefs {
   reasoningProvider: string;
@@ -18,10 +20,9 @@ export function normalizeReasoningPrefsForSync(
   reasoningProvider: string,
   reasoningModel: string
 ): NormalizedReasoningPrefs {
-  const isLocal =
-    reasoningProvider === "local" || LOCAL_PROVIDER_FAMILY_IDS.has(reasoningProvider);
+  const isLocal = isLocalReasoningProvider(reasoningProvider);
   return {
-    reasoningProvider: isLocal ? "local" : reasoningProvider,
+    reasoningProvider: isLocal ? LOCAL_REASONING_PROVIDER : reasoningProvider,
     reasoningModel: isLocal ? reasoningModel : undefined,
   };
 }

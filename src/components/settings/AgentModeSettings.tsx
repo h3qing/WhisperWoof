@@ -7,6 +7,7 @@ import { Toggle } from "../ui/toggle";
 import { SettingsRow, SettingsPanel, SettingsPanelRow, SectionHeader } from "../ui/SettingsSection";
 import ReasoningModelSelector from "../ReasoningModelSelector";
 import { validateHotkeyForSlot } from "../../utils/hotkeyValidation";
+import { AGENT_LOCAL_FAMILY_STORAGE_KEY } from "../../whisperwoof/core/settings/local-reasoning-provider";
 
 export default function AgentModeSettings() {
   const { t } = useTranslation();
@@ -214,6 +215,7 @@ export default function AgentModeSettings() {
                 setGroqApiKey={setGroqApiKey}
                 customReasoningApiKey={customReasoningApiKey}
                 setCustomReasoningApiKey={setCustomReasoningApiKey}
+                localFamilyStorageKey={AGENT_LOCAL_FAMILY_STORAGE_KEY}
               />
             </div>
           )}

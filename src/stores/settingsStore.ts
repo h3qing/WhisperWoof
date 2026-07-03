@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { API_ENDPOINTS } from "../config/constants";
 import i18n, { normalizeUiLanguage } from "../i18n";
 import { hasStoredByokKey } from "../utils/byokDetection";
+import {
+  migrateStaleReasoningProvider,
+  LOCAL_FAMILY_STORAGE_KEY,
+  AGENT_LOCAL_FAMILY_STORAGE_KEY,
+} from "../whisperwoof/core/settings/local-reasoning-provider";
 import { ensureAgentNameInDictionary } from "../utils/agentName";
 import logger from "../utils/logger";
 import type { LocalTranscriptionProvider } from "../types/electron";
@@ -84,6 +89,41 @@ function migratePreferredLanguage() {
 }
 
 migratePreferredLanguage();
+
+// One-time: older builds persisted the local model-family id ("qwen", "llama",
+// ...) into reasoningProvider/agentProvider instead of the canonical "local",
+// breaking every consumer that keys on exactly "local". Map both back and keep
+// the family id as the per-picker tab preference. Idempotent — no-op once the
+// values are canonical. Guarded because this runs at module eval in every
+// window: a localStorage failure must degrade to stale-value tolerance (the
+// readers accept family ids), not a white screen.
+function migrateReasoningProvider() {
+  if (!isBrowser) return;
+  try {
+    const pairs = [
+      ["reasoningProvider", LOCAL_FAMILY_STORAGE_KEY],
+      ["agentProvider", AGENT_LOCAL_FAMILY_STORAGE_KEY],
+    ] as const;
+    for (const [providerKey, familyKey] of pairs) {
+      const migrated = migrateStaleReasoningProvider(
+        localStorage.getItem(providerKey),
+        localStorage.getItem(familyKey)
+      );
+      if (migrated) {
+        localStorage.setItem(providerKey, migrated.reasoningProvider);
+        localStorage.setItem(familyKey, migrated.localFamily);
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      "Reasoning provider migration failed; readers tolerate stale values",
+      { error: (err as Error).message },
+      "settings"
+    );
+  }
+}
+
+migrateReasoningProvider();
 
 export interface SettingsState
   extends
