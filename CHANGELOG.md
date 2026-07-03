@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.6] - 2026-07-03 — Truthful privacy pill + canonical local provider setting
+
+### Fixed
+- **The home-screen Cleanup pill no longer claims "sent to the cloud" for an on-device model.** Same root cause as the v1.15.4 prewarm bug: picking a local model stored the model *family* ("qwen", "llama", …) in the reasoning-provider setting, and the pill only showed "On-device" for exactly `"local"` — so local users saw a cloud icon and "sent to the cloud" on their own machine's model. This release fixes it at the source: the Settings picker now always stores the canonical `"local"`, a one-time migration cleans up existing installs (the v1.15.4 sync-boundary normalization stays as a safety net for old settings backups), and the pill accepts legacy values. `src/components/ReasoningModelSelector.tsx`, `src/components/ModelStatusBar.tsx`, `src/stores/settingsStore.ts`, `src/whisperwoof/core/settings/local-reasoning-provider.ts` (+ unit tests for every family id, the migration, and tab resolution).
+- **The Cleanup pill now shows "Cloud" when signed-in OpenWhispr cloud cleanup is active.** Cloud mode routes polish to OpenWhispr regardless of the local model settings, but the pill previously read only the local provider setting — a signed-in user with a local model configured saw a lock icon while transcripts went to the cloud. The pill now keys on the effective routing.
+- **Switching Cleanup from Cloud back to Local no longer forgets your model family.** Entering local mode used to overwrite the remembered picker tab with the default (Qwen) and could clear a working model selection; the remembered family is now resolved before anything is written.
+
+### Changed
+- **The local model picker's family tab is remembered per picker.** The dictation cleanup picker and the agent-mode picker each keep their own last-used family tab instead of silently sharing (and overwriting) one another's.
+
 ## [1.15.5] - 2026-07-02 — Health pass: crash fix, KDE guide fix, real CI gates
 
 ### Fixed

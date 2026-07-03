@@ -1,7 +1,9 @@
 import React from "react";
 import { Mic, Sparkles, ChevronRight, Cloud, Lock } from "lucide-react";
 import { useSettings } from "../hooks/useSettings";
+import { useSettingsStore, selectIsCloudReasoningMode } from "../stores/settingsStore";
 import registry from "../models/modelRegistryData.json";
+import { isLocalReasoningProvider } from "../whisperwoof/core/settings/local-reasoning-provider";
 
 const CLOUD_LABEL: Record<string, string> = {
   openai: "OpenAI",
@@ -67,8 +69,12 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
     sttDesc = "On-device";
   }
 
+  // Signed-in OpenWhispr mode routes polish to the cloud regardless of the
+  // local provider/model settings — the pill must reflect actual routing.
+  const cloudPolish = useSettingsStore(selectIsCloudReasoningMode);
+
   // --- Cleanup (polish) ---
-  const polishOn = useReasoningModel && !!reasoningModel;
+  const polishOn = useReasoningModel && (cloudPolish || !!reasoningModel);
   let polishName: string;
   let polishDesc: string;
   let polishLocal = true;
@@ -76,10 +82,14 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
     polishName = "Off";
     polishDesc = "Raw transcript, no cleanup";
     polishLocal = true;
-  } else if (!reasoningModel && reasoningProvider === "local") {
+  } else if (cloudPolish) {
+    polishLocal = false;
+    polishName = "Cloud";
+    polishDesc = "OpenWhispr · sent to the cloud";
+  } else if (!reasoningModel && isLocalReasoningProvider(reasoningProvider)) {
     polishName = "Not set up";
     polishDesc = "Pick a model in Settings";
-  } else if (reasoningProvider === "local") {
+  } else if (isLocalReasoningProvider(reasoningProvider)) {
     polishName = localReasoningDisplayName(reasoningModel);
     polishDesc = "On-device · removes fillers, fixes grammar";
   } else {

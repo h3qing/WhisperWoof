@@ -21,6 +21,12 @@ import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { createExternalLinkHandler } from "../utils/externalLinks";
 import { getCachedPlatform } from "../utils/platform";
+import {
+  LOCAL_REASONING_PROVIDER,
+  LOCAL_FAMILY_STORAGE_KEY,
+  DEFAULT_LOCAL_FAMILY,
+  resolveLocalFamilyTab,
+} from "../whisperwoof/core/settings/local-reasoning-provider";
 
 type CloudModelOption = {
   value: string;
@@ -49,6 +55,9 @@ interface ReasoningModelSelectorProps {
   setGroqApiKey: (key: string) => void;
   customReasoningApiKey?: string;
   setCustomReasoningApiKey?: (key: string) => void;
+  // Where this instance remembers its local family tab. The agent-mode selector
+  // passes its own key so the two pickers don't overwrite each other's memory.
+  localFamilyStorageKey?: string;
 }
 
 function GpuStatusBadge() {
@@ -319,11 +328,12 @@ export default function ReasoningModelSelector({
   setGroqApiKey,
   customReasoningApiKey = "",
   setCustomReasoningApiKey,
+  localFamilyStorageKey = LOCAL_FAMILY_STORAGE_KEY,
 }: ReasoningModelSelectorProps) {
   const { t } = useTranslation();
   const [selectedMode, setSelectedMode] = useState<"cloud" | "local">("cloud");
   const [selectedCloudProvider, setSelectedCloudProvider] = useState("openai");
-  const [selectedLocalProvider, setSelectedLocalProvider] = useState("qwen");
+  const [selectedLocalProvider, setSelectedLocalProvider] = useState(DEFAULT_LOCAL_FAMILY);
   const [customModelOptions, setCustomModelOptions] = useState<CloudModelOption[]>([]);
   const [customModelsLoading, setCustomModelsLoading] = useState(false);
   const [customModelsError, setCustomModelsError] = useState<string | null>(null);
@@ -586,14 +596,30 @@ export default function ReasoningModelSelector({
 
   useEffect(() => {
     const localProviderIds = localProviders.map((p) => p.id);
-    if (localProviderIds.includes(localReasoningProvider)) {
+    // "local" is the canonical stored value; bare family ids ("qwen", ...) are
+    // stale pre-migration values that still mean local mode.
+    if (
+      localReasoningProvider === LOCAL_REASONING_PROVIDER ||
+      localProviderIds.includes(localReasoningProvider)
+    ) {
       setSelectedMode("local");
-      setSelectedLocalProvider(localReasoningProvider);
+      setSelectedLocalProvider(
+        resolveLocalFamilyTab(
+          localReasoningProvider,
+          reasoningModel,
+          localStorage.getItem(localFamilyStorageKey)
+        )
+      );
     } else if (cloudProviderIds.includes(localReasoningProvider)) {
       setSelectedMode("cloud");
       setSelectedCloudProvider(localReasoningProvider);
     }
-  }, [localProviders, localReasoningProvider]);
+    // reasoningModel is read for tab resolution but deliberately not a dep:
+    // re-resolving on every model change would yank the tab away from a family
+    // the user is browsing (e.g. mid-download, or a model sync from another
+    // window). Restore runs on mount and on provider changes only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localProviders, localReasoningProvider, localFamilyStorageKey]);
 
   useEffect(() => {
     if (selectedCloudProvider !== "custom") return;
@@ -663,9 +689,20 @@ export default function ReasoningModelSelector({
         setReasoningModel(provider.models[0].value);
       }
     } else {
-      setLocalReasoningProvider(selectedLocalProvider);
+      // Resolve the remembered family before writing anything: when the selector
+      // mounted in cloud mode, selectedLocalProvider is still the default and
+      // would clobber the tab (and model family) the user actually uses.
+      const family = resolveLocalFamilyTab(
+        LOCAL_REASONING_PROVIDER,
+        reasoningModel,
+        localStorage.getItem(localFamilyStorageKey)
+      );
+      setSelectedLocalProvider(family);
+      // Persist the canonical "local"; the family tab is UI state, kept apart.
+      setLocalReasoningProvider(LOCAL_REASONING_PROVIDER);
+      localStorage.setItem(localFamilyStorageKey, family);
       const downloaded = await loadDownloadedModels();
-      const provider = localProviders.find((p) => p.id === selectedLocalProvider);
+      const provider = localProviders.find((p) => p.id === family);
       const models = provider?.models ?? [];
       if (models.length > 0) {
         const firstDownloaded = models.find((m) => downloaded.has(m.id));
@@ -703,7 +740,8 @@ export default function ReasoningModelSelector({
 
   const handleLocalProviderChange = async (providerId: string) => {
     setSelectedLocalProvider(providerId);
-    setLocalReasoningProvider(providerId);
+    setLocalReasoningProvider(LOCAL_REASONING_PROVIDER);
+    localStorage.setItem(localFamilyStorageKey, providerId);
     const downloaded = await loadDownloadedModels();
     const provider = localProviders.find((p) => p.id === providerId);
     const models = provider?.models ?? [];
