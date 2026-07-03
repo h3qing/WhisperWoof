@@ -37,4 +37,15 @@ module.exports = [
       "no-var": "off",
     },
   },
+  // Plugin entry points are ESM (import/export syntax)
+  {
+    files: ["plugins/**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
 ];

@@ -7,8 +7,8 @@ vi.mock('../../../helpers/debugLogger', () => ({
   error: vi.fn(),
 }));
 
-const MeetingTranscriptCheckpoint = (await import('../../../helpers/meetingTranscriptCheckpoint')).default
-  ?? (await import('../../../helpers/meetingTranscriptCheckpoint'));
+const MeetingTranscriptCheckpoint = ((await import('../../../helpers/meetingTranscriptCheckpoint')).default
+  ?? (await import('../../../helpers/meetingTranscriptCheckpoint'))) as new (...args: any[]) => any;
 
 describe('MeetingTranscriptCheckpoint', () => {
   let checkpoint: any;

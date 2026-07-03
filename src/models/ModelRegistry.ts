@@ -104,7 +104,7 @@ interface ModelRegistryData {
   localProviders: LocalProviderData[];
 }
 
-const modelData: ModelRegistryData = modelDataRaw as ModelRegistryData;
+const modelData: ModelRegistryData = modelDataRaw as unknown as ModelRegistryData;
 
 function createPromptFormatter(template: string): (text: string, systemPrompt: string) => string {
   return (text: string, systemPrompt: string) => {

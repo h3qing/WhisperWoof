@@ -19,7 +19,7 @@ vi.mock("../../../helpers/debugLogger", () => ({
 
 const { default: MeetingAudioBuffer } = await import(
   "../../../helpers/meetingAudioBuffer"
-).then((m) => ({ default: m.default ?? m }));
+).then((m) => ({ default: (m.default ?? m) as new (...args: any[]) => any }));
 
 interface BufferStopResult {
   sessionId: string | null;
