@@ -31,12 +31,10 @@ class UpdateManager {
       return;
     }
 
-    autoUpdater.setFeedURL({
-      provider: "github",
-      owner: "OpenWhispr",
-      repo: "openwhispr",
-      private: false,
-    });
+    // Feed comes from the app-update.yml electron-builder bakes in from the
+    // "publish" config in electron-builder.json (h3qing/whisperwoof). Never
+    // setFeedURL here: the fork inherited upstream's OpenWhispr/openwhispr
+    // feed, which offered OpenWhispr releases as "updates" to WhisperWoof.
 
     // Use arch-specific update channel on macOS to prevent arm64/x64
     // from downloading mismatched artifacts. Both builds publish to the
