@@ -5,6 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.7] - 2026-07-07 — Stop offering upstream OpenWhispr releases as updates
+
+### Fixed
+- **The recurring "WhisperWoof Update Available — Version 1.7.3" popup is gone.** The auto-updater inherited a hardcoded feed pointing at upstream OpenWhispr's GitHub repository, so on every launch (and every 4 hours) it compared against upstream releases and offered OpenWhispr 1.7.3 as an "update" to WhisperWoof — clicking Update Now downloaded a 260MB OpenWhispr package that could never install over this fork. The explicit feed override is removed; the updater now uses the `app-update.yml` electron-builder bakes in from the `publish` config (`h3qing/whisperwoof`). Until the release workflow publishes updater manifests and signed builds (tracked in TODOS.md), update checks fail quietly instead of advertising the wrong app. `src/updater.js`
+
 ## [1.15.6] - 2026-07-03 — Truthful privacy pill + canonical local provider setting
 
 ### Fixed
