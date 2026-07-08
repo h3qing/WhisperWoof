@@ -824,10 +824,19 @@ class IPCHandlers {
     });
 
     ipcMain.handle("paste-text", async (event, text, options) => {
-      // If the floating dictation panel currently has focus, dismiss it so the
-      // paste keystroke lands in the user's target app instead of the overlay.
+      // The paste keystroke is delivered session-wide, so it only lands in the
+      // right field when the captured target app is frontmost (#668). Explicitly
+      // activate it; Chromium/Electron targets (e.g. Claude Desktop) don't
+      // reliably reclaim key-window status from hide()'s implicit hand-off.
+      let activated = false;
+      if (process.platform === "darwin" && this.textEditMonitor) {
+        activated = await this.textEditMonitor.activateTargetPid();
+      }
+      // Fallback: if activation didn't run (no PID captured) and the floating
+      // dictation panel has focus, dismiss it so the keystroke lands in the
+      // user's target app instead of the overlay.
       const mainWindow = this.windowManager?.mainWindow;
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
+      if (!activated && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
         if (process.platform === "darwin") {
           // hide() forces macOS to activate the previous app; showInactive()
           // restores the overlay without stealing focus.

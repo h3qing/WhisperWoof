@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.7] - 2026-07-07 — Stop offering upstream OpenWhispr releases as updates; reliable paste into Claude/Electron apps
+
+### Fixed
+- **Dictated text now reliably lands in Claude Desktop (and other Electron apps).** The paste keystroke is delivered session-wide, so it only works when the target app is frontmost — but ending dictation could briefly steal focus (the caret visibly left the input box), and Chromium/Electron apps don't reclaim key-window status in time, so the synthetic Cmd+V landed nowhere, silently. Port of upstream OpenWhispr #668/#1000 (commit `8a88d9378`): before pasting, the captured target app is explicitly activated by PID and poll-confirmed frontmost — skipping activation when it already is, since re-activating a frontmost Chromium app drops its text field's first responder. Also ports #719/#807: the dictation overlay is now non-focusable, so it can never steal focus in the first place. `src/helpers/textEditMonitor.js`, `src/helpers/ipcHandlers.js`, `src/helpers/windowConfig.js` (+5 regression tests).
+- **The recurring "WhisperWoof Update Available — Version 1.7.3" popup is gone.** The auto-updater inherited a hardcoded feed pointing at upstream OpenWhispr's GitHub repository, so on every launch (and every 4 hours) it compared against upstream releases and offered OpenWhispr 1.7.3 as an "update" to WhisperWoof — clicking Update Now downloaded a 260MB OpenWhispr package that could never install over this fork. The explicit feed override is removed; the updater now uses the `app-update.yml` electron-builder bakes in from the `publish` config (`h3qing/whisperwoof`). Until the release workflow publishes updater manifests and signed builds (tracked in TODOS.md), update checks fail quietly instead of advertising the wrong app. `src/updater.js`
+
 ## [1.15.6] - 2026-07-03 — Truthful privacy pill + canonical local provider setting
 
 ### Fixed

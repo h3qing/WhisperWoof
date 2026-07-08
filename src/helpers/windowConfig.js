@@ -52,7 +52,10 @@ const MAIN_WINDOW_CONFIG = {
   transparent: true,
   show: false,
   skipTaskbar: true,
-  focusable: true,
+  // Non-focusable so the overlay can never steal focus from the dictation
+  // target — focus theft broke auto-paste (upstream #719/#807). Click delivery
+  // still works; Escape-to-cancel uses a global shortcut, not window key events.
+  focusable: false,
   visibleOnAllWorkspaces: process.platform !== "win32",
   fullScreenable: false,
   hasShadow: false,

@@ -52,6 +52,21 @@
 
 ---
 
+## Make auto-update actually work (manifests + signing)
+
+**What:** v1.15.7 removed the inherited updater feed that offered upstream OpenWhispr releases as "updates" to WhisperWoof. The updater now points at `h3qing/whisperwoof`, but update checks 404 because the release pipeline never publishes what electron-updater needs. Remaining work, found by the v1.15.7 adversarial review:
+
+1. **Publish updater manifests.** `.github/workflows/release.yml` builds with `--publish never` and uploads only `dist/*.dmg` + `dist/*.zip`. Add `dist/*.yml` and `dist/*.blockmap` to the release assets, and build with `--config.publish.channel=latest-arm64` so the generated manifest matches the `latest-arm64` channel `src/updater.js:68` requests (electron-builder otherwise writes `latest-mac.yml`).
+2. **Sign builds.** Squirrel.Mac refuses to install updates onto an unsigned app, and unsigned auto-update is an unauthenticated code-delivery channel. In progress in a separate session ("Sign WhisperWoof builds with stable identity") — also fixes Accessibility permission loss on every rebuild.
+3. **Gate the updater on `app.isPackaged` instead of `NODE_ENV`,** and return a friendly "updates not configured in this build" when `app-update.yml` is absent, instead of leaking a raw 404/ENOENT to the renderer.
+4. **Config cleanup:** remove dead `releaseType: "draft"` from `electron-builder.json` (publishing happens via softprops action, not electron-builder — if anyone flips to `--publish always`, draft releases would be invisible to the updater), and fix the repo case `h3qing/whisperwoof` → `h3qing/WhisperWoof`.
+
+**Why:** Users are permanently frozen on their installed version — every startup and 4-hour check silently 404s. Once 1+2 land, updates flow end-to-end.
+
+**Start here:** Do 1 and 4 in the same PR as (or after) the signing task, to avoid conflicting edits to `release.yml`/`electron-builder.json`.
+
+---
+
 ## secretCrypto + plugin-bridge — scope blocked
 
 **What:** PR #5 from the 2026-05-04 cherry-pick batch. Originally scoped as "swap safeStorage for keyring + AES-256-GCM at `plugin-bridge.js:62`."
