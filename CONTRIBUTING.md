@@ -31,7 +31,7 @@ WhisperWoof code lives in `src/whisperwoof/` — isolated from OpenWhispr core t
 src/whisperwoof/
   core/           ← Main process (strict TypeScript)
     storage/      StorageProvider interface + shared types (runtime DB in bridge/app-init.js)
-    polish/       OllamaService for transcript cleanup
+    polish/       Style-learner tests (active polish runs via OpenWhispr's ReasoningService)
     router/       HotkeyRouter for destination routing
     clipboard/    ClipboardMonitor (NSPasteboard polling)
     pipeline/     Orchestrates STT → Polish → Route → Store
@@ -45,8 +45,6 @@ src/whisperwoof/
     command-bar/  Cmd+K text routing overlay
   bridge/         ← ONLY place that imports OpenWhispr code
     app-init.js   WhisperWoof init at startup
-    ollama-bridge.js  Ollama HTTP API wrapper
-    polish-presets.js  5 personality presets for text cleanup
     model-advisor.js   RAM-based model recommendations
     markdown-route.js  Voice-to-Markdown (Fn+N)
     meeting-bridge.js  Meeting transcription tracking
@@ -68,7 +66,7 @@ src/whisperwoof/
 ```bash
 npx vitest run                          # All tests
 npx vitest run --reporter=verbose       # Detailed output
-node eval/run-eval.js --preset all      # Polish quality eval
+node eval/run-polish-eval.js            # Polish quality eval (cleanupPrompt vs local models)
 ```
 
 ## Branch Strategy

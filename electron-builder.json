@@ -223,6 +223,7 @@
     "owner": "h3qing",
     "repo": "whisperwoof",
     "private": false,
-    "releaseType": "draft"
+    "releaseType": "draft",
+    "channel": "latest-arm64"
   }
 }

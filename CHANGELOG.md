@@ -5,6 +5,14 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.15.7] - 2026-07-14 — Working auto-update + docs truthfulness pass
+
+### Fixed
+- **In-app auto-update now points at WhisperWoof, not upstream OpenWhispr.** `src/updater.js` still carried the fork's original feed (`OpenWhispr/openwhispr`), so update checks silently looked at the wrong repo. The feed now targets `h3qing/whisperwoof`, electron-builder generates the `latest-arm64-mac.yml` manifest the updater's arm64 channel actually requests (`publish.channel` in `electron-builder.json`), and the release workflow uploads it alongside the `.dmg`/`.zip` — with a hard gate (`test -f` + `fail_on_unmatched_files`) so a release can never again go green while silently missing update metadata. (Two caveats: existing installs still carry the old feed, so everyone on ≤1.15.6 needs one manual download of this version before auto-update starts working; and unsigned builds may still require a manual install step even when an update is detected.)
+- **README badges no longer go stale.** The download badge is now a dynamic shields.io GitHub-release badge (was hardcoded `v1.15.0`); the test badge reflects the real suite (758 passing, was 862).
+- **Docs caught up with deleted subsystems.** README's routing diagram now shows the real hotkeys (Fn+T → clipboard, Fn+P → project; the fabricated Fn+C calendar line is gone), CONTRIBUTING.md no longer documents the deleted Ollama bridge/presets or the removed `eval/run-eval.js`, CLAUDE.md drops the removed `bf_snippets`/`bf_snippet_boards` tables, and plugins/README.md documents `telegram-companion`.
+- **Website honesty pass.** Disk requirement now includes local model downloads (2–3 GB, was "~200 MB"), the MCP plugin list matches the actually-bundled plugins (calendar removed, TickTick added), Fn+P added to the routing copy, and the dead `vercel.json` (leftover second deploy target) is removed.
+
 ## [1.15.6] - 2026-07-03 — Truthful privacy pill + canonical local provider setting
 
 ### Fixed
@@ -78,6 +86,8 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Tuned the production dictation cleanup prompt for local models.** Measured the real `cleanupPrompt` (not the legacy presets the old eval tested) against local models on realistic raw-STT transcripts. Added three validated, regression-free rules: assemble spoken emails/URLs (`"john at acme dot com"` → `john@acme.com`), preserve the speaker's point of view (`"remind me to X"` no longer rewritten as a request to the reader), and fully resolve self-corrections (`"the blue one, no wait the green one"` → keep only green). Applied to `src/locales/en/prompts.json` and the synced `src/config/promptData.json`. New faithful eval harness lives in `eval/run-polish-eval.js` + `eval/polish-cases.json`.
 
 ## [1.14.0] - 2026-06-10 — STT Reliability + Transcription UX
+
+*Note: this version was merged to `main` but never tagged or published as a GitHub release — its changes first shipped in v1.15.0.*
 
 ### Fixes
 - **Fixed broken `distil-large-v3.5` Whisper model download.** The registry entry (marked `recommended`) pointed at `distil-whisper/distil-large-v3.5-ggml/.../ggml-distil-large-v3.5.bin`, which 404s — selecting the model produced a failed download. Repointed `downloadUrl` to the repo's actual file (`ggml-model.bin`) and corrected the size metadata (claimed 756 MB → real 1.52 GB / 1519521155 bytes) so `validateFileSize` (10% tolerance, `downloadUtils.js:353`) no longer rejects the completed download. `fileName` (local save name) is unchanged. Verified the URL resolves (HTTP 206); an audit of all 36 registry model download URLs confirmed the other 35 (Whisper, Parakeet, and every local Qwen/Gemma/Llama/Mistral/GPT-OSS GGUF) are healthy.
