@@ -98,6 +98,11 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      # Auto-update depends on this manifest (updater.js requests the
+      # latest-arm64 channel). Fail loudly if electron-builder didn't emit it.
+      - name: Verify update manifest was generated
+        run: test -f dist/latest-arm64-mac.yml
+
       - name: Extract release notes from CHANGELOG
         id: notes
         run: |
@@ -128,6 +133,8 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.zip
+            dist/latest*.yml
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
         env:
