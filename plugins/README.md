@@ -11,6 +11,8 @@ First-party MCP server plugins for WhisperWoof. Each plugin is an MCP server tha
 | `notion-mcp` | Save notes to Notion pages | `NOTION_API_KEY` |
 | `slack-mcp` | Send messages to Slack | `SLACK_BOT_TOKEN` |
 
+Also in this directory: `telegram-companion` — a standalone Telegram bot (not an MCP server) that transcribes mobile voice messages and syncs them to WhisperWoof's desktop inbox. Requires `TELEGRAM_BOT_TOKEN` and `OPENAI_API_KEY`; see its file header for setup.
+
 ## Usage
 
 1. Set the API key as an environment variable

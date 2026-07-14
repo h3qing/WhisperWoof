@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.15.0-C87B3A?style=flat-square" alt="v1.15.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/github/v/release/h3qing/whisperwoof?label=download&color=C87B3A&style=flat-square" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-862%20passing-brightgreen?style=flat-square" alt="862 tests passing">
+  <img src="https://img.shields.io/badge/tests-758%20passing-brightgreen?style=flat-square" alt="758 tests passing">
 </p>
 
 <p align="center">
@@ -72,9 +72,9 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
          Hotkey-driven routing
               │
               ├──▶ Fn         → Paste polished text at cursor
-              ├──▶ Fn + T     → Add to todo list
+              ├──▶ Fn + T     → Copy to clipboard
               ├──▶ Fn + N     → Save as Markdown note
-              ├──▶ Fn + C     → Add to calendar
+              ├──▶ Fn + P     → Add to project
               └──▶ All entries saved to searchable history
 ```
 
@@ -105,7 +105,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 - **Cmd+K command bar** — Spotlight-style overlay. Type /todo, /note, /project.
 - **Agent mode** — Voice-driven AI chat. Press hotkey, speak, get streamed LLM responses.
 
-### Meeting Recording *(new)*
+### Meeting Recording
 - **Granola-style detection** — Detects meetings via calendar + mic + process signals. Shows persistent notification.
 - **Pre-meeting alerts** — Notification appears ~90s before scheduled meetings.
 - **Crash-safe audio** — Audio saved to local WAV files in 5-minute segments. Never lose a meeting.
@@ -177,7 +177,7 @@ The app bundles `llama-server` (llama.cpp) for local LLM polish — no extra ins
 
 - [x] **Phase 0** — Fork + security hardening + test infrastructure
 - [x] **Phase 1** — Core pipeline: StorageProvider, local LLM polish, hotkey routing, features
-- [x] **Phase 2** — MCP plugin system (Todoist, Notion, Slack, Calendar)
+- [x] **Phase 2** — MCP plugin system (Todoist, TickTick, Notion, Slack) + Telegram companion bot
 - [x] **Phase 3** — Polish, onboarding, public release (v1.0)
 - [x] **Phases 4–10** — Competitive features, AI intelligence, vibe coding, streaming, templates
 - [x] **Meeting recording** — Crash-safe audio buffer, transcript checkpoints, Granola-style detection
