@@ -266,7 +266,11 @@ function invalidateApiKeyCaches(
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
   useLocalWhisper: readBoolean("useLocalWhisper", true), // WhisperWoof: local-first by default
-  whisperModel: readString("whisperModel", "small"), // multilingual; handles Chinese + 90+ languages
+  // large-v3-turbo, not small. Measured on the app's real capture path in
+  // eval/dictation-bench (zh/en code-switching): turbo 24.8% MER vs small
+  // 34.9%, and small leaks Traditional characters on Simplified speech where
+  // turbo does not. 1.6GB vs 0.5GB on disk is the cost.
+  whisperModel: readString("whisperModel", "turbo"), // multilingual; handles Chinese + 90+ languages
   // WhisperWoof: default to Whisper — it's multilingual (incl. Chinese/CJK), so it's the safe
   // default for everyone. Parakeet TDT is faster but only covers English + 24 European languages
   // (no CJK), so it's offered as an opt-in speed choice in Settings, not the default. When a user

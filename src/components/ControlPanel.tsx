@@ -22,6 +22,7 @@ import WindowControls from "./WindowControls";
 
 import { getCachedPlatform } from "../utils/platform";
 import { setActiveNoteId, setActiveFolderId, initializeNotes } from "../stores/noteStore";
+import { getSettings } from "../stores/settingsStore";
 import HistoryView from "./HistoryView";
 
 const platform = getCachedPlatform();
@@ -323,9 +324,18 @@ export default function ControlPanel() {
   );
 
   const retryTranscription = useCallback(
-    async (id: number) => {
+    async (id: number, overrides?: { model?: string; language?: string; provider?: string }) => {
       try {
-        const result = await window.electronAPI.retryTranscription(id);
+        // Settings live in the renderer store, so the retry target has to be
+        // passed explicitly — the main process cannot read them. `overrides`
+        // lets a caller re-run stored audio on a different model without
+        // changing the user's settings.
+        const { whisperModel, preferredLanguage, localTranscriptionProvider } = getSettings();
+        const result = await window.electronAPI.retryTranscription(id, {
+          model: overrides?.model ?? whisperModel,
+          language: overrides?.language ?? preferredLanguage,
+          provider: overrides?.provider ?? localTranscriptionProvider,
+        });
         if (result.success && result.transcription) {
           const rawText = result.transcription.text;
           let finalTranscription = result.transcription;

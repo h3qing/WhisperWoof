@@ -7,6 +7,10 @@ import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
 import { normalizeCjkPunctuation } from "../whisperwoof/core/language/normalize-cjk-punctuation";
 import {
+  normalizeChineseScript,
+  scriptForLanguage,
+} from "../whisperwoof/core/language/normalize-chinese-script";
+import {
   getSettings,
   getEffectiveReasoningModel,
   isCloudReasoningMode,
@@ -666,13 +670,18 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       if (result.success && result.text) {
-        const rawText = result.text;
+        // Settle Simplified vs Traditional before anything else reads the
+        // transcript: whisper picks a language, not a script, and leaks
+        // Traditional on Simplified speech (see eval/dictation-bench).
+        // Doing it here keeps rawText, the polish input and the pasted text
+        // in agreement.
+        const rawText = this.normalizeSttScript(result.text);
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, "local");
+        const text = await this.processTranscription(rawText, "local");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, rawText, source: "local", timings };
+          return { success: true, text: text || rawText, rawText, source: "local", timings };
         } else {
           throw new Error("No text transcribed");
         }
@@ -740,15 +749,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       if (result.success && result.text) {
-        const rawText = result.text;
+        const rawText = this.normalizeSttScript(result.text);
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, "local-parakeet");
+        const text = await this.processTranscription(rawText, "local-parakeet");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
           return {
             success: true,
-            text: text || result.text,
+            text: text || rawText,
             rawText,
             source: "local-parakeet",
             timings,
@@ -993,6 +1002,19 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.cachedReasoningPreference = useReasoning;
       return false;
     }
+  }
+
+  /**
+   * Settle the Chinese script of a raw STT transcript.
+   *
+   * Whisper selects a language (`zh`), never a script, and
+   * `getBaseLanguageCode` drops the `-CN`/`-TW` suffix before the request is
+   * built, so nothing downstream of whisper.cpp knows which one the user
+   * writes. Resolve it here from the dictation-language preference.
+   * No-op for transcripts without Han characters.
+   */
+  normalizeSttScript(text) {
+    return normalizeChineseScript(text, scriptForLanguage(getSettings().preferredLanguage));
   }
 
   async processTranscription(text, source) {

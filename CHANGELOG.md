@@ -5,6 +5,20 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Fixed
+- **Retry-transcription was broken for Whisper and always claimed no model was downloaded.** The handler read a `getSettings()` that does not exist in the Electron main process; the `ReferenceError` was swallowed by a bare `catch`, leaving the model path null, so every Whisper retry returned "No Whisper model downloaded. Go to Settings → Transcription to download a model, then retry." — with models sitting on disk. Retry now takes the engine, model and language from the caller (settings live in the renderer store, so the main process cannot read them). `src/helpers/ipcHandlers.js`, `src/whisperwoof/bridge/retry-transcription-pure.js` (+ unit tests).
+- **Retry no longer sends Chinese audio to Parakeet.** It tried Parakeet first whenever its server was up, ignoring the configured engine — but Parakeet TDT has no CJK coverage, so retrying a Chinese recording returned empty. Retry now applies the same language guard `audioManager.processAudio` applies to live dictation.
+- **Dictation no longer returns Traditional characters for Simplified speech.** Whisper's auto-detection selects a language (`zh`), never a script, and `getBaseLanguageCode` drops the `-CN`/`-TW` suffix before the request is built, so nothing downstream knows which script the user writes. Measured on real human audio (`eval/dictation-bench`): whisper-small returns `開放時間早上9點至下午5點`. Output is now normalized to Simplified unless the dictation language is `zh-TW`/`zh-HK`. `src/whisperwoof/bridge/chinese-script.js` (+ unit tests).
+
+### Changed
+- **The default Whisper model is now large-v3-turbo, not small.** Measured on the app's real capture path with zh/en code-switching speech: turbo 24.8% mixed error rate vs small 34.9%, and small leaks Traditional characters where turbo does not. Costs 1.6GB on disk against 0.5GB. The model advisor already preferred turbo on machines with the RAM for it, so the default and the recommendation now agree. `src/stores/settingsStore.ts`.
+
+### Removed
+- **Voice editing commands, which hijacked dictation.** Every capture ran a regex check before polish and paste, and a match (`^translate … (to|into) `, `^make (this|that|it) `, `^(summarize|tldr) `, …) read the clipboard and posted it to `http://localhost:11434` — an Ollama endpoint this app stopped shipping. So a sentence merely *starting* like a command cost a failed round-trip before landing, and on a machine that happened to run Ollama it was replaced outright by a rewrite of the clipboard. The feature was on by default with no UI toggle anywhere (the only way to disable it was setting `whisperwoof-voice-commands` in localStorage by hand), and its detection was the sole consumer of the module — `whisperwoofGetVoiceCommands` was never called by any UI. Removed the interception, the three IPC handlers, the preload bridges and the bridge module. Historical `routed_to` values with the `voice-command:` prefix still render in analytics.
+
+### Added
+- **`eval/dictation-bench` — a zh/en code-switching bench for the local STT path.** The Vitest suite covers `src/whisperwoof/core/` side-features and touched none of the dictation path. This measures the text itself, feeding audio through the real capture path (MediaRecorder webm/opus stereo → `ffmpegUtils.convertToWav` 16k mono) rather than clean WAVs, and re-checking the decisive cases on human recordings so no conclusion rests on TTS artifacts.
+
 ## [1.15.6] - 2026-07-03 — Truthful privacy pill + canonical local provider setting
 
 ### Fixed
