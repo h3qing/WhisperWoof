@@ -1,0 +1,16 @@
+[
+  {"id":"cs01","text":"帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。"},
+  {"id":"cs02","text":"我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。"},
+  {"id":"cs03","text":"明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。"},
+  {"id":"cs04","text":"这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。"},
+  {"id":"cs05","text":"先 commit 到 local branch，等 CI 跑完再 push 上去。"},
+  {"id":"cs06","text":"我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。"},
+  {"id":"cs07","text":"把这段话翻译成英文，然后发给 product team review 一下。"},
+  {"id":"cs08","text":"whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。"},
+  {"id":"cs09","text":"记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。"},
+  {"id":"cs10","text":"这个 API 返回的 response 里面没有 error code，需要让 backend 加上。"},
+  {"id":"zh01","text":"帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。"},
+  {"id":"zh02","text":"这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。"},
+  {"id":"en01","text":"Let me know if the deployment finished, and please double check the database migration ran cleanly."},
+  {"id":"en02","text":"I think we should ship the simplified version first and iterate based on real usage data."}
+]
