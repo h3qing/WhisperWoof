@@ -36,7 +36,12 @@ let converter;
 function getConverter() {
   if (converter !== undefined) return converter;
   try {
-    converter = Converter({ from: "tw", to: "cn" });
+    // `from: "t"` is generic Traditional, NOT `"tw"`. The Taiwan-specific
+    // variant rewrites 么 -> 幺, so it corrupts correctly-Simplified input:
+    // "怎么样" comes back as "怎幺样". Since this runs on every transcript,
+    // including ones that were already Simplified, the conversion has to be a
+    // no-op on correct input.
+    converter = Converter({ from: "t", to: "cn" });
   } catch {
     // Conversion is a nicety, never a reason to lose a transcript.
     converter = null;

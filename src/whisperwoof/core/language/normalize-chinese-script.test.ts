@@ -18,6 +18,21 @@ describe("normalizeChineseScript", () => {
     expect(normalizeChineseScript(s)).toBe(s);
   });
 
+  it("does not corrupt correctly-Simplified text that has Traditional variants", () => {
+    // Regression: the Taiwan-specific converter (`from: "tw"`) rewrites
+    // 么 -> 幺, so it mangled transcripts that were already correct.
+    expect(normalizeChineseScript("怎么样")).toBe("怎么样");
+    expect(normalizeChineseScript("什么")).toBe("什么");
+    expect(normalizeChineseScript("么")).toBe("么");
+    expect(normalizeChineseScript("这个模型在中英混合的场景下表现怎么样")).toBe(
+      "这个模型在中英混合的场景下表现怎么样"
+    );
+  });
+
+  it("still simplifies the Traditional spelling of the same word", () => {
+    expect(normalizeChineseScript("這個模型表現怎麼樣")).toBe("这个模型表现怎么样");
+  });
+
   it("leaves English untouched", () => {
     const s = "Let me know if the deployment finished.";
     expect(normalizeChineseScript(s)).toBe(s);
