@@ -1313,8 +1313,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     timings.transcriptionProcessingDurationMs = Math.round(performance.now() - transcriptionStart);
 
     // Process with reasoning if enabled
-    const rawText = result.text;
-    let processedText = result.text;
+    const rawText = this.normalizeSttScript(result.text);
+    let processedText = rawText;
     if (settings.useReasoningModel && processedText && !this.skipReasoning) {
       const reasoningStart = performance.now();
       const agentName = localStorage.getItem("agentName") || null;
@@ -1538,9 +1538,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
         if (proxyText && proxyText.trim().length > 0) {
           timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
-          const rawText = proxyText;
+          const rawText = this.normalizeSttScript(proxyText);
           const reasoningStart = performance.now();
-          const text = await this.processTranscription(proxyText, "mistral");
+          const text = await this.processTranscription(rawText, "mistral");
           timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
           const source = (await this.isReasoningAvailable()) ? "mistral-reasoned" : "mistral";
@@ -1673,10 +1673,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Check for text - handle both empty string and missing field
       if (result.text && result.text.trim().length > 0) {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
-        const rawText = result.text;
+        const rawText = this.normalizeSttScript(result.text);
 
         const reasoningStart = performance.now();
-        const text = await this.processTranscription(result.text, "openai");
+        const text = await this.processTranscription(rawText, "openai");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         const source = (await this.isReasoningAvailable()) ? "openai-reasoned" : "openai";
@@ -1735,7 +1735,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
 
           if (result.success && result.text) {
-            const text = await this.processTranscription(result.text, "local-fallback");
+            const text = await this.processTranscription(
+              this.normalizeSttScript(result.text),
+              "local-fallback"
+            );
             if (text) {
               return { success: true, text, source: "local-fallback" };
             }
@@ -2494,6 +2497,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "streaming"
       );
     }
+
+    // Same script normalization the batch paths apply, placed after the
+    // three-way finalText resolution and before polish.
+    finalText = this.normalizeSttScript(finalText);
 
     this.cleanupStreamingListeners();
 

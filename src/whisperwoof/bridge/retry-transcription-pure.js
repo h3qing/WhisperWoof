@@ -53,14 +53,17 @@ function resolveRetryModelFile(downloadedFiles, requestedModelId) {
  * @returns {"whisper"|"parakeet"}
  */
 function resolveRetryProvider({ provider, language, parakeetAvailable, whisperAvailable }) {
-  const wantsParakeet =
-    (provider === "nvidia" || provider === "parakeet") && Boolean(parakeetAvailable);
-  if (!wantsParakeet) return whisperAvailable ? "whisper" : "parakeet";
-
   const base = String(language || "").toLowerCase().split("-")[0];
-  if (base && PARAKEET_UNSUPPORTED.has(base) && whisperAvailable) return "whisper";
+  const parakeetCanServe =
+    Boolean(parakeetAvailable) && !(base && PARAKEET_UNSUPPORTED.has(base));
 
-  return "parakeet";
+  if ((provider === "nvidia" || provider === "parakeet") && parakeetCanServe) return "parakeet";
+  if (whisperAvailable) return "whisper";
+
+  // Whisper is down. Fall back to Parakeet only when it can actually serve the
+  // language — otherwise return "whisper" so the caller surfaces the real
+  // problem (the binary is missing) instead of an empty transcript.
+  return parakeetCanServe ? "parakeet" : "whisper";
 }
 
 /**

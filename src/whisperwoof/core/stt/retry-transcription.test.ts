@@ -86,6 +86,31 @@ describe("resolveRetryProvider", () => {
     ).toBe("parakeet");
   });
 
+  it("does not fall back to Parakeet for a language it cannot serve", () => {
+    // Whisper down + Chinese + only Parakeet installed: running Parakeet
+    // would return an empty transcript. Naming whisper lets the handler
+    // surface "Whisper server binary not found", which is the real problem.
+    expect(
+      resolveRetryProvider({
+        provider: "whisper",
+        language: "zh-CN",
+        parakeetAvailable: true,
+        whisperAvailable: false,
+      })
+    ).toBe("whisper");
+  });
+
+  it("does fall back to Parakeet when it can serve the language", () => {
+    expect(
+      resolveRetryProvider({
+        provider: "whisper",
+        language: "en",
+        parakeetAvailable: true,
+        whisperAvailable: false,
+      })
+    ).toBe("parakeet");
+  });
+
   it("falls back to the other engine when the preferred one is down", () => {
     expect(
       resolveRetryProvider({
