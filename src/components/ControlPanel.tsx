@@ -23,6 +23,7 @@ import WindowControls from "./WindowControls";
 import { getCachedPlatform } from "../utils/platform";
 import { setActiveNoteId, setActiveFolderId, initializeNotes } from "../stores/noteStore";
 import { getSettings } from "../stores/settingsStore";
+import { resolveChineseScript } from "../whisperwoof/core/language/normalize-chinese-script";
 import HistoryView from "./HistoryView";
 
 const platform = getCachedPlatform();
@@ -329,12 +330,17 @@ export default function ControlPanel() {
         // Settings live in the renderer store, so the retry target has to be
         // passed explicitly — the main process cannot read them. `overrides`
         // lets a caller re-run stored audio on a different model without
-        // changing the user's settings.
-        const { whisperModel, preferredLanguage, localTranscriptionProvider } = getSettings();
+        // changing the user's settings. The Chinese output script is resolved
+        // here too (UI language and OS locale are renderer signals) so the
+        // main process applies the same script live dictation would.
+        const { whisperModel, preferredLanguage, uiLanguage, localTranscriptionProvider } =
+          getSettings();
+        const language = overrides?.language ?? preferredLanguage;
         const result = await window.electronAPI.retryTranscription(id, {
           model: overrides?.model ?? whisperModel,
-          language: overrides?.language ?? preferredLanguage,
+          language,
           provider: overrides?.provider ?? localTranscriptionProvider,
+          script: resolveChineseScript(language, uiLanguage, navigator.language),
         });
         if (result.success && result.transcription) {
           const rawText = result.transcription.text;

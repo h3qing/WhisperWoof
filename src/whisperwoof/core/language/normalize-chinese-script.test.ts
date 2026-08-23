@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { normalizeChineseScript, scriptForLanguage } from "./normalize-chinese-script";
+import {
+  normalizeChineseScript,
+  scriptForLanguage,
+  resolveChineseScript,
+} from "./normalize-chinese-script";
 
 describe("normalizeChineseScript", () => {
   it("converts the Traditional output whisper-small produced on real human audio", () => {
@@ -75,5 +79,35 @@ describe("scriptForLanguage", () => {
 
   it("is case-insensitive", () => {
     expect(scriptForLanguage("ZH-tw")).toBe("off");
+  });
+});
+
+describe("resolveChineseScript", () => {
+  it("keeps the dictation language as the most specific signal", () => {
+    expect(resolveChineseScript("zh-TW", "en", "en-US")).toBe("off");
+    expect(resolveChineseScript("zh-CN", "zh-TW", "zh-TW")).toBe("simplified");
+  });
+
+  it("recognizes a Traditional-script user on auto by their UI language", () => {
+    // The whole point: a zh-TW user on the recommended auto setting must not
+    // have Simplified forced onto their transcripts.
+    expect(resolveChineseScript("auto", "zh-TW", "en-US")).toBe("off");
+    expect(resolveChineseScript("auto", "zh-CN", "en-US")).toBe("simplified");
+  });
+
+  it("falls back to the OS locale when neither setting is Chinese", () => {
+    expect(resolveChineseScript("auto", "en", "zh-TW")).toBe("off");
+    expect(resolveChineseScript("auto", "en", "zh-Hant-TW")).toBe("off");
+    expect(resolveChineseScript("auto", "en", "zh-HK")).toBe("off");
+    expect(resolveChineseScript("auto", "en", "zh-CN")).toBe("simplified");
+  });
+
+  it("defaults to Simplified when no signal says Traditional", () => {
+    expect(resolveChineseScript("auto", "en", "en-US")).toBe("simplified");
+    expect(resolveChineseScript(null, undefined, undefined)).toBe("simplified");
+  });
+
+  it("does not let a zh-Hans OS locale masquerade as Traditional", () => {
+    expect(resolveChineseScript("auto", "en", "zh-Hans-CN")).toBe("simplified");
   });
 });

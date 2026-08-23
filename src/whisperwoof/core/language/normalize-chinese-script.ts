@@ -86,3 +86,36 @@ export function scriptForLanguage(language: string | null | undefined): ChineseS
   }
   return "simplified";
 }
+
+/** `zh-TW`, `zh-HK`, `zh-MO`, and any `zh-Hant-*` locale write Traditional. */
+function isTraditionalLocale(locale: string): boolean {
+  return /^zh[-_](tw|hk|mo|hant)([-_]|$)/.test(locale);
+}
+
+/**
+ * Resolve which Chinese script this user writes, from the signals they have
+ * actually given us — most specific first:
+ *
+ *   1. dictation language (`zh-TW` -> Traditional, `zh-CN` -> Simplified)
+ *   2. the app's UI language, when dictation is `auto`
+ *   3. the OS locale (`navigator.language`), when the UI is not Chinese either
+ *   4. Simplified, as the majority default
+ *
+ * This is what keeps the normalization a product behavior rather than a
+ * personalization: a Traditional-script speaker who leaves dictation on
+ * `auto` — the recommended setting — is recognized by their UI language or
+ * OS locale instead of having Simplified forced on them.
+ */
+export function resolveChineseScript(
+  dictationLanguage: string | null | undefined,
+  uiLanguage?: string | null,
+  systemLocale?: string | null
+): ChineseScript {
+  const dict = String(dictationLanguage ?? "").toLowerCase();
+  if (isTraditionalLocale(dict)) return "off";
+  if (dict && dict !== "auto") return "simplified";
+
+  if (isTraditionalLocale(String(uiLanguage ?? "").toLowerCase())) return "off";
+  if (isTraditionalLocale(String(systemLocale ?? "").toLowerCase())) return "off";
+  return "simplified";
+}

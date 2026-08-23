@@ -8,7 +8,7 @@ import { getBaseLanguageCode, validateLanguageForModel } from "../utils/language
 import { normalizeCjkPunctuation } from "../whisperwoof/core/language/normalize-cjk-punctuation";
 import {
   normalizeChineseScript,
-  scriptForLanguage,
+  resolveChineseScript,
 } from "../whisperwoof/core/language/normalize-chinese-script";
 import {
   getSettings,
@@ -1014,7 +1014,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
    * No-op for transcripts without Han characters.
    */
   normalizeSttScript(text) {
-    return normalizeChineseScript(text, scriptForLanguage(getSettings().preferredLanguage));
+    const { preferredLanguage, uiLanguage } = getSettings();
+    const systemLocale = typeof navigator !== "undefined" ? navigator.language : null;
+    return normalizeChineseScript(
+      text,
+      resolveChineseScript(preferredLanguage, uiLanguage, systemLocale)
+    );
   }
 
   async processTranscription(text, source) {

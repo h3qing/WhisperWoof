@@ -322,7 +322,7 @@ declare global {
       deleteAllAudio: () => Promise<{ deleted: number }>;
       retryTranscription: (
         id: number,
-        options?: { model?: string; language?: string; provider?: string }
+        options?: { model?: string; language?: string; provider?: string; script?: string }
       ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
       updateTranscriptionText: (
         id: number,

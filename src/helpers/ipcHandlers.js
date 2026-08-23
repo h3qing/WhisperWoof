@@ -3665,8 +3665,12 @@ class IPCHandlers {
         // ReferenceError was swallowed by a bare catch, leaving modelPath null,
         // so every Whisper retry returned "No Whisper model downloaded" even
         // with models on disk.
-        const { model: requestedModel, language: requestedLanguage, provider: requestedProvider } =
-          options || {};
+        const {
+          model: requestedModel,
+          language: requestedLanguage,
+          provider: requestedProvider,
+          script: requestedScript,
+        } = options || {};
 
         // WhisperWoof: Clear cached binary path so freshly downloaded binaries are detected
         if (this.whisperManager?.serverManager) {
@@ -3749,9 +3753,13 @@ class IPCHandlers {
         // the one it replaces.
         const { normalizeChineseScript, scriptForLanguage } =
           require("../whisperwoof/bridge/chinese-script");
+        // Prefer the script the renderer resolved (it can see the UI language
+        // and OS locale); fall back to deriving it from the dictation language.
         const retriedText = normalizeChineseScript(
           result.text,
-          scriptForLanguage(requestedLanguage)
+          requestedScript === "simplified" || requestedScript === "off"
+            ? requestedScript
+            : scriptForLanguage(requestedLanguage)
         );
 
         this.databaseManager.updateTranscriptionText(id, retriedText, retriedText);
