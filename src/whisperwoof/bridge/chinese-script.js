@@ -1,10 +1,15 @@
 /**
- * Chinese script normalization — shared implementation.
+ * Chinese script normalization — Electron MAIN PROCESS implementation.
  *
- * Lives here in CommonJS because both sides need it: the renderer's dictation
- * path (via core/language/normalize-chinese-script.ts, which re-exports this
- * with types) and the Electron main process's retry-transcription handler.
- * One implementation so the two can never drift.
+ * The renderer has its own copy of this logic in
+ * `core/language/normalize-chinese-script.ts`, and the duplication is
+ * deliberate: Vite only applies its CommonJS transform to node_modules, so a
+ * project-local CJS module imported into the renderer graph reaches the
+ * production bundle with a literal `require` and a bare `module.exports` and
+ * throws at chunk load. This file must therefore never be imported from
+ * renderer code — only required from the main process (ipcHandlers).
+ * The two copies are held together by the parity suite in
+ * `core/language/chinese-script-parity.test.ts`; change both files together.
  *
  * Whisper's auto language detection picks a *language* (`zh`), not a *script*,
  * and emits Traditional characters on Simplified speech. Measured on real
@@ -52,8 +57,8 @@ function getConverter() {
 /**
  * Convert Traditional Han characters in `text` to Simplified.
  *
- * Returns `text` unchanged when the target is "off", when the text contains no
- * Han characters, or when the converter is unavailable.
+ * Returns `text` unchanged when the target is "off" or when the text contains
+ * no Han characters.
  *
  * @param {string} text
  * @param {"simplified"|"off"} [target]
@@ -64,12 +69,13 @@ function normalizeChineseScript(text, target = "simplified") {
   if (typeof text !== "string" || !text) return text;
   if (!HAN.test(text)) return text;
 
-  const convert = getConverter();
-  if (!convert) return text;
-
   try {
-    return convert(text);
+    return getConverter()(text);
   } catch {
+    // A conversion failure on one transcript must not lose the transcript —
+    // but the module-load path above stays loud on purpose: a missing
+    // dictionary is a packaging bug, and swallowing it is how the previous
+    // silent no-op survived every test.
     return text;
   }
 }

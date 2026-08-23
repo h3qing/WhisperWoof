@@ -101,7 +101,6 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 
 ### Intelligence
 - **Context-aware** — Detects active app. VS Code gets code style, Slack gets casual, Mail gets professional.
-- **Voice commands** — "Rewrite this." "Translate to Spanish." "Summarize." 10 editing commands.
 - **Cmd+K command bar** — Spotlight-style overlay. Type /todo, /note, /project.
 - **Agent mode** — Voice-driven AI chat. Press hotkey, speak, get streamed LLM responses.
 
