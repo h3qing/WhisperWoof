@@ -44,7 +44,9 @@
       "size": "482MB",
       "sizeMb": 482,
       "language": "en",
-      "supportedLanguages": ["en"],
+      "supportedLanguages": [
+        "en"
+      ],
       "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2",
       "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
     },
@@ -54,10 +56,72 @@
       "size": "631MB",
       "sizeMb": 631,
       "language": "en",
-      "supportedLanguages": ["en"],
+      "supportedLanguages": [
+        "en"
+      ],
       "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming.tar.bz2",
       "extractDir": "sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming",
       "descriptionKey": "models.descriptions.parakeet.parakeet_unified_en_0_6b"
+    },
+    "nemotron-3.5-asr-streaming-0.6b": {
+      "name": "Nemotron 3.5 Streaming",
+      "description": "Live streaming ASR — text appears as you speak. 15 languages (no Chinese) with auto language detection. NVIDIA Nemotron 3.5, 600M params.",
+      "size": "453MB",
+      "sizeMb": 453,
+      "expectedSizeBytes": 475271763,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "en",
+        "es",
+        "fr",
+        "it",
+        "pt",
+        "nl",
+        "de",
+        "tr",
+        "ru",
+        "ar",
+        "hi",
+        "ja",
+        "ko",
+        "vi",
+        "uk"
+      ],
+      "runtime": "online",
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11.tar.bz2",
+      "extractDir": "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11"
+    },
+    "nemotron-speech-streaming-en-0.6b": {
+      "name": "Nemotron Streaming EN",
+      "description": "English-only live streaming ASR from NVIDIA Nemotron. Text appears as you speak.",
+      "size": "442MB",
+      "sizeMb": 442,
+      "expectedSizeBytes": 463945051,
+      "language": "en",
+      "supportedLanguages": [
+        "en"
+      ],
+      "runtime": "online",
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2",
+      "extractDir": "sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25"
+    },
+    "sense-voice-zh-en": {
+      "name": "SenseVoice",
+      "description": "Best for Chinese/English mixed speech — 17.3% mixed error rate vs Whisper Turbo's 24.8% on our bench, and ~4x faster. Also covers Japanese, Korean, Cantonese. Simplified Chinese output with punctuation built in.",
+      "size": "155MB",
+      "sizeMb": 155,
+      "expectedSizeBytes": 163002883,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "zh",
+        "en",
+        "ja",
+        "ko",
+        "yue"
+      ],
+      "modelType": "sense-voice",
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17"
     }
   },
   "whisperModels": {

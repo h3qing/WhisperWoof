@@ -227,6 +227,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   parakeetServerStart: (modelName) => ipcRenderer.invoke("parakeet-server-start", modelName),
   parakeetServerStop: () => ipcRenderer.invoke("parakeet-server-stop"),
   parakeetServerStatus: () => ipcRenderer.invoke("parakeet-server-status"),
+  parakeetStreamStart: (options) => ipcRenderer.invoke("parakeet-stream-start", options),
+  parakeetStreamAudio: (pcmBuffer) => ipcRenderer.send("parakeet-stream-audio", pcmBuffer),
+  parakeetStreamStop: () => ipcRenderer.invoke("parakeet-stream-stop"),
+  parakeetStreamAbort: () => ipcRenderer.invoke("parakeet-stream-abort"),
+  onParakeetStreamPartial: (callback) => {
+    const handler = (_event, text) => callback(text);
+    ipcRenderer.on("parakeet-stream-partial", handler);
+    return () => ipcRenderer.removeListener("parakeet-stream-partial", handler);
+  },
 
   // Window control functions
   windowMinimize: () => ipcRenderer.invoke("window-minimize"),

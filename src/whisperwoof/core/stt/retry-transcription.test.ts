@@ -123,6 +123,44 @@ describe("resolveRetryProvider", () => {
   });
 });
 
+describe("resolveRetryProvider with model-aware language coverage", () => {
+  it("keeps Chinese on the sherpa engine when SenseVoice is the model", () => {
+    expect(
+      resolveRetryProvider({
+        provider: "nvidia",
+        language: "zh-CN",
+        parakeetModel: "sense-voice-zh-en",
+        parakeetAvailable: true,
+        whisperAvailable: true,
+      })
+    ).toBe("parakeet");
+  });
+
+  it("routes Chinese away from Nemotron, whose export has no Chinese", () => {
+    expect(
+      resolveRetryProvider({
+        provider: "nvidia",
+        language: "zh-CN",
+        parakeetModel: "nemotron-3.5-asr-streaming-0.6b",
+        parakeetAvailable: true,
+        whisperAvailable: true,
+      })
+    ).toBe("whisper");
+  });
+
+  it("falls back to the classic no-CJK heuristic for an unknown model", () => {
+    expect(
+      resolveRetryProvider({
+        provider: "nvidia",
+        language: "zh-CN",
+        parakeetModel: "some-future-model",
+        parakeetAvailable: true,
+        whisperAvailable: true,
+      })
+    ).toBe("whisper");
+  });
+});
+
 describe("resolveRetryLanguage", () => {
   it("sends auto as null so whisper detects, rather than translating", () => {
     // Forcing a language is what makes whisper translate: language=en on

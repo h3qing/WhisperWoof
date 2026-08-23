@@ -1,16 +1,14 @@
 const fs = require("fs");
 const { promises: fsPromises } = require("fs");
 const path = require("path");
-const https = require("https");
-const http = require("http");
+const { net } = require("electron");
 const { execFile } = require("child_process");
 const { pipeline } = require("stream");
 const debugLogger = require("./debugLogger");
+const { runSystemTar } = require("./systemTar");
 
 const USER_AGENT = "OpenWhispr/1.0";
 const PROGRESS_THROTTLE_MS = 100;
-const MAX_REDIRECTS = 5;
-const DEFAULT_TIMEOUT = 60000;
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_BACKOFF_MS = 30000;
 const STALL_TIMEOUT_MS = 30000;
@@ -27,9 +25,30 @@ const RETRYABLE_CODES = new Set([
   "ERR_DOWNLOAD_INCOMPLETE",
 ]);
 
+const TLS_ERROR_CODES = new Set([
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "CERT_HAS_EXPIRED",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "CERT_UNTRUSTED",
+]);
+
+function isTlsError(error) {
+  return (
+    TLS_ERROR_CODES.has(error.code) ||
+    (error.message && error.message.includes("unable to get local issuer certificate"))
+  );
+}
+
 function isRetryable(error) {
-  if (error.isAbort || error.isHttpError) return false;
+  if (error.isAbort || error.isHttpError || isTlsError(error)) return false;
   return RETRYABLE_CODES.has(error.code);
+}
+
+function headerValue(headers, name) {
+  const raw = headers[name];
+  return Array.isArray(raw) ? raw[0] : raw;
 }
 
 function backoffDelay(attempt) {
@@ -41,23 +60,11 @@ function sleep(ms) {
 }
 
 function downloadAttempt(url, tempPath, options) {
-  const {
-    timeout,
-    onProgress,
-    signal,
-    startOffset = 0,
-    expectedSize = 0,
-    _redirects = 0,
-  } = options;
+  const { onProgress, signal, startOffset = 0, expectedSize = 0 } = options;
 
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(Object.assign(new Error("Download cancelled"), { isAbort: true }));
-      return;
-    }
-
-    if (_redirects > MAX_REDIRECTS) {
-      reject(Object.assign(new Error("Too many redirects"), { isHttpError: true }));
       return;
     }
 
@@ -66,13 +73,13 @@ function downloadAttempt(url, tempPath, options) {
       headers["Range"] = `bytes=${startOffset}-`;
     }
 
-    const client = url.startsWith("https") ? https : http;
     let request = null;
     let activeFile = null;
     let stallTimer = null;
     let downloadedSize = startOffset;
     let totalSize = 0;
     let lastProgressUpdate = 0;
+    let settled = false;
 
     const cleanup = () => {
       if (stallTimer) {
@@ -80,83 +87,77 @@ function downloadAttempt(url, tempPath, options) {
         stallTimer = null;
       }
       if (request) {
-        request.destroy();
+        request.abort();
         request = null;
       }
-      if (activeFile) {
-        activeFile.destroy();
-        activeFile = null;
-      }
+      if (!activeFile) return Promise.resolve();
+
+      const file = activeFile;
+      activeFile = null;
+      if (file.closed) return Promise.resolve();
+
+      // createWriteStream() opens asynchronously. Wait for close so callers
+      // never unlink the temp path before a pending open can recreate it.
+      return new Promise((done) => {
+        file.once("close", done);
+        file.destroy();
+      });
+    };
+
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      if (signal) signal.onAbort = null;
+      cleanup().then(() => reject(error));
     };
 
     const onAbort = () => {
-      cleanup();
-      reject(Object.assign(new Error("Download cancelled"), { isAbort: true }));
+      fail(Object.assign(new Error("Download cancelled"), { isAbort: true }));
     };
 
     if (signal) {
       signal.onAbort = onAbort;
     }
 
-    request = client.get(url, { headers, timeout }, (response) => {
+    request = net.request({ url, method: "GET" });
+    for (const [name, value] of Object.entries(headers)) {
+      request.setHeader(name, value);
+    }
+
+    request.on("response", (response) => {
       if (signal?.aborted) {
         response.resume();
-        cleanup();
-        reject(Object.assign(new Error("Download cancelled"), { isAbort: true }));
+        fail(Object.assign(new Error("Download cancelled"), { isAbort: true }));
         return;
       }
 
       const statusCode = response.statusCode;
 
-      // Follow redirects inline — no separate HEAD resolve step needed
-      if (statusCode >= 300 && statusCode < 400) {
-        response.resume();
-        if (signal) signal.onAbort = null;
-        if (request) {
-          request.destroy();
-          request = null;
-        }
-        const location = response.headers.location;
-        if (!location) {
-          reject(
-            Object.assign(new Error("Redirect without location header"), { isHttpError: true })
-          );
-          return;
-        }
-        downloadAttempt(location, tempPath, { ...options, _redirects: _redirects + 1 }).then(
-          resolve,
-          reject
-        );
-        return;
-      }
-
-      // Content response — create write stream
       if (statusCode === 200 && startOffset > 0) {
         // Server doesn't support Range — restart from beginning
         downloadedSize = 0;
         activeFile = fs.createWriteStream(tempPath, { flags: "w" });
-        totalSize = parseInt(response.headers["content-length"], 10) || 0;
+        totalSize = parseInt(headerValue(response.headers, "content-length"), 10) || 0;
       } else if (statusCode === 206) {
         activeFile = fs.createWriteStream(tempPath, { flags: "a" });
-        const contentRange = response.headers["content-range"];
+        const contentRange = headerValue(response.headers, "content-range");
         if (contentRange) {
           const match = contentRange.match(/\/(\d+)$/);
           if (match) totalSize = parseInt(match[1], 10);
         }
         if (!totalSize) {
-          const contentLength = parseInt(response.headers["content-length"], 10) || 0;
+          const contentLength = parseInt(headerValue(response.headers, "content-length"), 10) || 0;
           totalSize = startOffset + contentLength;
         }
       } else if (statusCode === 200) {
         activeFile = fs.createWriteStream(tempPath, { flags: "w" });
-        totalSize = parseInt(response.headers["content-length"], 10) || 0;
+        totalSize = parseInt(headerValue(response.headers, "content-length"), 10) || 0;
       } else {
         response.resume();
-        cleanup();
         const err = new Error(`HTTP ${statusCode}`);
         err.isHttpError = true;
         err.statusCode = statusCode;
-        reject(err);
+        fail(err);
         return;
       }
 
@@ -168,8 +169,7 @@ function downloadAttempt(url, tempPath, options) {
       const resetStallTimer = () => {
         if (stallTimer) clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
-          cleanup();
-          reject(
+          fail(
             Object.assign(new Error("Download stalled — no data received for 30s"), {
               code: "ETIMEDOUT",
             })
@@ -181,7 +181,7 @@ function downloadAttempt(url, tempPath, options) {
 
       response.on("data", (chunk) => {
         if (signal?.aborted) {
-          cleanup();
+          fail(Object.assign(new Error("Download cancelled"), { isAbort: true }));
           return;
         }
         downloadedSize += chunk.length;
@@ -190,6 +190,7 @@ function downloadAttempt(url, tempPath, options) {
       });
 
       pipeline(response, activeFile, (err) => {
+        if (settled) return;
         if (stallTimer) {
           clearTimeout(stallTimer);
           stallTimer = null;
@@ -197,38 +198,40 @@ function downloadAttempt(url, tempPath, options) {
         if (signal) signal.onAbort = null;
         if (err) {
           if (signal?.aborted) {
-            reject(Object.assign(new Error("Download cancelled"), { isAbort: true }));
+            fail(Object.assign(new Error("Download cancelled"), { isAbort: true }));
           } else {
-            reject(err);
+            fail(err);
           }
         } else if (totalSize > 0 && downloadedSize < totalSize) {
-          reject(
+          fail(
             Object.assign(
               new Error(`Download incomplete: received ${downloadedSize} of ${totalSize} bytes`),
               { code: "ERR_DOWNLOAD_INCOMPLETE" }
             )
           );
         } else {
+          settled = true;
           resolve({ downloadedSize, totalSize });
         }
       });
     });
 
     request.on("error", (err) => {
-      if (signal) signal.onAbort = null;
-      cleanup();
       if (signal?.aborted) {
-        reject(Object.assign(new Error("Download cancelled"), { isAbort: true }));
+        fail(Object.assign(new Error("Download cancelled"), { isAbort: true }));
+      } else if (isTlsError(err)) {
+        fail(
+          Object.assign(new Error(`Certificate error: ${err.message}`), {
+            code: "TLS_ERROR",
+            isTlsError: true,
+          })
+        );
       } else {
-        reject(err);
+        fail(err);
       }
     });
 
-    request.on("timeout", () => {
-      if (signal) signal.onAbort = null;
-      cleanup();
-      reject(Object.assign(new Error("Socket timeout"), { code: "ETIMEDOUT" }));
-    });
+    request.end();
 
     function emitProgress() {
       if (!onProgress) return;
@@ -244,18 +247,28 @@ function downloadAttempt(url, tempPath, options) {
   });
 }
 
+async function fetchJson(url, options = {}) {
+  const headers = { "User-Agent": USER_AGENT, ...(options.headers || {}) };
+  const response = await net.fetch(url, {
+    method: "GET",
+    headers,
+    useSessionCookies: false,
+  });
+  if (!response.ok) {
+    const err = new Error(`HTTP ${response.status} fetching ${url}`);
+    err.isHttpError = true;
+    err.statusCode = response.status;
+    throw err;
+  }
+  return response.json();
+}
+
 async function downloadFile(url, destPath, options = {}) {
-  const {
-    onProgress,
-    timeout = DEFAULT_TIMEOUT,
-    maxRetries = DEFAULT_MAX_RETRIES,
-    signal,
-    expectedSize = 0,
-  } = options;
+  const { onProgress, maxRetries = DEFAULT_MAX_RETRIES, signal, expectedSize = 0 } = options;
 
   const tempPath = `${destPath}.tmp`;
 
-  debugLogger.info("Download starting", { url: url.substring(0, 80), destPath });
+  debugLogger.info("Download starting", { url, destPath });
 
   let startOffset = 0;
   try {
@@ -291,7 +304,6 @@ async function downloadFile(url, destPath, options = {}) {
 
     try {
       await downloadAttempt(url, tempPath, {
-        timeout,
         onProgress,
         signal,
         startOffset,
@@ -321,6 +333,11 @@ async function downloadFile(url, destPath, options = {}) {
       }
 
       if (!isRetryable(error) || attempt >= maxRetries) {
+        debugLogger.error("Download failed", {
+          url,
+          error: error.message,
+          code: error.code,
+        });
         await fsPromises.unlink(tempPath).catch(() => {});
         throw error;
       }
@@ -333,6 +350,11 @@ async function downloadFile(url, destPath, options = {}) {
     }
   }
 
+  debugLogger.error("Download failed after all retries", {
+    url,
+    error: lastError?.message,
+    code: lastError?.code,
+  });
   await fsPromises.unlink(tempPath).catch(() => {});
   throw lastError;
 }
@@ -348,6 +370,13 @@ function createDownloadSignal() {
       }
     },
   };
+}
+
+function createDownloadInProgressError(model, activeModel) {
+  return Object.assign(new Error("A model is already being downloaded"), {
+    code: "DOWNLOAD_IN_PROGRESS",
+    details: { model, activeModel },
+  });
 }
 
 async function validateFileSize(filePath, expectedSizeBytes, tolerancePercent = 10) {
@@ -403,37 +432,45 @@ async function checkDiskSpace(directory, requiredBytes) {
   }
 }
 
-function extractZipWindows(zipPath, destDir) {
+async function extractZipWindows(zipPath, destDir) {
+  try {
+    await runSystemTar(zipPath, destDir);
+    return;
+  } catch (error) {
+    debugLogger.info("tar extraction failed, trying PowerShell", { error: error.message });
+  }
+
   return new Promise((resolve, reject) => {
-    execFile("tar", ["-xf", zipPath, "-C", destDir], (error) => {
-      if (error) {
-        debugLogger.info("tar extraction failed, trying PowerShell", { error: error.message });
-        execFile(
-          "powershell",
-          [
-            "-NoProfile",
-            "-Command",
-            `Expand-Archive -Force -Path '${zipPath}' -DestinationPath '${destDir}'`,
-          ],
-          (psError) => {
-            if (psError) reject(new Error(`Zip extraction failed: ${psError.message}`));
-            else resolve();
-          }
-        );
-      } else {
-        resolve();
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-Command",
+        `Expand-Archive -Force -Path '${zipPath}' -DestinationPath '${destDir}'`,
+      ],
+      (psError) => {
+        if (psError) reject(new Error(`Zip extraction failed: ${psError.message}`));
+        else resolve();
       }
-    });
+    );
   });
+}
+
+async function extractTarGz(archivePath, destDir) {
+  try {
+    await runSystemTar(archivePath, destDir);
+    return;
+  } catch (error) {
+    debugLogger.info("system tar failed, using JS extraction", { error: error.message });
+  }
+
+  const tar = require("tar");
+  await tar.x({ file: archivePath, cwd: destDir });
 }
 
 function extractArchive(archivePath, destDir) {
   if (archivePath.endsWith(".tar.gz") || archivePath.endsWith(".tgz")) {
-    return new Promise((resolve, reject) => {
-      execFile("tar", ["-xzf", archivePath, "-C", destDir], (err) => {
-        err ? reject(new Error(`Extraction failed: ${err.message}`)) : resolve();
-      });
-    });
+    return extractTarGz(archivePath, destDir);
   }
 
   if (process.platform === "win32") {
@@ -442,7 +479,15 @@ function extractArchive(archivePath, destDir) {
 
   return new Promise((resolve, reject) => {
     execFile("unzip", ["-o", archivePath, "-d", destDir], (err) => {
-      err ? reject(new Error(`Extraction failed: ${err.message}`)) : resolve();
+      if (!err) return resolve();
+      debugLogger.info("system unzip failed, using JS extraction", { error: err.message });
+      const unzipper = require("unzipper");
+      fs.createReadStream(archivePath)
+        .pipe(unzipper.Extract({ path: destDir }))
+        .on("close", resolve)
+        .on("error", (extractErr) =>
+          reject(new Error(`Zip extraction failed: ${extractErr.message}`))
+        );
     });
   });
 }
@@ -479,7 +524,9 @@ async function findFiles(dir, pattern, maxDepth = 5, depth = 0) {
 
 module.exports = {
   downloadFile,
+  fetchJson,
   createDownloadSignal,
+  createDownloadInProgressError,
   validateFileSize,
   cleanupStaleDownloads,
   checkDiskSpace,

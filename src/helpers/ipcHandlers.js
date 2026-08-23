@@ -1231,6 +1231,71 @@ class IPCHandlers {
       return this.parakeetManager.getServerStatus();
     });
 
+    // Live streaming dictation for online-runtime sherpa models (Nemotron).
+    // The renderer taps mic PCM via its worklet and pushes chunks here; partial
+    // transcripts stream back as `parakeet-stream-partial` events, and stop()
+    // returns the final committed text. One stream at a time — dictation is a
+    // single-capture flow, and a new start supersedes a stuck predecessor.
+    ipcMain.handle("parakeet-stream-start", async (event, { model } = {}) => {
+      try {
+        if (!this.parakeetManager.supportsOnlineStreaming(model)) {
+          return { success: false, error: `Model ${model} does not support streaming` };
+        }
+        if (this._parakeetStream) {
+          this._parakeetStream.abort();
+          this._parakeetStream = null;
+        }
+        const sender = event.sender;
+        const stream = await this.parakeetManager.createOnlineStream(model, {
+          onUpdate: (text) => {
+            if (this._parakeetStream === stream && !sender.isDestroyed()) {
+              sender.send("parakeet-stream-partial", text);
+            }
+          },
+          onError: (error) => {
+            debugLogger.warn("Parakeet online stream error", { error: error.message });
+            if (this._parakeetStream === stream && !sender.isDestroyed()) {
+              sender.send("parakeet-stream-error", error.message);
+            }
+          },
+        });
+        this._parakeetStream = stream;
+        return { success: true };
+      } catch (error) {
+        debugLogger.warn("parakeet-stream-start failed", { error: error.message });
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.on("parakeet-stream-audio", (_event, pcmBuffer) => {
+      if (!this._parakeetStream || !pcmBuffer) return;
+      this._parakeetStream.sendPcm16(
+        Buffer.isBuffer(pcmBuffer) ? pcmBuffer : Buffer.from(pcmBuffer)
+      );
+    });
+
+    ipcMain.handle("parakeet-stream-stop", async () => {
+      const stream = this._parakeetStream;
+      this._parakeetStream = null;
+      if (!stream) return { success: false, streamed: false, text: "" };
+      try {
+        const { text, truncated } = await stream.finish();
+        // A truncated flush lost audio somewhere — the caller must fall back
+        // to batch-decoding the full recording rather than paste a fragment.
+        return { success: true, streamed: !truncated, text: text || "" };
+      } catch (error) {
+        debugLogger.warn("parakeet-stream-stop failed", { error: error.message });
+        return { success: false, streamed: false, text: "" };
+      }
+    });
+
+    ipcMain.handle("parakeet-stream-abort", async () => {
+      const stream = this._parakeetStream;
+      this._parakeetStream = null;
+      if (stream) stream.abort();
+      return { success: true };
+    });
+
     ipcMain.handle("cleanup-app", async (event) => {
       const fs = require("fs");
       const os = require("os");
@@ -3667,6 +3732,7 @@ class IPCHandlers {
         // with models on disk.
         const {
           model: requestedModel,
+          parakeetModel: requestedParakeetModel,
           language: requestedLanguage,
           provider: requestedProvider,
           script: requestedScript,
@@ -3682,16 +3748,17 @@ class IPCHandlers {
         const engine = resolveRetryProvider({
           provider: requestedProvider,
           language: requestedLanguage,
+          parakeetModel: requestedParakeetModel,
           parakeetAvailable,
           whisperAvailable,
         });
         const language = resolveRetryLanguage(requestedLanguage);
 
         if (engine === "parakeet" && parakeetAvailable) {
-          result = await this.parakeetManager.transcribeLocalParakeet(
-            buffer,
-            language ? { language } : {}
-          );
+          result = await this.parakeetManager.transcribeLocalParakeet(buffer, {
+            ...(requestedParakeetModel ? { model: requestedParakeetModel } : {}),
+            ...(language ? { language } : {}),
+          });
         } else if (whisperAvailable) {
           const modelDir = path.join(app.getPath("userData"), "models");
           let downloaded = [];

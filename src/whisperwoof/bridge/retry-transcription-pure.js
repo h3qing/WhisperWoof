@@ -7,13 +7,27 @@
  * decides *what to run* is here.
  */
 
-const whisperModels = require("../../models/modelRegistryData.json").whisperModels || {};
+const registry = require("../../models/modelRegistryData.json");
+const whisperModels = registry.whisperModels || {};
+const parakeetModels = registry.parakeetModels || {};
 
-// Parakeet TDT covers English + 24 European languages — no CJK. Retrying a
-// Chinese recording on it returns empty and surfaces a misleading
+// Fallback for a sherpa model the registry doesn't know: assume the classic
+// Parakeet TDT coverage — English + European languages, no CJK. Retrying a
+// Chinese recording on such a model returns empty and surfaces a misleading
 // "No audio detected", so the same guard audioManager applies to live
 // dictation has to apply to retries.
 const PARAKEET_UNSUPPORTED = new Set(["zh", "ja", "ko", "yue", "th", "vi", "ar", "he", "hi"]);
+
+/**
+ * Whether the configured sherpa-engine model can serve `base` (a bare language
+ * code). Registry `supportedLanguages` decides when the model is known —
+ * SenseVoice covers zh/ja/ko/yue where Parakeet TDT does not.
+ */
+function sherpaModelServesLanguage(parakeetModel, base) {
+  const supported = parakeetModels[parakeetModel]?.supportedLanguages;
+  if (Array.isArray(supported) && supported.length > 0) return supported.includes(base);
+  return !PARAKEET_UNSUPPORTED.has(base);
+}
 
 /**
  * Resolve a whisper model id (`"turbo"`, `"small"`) to the `.bin` file to load,
@@ -52,10 +66,16 @@ function resolveRetryModelFile(downloadedFiles, requestedModelId) {
  *
  * @returns {"whisper"|"parakeet"}
  */
-function resolveRetryProvider({ provider, language, parakeetAvailable, whisperAvailable }) {
+function resolveRetryProvider({
+  provider,
+  language,
+  parakeetModel = undefined,
+  parakeetAvailable,
+  whisperAvailable,
+}) {
   const base = String(language || "").toLowerCase().split("-")[0];
   const parakeetCanServe =
-    Boolean(parakeetAvailable) && !(base && PARAKEET_UNSUPPORTED.has(base));
+    Boolean(parakeetAvailable) && (!base || sherpaModelServesLanguage(parakeetModel, base));
 
   if ((provider === "nvidia" || provider === "parakeet") && parakeetCanServe) return "parakeet";
   if (whisperAvailable) return "whisper";

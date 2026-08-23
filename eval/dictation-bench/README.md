@@ -60,6 +60,14 @@ Omitting `:<lang>` means auto-detect — what the app does today, since
 RTF is 4-vCPU CPU-only and does not predict Metal performance; the MER
 column is hardware-independent and is the point of this table.
 
+2026-08-23 follow-up: SenseVoice re-measured through the app's REAL engine
+path (ParakeetServerManager -> sherpa-onnx-offline-websocket-server v1.13.4,
+int8, silence gate + WS protocol included): **MER 20.0%, RTF 0.063** over the
+same 14 cases — still well ahead of whisper-turbo's 24.8% at ~5x the speed.
+The Nemotron 3.5 online streaming path was verified the same way: partials
+stream progressively (9 partials over a 6s utterance) and the committed final
+arrives without truncation.
+
 ### Findings
 
 1. **`language=en` translates instead of transcribing.** "帮我把这个 pull

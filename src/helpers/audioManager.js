@@ -5,6 +5,7 @@ import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
+import { isOnlineParakeetModel } from "../models/ModelRegistry";
 import { normalizeCjkPunctuation } from "../whisperwoof/core/language/normalize-cjk-punctuation";
 import {
   normalizeChineseScript,
@@ -116,6 +117,120 @@ class AudioManager {
     this.sttConfig = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+  }
+
+  /**
+   * Live local streaming (Nemotron): while the MediaRecorder captures the
+   * batch-quality webm, a parallel 16k PCM worklet tap feeds the sherpa online
+   * WS server through the main process. Partials drive the indicator; on stop
+   * the committed text replaces the batch decode entirely — unless the flush
+   * was unclean, in which case the recording falls back to batch as if
+   * streaming never happened. The batch recording is therefore never at risk.
+   */
+  shouldStreamLocalCapture() {
+    const s = getSettings();
+    if (!s.useLocalWhisper || s.localTranscriptionProvider !== "nvidia") return false;
+    if (!isOnlineParakeetModel(s.parakeetModel)) return false;
+    // A pinned language the model can't serve batch-reroutes to Whisper, so
+    // streaming it would decode with the wrong engine's text.
+    const base = getBaseLanguageCode(s.preferredLanguage);
+    if (base && validateLanguageForModel(s.preferredLanguage, s.parakeetModel) === undefined) {
+      return false;
+    }
+    return true;
+  }
+
+  async _startLocalStreamTap(micStream) {
+    const model = getSettings().parakeetModel;
+    this._localStreamBuffered = [];
+    this._localStreamReady = false;
+    this._localStreamActive = true;
+
+    if (!this._localPartialUnsub && window.electronAPI?.onParakeetStreamPartial) {
+      this._localPartialUnsub = window.electronAPI.onParakeetStreamPartial((text) => {
+        if (this._localStreamActive) this.onPartialTranscript?.(text);
+      });
+    }
+
+    try {
+      this._localTapCtx = new AudioContext({ sampleRate: 16000 });
+      this._localTapSource = this._localTapCtx.createMediaStreamSource(micStream);
+      await this._localTapCtx.audioWorklet.addModule(this.getWorkletBlobUrl());
+      this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor");
+      this._localTapNode.port.onmessage = (event) => {
+        if (!this._localStreamActive) return;
+        // Until the main-process stream exists, chunks sent over IPC are
+        // dropped there — buffer renderer-side and flush once start resolves.
+        if (this._localStreamReady) {
+          window.electronAPI?.parakeetStreamAudio?.(event.data);
+        } else {
+          this._localStreamBuffered.push(event.data);
+        }
+      };
+      this._localTapSource.connect(this._localTapNode);
+
+      const started = await window.electronAPI?.parakeetStreamStart?.({ model });
+      if (!this._localStreamActive) return; // stopped while starting
+      if (started?.success) {
+        this._localStreamReady = true;
+        for (const chunk of this._localStreamBuffered) {
+          window.electronAPI?.parakeetStreamAudio?.(chunk);
+        }
+        this._localStreamBuffered = [];
+      } else {
+        logger.warn(
+          "Local streaming unavailable, batch decode will handle this capture",
+          { model, error: started?.error },
+          "audio"
+        );
+        this._teardownLocalStreamTap();
+      }
+    } catch (e) {
+      logger.warn("Local stream tap setup failed", { error: e.message }, "audio");
+      this._teardownLocalStreamTap();
+    }
+  }
+
+  _teardownLocalStreamTap() {
+    this._localStreamActive = false;
+    this._localStreamBuffered = [];
+    this._localStreamReady = false;
+    try {
+      this._localTapNode?.port.postMessage("stop");
+    } catch {}
+    try {
+      this._localTapSource?.disconnect();
+    } catch {}
+    this._localTapCtx?.close().catch(() => {});
+    this._localTapNode = null;
+    this._localTapSource = null;
+    this._localTapCtx = null;
+  }
+
+  /** @returns {Promise<{streamed: boolean, text: string}>} */
+  async _stopLocalStreamTap() {
+    if (!this._localStreamActive) return { streamed: false, text: "" };
+    const wasReady = this._localStreamReady;
+    // Flush the worklet's partial buffer, give the flush a beat to cross the
+    // IPC boundary, then ask the server to commit.
+    try {
+      this._localTapNode?.port.postMessage("stop");
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    this._teardownLocalStreamTap();
+    if (!wasReady) {
+      window.electronAPI?.parakeetStreamAbort?.();
+      return { streamed: false, text: "" };
+    }
+    try {
+      const result = await window.electronAPI?.parakeetStreamStop?.();
+      return {
+        streamed: !!(result?.success && result.streamed && result.text?.trim()),
+        text: result?.text || "",
+      };
+    } catch {
+      return { streamed: false, text: "" };
+    }
   }
 
   getWorkletBlobUrl() {
@@ -399,7 +514,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           ? (Date.now() - this.recordingStartTime) / 1000
           : null;
         this.recordingStartTime = null;
-        await this.processAudio(audioBlob, { durationSeconds });
+
+        let streamedText = null;
+        if (this._localStreamActive) {
+          const streamed = await this._stopLocalStreamTap();
+          if (streamed.streamed) streamedText = streamed.text;
+        }
+
+        await this.processAudio(audioBlob, { durationSeconds, streamedText });
 
         micStream.getTracks().forEach((track) => track.stop());
       };
@@ -407,6 +529,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.mediaRecorder.start();
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
+
+      if (this.shouldStreamLocalCapture()) {
+        // Fire-and-forget: batch capture is already running, streaming only
+        // adds live partials + a faster commit when it succeeds.
+        void this._startLocalStreamTap(micStream);
+      }
 
       return { success: true, micAcquiredAt: tMicAcquired };
     } catch (error) {
@@ -443,6 +571,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   cancelRecording() {
+    if (this._localStreamActive) {
+      this._teardownLocalStreamTap();
+      window.electronAPI?.parakeetStreamAbort?.();
+    }
     if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
       this.mediaRecorder.onstop = () => {
         this.isRecording = false;
@@ -528,7 +660,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       let result;
       let activeModel;
-      if (useLocalWhisper) {
+      if (useLocalWhisper && metadata.streamedText && effectiveProvider === "nvidia") {
+        // The online server already decoded this capture as it was spoken and
+        // committed cleanly on stop — the batch decode would only repeat the
+        // same work slower. Same normalize + polish path as batch.
+        activeModel = parakeetModel;
+        result = await this.processStreamedLocalResult(metadata.streamedText);
+      } else if (useLocalWhisper) {
         if (effectiveProvider === "nvidia") {
           activeModel = parakeetModel;
           result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
@@ -1002,6 +1140,22 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.cachedReasoningPreference = useReasoning;
       return false;
     }
+  }
+
+  /** Wrap a streamed-and-committed transcript in the shape batch decodes return. */
+  async processStreamedLocalResult(text) {
+    const timings = { transcriptionProcessingDurationMs: 0 };
+    const rawText = this.normalizeSttScript(text);
+    const reasoningStart = performance.now();
+    const polished = await this.processTranscription(rawText, "local-parakeet-streaming");
+    timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+    return {
+      success: true,
+      text: polished || rawText,
+      rawText,
+      source: "local-parakeet-streaming",
+      timings,
+    };
   }
 
   /**
