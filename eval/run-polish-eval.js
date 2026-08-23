@@ -25,7 +25,12 @@ const fs = require("fs");
 const path = require("path");
 
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://localhost:11434";
-const PROMPTS_PATH = path.join(__dirname, "..", "src", "locales", "en", "prompts.json");
+// LOCALE picks which shipped prompt to evaluate — production selects the
+// prompt by UI language (ReasoningService.getUiLanguage), so a zh-CN user's
+// dictation runs under the zh-CN prompt, not the en one. Evaluate both:
+//   LOCALE=zh-CN node eval/run-polish-eval.js
+const LOCALE = process.env.LOCALE || "en";
+const PROMPTS_PATH = path.join(__dirname, "..", "src", "locales", LOCALE, "prompts.json");
 const CASES_PATH = path.join(__dirname, "polish-cases.json");
 const RESULTS_DIR = path.join(__dirname, "results");
 
