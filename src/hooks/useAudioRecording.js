@@ -452,6 +452,14 @@ export const useAudioRecording = (toast, options = {}) => {
       onToggle?.();
     });
 
+    // A stray single Fn tap: the main-process activation machine decided
+    // nothing meaningful was said — discard the capture, paste nothing.
+    const disposeCancel = window.electronAPI.onCancelDictation?.(() => {
+      activeHotkeyRef.current = null;
+      audioManagerRef.current?.cancelRecording();
+      onToggle?.();
+    });
+
     const handleNoAudioDetected = () => {
       toast({
         title: t("hooks.audioRecording.noAudio.title"),
@@ -467,6 +475,7 @@ export const useAudioRecording = (toast, options = {}) => {
       disposeToggle?.();
       disposeStart?.();
       disposeStop?.();
+      disposeCancel?.();
       disposeNoAudio?.();
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
