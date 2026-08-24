@@ -310,6 +310,14 @@ function initializeCoreManagers() {
   debugLogger = require("./src/helpers/debugLogger");
   debugLogger.ensureFileLogging();
 
+  // Kill sidecar servers (sherpa-onnx WS, ...) orphaned by a crashed previous
+  // run before new ones spawn and contend for their ports. Fire-and-forget:
+  // spawning is serialized behind the port scan anyway.
+  const { reapStaleSidecars } = require("./src/helpers/sidecarReaper");
+  reapStaleSidecars().catch((err) => {
+    debugLogger.debug("Sidecar reap failed (non-fatal)", { error: err.message });
+  });
+
   environmentManager = new EnvironmentManager();
   const uiLanguage = environmentManager.getUiLanguage();
   process.env.UI_LANGUAGE = uiLanguage;

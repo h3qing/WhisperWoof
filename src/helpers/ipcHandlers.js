@@ -1231,6 +1231,71 @@ class IPCHandlers {
       return this.parakeetManager.getServerStatus();
     });
 
+    // Live streaming dictation for online-runtime sherpa models (Nemotron).
+    // The renderer taps mic PCM via its worklet and pushes chunks here; partial
+    // transcripts stream back as `parakeet-stream-partial` events, and stop()
+    // returns the final committed text. One stream at a time — dictation is a
+    // single-capture flow, and a new start supersedes a stuck predecessor.
+    ipcMain.handle("parakeet-stream-start", async (event, { model } = {}) => {
+      try {
+        if (!this.parakeetManager.supportsOnlineStreaming(model)) {
+          return { success: false, error: `Model ${model} does not support streaming` };
+        }
+        if (this._parakeetStream) {
+          this._parakeetStream.abort();
+          this._parakeetStream = null;
+        }
+        const sender = event.sender;
+        const stream = await this.parakeetManager.createOnlineStream(model, {
+          onUpdate: (text) => {
+            if (this._parakeetStream === stream && !sender.isDestroyed()) {
+              sender.send("parakeet-stream-partial", text);
+            }
+          },
+          onError: (error) => {
+            debugLogger.warn("Parakeet online stream error", { error: error.message });
+            if (this._parakeetStream === stream && !sender.isDestroyed()) {
+              sender.send("parakeet-stream-error", error.message);
+            }
+          },
+        });
+        this._parakeetStream = stream;
+        return { success: true };
+      } catch (error) {
+        debugLogger.warn("parakeet-stream-start failed", { error: error.message });
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.on("parakeet-stream-audio", (_event, pcmBuffer) => {
+      if (!this._parakeetStream || !pcmBuffer) return;
+      this._parakeetStream.sendPcm16(
+        Buffer.isBuffer(pcmBuffer) ? pcmBuffer : Buffer.from(pcmBuffer)
+      );
+    });
+
+    ipcMain.handle("parakeet-stream-stop", async () => {
+      const stream = this._parakeetStream;
+      this._parakeetStream = null;
+      if (!stream) return { success: false, streamed: false, text: "" };
+      try {
+        const { text, truncated } = await stream.finish();
+        // A truncated flush lost audio somewhere — the caller must fall back
+        // to batch-decoding the full recording rather than paste a fragment.
+        return { success: true, streamed: !truncated, text: text || "" };
+      } catch (error) {
+        debugLogger.warn("parakeet-stream-stop failed", { error: error.message });
+        return { success: false, streamed: false, text: "" };
+      }
+    });
+
+    ipcMain.handle("parakeet-stream-abort", async () => {
+      const stream = this._parakeetStream;
+      this._parakeetStream = null;
+      if (stream) stream.abort();
+      return { success: true };
+    });
+
     ipcMain.handle("cleanup-app", async (event) => {
       const fs = require("fs");
       const os = require("os");
@@ -2903,37 +2968,6 @@ class IPCHandlers {
     });
 
     // WhisperWoof: Voice editing commands
-    ipcMain.handle("whisperwoof-voice-command", async (_event, spokenText, selectedText, options) => {
-      try {
-        const { executeVoiceCommand } = require("../whisperwoof/bridge/voice-commands");
-        return await executeVoiceCommand(spokenText, selectedText, options || {});
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] voice-command failed: ${error.message}`);
-        return { success: false, error: error.message, isCommand: false };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-detect-voice-command", async (_event, spokenText) => {
-      try {
-        const { detectCommand } = require("../whisperwoof/bridge/voice-commands");
-        const command = detectCommand(spokenText);
-        return { isCommand: !!command, command: command?.id ?? null };
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] detect-voice-command failed: ${error.message}`);
-        return { isCommand: false, command: null };
-      }
-    });
-
-    ipcMain.handle("whisperwoof-get-voice-commands", async () => {
-      try {
-        const { getAvailableCommands } = require("../whisperwoof/bridge/voice-commands");
-        return getAvailableCommands();
-      } catch (error) {
-        debugLogger.log(`[WhisperWoof] get-voice-commands failed: ${error.message}`);
-        return [];
-      }
-    });
-
     // WhisperWoof: Context-aware polish (detect active app)
     ipcMain.handle("whisperwoof-detect-context", async () => {
       try {
@@ -3678,41 +3712,75 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("retry-transcription", async (event, id) => {
+    ipcMain.handle("retry-transcription", async (event, id, options = {}) => {
       const buffer = this.audioStorageManager.getAudioBuffer(id);
       if (!buffer) return { success: false, error: "Audio file not found. The original recording may have been deleted by retention policy." };
       try {
+        const {
+          resolveRetryModelFile,
+          resolveRetryProvider,
+          resolveRetryLanguage,
+        } = require("../whisperwoof/bridge/retry-transcription-pure");
+
         let result;
+
+        // Settings live in the renderer's store, so the caller passes the
+        // engine/model/language to re-run with. This handler previously read a
+        // `getSettings()` that does not exist in the main process: the
+        // ReferenceError was swallowed by a bare catch, leaving modelPath null,
+        // so every Whisper retry returned "No Whisper model downloaded" even
+        // with models on disk.
+        const {
+          model: requestedModel,
+          parakeetModel: requestedParakeetModel,
+          language: requestedLanguage,
+          provider: requestedProvider,
+          script: requestedScript,
+        } = options || {};
 
         // WhisperWoof: Clear cached binary path so freshly downloaded binaries are detected
         if (this.whisperManager?.serverManager) {
           this.whisperManager.serverManager.cachedServerBinaryPath = null;
         }
 
-        // Try local engines first — check binary availability fresh each time
-        if (this.parakeetManager?.serverManager?.isAvailable?.()) {
-          result = await this.parakeetManager.transcribeLocalParakeet(buffer, {});
-        } else if (this.whisperManager?.serverManager?.isAvailable?.()) {
-          // Find a model that's actually downloaded
-          const modelDir = path.join(app.getPath("userData"), "models");
-          let modelPath = null;
-          try {
-            if (fs.existsSync(modelDir)) {
-              const models = fs.readdirSync(modelDir).filter((f) => f.endsWith(".bin"));
-              if (models.length > 0) {
-                // Prefer the user's configured model, fall back to any available
-                const preferred = getSettings().whisperModel || "base";
-                const match = models.find((m) => m.includes(preferred)) || models[0];
-                modelPath = path.join(modelDir, match);
-              }
-            }
-          } catch { /* */ }
+        const parakeetAvailable = Boolean(this.parakeetManager?.serverManager?.isAvailable?.());
+        const whisperAvailable = Boolean(this.whisperManager?.serverManager?.isAvailable?.());
+        const engine = resolveRetryProvider({
+          provider: requestedProvider,
+          language: requestedLanguage,
+          parakeetModel: requestedParakeetModel,
+          parakeetAvailable,
+          whisperAvailable,
+        });
+        const language = resolveRetryLanguage(requestedLanguage);
 
-          if (!modelPath) {
+        if (engine === "parakeet" && parakeetAvailable) {
+          result = await this.parakeetManager.transcribeLocalParakeet(buffer, {
+            ...(requestedParakeetModel ? { model: requestedParakeetModel } : {}),
+            ...(language ? { language } : {}),
+          });
+        } else if (whisperAvailable) {
+          const modelDir = path.join(app.getPath("userData"), "models");
+          let downloaded = [];
+          try {
+            if (fs.existsSync(modelDir)) downloaded = fs.readdirSync(modelDir);
+          } catch (err) {
+            debugLogger.warn(
+              "Could not list downloaded Whisper models for retry",
+              { error: err.message },
+              "audio-storage"
+            );
+          }
+
+          const modelFile = resolveRetryModelFile(downloaded, requestedModel);
+          if (!modelFile) {
             return { success: false, error: "No Whisper model downloaded. Go to Settings → Transcription to download a model, then retry." };
           }
 
-          result = await this.whisperManager.transcribeLocalWhisper(buffer, { model: modelPath });
+          result = await this.whisperManager.transcribeLocalWhisper(buffer, {
+            model: path.join(modelDir, modelFile),
+            ...(language ? { language } : {}),
+          });
         } else {
           // Binary still not available — maybe auto-download was skipped
           return { success: false, error: "Whisper server binary not found. Restart the app to trigger auto-download, or run: npm run download:whisper-cpp" };
@@ -3747,7 +3815,21 @@ class IPCHandlers {
           return { success: false, error: "No transcription engine available" };
         }
 
-        this.databaseManager.updateTranscriptionText(id, result.text, result.text);
+        // Same script normalization the live dictation path applies, so a
+        // retried transcript does not come back in a different script from
+        // the one it replaces.
+        const { normalizeChineseScript, scriptForLanguage } =
+          require("../whisperwoof/bridge/chinese-script");
+        // Prefer the script the renderer resolved (it can see the UI language
+        // and OS locale); fall back to deriving it from the dictation language.
+        const retriedText = normalizeChineseScript(
+          result.text,
+          requestedScript === "simplified" || requestedScript === "off"
+            ? requestedScript
+            : scriptForLanguage(requestedLanguage)
+        );
+
+        this.databaseManager.updateTranscriptionText(id, retriedText, retriedText);
         this.databaseManager.updateTranscriptionStatus(id, "completed");
         const provider = result.source || "local";
         const model = result.model || null;

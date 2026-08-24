@@ -212,54 +212,6 @@ export const useAudioRecording = (toast, options = {}) => {
           const timings = {};
 
 
-          // WhisperWoof: Voice editing commands — detect before polish
-          // If the spoken text is a command (e.g., "rewrite this", "translate to Spanish"),
-          // read the clipboard and apply the command instead of pasting new text.
-          const voiceCommandsEnabled = localStorage.getItem("whisperwoof-voice-commands") !== "false";
-          if (voiceCommandsEnabled) {
-            try {
-              const detection = await window.electronAPI?.whisperwoofDetectVoiceCommand?.(transcribedText);
-              if (detection?.isCommand) {
-                const clipboardText = await navigator.clipboard.readText();
-                if (clipboardText?.trim()) {
-                  const cmdResult = await window.electronAPI?.whisperwoofVoiceCommand?.(
-                    transcribedText,
-                    clipboardText,
-                  );
-                  if (cmdResult?.success && cmdResult.text) {
-                    // Write result to clipboard and paste it
-                    await navigator.clipboard.writeText(cmdResult.text);
-                    setTranscript(cmdResult.text);
-                    await audioManagerRef.current.safePaste(cmdResult.text, {
-                      restoreClipboard: false,
-                    });
-                    toast({
-                      title: `\u2728 ${detection.command || "Command"} applied`,
-                      description: cmdResult.text.slice(0, 60) + (cmdResult.text.length > 60 ? "..." : ""),
-                      variant: "default",
-                      duration: 3000,
-                    });
-                    // Save to history
-                    window.electronAPI?.whisperwoofSaveEntry?.({
-                      source: 'voice',
-                      rawText: transcribedText,
-                      polished: cmdResult.text,
-                      routedTo: `voice-command:${detection.command}`,
-                      hotkeyUsed: null,
-                      durationMs: null,
-                      projectId: null,
-                      audioPath: null,
-                      metadata: { voiceCommand: detection.command, originalText: clipboardText.slice(0, 200) },
-                    });
-                    return; // Skip normal polish + paste flow
-                  }
-                }
-              }
-            } catch (cmdError) {
-              logger.warn("WhisperWoof voice command detection failed", { error: cmdError }, "whisperwoof");
-            }
-          }
-
           // Polish already happened upstream in audioManager.processTranscription
           // (gated by Intelligence > "Enable text cleanup"). result.text is
           // polished output, result.rawText is the unpolished transcript.

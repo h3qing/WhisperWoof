@@ -321,7 +321,14 @@ declare global {
       getAudioStorageUsage: () => Promise<{ fileCount: number; totalBytes: number }>;
       deleteAllAudio: () => Promise<{ deleted: number }>;
       retryTranscription: (
-        id: number
+        id: number,
+        options?: {
+          model?: string;
+          parakeetModel?: string;
+          language?: string;
+          provider?: string;
+          script?: string;
+        }
       ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
       updateTranscriptionText: (
         id: number,
@@ -1386,9 +1393,6 @@ declare global {
 
 
       // WhisperWoof — Voice editing commands
-      whisperwoofVoiceCommand: (spokenText: string, selectedText: string, options?: Record<string, unknown>) => Promise<{ success: boolean; text?: string; isCommand: boolean; command?: string; error?: string }>;
-      whisperwoofDetectVoiceCommand: (spokenText: string) => Promise<{ isCommand: boolean; command: string | null }>;
-      whisperwoofGetVoiceCommands: () => Promise<Array<{ id: string; example: string }>>;
 
       // WhisperWoof — Context-aware polish
       whisperwoofDetectContext: () => Promise<{ app: { bundleId: string; name: string } | null; preset: string | null }>;

@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteTranscriptionAudio: (id) => ipcRenderer.invoke("delete-transcription-audio", id),
   getAudioStorageUsage: () => ipcRenderer.invoke("get-audio-storage-usage"),
   deleteAllAudio: () => ipcRenderer.invoke("delete-all-audio"),
-  retryTranscription: (id) => ipcRenderer.invoke("retry-transcription", id),
+  retryTranscription: (id, options) => ipcRenderer.invoke("retry-transcription", id, options),
   updateTranscriptionText: (id, text, rawText) =>
     ipcRenderer.invoke("update-transcription-text", id, text, rawText),
   getTranscriptionById: (id) => ipcRenderer.invoke("get-transcription-by-id", id),
@@ -227,6 +227,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   parakeetServerStart: (modelName) => ipcRenderer.invoke("parakeet-server-start", modelName),
   parakeetServerStop: () => ipcRenderer.invoke("parakeet-server-stop"),
   parakeetServerStatus: () => ipcRenderer.invoke("parakeet-server-status"),
+  parakeetStreamStart: (options) => ipcRenderer.invoke("parakeet-stream-start", options),
+  parakeetStreamAudio: (pcmBuffer) => ipcRenderer.send("parakeet-stream-audio", pcmBuffer),
+  parakeetStreamStop: () => ipcRenderer.invoke("parakeet-stream-stop"),
+  parakeetStreamAbort: () => ipcRenderer.invoke("parakeet-stream-abort"),
+  onParakeetStreamPartial: (callback) => {
+    const handler = (_event, text) => callback(text);
+    ipcRenderer.on("parakeet-stream-partial", handler);
+    return () => ipcRenderer.removeListener("parakeet-stream-partial", handler);
+  },
 
   // Window control functions
   windowMinimize: () => ipcRenderer.invoke("window-minimize"),
@@ -857,9 +866,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofMeetingStatus: () => ipcRenderer.invoke("whisperwoof-meeting-status"),
 
   // WhisperWoof: Voice editing commands
-  whisperwoofVoiceCommand: (spokenText, selectedText, options) => ipcRenderer.invoke("whisperwoof-voice-command", spokenText, selectedText, options),
-  whisperwoofDetectVoiceCommand: (spokenText) => ipcRenderer.invoke("whisperwoof-detect-voice-command", spokenText),
-  whisperwoofGetVoiceCommands: () => ipcRenderer.invoke("whisperwoof-get-voice-commands"),
 
   // WhisperWoof: Context-aware polish
   whisperwoofDetectContext: () => ipcRenderer.invoke("whisperwoof-detect-context"),

@@ -1,0 +1,650 @@
+{
+  "sensevoice:auto": {
+    "config": "sensevoice:auto",
+    "load_s": 2.31,
+    "MER": 0.1729,
+    "RTF": 0.085,
+    "wall_s": 6.2,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "帮我把这个po request description写一下，重点说明我们改了tscription的 pipeline。",
+        "mer": 0.13043478260869565,
+        "wall_s": 0.5165572166442871
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "我觉得这个feature的latency太高了，我们不能先把polishR一不改成SYNC的。",
+        "mer": 0.25,
+        "wall_s": 0.5369453430175781
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "明天上午10点跟alex有个think，帮，我准备一下agendnda。",
+        "mer": 0.16666666666666666,
+        "wall_s": 0.32103967666625977
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "这个bb是因为sing star里面的foruneally写错了，应该是fse，不是tru。",
+        "mer": 0.3181818181818182,
+        "wall_s": 0.4429447650909424
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "先comit到local branchnch，等CI跑完再push上去。",
+        "mer": 0.15384615384615385,
+        "wall_s": 0.4457285404205322
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "我们的 target是把proedlaance压到500毫秒以内，现在还差挺多。",
+        "mer": 0.09523809523809523,
+        "wall_s": 0.40863752365112305
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "把这段话翻译成英文，然后发给product team review一下。",
+        "mer": 0.0,
+        "wall_s": 0.3771395683288574
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "whispers small这个模型在中英混合的场景下表现怎么样？包不要换成了ea.",
+        "mer": 0.17857142857142858,
+        "wall_s": 0.5057291984558105
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "影响周五之前要把关BORD handGflow的设计稿finalized掉。",
+        "mer": 0.4117647058823529,
+        "wall_s": 0.3522500991821289
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "这个PF返回的response里面没有er code，需要让BCKND加上。",
+        "mer": 0.15789473684210525,
+        "wall_s": 0.4910895824432373
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "帮我记一下，下周三下午3点要去医院复查，别忘了带上次的检查报告。",
+        "mer": 0.034482758620689655,
+        "wall_s": 0.41078734397888184
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "mer": 0.0,
+        "wall_s": 0.5225479602813721
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "Let me know if the deployment finished. and please double check the database migration run clean.",
+        "mer": 0.125,
+        "wall_s": 0.4879436492919922
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "Li weu ship the samencplified version first 10 D R T based usage data.",
+        "mer": 0.625,
+        "wall_s": 0.4250497817993164
+      }
+    ]
+  },
+  "whisper-small:auto": {
+    "config": "whisper-small:auto",
+    "load_s": 4.12,
+    "MER": 0.3492,
+    "RTF": 0.633,
+    "wall_s": 46.5,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "我把这个Pore request的description一下, 重点说明我们改了transcription的part-line。",
+        "mer": 0.21739130434782608,
+        "wall_s": 5.265093803405762
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "我觉得这个feature的latency太高了我们不能先把polish阿不改成s1nc的",
+        "mer": 0.25,
+        "wall_s": 3.7340948581695557
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "明天上午10點跟Alex有個Think幫我準備一下一間的",
+        "mer": 0.5555555555555556,
+        "wall_s": 2.9103949069976807
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "这个bub是因为sidenstar里面的forgeal错了应该是否s不是true",
+        "mer": 0.36363636363636365,
+        "wall_s": 3.8358500003814697
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "先可 made 到 local branch 等 CI 跑完再 push 上去",
+        "mer": 0.15384615384615385,
+        "wall_s": 2.438614845275879
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "我们的target是把proceedlatency到500秒以内现在还差挺多",
+        "mer": 0.19047619047619047,
+        "wall_s": 3.737781047821045
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "把这段画翻成英文然后发给product team review 一下",
+        "mer": 0.1111111111111111,
+        "wall_s": 2.5320663452148438
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "Visper's Note這個模型在中音混合的場景下表現怎麼樣?要換成了2G3TB",
+        "mer": 0.5714285714285714,
+        "wall_s": 4.43936014175415
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "影周五之前要把關BL2D Hange Floor的設計搞Finalized",
+        "mer": 0.7058823529411765,
+        "wall_s": 3.333563804626465
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "这个PF法国的任里面没有Aerocode需要让BCKND加上",
+        "mer": 0.3684210526315789,
+        "wall_s": 3.9679512977600098
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "往我记一下下周三下午3点要去院服查也忘了上次的查报告",
+        "mer": 0.2413793103448276,
+        "wall_s": 4.280227899551392
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "這國防安我覺得整體思路是對的但是成本算那部分需要再仔細算一",
+        "mer": 0.3225806451612903,
+        "wall_s": 2.887079954147339
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "That means now it's the deployment finished. And please double check the database migration run clearly.",
+        "mer": 0.4375,
+        "wall_s": 1.648380994796753
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "Then we should ship the same qualified version for standard ERT based on real usage data.",
+        "mer": 0.4375,
+        "wall_s": 1.490190029144287
+      }
+    ]
+  },
+  "whisper-small:zh": {
+    "config": "whisper-small:zh",
+    "load_s": 1.7,
+    "MER": 0.4237,
+    "RTF": 0.386,
+    "wall_s": 28.3,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "我把这个Pore request的description一下, 重点说明我们改了transcription的part-line。",
+        "mer": 0.21739130434782608,
+        "wall_s": 2.5067312717437744
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "我觉得这个feature的latency太高了我们不能先把polish阿不改成s1nc的",
+        "mer": 0.25,
+        "wall_s": 2.0722954273223877
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "明天上午10點跟Alex有個Think幫我準備一下一間的",
+        "mer": 0.5555555555555556,
+        "wall_s": 1.4793133735656738
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "这个bub是因为sidenstar里面的forgeal错了应该是否s不是true",
+        "mer": 0.36363636363636365,
+        "wall_s": 2.0053982734680176
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "先可 made 到 local branch 等 CI 跑完再 push 上去",
+        "mer": 0.15384615384615385,
+        "wall_s": 1.4140105247497559
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "我们的target是把proceedlatency到500秒以内现在还差挺多",
+        "mer": 0.19047619047619047,
+        "wall_s": 1.8543753623962402
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "把这段画翻成英文然后发给product team review 一下",
+        "mer": 0.1111111111111111,
+        "wall_s": 1.409588098526001
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "Visper's Note這個模型在中音混合的場景下表現怎麼樣?要換成了2G3TB",
+        "mer": 0.5714285714285714,
+        "wall_s": 2.560950994491577
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "影周五之前要把關BL2D Hange Floor的設計搞Finalized",
+        "mer": 0.7058823529411765,
+        "wall_s": 1.7360031604766846
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "这个PF法国的任里面没有Aerocode需要让BCKND加上",
+        "mer": 0.3684210526315789,
+        "wall_s": 1.8374462127685547
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "往我记一下下周三下午3点要去院服查也忘了上次的查报告",
+        "mer": 0.2413793103448276,
+        "wall_s": 2.3542370796203613
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "這國防安我覺得整體思路是對的但是成本算那部分需要再仔細算一",
+        "mer": 0.3225806451612903,
+        "wall_s": 2.266432046890259
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "那里是结束了,请马克里士的",
+        "mer": 1.0,
+        "wall_s": 2.3728890419006348
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "然后我们要把这些表的表的表的表的表的表的",
+        "mer": 1.25,
+        "wall_s": 2.462303876876831
+      }
+    ]
+  },
+  "whisper-small:en": {
+    "config": "whisper-small:en",
+    "load_s": 2.92,
+    "MER": 0.8983,
+    "RTF": 0.337,
+    "wall_s": 24.8,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "Help me write this poor request description. This is the part where we changed the transcription.",
+        "mer": 0.8695652173913043,
+        "wall_s": 1.6808435916900635
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "I think the latency of this feature is too high. We can't change the Polish R1 to S1 NC first.",
+        "mer": 0.9583333333333334,
+        "wall_s": 2.122195243835449
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "Tomorrow morning at 10am, I'll have a sink with Alex. I'll prepare a room for you.",
+        "mer": 1.0,
+        "wall_s": 1.801030158996582
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "This bug is because \"Sidenstaur\" is in the face of \"Fortale\" and \"Ali\" wrote wrong. Is it false",
+        "mer": 0.9090909090909091,
+        "wall_s": 2.4904918670654297
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "First commit to local branch, then push up when the CI is finished.",
+        "mer": 0.7692307692307693,
+        "wall_s": 1.3177311420440674
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "Our target is to put the latency of Proceed Latency to 500 ms. Now it's still missing a lot.",
+        "mer": 0.9523809523809523,
+        "wall_s": 2.0684046745300293
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "Translate this word into English and then send it to product team.",
+        "mer": 0.8888888888888888,
+        "wall_s": 1.1787331104278564
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "With Perce Note, this model is in the middle of the sound mix, how does it look like? The package is replaced with 2G3TB.",
+        "mer": 1.0,
+        "wall_s": 2.5686354637145996
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "Before the game, we need to finish the design of the design of the BROD Hange Floor.",
+        "mer": 1.0,
+        "wall_s": 1.8076179027557373
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "This is not the error code in the response of the PF. You need to be CKND added.",
+        "mer": 1.0,
+        "wall_s": 1.8189122676849365
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "(speaking in foreign language)",
+        "mer": 1.0,
+        "wall_s": 0.746579647064209
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "I think the whole 4th team of this defense is right, but the part that is the main calculation needs to be calculated more carefully.",
+        "mer": 1.0,
+        "wall_s": 2.1539793014526367
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "That means now it's the deployment finished. And please double check the database migration run clearly.",
+        "mer": 0.4375,
+        "wall_s": 1.5551934242248535
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "Then we should ship the same qualified version for standard ERT based on real usage data.",
+        "mer": 0.4375,
+        "wall_s": 1.457944631576538
+      }
+    ]
+  },
+  "whisper-small-fp32:auto": {
+    "config": "whisper-small-fp32:auto",
+    "load_s": 5.18,
+    "MER": 0.3288,
+    "RTF": 0.842,
+    "wall_s": 61.8,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "我把这个poor request的description一下, 你说明我们改了transcription的part-line。",
+        "mer": 0.30434782608695654,
+        "wall_s": 4.480979681015015
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "我觉得这个feature的latency太高了我们不能先把polish阿不改成s1nc的",
+        "mer": 0.25,
+        "wall_s": 5.9452807903289795
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "明天上午10點跟Alex有個think幫我準備一下一間的",
+        "mer": 0.5555555555555556,
+        "wall_s": 4.469791412353516
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "这个bub是因为sidenstar里面的forgeal错了应该是否s不是true",
+        "mer": 0.36363636363636365,
+        "wall_s": 7.975525140762329
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "先可 made 到 local branch 等 CI 跑完再 push 上去",
+        "mer": 0.15384615384615385,
+        "wall_s": 4.4042534828186035
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "我们的target是把proceedlatency到500秒以内现在还差挺多",
+        "mer": 0.19047619047619047,
+        "wall_s": 7.153698444366455
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "把这段画翻成英文然后发给product team review 一下",
+        "mer": 0.1111111111111111,
+        "wall_s": 4.643239974975586
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "Visper Snow這個模型在中音混合的長期下表現怎麼樣?要換成了RG3 Turbo",
+        "mer": 0.5357142857142857,
+        "wall_s": 7.751924276351929
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "影周五之前要把關Blood RDA 和G Flood的設計搞Finalized",
+        "mer": 0.8235294117647058,
+        "wall_s": 2.5930659770965576
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "这个pf法的response里面没有error code需要让bcqnd加上",
+        "mer": 0.21052631578947367,
+        "wall_s": 2.4470880031585693
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "往我记一下下周三下午3点要去院服查也忘了上次的查报告",
+        "mer": 0.2413793103448276,
+        "wall_s": 2.9847381114959717
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "這個防按我覺得整體思路是對的但是成本算那部分需要再仔細算一",
+        "mer": 0.3225806451612903,
+        "wall_s": 2.7286579608917236
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "Let me know if the deployment finished. And please double-check the database migration run cleanly.",
+        "mer": 0.0625,
+        "wall_s": 2.2243027687072754
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "Then we should ship the same qualified version for standard ERT based on real usage data.",
+        "mer": 0.4375,
+        "wall_s": 2.042078971862793
+      }
+    ]
+  },
+  "whisper-turbo:auto": {
+    "config": "whisper-turbo:auto",
+    "load_s": 6.73,
+    "MER": 0.2475,
+    "RTF": 0.315,
+    "wall_s": 23.2,
+    "audio_s": 73.5,
+    "rows": [
+      {
+        "id": "cs01",
+        "ref": "帮我把这个 pull request 的 description 写一下，重点说明我们改了 transcription 的 pipeline。",
+        "hyp": "我把这个Porequest的Description一下 这也说明我们改了transcription的part time",
+        "mer": 0.34782608695652173,
+        "wall_s": 1.8258748054504395
+      },
+      {
+        "id": "cs02",
+        "ref": "我觉得这个 feature 的 latency 太高了，能不能先把 polish 那一步改成 async 的。",
+        "hyp": "我觉得这个feature的latency太高了我们不能先把polish r1不改成sync的",
+        "mer": 0.25,
+        "wall_s": 1.7571144104003906
+      },
+      {
+        "id": "cs03",
+        "ref": "明天上午十点跟 Alex 有个 sync，帮我准备一下 agenda。",
+        "hyp": "明天上午10点跟Alex有个Sync我一下一间的",
+        "mer": 0.3333333333333333,
+        "wall_s": 1.577883243560791
+      },
+      {
+        "id": "cs04",
+        "ref": "这个 bug 是因为 settings store 里面 default value 写错了，应该是 false 不是 true。",
+        "hyp": "这个bug是因为SidingStar里面的FultonL错了应该是False不是True",
+        "mer": 0.22727272727272727,
+        "wall_s": 1.773087978363037
+      },
+      {
+        "id": "cs05",
+        "ref": "先 commit 到 local branch，等 CI 跑完再 push 上去。",
+        "hyp": "先commit到local branch等CI跑完再push上去",
+        "mer": 0.0,
+        "wall_s": 1.1883952617645264
+      },
+      {
+        "id": "cs06",
+        "ref": "我们的 target 是把 perceived latency 压到 500 毫秒以内，现在还差挺多。",
+        "hyp": "我们的target是把proceed latency到500秒以内现在还差挺多",
+        "mer": 0.14285714285714285,
+        "wall_s": 1.4933662414550781
+      },
+      {
+        "id": "cs07",
+        "ref": "把这段话翻译成英文，然后发给 product team review 一下。",
+        "hyp": "把这段话翻成英文然后发给product team review一下",
+        "mer": 0.05555555555555555,
+        "wall_s": 1.2762508392333984
+      },
+      {
+        "id": "cs08",
+        "ref": "whisper small 这个模型在中英混合的场景下表现怎么样，要不要换成 large v3 turbo。",
+        "hyp": "Whisper Small这个模型在中英混合的场景下表现怎么样Bobbry要成了RG3 Turbo",
+        "mer": 0.17857142857142858,
+        "wall_s": 1.8960380554199219
+      },
+      {
+        "id": "cs09",
+        "ref": "记一下：周五之前要把 onboarding flow 的设计稿 finalize 掉。",
+        "hyp": "影着我之前要把关BURDA and GFLOW的finalized",
+        "mer": 0.7647058823529411,
+        "wall_s": 1.6168243885040283
+      },
+      {
+        "id": "cs10",
+        "ref": "这个 API 返回的 response 里面没有 error code，需要让 backend 加上。",
+        "hyp": "这个PF法和的Response里面没有Error Code需要让BSKND加上",
+        "mer": 0.21052631578947367,
+        "wall_s": 1.556636095046997
+      },
+      {
+        "id": "zh01",
+        "ref": "帮我记一下，下周三下午三点要去医院复查，别忘了带上次的检查报告。",
+        "hyp": "我记一下那周三下午三点要去院查别忘了上次的查报告",
+        "mer": 0.20689655172413793,
+        "wall_s": 2.117554187774658
+      },
+      {
+        "id": "zh02",
+        "ref": "这个方案我觉得整体思路是对的，但是成本估算那部分需要再仔细算一遍。",
+        "hyp": "这个方案我觉得整体思路是对的但是成本算那部分需要再仔算一",
+        "mer": 0.0967741935483871,
+        "wall_s": 2.026528835296631
+      },
+      {
+        "id": "en01",
+        "ref": "Let me know if the deployment finished, and please double check the database migration ran cleanly.",
+        "hyp": "Let me know is the deployment finished. And please double check the database migration run cleanly.",
+        "mer": 0.125,
+        "wall_s": 1.538590669631958
+      },
+      {
+        "id": "en02",
+        "ref": "I think we should ship the simplified version first and iterate based on real usage data.",
+        "hyp": "In case you ship the same toolified version for standard ERT-based time re-usage data.",
+        "mer": 0.6875,
+        "wall_s": 1.5074453353881836
+      }
+    ]
+  }
+}

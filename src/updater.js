@@ -31,10 +31,14 @@ class UpdateManager {
       return;
     }
 
+    // Feed MUST match electron-builder.json "publish" — this fork inherited
+    // upstream's coordinates here, so every installed copy was checking
+    // OpenWhispr's releases and could offer to "update" WhisperWoof into a
+    // different product entirely.
     autoUpdater.setFeedURL({
       provider: "github",
-      owner: "OpenWhispr",
-      repo: "openwhispr",
+      owner: "h3qing",
+      repo: "whisperwoof",
       private: false,
     });
 

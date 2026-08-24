@@ -92,6 +92,11 @@ export interface ParakeetModelInfo {
   recommended?: boolean;
   downloadUrl: string;
   extractDir: string;
+  expectedSizeBytes?: number;
+  /** "online" = cache-aware streaming model served by the online WS server. */
+  runtime?: "online" | "offline";
+  /** Distinguishes SenseVoice (single fused model file) from transducer exports. */
+  modelType?: "sense-voice";
 }
 
 export type ParakeetModelsMap = Record<string, ParakeetModelInfo>;
@@ -372,6 +377,12 @@ export function getParakeetModelInfo(modelId: string): ParakeetModelInfo | undef
 }
 
 export const PARAKEET_MODEL_INFO = modelData.parakeetModels;
+
+/** True for models that stream partial transcripts live (Nemotron). */
+export function isOnlineParakeetModel(modelId: string | null | undefined): boolean {
+  if (!modelId) return false;
+  return modelData.parakeetModels[modelId]?.runtime === "online";
+}
 
 export function getWhisperModelConfig(modelId: string): WhisperModelConfig | null {
   const modelInfo = modelData.whisperModels[modelId];

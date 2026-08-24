@@ -16,9 +16,18 @@ const WHISPER_LANGUAGES = buildLanguageSet("whisper");
 const PARAKEET_LANGUAGES = buildLanguageSet("parakeet");
 const ASSEMBLYAI_UNIVERSAL3_PRO_LANGUAGES = buildLanguageSet("assemblyai");
 
+const NEMOTRON_35_LANGUAGES = new Set([
+  "en", "es", "fr", "it", "pt", "nl", "de", "tr", "ru", "ar", "hi", "ja", "ko", "vi", "uk",
+]);
+
 const MODEL_LANGUAGE_MAP: Record<string, Set<string>> = {
   "parakeet-tdt-0.6b-v3": PARAKEET_LANGUAGES,
   "parakeet-unified-en-0.6b": new Set(["en"]),
+  // Nemotron's sherpa export covers 15 languages — notably NOT Chinese, so the
+  // existing guard reroutes pinned-zh dictation to Whisper instead of losing it.
+  "nemotron-3.5-asr-streaming-0.6b": NEMOTRON_35_LANGUAGES,
+  "nemotron-speech-streaming-en-0.6b": new Set(["en"]),
+  "sense-voice-zh-en": new Set(["zh", "en", "ja", "ko", "yue"]),
 };
 
 const LANGUAGE_INSTRUCTIONS: Record<string, string> = Object.fromEntries(
