@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onStartDictation: registerListener("start-dictation", (callback) => () => callback()),
   onStopDictation: registerListener("stop-dictation", (callback) => (_event, hotkeyUsed) => callback(hotkeyUsed)),
   onCancelDictation: registerListener("cancel-dictation", (callback) => () => callback()),
+  onWhisperwoofEntrySaved: registerListener("whisperwoof-entry-saved", (callback) => (_event, info) => callback(info)),
 
   // Database functions
   saveTranscription: (text, rawText, options) =>

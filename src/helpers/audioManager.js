@@ -11,6 +11,7 @@ import {
   normalizeChineseScript,
   resolveChineseScript,
 } from "../whisperwoof/core/language/normalize-chinese-script";
+import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -1254,6 +1255,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           reasoningModel,
           agentName
         );
+
+        // Last line of defense: a small model sometimes pastes its own
+        // deliberation ("注：原文中…修正后：…") into the answer as plain text,
+        // which no <think>-stripping can catch. When the output balloons or
+        // carries meta-markers the raw text lacks, paste what the user said.
+        const guarded = guardPolishedOutput(normalizedText, result);
+        if (!guarded.accepted) {
+          logger.logReasoning("REASONING_OUTPUT_REJECTED", {
+            reason: guarded.reason,
+            marker: guarded.marker,
+            resultLength: result.length,
+            rawLength: normalizedText.length,
+          });
+          return normalizedText;
+        }
 
         logger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,

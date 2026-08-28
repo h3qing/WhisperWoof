@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Command, X } from "lucide-react";
 import ReasoningService from "../../../services/ReasoningService";
+import { guardPolishedOutput } from "../../core/polish/polish-output-guard";
 import { getSettings, getEffectiveReasoningModel } from "../../../stores/settingsStore";
 
 /**
@@ -40,6 +41,10 @@ async function polishViaReasoning(text: string): Promise<{ text: string; polishe
     const result = await ReasoningService.processText(trimmed, model, agentName);
     const clean = typeof result === "string" ? result.trim() : "";
     if (!clean) return { text: trimmed, polished: false };
+    // Same deliberation guard the dictation path applies: a small model's
+    // inline commentary must never reach a saved note.
+    const guarded = guardPolishedOutput(trimmed, clean);
+    if (!guarded.accepted) return { text: trimmed, polished: false };
     return { text: clean, polished: true };
   } catch {
     return { text: trimmed, polished: false };

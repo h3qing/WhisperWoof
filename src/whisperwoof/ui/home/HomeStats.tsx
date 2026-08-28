@@ -196,6 +196,20 @@ export default function HomeStats({ onDayClick }: HomeStatsProps) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Live refresh: dictation runs in the overlay window, so this panel never
+  // sees it directly. The main process broadcasts after each saved entry;
+  // window focus refetches as a catch-all for anything missed while hidden.
+  useEffect(() => {
+    const api = getAPI() as { onWhisperwoofEntrySaved?: (cb: () => void) => () => void };
+    const disposeSaved = api.onWhisperwoofEntrySaved?.(() => fetchData());
+    const onFocus = () => fetchData();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      disposeSaved?.();
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchData]);
+
   const funFacts = useMemo(() => data ? pickFacts(generateFunFacts(data), 3) : [], [data]);
 
   if (!data || data.summary.totalEntries === 0) return null;

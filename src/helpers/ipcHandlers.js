@@ -2623,6 +2623,13 @@ class IPCHandlers {
             debugLogger.debug("[WhisperWoof] Vocabulary usage tracking failed", { error: vocabErr.message });
           }
 
+          // Dictation happens in the overlay window while Home/History live in
+          // the control panel — broadcast so their stats refresh in real time.
+          this.broadcastToWindows("whisperwoof-entry-saved", {
+            id: result.id,
+            source: entry.source,
+          });
+
           return { success: true, ...result };
         }
         return { success: false, error: "WhisperWoof database not initialized" };

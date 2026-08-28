@@ -361,7 +361,14 @@ export default function ControlPanel() {
               const isCloud = isCloudReasoningMode();
               if (model || isCloud) {
                 const agentName = localStorage.getItem("agentName") || null;
-                const reasonedText = await ReasoningService.processText(rawText, model, agentName);
+                const reasonedRaw = await ReasoningService.processText(rawText, model, agentName);
+                // Same deliberation guard the live dictation path applies.
+                const { guardPolishedOutput } = await import(
+                  "../whisperwoof/core/polish/polish-output-guard"
+                );
+                const reasonedText = guardPolishedOutput(rawText, reasonedRaw ?? "").accepted
+                  ? reasonedRaw
+                  : rawText;
                 if (reasonedText && reasonedText !== rawText) {
                   const updated = await window.electronAPI.updateTranscriptionText(
                     id,

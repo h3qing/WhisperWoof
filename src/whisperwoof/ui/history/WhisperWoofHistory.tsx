@@ -513,6 +513,19 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
     fetchFavorites();
   }, [fetchEntries, fetchFavorites]);
 
+  // Live refresh: new dictations are saved from the overlay window — refetch
+  // when the main process announces one, and on window focus as a catch-all.
+  useEffect(() => {
+    const api = getAPI() as { onWhisperwoofEntrySaved?: (cb: () => void) => () => void };
+    const disposeSaved = api.onWhisperwoofEntrySaved?.(() => fetchEntries());
+    const onFocus = () => fetchEntries();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      disposeSaved?.();
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchEntries]);
+
   // Debounced search
   useEffect(() => {
     if (debounceRef.current !== null) {
