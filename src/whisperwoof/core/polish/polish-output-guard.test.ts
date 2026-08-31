@@ -59,6 +59,48 @@ describe("guardPolishedOutput", () => {
     expect(r.accepted).toBe(true);
   });
 
+  it("rejects the production zh->en whole-sentence translation", () => {
+    const r = guardPolishedOutput(
+      "Pizzo,你知不知道你的手机可不可以用eSIM?",
+      "Pizzo, you know your phone can use eSIM?"
+    );
+    expect(r.accepted).toBe(false);
+    expect(r.reason).toBe("language-flip");
+  });
+
+  it("rejects en->zh whole-sentence translation too", () => {
+    const r = guardPolishedOutput(
+      "can you check whether the deploy finished on staging",
+      "你能检查一下部署是否在预发环境完成了吗？"
+    );
+    expect(r.accepted).toBe(false);
+    expect(r.reason).toBe("language-flip");
+  });
+
+  it("accepts genuine zh/en code-switching preserved by the cleanup", () => {
+    const r = guardPolishedOutput(
+      "帮我把这个 pull request 的 description 写一下 重点说明我们改了 pipeline",
+      "帮我把这个 pull request 的 description 写一下，重点说明我们改了 pipeline。"
+    );
+    expect(r.accepted).toBe(true);
+  });
+
+  it("accepts digit conversion without tripping the language ratio", () => {
+    const r = guardPolishedOutput("三百块钱 下午五点半到", "300元，下午5:30到。");
+    expect(r.accepted).toBe(true);
+  });
+
+  it("rejects the production roleplay-emote replies", () => {
+    expect(guardPolishedOutput("胖去", "*punch*").accepted).toBe(false);
+    expect(guardPolishedOutput("胖去", "*punch*").reason).toBe("emote");
+    expect(guardPolishedOutput("屁优滴派", "*Pewds*").accepted).toBe(false);
+  });
+
+  it("keeps asterisks the user actually dictated", () => {
+    const r = guardPolishedOutput("星号 punch 星号", "*punch*");
+    expect(r.accepted).toBe(true);
+  });
+
   it("empty polish passes through for the callers' existing fallback", () => {
     const r = guardPolishedOutput("说了点什么", "");
     expect(r.accepted).toBe(true);
