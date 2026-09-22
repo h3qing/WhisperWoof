@@ -326,3 +326,7 @@ src/.vite/
 
 # gstack retro snapshots (local-only)
 .context/
+
+# Mando animation source pack (78MB of PNG frames); the app ships the small
+# spritesheets in src/assets/mando built by scripts/build-mando-sprites.js
+Mando-assets-v6/

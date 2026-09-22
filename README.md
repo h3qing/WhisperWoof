@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.15.0-C87B3A?style=flat-square" alt="v1.15.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.17.0-C87B3A?style=flat-square" alt="v1.17.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
   <img src="https://img.shields.io/badge/tests-862%20passing-brightgreen?style=flat-square" alt="862 tests passing">
@@ -44,19 +44,21 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 <table>
 <tr>
 <td width="200" align="center">
-<img src="website/mando-head.svg" width="100" alt="Mando listening"><br>
+<img src="website/mando/wait.webp" width="100" alt="Mando tilting his head, waiting"><br>
 <strong>1. Hold Fn</strong><br>
-<sub>Mando's ears perk up.<br>You're recording.</sub>
+<sub>Mando tilts his head.<br>You're recording.</sub>
 </td>
 <td width="60" align="center">&#10132;</td>
 <td width="200" align="center">
+<img src="website/mando/review.webp" width="100" alt="Mando nodding along"><br>
 <strong>2. Speak</strong><br>
-<sub>Say whatever you want.<br>Filler words welcome.</sub>
+<sub>Mando nods along.<br>Filler words welcome.</sub>
 </td>
 <td width="60" align="center">&#10132;</td>
 <td width="200" align="center">
+<img src="website/mando/hop.webp" width="100" alt="Mando hopping"><br>
 <strong>3. Release</strong><br>
-<sub>Clean, polished text<br>appears at your cursor.</sub>
+<sub>Mando hops. Clean, polished<br>text lands at your cursor.</sub>
 </td>
 </tr>
 </table>
@@ -121,7 +123,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 ### Privacy & Design
 - **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
 - **MCP plugins** — Route voice to Todoist, Notion, Slack. Any MCP server works as a plugin.
-- **Mando's ears** — The floating indicator has dog ears that perk up when you speak.
+- **Animated Mando** — The floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while it's transcribed and polished, and a little hop when it lands. (Default `full` indicator style; the `compact` and `dot` styles stay minimal.)
 
 </td>
 </tr>

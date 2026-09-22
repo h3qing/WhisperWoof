@@ -21,6 +21,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
   // "idle" | "transcribing" | "polishing" — drives the indicator's phase label.
   const [processingPhase, setProcessingPhase] = useState("idle");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -251,6 +252,9 @@ export const useAudioRecording = (toast, options = {}) => {
           }
 
           setTranscript(textToPaste);
+          // Counts successful dictations so the indicator can celebrate only when
+          // text actually landed (not on cancel, error, or silence).
+          setCompletedCount((count) => count + 1);
 
           // WhisperWoof: Route based on active hotkey combo
           const hotkeyUsed = activeHotkeyRef.current ?? "Fn";
@@ -540,6 +544,7 @@ export const useAudioRecording = (toast, options = {}) => {
   return {
     isRecording,
     isProcessing,
+    completedCount,
     processingPhase,
     isStreaming,
     isSpeaking,

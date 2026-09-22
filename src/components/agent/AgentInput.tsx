@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
+import { MandoSprite } from "../../whisperwoof/ui/indicator/MandoSprite";
 
 import type { AgentState } from "../AgentOverlay";
 
@@ -64,20 +65,9 @@ function WaveBars() {
   );
 }
 
-function InputLoadingDots() {
-  return (
-    <div className="flex items-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60"
-          style={{
-            animation: `agent-loading-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
-          }}
-        />
-      ))}
-    </div>
-  );
+// Mando thinks while the agent transcribes or reasons.
+function InputMando() {
+  return <MandoSprite action="think" size={30} className="shrink-0 -my-1" />;
 }
 
 export function AgentInput({ agentState, partialTranscript }: AgentInputProps) {
@@ -123,20 +113,14 @@ export function AgentInput({ agentState, partialTranscript }: AgentInputProps) {
         </>
       )}
 
-      {agentState === "transcribing" && (
+      {(agentState === "transcribing" || agentState === "thinking" || agentState === "streaming") && (
         <>
-          <InputLoadingDots />
+          {/* One element across transcribing → thinking so Mando keeps animating instead of restarting */}
+          <InputMando />
           <span className="text-[12px] text-muted-foreground select-none">
-            {t("agentMode.input.transcribing")}
-          </span>
-        </>
-      )}
-
-      {(agentState === "thinking" || agentState === "streaming") && (
-        <>
-          <InputLoadingDots />
-          <span className="text-[12px] text-muted-foreground select-none">
-            {t("agentMode.input.thinking")}
+            {agentState === "transcribing"
+              ? t("agentMode.input.transcribing")
+              : t("agentMode.input.thinking")}
           </span>
         </>
       )}

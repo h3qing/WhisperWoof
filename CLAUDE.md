@@ -39,7 +39,10 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     meeting/                  Tests for meeting safety modules
   ui/                         ← Renderer (React + TSX)
     history/                  HistoryPanel, Search, AudioPlayer
-    indicator/                FloatingIndicator (Classic + Bark dog ear styles)
+    indicator/                MandoSprite (animated Mando: spritesheet + mando-manifest.json,
+                              state → animation + hop machine in mando-sprite.ts),
+                              CancelRecordingButton, MeetingRecordingPill. The indicator
+                              shell itself (WhisperWoofIndicator, full/compact/dot) is in src/App.jsx
     settings/                 WhisperWoof settings sections
     projects/                 Project picker, project detail view
   bridge/                     ← ONLY place that imports OpenWhispr code
@@ -110,6 +113,7 @@ Target: 80%+ coverage on WhisperWoof code. Test priorities:
 4. Clipboard monitor (dedup, ConcealedType detection)
 5. Pipeline orchestration (STT → Polish → Route)
 6. File import pipeline (transcode + background STT)
+7. Indicator Mando sprite (`pickMandoAction`, `nextCelebration` hop cancel, website-demo drift guard)
 
 ## Commands
 
@@ -118,6 +122,7 @@ npm install          # Install dependencies
 npm start            # Start dev mode
 npx vitest           # Run tests
 npm run build        # Build for production
+node scripts/build-mando-sprites.js [path/to/Mando-assets-v6]  # Rebuild Mando WebP spritesheets (needs ffmpeg, cwebp, img2webp)
 ```
 
 ## Implementation Phases
