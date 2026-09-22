@@ -31,7 +31,9 @@ Scale: 11px xs, 13px sm, 15px base, 17px lg, 20px xl.
 
 ## Floating Indicator
 Soundbar (180px wide) topped by the animated Mando character (64px, spritesheet
-stepped by CSS from the Mando-assets-v6 pack, see `MandoSprite`).
+stepped by CSS from the Mando-assets-v6 pack, see `MandoSprite`). This is the
+default `full` indicator style; `compact` and `dot` render no Mando and never
+wait for a hop. The Cmd+K agent bar shows the same "think" loop at 30px.
 - Idle: Mando sits still (first frame of the head-tilt), dimmed, bars flat
 - Waiting for voice: head-tilt loop, bars flat
 - Speaking: nodding loop, waveform active

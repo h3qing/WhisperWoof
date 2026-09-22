@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.15.0-C87B3A?style=flat-square" alt="v1.15.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.17.0-C87B3A?style=flat-square" alt="v1.17.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
   <img src="https://img.shields.io/badge/tests-862%20passing-brightgreen?style=flat-square" alt="862 tests passing">
@@ -123,7 +123,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 ### Privacy & Design
 - **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
 - **MCP plugins** — Route voice to Todoist, Notion, Slack. Any MCP server works as a plugin.
-- **Animated Mando** — The floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while the text is polished, and a little hop when it lands.
+- **Animated Mando** — The floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while it's transcribed and polished, and a little hop when it lands. (Default `full` indicator style; the `compact` and `dot` styles stay minimal.)
 
 </td>
 </tr>

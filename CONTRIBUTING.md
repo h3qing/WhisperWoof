@@ -21,6 +21,7 @@ npm run dev               # Dev mode with hot reload (renderer + main)
 npx vitest                # Run tests in watch mode
 npx vitest run            # Run tests once
 npx vitest run --coverage # Run with coverage report
+node scripts/build-mando-sprites.js [path/to/Mando-assets-v6]  # Rebuild Mando spritesheets from the gitignored source pack (needs ffmpeg, cwebp, img2webp)
 ```
 
 ## Architecture
@@ -38,7 +39,7 @@ src/whisperwoof/
     plugins/      MCP plugin manager
   ui/             ← Renderer (React + TSX)
     history/      Unified voice + clipboard history view
-    indicator/    Floating dog ear indicator
+    indicator/    MandoSprite (animated Mando), cancel button, meeting pill; indicator shell is src/App.jsx
     settings/     WhisperWoof settings panel
     projects/     Project capture buckets
     plugins/      Plugin management UI
