@@ -131,8 +131,10 @@
     .dot{ width:11px; height:11px; border-radius:50%; }
     .demo-title{ font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); margin-left:8px; letter-spacing:.04em; }
     .demo-body{ padding:24px 24px 26px; }
-    .mando-mini{ width:62px; height:62px; margin:0 auto 6px; transition:transform .3s; }
-    .listening .mando-mini{ transform:translateY(-3px) scale(1.04); }
+    /* Mando sprite: single-row sheet stepped by CSS, same as the app's indicator */
+    .mando-mini{ margin:0 auto 6px; background-repeat:no-repeat; background-position:0 0; filter:drop-shadow(0 2px 6px rgba(42,28,16,.18)); } /* size set by setMando() */
+    @keyframes mandoSprite{ to{ background-position-x:var(--mando-sheet-w); } }
+    @media (prefers-reduced-motion: reduce){ .mando-mini, .wave span, .raw .cursor{ animation:none !important; } }
 
     .wave{ display:flex; align-items:center; justify-content:center; gap:4px; height:34px; margin:4px 0 18px; }
     .wave span{ width:4px; height:8px; border-radius:3px; background:var(--amber); opacity:.5; animation:wv 1.1s ease-in-out infinite; }
@@ -269,10 +271,10 @@
           <span class="dot" style="background:#E0584F"></span>
           <span class="dot" style="background:#E8A93C"></span>
           <span class="dot" style="background:#79B259"></span>
-          <span class="demo-title">whisperwoof · listening</span>
+          <span class="demo-title" id="demo-title">whisperwoof · listening</span>
         </div>
         <div class="demo-body">
-          <img class="mando-mini" src="mando-head.svg" alt="Mando listening">
+          <div class="mando-mini" id="mando" aria-hidden="true"></div>
           <div class="wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <div class="line-label">You said</div>
           <div class="raw" id="raw"><span class="cursor"></span></div>
@@ -295,17 +297,17 @@
         <div class="step reveal">
           <div class="n">1</div>
           <h3>Hold <span class="key">Fn</span></h3>
-          <p>Mando's ears perk up. A small floating indicator shows you're recording. Start talking.</p>
+          <p>Mando pops up in a small floating indicator and tilts his head, waiting for your voice. Start talking.</p>
         </div>
         <div class="step reveal" style="transition-delay:.08s">
           <div class="n">2</div>
           <h3>Just talk</h3>
-          <p>Ramble. Say "um." Restart your sentence. On-device Whisper hears every word — Chinese and 90+ languages included.</p>
+          <p>Ramble. Say "um." Restart your sentence. Mando nods along while on-device Whisper hears every word — Chinese and 90+ languages included.</p>
         </div>
         <div class="step reveal" style="transition-delay:.16s">
           <div class="n">3</div>
           <h3>Release</h3>
-          <p>A local model cleans it up in ~250ms and drops polished text right at your cursor — or routes it with <span class="key">Fn+T</span> / <span class="key">Fn+N</span>.</p>
+          <p>Mando thinks for a beat while a local model cleans it up, then hops as polished text lands at your cursor — or routes it with <span class="key">Fn+T</span> / <span class="key">Fn+N</span>.</p>
         </div>
       </div>
     </div>
@@ -451,13 +453,44 @@
     ];
     const rawEl = document.getElementById('raw');
     const outEl = document.getElementById('polished');
-    const demo = document.getElementById('demo');
+    const titleEl = document.getElementById('demo-title');
     const cursor = '<span class="cursor"></span>';
     let si = 0;
     const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
+    // Mando's moods, mirroring the app: nodding while you talk, thinking while it
+    // polishes, one hop when the text lands, then a patient sit.
+    const MANDO = { wait:{frames:24}, review:{frames:24}, think:{frames:24}, hop:{frames:15} };
+    const MANDO_FRAME_MS = 80, MANDO_H = 65, MANDO_W = 60;
+    const mandoEl = document.getElementById('mando');
+    function setMando(action, { playing = true, loop = true } = {}){
+      const { frames } = MANDO[action];
+      const sheetW = MANDO_W * frames;
+      mandoEl.style.width = `${MANDO_W}px`;
+      mandoEl.style.height = `${MANDO_H}px`;
+      mandoEl.style.backgroundImage = `url(mando/sprites/${action}.webp)`;
+      mandoEl.style.backgroundSize = `${sheetW}px ${MANDO_H}px`;
+      mandoEl.style.setProperty('--mando-sheet-w', `-${sheetW}px`);
+      // Same-length loops share an identical animation shorthand, which CSS would not
+      // restart; clear it and force a reflow so every action starts at frame 0.
+      mandoEl.style.animation = 'none';
+      void mandoEl.offsetWidth;
+      mandoEl.style.animation = playing
+        ? `mandoSprite ${frames * MANDO_FRAME_MS}ms steps(${frames}) ${loop ? 'infinite' : '1'}`
+        : 'none';
+    }
+    setMando('wait', { playing:false });
+    // Warm the other sheets after the page has loaded, and only when the demo will run.
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(!reducedMotion){
+      window.addEventListener('load', () => {
+        Object.keys(MANDO).forEach(a => { new Image().src = `mando/sprites/${a}.webp`; });
+      }, { once:true });
+    }
+
     async function typeRaw(text){
-      demo.classList.add('listening');
+      titleEl.textContent = 'whisperwoof · listening';
+      setMando('review');
       outEl.style.opacity = 0;
       rawEl.innerHTML = cursor;
       for(let i=0;i<text.length;i++){
@@ -469,17 +502,22 @@
     async function cycle(){
       const s = samples[si];
       await typeRaw(s.raw);
-      await sleep(420);
-      demo.classList.remove('listening');
+      titleEl.textContent = 'whisperwoof · polishing';
+      setMando('think');
+      await sleep(900);
+      titleEl.textContent = 'whisperwoof · pasted';
+      setMando('hop', { loop:false });
       outEl.textContent = s.out;
       outEl.style.transition = 'opacity .5s ease';
       outEl.style.opacity = 1;
-      await sleep(3200);
+      await sleep(MANDO.hop.frames * MANDO_FRAME_MS);
+      setMando('wait', { playing:false });
+      await sleep(2400);
       si = (si+1) % samples.length;
       cycle();
     }
-    if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){ cycle(); }
-    else { rawEl.textContent = samples[0].raw; outEl.textContent = samples[0].out; outEl.style.opacity=1; }
+    if(!reducedMotion){ cycle(); }
+    else { titleEl.textContent = 'whisperwoof · pasted'; rawEl.textContent = samples[0].raw; outEl.textContent = samples[0].out; outEl.style.opacity=1; }
   </script>
 </body>
 </html>

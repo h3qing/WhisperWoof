@@ -30,14 +30,18 @@ Scale: 11px xs, 13px sm, 15px base, 17px lg, 20px xl.
 4px base. Compact density.
 
 ## Floating Indicator
-Soundbar (180px wide) with Mando's actual traced ear SVGs.
-- Idle: ears tilted 6° outward, static dots, dimmed
-- Speaking: ears flop ±3° (CSS animation), waveform active, red dot pulses
-- Processing: ears straight, amber bars pulse slowly
+Soundbar (180px wide) topped by the animated Mando character (64px, spritesheet
+stepped by CSS from the Mando-assets-v6 pack, see `MandoSprite`).
+- Idle: Mando sits still (first frame of the head-tilt), dimmed, bars flat
+- Waiting for voice: head-tilt loop, bars flat
+- Speaking: nodding loop, waveform active
+- Processing: chin-scratch "think" loop, amber bars pulse slowly
+- Text landed: one hop, then back to sitting; auto-hide waits for the hop
 
 ## Principles
 1. Warm amber accent is the only brand color. Everything else is neutral.
-2. The ears are the brand. No other productivity tool has this.
+2. Mando is the brand. No other productivity tool has a dog that reacts to you.
 3. Dark mode primary. Light mode supported but not prioritized.
 4. Compact density — power users want information, not whitespace.
-5. Motion is minimal except for the ears (the one playful element).
+5. Motion is minimal except for Mando (the one playful element). Everything
+   else moves only to convey state, and honors prefers-reduced-motion.
