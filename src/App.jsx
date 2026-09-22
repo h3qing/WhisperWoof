@@ -9,10 +9,16 @@ import { formatHotkeyLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
-import mandoHeadSvg from "./assets/mando-head.svg";
+import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
+import {
+  pickMandoAction,
+  nextCelebration,
+  MANDO_CELEBRATION_MS,
+} from "./whisperwoof/ui/indicator/mando-sprite";
 
-// WhisperWoof Indicator — Mando head + waveform + status
-// Matches the website preview aesthetic: Mando head on top, status text,
+// WhisperWoof Indicator — animated Mando + waveform + status
+// Mando on top (head-tilt while waiting for voice, nodding while you speak,
+// thinking while processing, a hop once the text lands), status text,
 // animated waveform bars, and transcribed text preview
 
 // Dog-themed processing verbs — a random one shows each time
@@ -36,11 +42,12 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, celebrating = false, onCelebrationEnd, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing' }) => {
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
   const isIdle = !recording && !isProcessing;
+  const mando = pickMandoAction({ speaking: isSpeaking, recordingSilent: isRecordingSilent, processing: isProcessing, celebrating });
   const showLiveTranscript = localStorage.getItem("whisperwoof-live-transcript") !== "false";
 
   // Keep the dog-pun flavor for the transcription phase, switch to a clear
@@ -82,7 +89,6 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
     }}>
       <style>{`
         @keyframes mandoBreath { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-        @keyframes mandoListen { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
         @keyframes waveBar { 0%, 100% { height: var(--idle-h); opacity: 0.3; } 50% { height: var(--peak-h); opacity: 0.8; } }
         @keyframes procBar { 0%, 100% { height: var(--idle-h); opacity: 0.2; } 50% { height: var(--proc-h); opacity: 0.5; } }
         @keyframes dotPulse { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.3); opacity: 1; } }
@@ -116,23 +122,19 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
         </div>
       )}
 
-      {/* Full mode: Mando head */}
+      {/* Full mode: animated Mando */}
       {mode === 'full' && (<>
 
-      <img
-        src={mandoHeadSvg}
-        alt=""
+      <MandoSprite
+        action={mando.action}
+        playing={mando.playing}
+        loop={mando.loop}
+        onAnimationEnd={mando.action === 'hop' ? onCelebrationEnd : undefined}
+        size={64}
         style={{
-          width: isSpeaking ? '48px' : (isRecordingSilent || isProcessing) ? '40px' : '36px',
-          height: 'auto',
           filter: `drop-shadow(0 2px 8px rgba(0,0,0,0.3))`,
-          opacity: isIdle ? 0.6 : isSpeaking ? 0.95 : 0.8,
-          transition: 'width 0.3s, opacity 0.3s',
-          animation: isSpeaking
-            ? 'mandoListen 1.5s ease-in-out infinite'
-            : (isRecordingSilent || isProcessing)
-              ? 'mandoBreath 2s ease-in-out infinite'
-              : 'none',
+          opacity: isIdle && !celebrating ? 0.6 : isSpeaking ? 0.95 : 0.85,
+          transition: 'opacity 0.3s',
         }}
       />
 
@@ -390,10 +392,11 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, processingPhase, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
+  const indicatorMode = localStorage.getItem("indicatorStyle") || "full";
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -404,11 +407,38 @@ export default function App() {
     return () => unsubscribe?.();
   }, []);
 
+  // Let Mando hop once when a dictation actually lands (completedCount bumps);
+  // auto-hide waits for the hop. A new recording or processing run cancels a
+  // pending hop (see nextCelebration). The hop's animationend ends the
+  // celebration; the timer is only a fallback in case the event never fires.
+  const [celebrating, setCelebrating] = useState(false);
+  const celebrationRef = useRef({ celebrating: false, acknowledged: 0 });
+  const endCelebration = React.useCallback(() => {
+    celebrationRef.current = { ...celebrationRef.current, celebrating: false };
+    setCelebrating(false);
+  }, []);
+  useEffect(() => {
+    const step = nextCelebration({
+      celebrating: celebrationRef.current.celebrating,
+      completed: completedCount,
+      acknowledged: celebrationRef.current.acknowledged,
+      recording: isRecording,
+      processing: isProcessing,
+    });
+    celebrationRef.current = { celebrating: step.celebrating, acknowledged: step.acknowledged };
+    setCelebrating(step.celebrating);
+    if (!step.startTimer) return;
+    const id = setTimeout(endCelebration, MANDO_CELEBRATION_MS + 250);
+    return () => clearTimeout(id);
+  }, [completedCount, isProcessing, isRecording, endCelebration]);
+  // Only the full indicator renders the hop; dot/compact users shouldn't wait for it.
+  const hopShowing = celebrating && indicatorMode === "full";
+
   // Auto-hide the floating icon when idle (setting enabled or dictation cycle completed)
   useEffect(() => {
     let hideTimeout;
 
-    if (floatingIconAutoHide && !isRecording && !isProcessing && toastCount === 0) {
+    if (floatingIconAutoHide && !isRecording && !isProcessing && !hopShowing && toastCount === 0) {
       // Delay briefly so processing can start after recording stops without a flash
       hideTimeout = setTimeout(() => {
         window.electronAPI?.hideWindow?.();
@@ -419,7 +449,7 @@ export default function App() {
 
     prevAutoHideRef.current = floatingIconAutoHide;
     return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, floatingIconAutoHide, toastCount]);
+  }, [isRecording, isProcessing, hopShowing, floatingIconAutoHide, toastCount]);
 
   const handleClose = () => {
     window.electronAPI.hideWindow();
@@ -611,8 +641,10 @@ export default function App() {
                   state={micState === "recording" ? "recording" : micState === "processing" ? "processing" : "idle"}
                   speaking={isSpeaking}
                   recording={isRecording}
+                  celebrating={celebrating}
+                  onCelebrationEnd={endCelebration}
                   animated={isRecording || isProcessing}
-                  mode={localStorage.getItem("indicatorStyle") || "full"}
+                  mode={indicatorMode}
                   partialTranscript={partialTranscript}
                   processingPhase={processingPhase}
                 />
