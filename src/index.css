@@ -840,6 +840,14 @@ body:has(.agent-overlay-window) #root {
   }
 }
 
+/* Mando spritesheet: MandoSprite sets --mando-sheet-w to minus the sheet width
+   and steps() through it, so this one rule serves every action and size. */
+@keyframes mandoSprite {
+  to {
+    background-position-x: var(--mando-sheet-w);
+  }
+}
+
 @keyframes agent-loading-dot {
   0%,
   80%,

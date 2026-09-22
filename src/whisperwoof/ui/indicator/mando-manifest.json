@@ -1,0 +1,26 @@
+{
+  "wait": {
+    "frameCount": 24,
+    "frameDurationMs": 80,
+    "cellWidth": 120,
+    "cellHeight": 130
+  },
+  "think": {
+    "frameCount": 24,
+    "frameDurationMs": 80,
+    "cellWidth": 120,
+    "cellHeight": 130
+  },
+  "review": {
+    "frameCount": 24,
+    "frameDurationMs": 80,
+    "cellWidth": 120,
+    "cellHeight": 130
+  },
+  "hop": {
+    "frameCount": 15,
+    "frameDurationMs": 80,
+    "cellWidth": 120,
+    "cellHeight": 130
+  }
+}
