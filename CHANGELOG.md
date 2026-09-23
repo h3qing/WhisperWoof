@@ -5,6 +5,17 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-24 — Notes, projects and recordings, linked
+
+### Added
+- **Each voice note links to its recording.** A note saved with fn+N or fn+P records its dictation (`entry:` in the frontmatter). The Notes view shows **Play recording**, so you can hear what you actually said.
+- **Notes can join a project.** A project picker on each note writes `project:` / `project_id:` into the file, so Obsidian sees it too, and the note's recording moves into that project with it.
+- **fn+P saves a note into your default project.** An "Inbox" is created the first time. Change the default in Projects with **Make fn+P save here**. The "Saved to …" message has an **Open** button. Before this, fn+P only tagged the dictation and filed it nowhere.
+- **Projects list their notes** above their voice entries. Clicking a note opens it in Notes.
+
+### Fixed
+- **Every project showed "0 entries".** The count asked for `LIMIT 0` rows per project. It is now one grouped query, and a project with no entries shows 0 instead of "…".
+
 ## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
 
 ### Added

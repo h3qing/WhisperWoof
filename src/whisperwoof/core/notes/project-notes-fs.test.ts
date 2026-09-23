@@ -80,6 +80,13 @@ describe("fn+P → default project", () => {
     expect(db.projects).toHaveLength(1); // not a second Inbox
   });
 
+  it("peeking at the default never creates a project", () => {
+    const db = fakeDb();
+    const { projectNotes } = load(db);
+    expect(projectNotes.peekDefaultProject()).toBeNull();
+    expect(db.projects).toHaveLength(0);
+  });
+
   it("uses the project the user made the default", () => {
     const db = fakeDb();
     const { projectNotes } = load(db);

@@ -31,6 +31,15 @@ function getDefaultProject() {
   return { id: created.id, name: created.name };
 }
 
+/** The current default without creating anything (for display); null if none yet. */
+function peekDefaultProject() {
+  const { project } = pickDefaultProject(
+    appInit.getWhisperWoofProjects(),
+    readSettings().defaultProjectId ?? null
+  );
+  return project ? { id: project.id, name: project.name } : null;
+}
+
 function setDefaultProject(projectId) {
   if (!findProject(projectId)) throw new Error("Unknown project");
   updateSettings({ defaultProjectId: projectId });
@@ -76,6 +85,7 @@ function getEntryRecordingId(entryId) {
 
 module.exports = {
   getDefaultProject,
+  peekDefaultProject,
   setDefaultProject,
   saveProjectNote,
   linkNoteToEntry,

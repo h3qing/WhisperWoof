@@ -2772,7 +2772,7 @@ class IPCHandlers {
       settle(() => ({ notes: projectNotes().listProjectNotes(projectId) }))
     );
     ipcMain.handle("whisperwoof-get-default-project", () =>
-      settle(() => ({ project: projectNotes().getDefaultProject() }))
+      settle(() => ({ project: projectNotes().peekDefaultProject() }))
     );
     ipcMain.handle("whisperwoof-set-default-project", (_e, projectId) =>
       settle(() => ({ projectId: projectNotes().setDefaultProject(projectId) }))

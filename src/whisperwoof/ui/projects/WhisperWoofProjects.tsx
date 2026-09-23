@@ -373,7 +373,9 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
     // count read 0).
     const loadCounts = async () => {
       const result = await window.electronAPI?.whisperwoofProjectEntryCounts?.();
-      if (!cancelled) setEntryCounts(result?.success ? result.counts ?? {} : {});
+      const counts = result?.success ? result.counts ?? {} : {};
+      // Projects with no entries aren't in the grouped result: they're 0.
+      if (!cancelled) setEntryCounts(Object.fromEntries(projects.map((p) => [p.id, counts[p.id] ?? 0])));
     };
 
     if (projects.length > 0) loadCounts();
