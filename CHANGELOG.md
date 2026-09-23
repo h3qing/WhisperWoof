@@ -22,6 +22,15 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Local streaming could not start in dev: the CSP blocked the mic PCM worklet.** AudioWorklet modules are governed by `script-src`, not `worker-src`, and the worklet is built as a same-page `blob:` URL, so `addModule` failed with "Unable to load a worklet's module" and every capture silently fell back to batch. `script-src` now allows `blob:`. Only verified in dev.
 - **The "Text polished" learning toast no longer duplicates the live panel**, and the toast-sized window is wide enough for the panel's Pasted hold.
 
+### Fixed after field testing
+- **Live mode wrecked the recording on Bluetooth mics.** The tap opened a second AudioContext at 16kHz on the same mic as the MediaRecorder; with AirPods (24kHz) the batch recording came out buried in noise (dynamic range 46dB → 14dB) and every engine transcribed garbage. The tap now runs at the device rate and downsamples inside the worklet (`core/audio/downsampler.js`, +6 tests).
+- **The first words never reached the preview.** Building the tap's AudioContext + worklet took ~2s per capture in the app; it is now built once, warmed at startup, suspended between captures and reused (~5ms).
+- **The preview defaults to X-ASR 160ms chunks:** first words ~0.2s sooner, several updates a second, and slightly more accurate on real dictation (2.3% vs 2.8% MER). 480ms stays as the Steady option.
+- **The widget landed on the laptop's top edge with an external monitor above or left of it.** Window placement clamped coordinates to 0; it now clamps to the display's own work area (+4 tests). Live mode also keeps the overlay at a fixed size, so the panel no longer draws center-first and leaves no stale frame.
+- **The old idle icon no longer flashes around a live capture:** Listening shows from the hotkey press, and the finished frame holds while auto-hide removes the window.
+- **Spoken enumerations become numbered lists** (第一… 第二… 第三… → 1. 2. 3.), and short Chinese utterances that skip the LLM still get commas and an end mark. Deterministic, after polish (`core/polish/format-dictation.ts`, +10 tests).
+- **Silent captures no longer paste "Thank you."** A two-stage speech gate ported from upstream OpenWhispr skips recordings with no speech-like window (`core/audio/speech-gate.js`, +6 tests).
+
 ### Measured
 - **On 52 of the owner's real dictations (zh/en code-switching), every engine lands at 2-3% MER:** X-ASR streaming final 2.8% (24ms after release), SenseVoice re-check 2.1% (65ms), Whisper Turbo re-check 3.1% (807ms). The profiles differ more than the totals: Whisper Turbo keeps English terms (9% missed vs ~20%), SenseVoice and X-ASR are better on Chinese homophones. 480ms chunks give 3x fewer visible rewrites than 160ms for ~0.2s later first text. Aggregates only in `eval/dictation-bench/README.md`; the new `run_streaming.py` reproduces the TTS half.
 
