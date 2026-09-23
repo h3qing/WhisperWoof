@@ -166,12 +166,24 @@ function planVocabularyImport(
   return { additions, skipped };
 }
 
+/**
+ * Drop auto-learned entries whose word matches one of `words`
+ * (case-insensitive). Used when the user undoes a learned correction.
+ * Manual and imported entries are kept.
+ */
+function removeLearnedWords(entries, words) {
+  const list = Array.isArray(entries) ? entries : [];
+  const remove = new Set((words || []).map((w) => String(w).toLowerCase()));
+  return list.filter((e) => !(e.source === "auto-learn" && remove.has(e.word.toLowerCase())));
+}
+
 module.exports = {
   DEFAULT_CATEGORIES,
   MAX_ENTRIES,
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
   computeVocabularyStats,
   planVocabularyImport,
 };

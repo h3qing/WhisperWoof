@@ -18,6 +18,7 @@ import {
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
   computeVocabularyStats,
   planVocabularyImport,
 } from "../../bridge/vocabulary-pure";
@@ -259,5 +260,27 @@ describe("planVocabularyImport", () => {
     const result = planVocabularyImport([], "not an array" as unknown as string[], "general", FIXED_NOW, idFactory);
     expect(result.additions).toEqual([]);
     expect(result.skipped).toBe(0);
+  });
+});
+
+describe("removeLearnedWords", () => {
+  it("drops auto-learned entries matching the words (case-insensitive)", () => {
+    const next = removeLearnedWords(SAMPLE, ["ollama"]);
+    expect(next.map((e: VocabEntry) => e.word)).toEqual(["WhisperWoof", "Heqing", "LGTM", "Mando"]);
+  });
+
+  it("keeps manual entries with the same word", () => {
+    expect(removeLearnedWords(SAMPLE, ["Mando"])).toHaveLength(SAMPLE.length);
+  });
+
+  it("returns a new array and leaves the input untouched", () => {
+    const next = removeLearnedWords(SAMPLE, ["Ollama"]);
+    expect(next).not.toBe(SAMPLE);
+    expect(SAMPLE).toHaveLength(5);
+  });
+
+  it("handles empty or bad input", () => {
+    expect(removeLearnedWords(SAMPLE, [])).toHaveLength(5);
+    expect(removeLearnedWords(null, ["x"])).toEqual([]);
   });
 });

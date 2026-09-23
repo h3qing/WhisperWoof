@@ -20,6 +20,7 @@ const {
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
@@ -164,12 +165,20 @@ function updateWord(id, updates) {
 
 function removeWord(id) {
   const entries = loadVocabulary();
-  const filtered = entries.filter((e) => e.id !== id);
-  if (filtered.length === entries.length) {
+  const removed = entries.find((e) => e.id === id);
+  if (!removed) {
     return { success: false, error: "Word not found" };
   }
-  saveVocabulary(filtered);
-  return { success: true };
+  saveVocabulary(entries.filter((e) => e.id !== id));
+  return { success: true, entry: removed };
+}
+
+/** Undo auto-learned corrections (the "Learned X — undo" toast). */
+function forgetLearnedWords(words) {
+  const entries = loadVocabulary();
+  const kept = removeLearnedWords(entries, words);
+  if (kept.length !== entries.length) saveVocabulary(kept);
+  return { success: true, removed: entries.length - kept.length };
 }
 
 function removeAllWords() {
@@ -295,6 +304,7 @@ module.exports = {
   addWord,
   updateWord,
   removeWord,
+  forgetLearnedWords,
   removeAllWords,
   importWords,
   exportWords,
