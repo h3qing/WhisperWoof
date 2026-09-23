@@ -12,6 +12,7 @@ import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
 import { LiveDictationPanel } from "./whisperwoof/ui/indicator/LiveDictationPanel";
+import { RouteChip } from "./whisperwoof/ui/indicator/RouteChip";
 import { deriveLivePanelView, pickLivePanelFrame } from "./whisperwoof/core/live/live-dictation";
 import {
   pickMandoAction,
@@ -45,7 +46,7 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, celebrating = false, onCelebrationEnd, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, celebrating = false, onCelebrationEnd, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing', route = 'paste-at-cursor' }) => {
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
@@ -155,6 +156,7 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
         letterSpacing: '0.3px',
         whiteSpace: 'nowrap',
       }}>
+        {(recording || isProcessing) && <RouteChip route={route} size="sm" />}
         {isSpeaking ? (
           showLiveTranscript && partialTranscript ? (
             <div aria-hidden="true" style={{
@@ -381,7 +383,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, isStarting, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, dictationRoute, isStarting, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -720,6 +722,7 @@ export default function App() {
                     celebrating={celebrating}
                     onCelebrationEnd={endCelebration}
                     native={nativeLivePanel}
+                    route={dictationRoute}
                   />
                 ) : (
                 <WhisperWoofIndicator
@@ -732,6 +735,7 @@ export default function App() {
                   mode={indicatorMode}
                   partialTranscript={partialTranscript}
                   processingPhase={processingPhase}
+                  route={dictationRoute}
                 />
                 )}
               </div>

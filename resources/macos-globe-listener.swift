@@ -200,6 +200,16 @@ guard let tap = CGEvent.tapCreate(
         }
     })
 
+    // A tap can only be created at startup, so once the user grants
+    // Accessibility, exit and let GlobeKeyManager respawn us in tap mode;
+    // otherwise Fn+letter stays broken until the app restarts.
+    Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+        if AXIsProcessTrusted() {
+            emit("ACCESSIBILITY_GRANTED")
+            exit(0)
+        }
+    }
+
     // Run the fallback event loop
     let signalSourceFallback = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
     signal(SIGTERM, SIG_IGN)

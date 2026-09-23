@@ -131,6 +131,10 @@ class GlobeKeyManager extends EventEmitter {
           } else if (line === "NO_ACCESSIBILITY") {
             debugLogger.warn("[GlobeKeyManager] Accessibility permission not granted — falling back to read-only monitor (Fn+letter keys will leak to focused app)");
             this.emit("accessibility-denied");
+          } else if (line === "ACCESSIBILITY_GRANTED") {
+            // The listener exits right after this; the exit handler respawns it
+            // with an event tap, so Fn+letter works without an app restart.
+            debugLogger.info("[GlobeKeyManager] Accessibility granted — restarting listener in tap mode");
           }
         });
     });

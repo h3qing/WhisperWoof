@@ -9,6 +9,8 @@ import { LatencyTracker } from "../whisperwoof/core/latency/latency-tracker";
 import { PERCEIVED_LATENCY_BUDGET_MS } from "../whisperwoof/core/latency/types";
 import mandoHeadSvg from "../assets/mando-head.svg";
 import { EMPTY_LIVE_SEGMENTS, toLiveSegments } from "../whisperwoof/core/live/live-dictation";
+import { copyTextFromOverlay } from "../whisperwoof/core/router/copy-to-clipboard";
+import { routeForHotkey } from "../whisperwoof/core/router/dictation-route";
 
 // How long the live panel keeps showing the pasted text before it collapses.
 const LIVE_DONE_HOLD_MS = 1600;
@@ -36,6 +38,11 @@ export const useAudioRecording = (toast, options = {}) => {
   // capture runs in live mode, and the pasted text held briefly afterwards.
   const [liveSegments, setLiveSegments] = useState(EMPTY_LIVE_SEGMENTS);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  // Read from the completion callback, where the state value would be stale.
+  const isLiveModeRef = useRef(false);
+  // Where this dictation goes (Fn+T copy, Fn+N note, …), known the moment the
+  // letter is pressed so the overlay can say so before release.
+  const [dictationRoute, setDictationRoute] = useState("paste-at-cursor");
   const [liveFinalText, setLiveFinalText] = useState("");
   // True from the hotkey press until recording actually starts (mic open takes
   // 100-500ms), so the live panel can show "Listening" instead of the idle icon.
@@ -172,7 +179,9 @@ export const useAudioRecording = (toast, options = {}) => {
           clearTimeout(liveDoneTimerRef.current);
           setLiveFinalText("");
           setLiveSegments(EMPTY_LIVE_SEGMENTS);
-          setIsLiveMode(!!audioManagerRef.current?.getLiveDictationPlan?.().live);
+          const live = !!audioManagerRef.current?.getLiveDictationPlan?.().live;
+          isLiveModeRef.current = live;
+          setIsLiveMode(live);
         } else if (!isProcessing) {
           // Live mode keeps the draft on screen through the final pass; it's
           // only dropped once processing ends (the pasted text takes over).
@@ -294,13 +303,10 @@ export const useAudioRecording = (toast, options = {}) => {
 
           // WhisperWoof: Route based on active hotkey combo
           const hotkeyUsed = activeHotkeyRef.current ?? "Fn";
-          const routeMap = {
-            "Fn":    "paste-at-cursor",
-            "Fn+T":  "copy-to-clipboard",
-            "Fn+N":  "save-as-markdown",
-            "Fn+P":  "project",
-          };
-          const routedTo = routeMap[hotkeyUsed] ?? "paste-at-cursor";
+          const routedTo = routeForHotkey(hotkeyUsed);
+          // The live panel already says "Copied" / "Saved as note"; a toast
+          // on top of it would just cover it.
+          const showRouteToast = !isLiveModeRef.current;
 
           const isStreaming = result.source?.includes("streaming");
           const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
@@ -308,27 +314,33 @@ export const useAudioRecording = (toast, options = {}) => {
           tracker?.mark("pasteStart");
           if (routedTo === "copy-to-clipboard") {
             // Fn+T: Copy to clipboard only (don't paste at cursor)
-            await navigator.clipboard.writeText(textToPaste);
+            await copyTextFromOverlay(textToPaste, window.electronAPI, (text) =>
+              navigator.clipboard.writeText(text)
+            );
             logger.info("WhisperWoof routed to clipboard", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
-            toast({
-              icon: MandoToastIcon,
-              title: t("hooks.audioRecording.copied", "Copied to clipboard"),
-              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-              variant: "default",
-              duration: 3000,
-            });
+            if (showRouteToast) {
+              toast({
+                icon: MandoToastIcon,
+                title: t("hooks.audioRecording.copied", "Copied to clipboard"),
+                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+                variant: "default",
+                duration: 3000,
+              });
+            }
           } else if (routedTo === "save-as-markdown") {
             // Fn+N: Save as Markdown file
             const saveResult = await window.electronAPI?.whisperwoofSaveMarkdown?.(textToPaste);
             if (saveResult?.success) {
               logger.info("WhisperWoof routed to markdown", { hotkeyUsed, filePath: saveResult.filePath }, "whisperwoof");
-              toast({
-                icon: MandoToastIcon,
-                title: "Saved as note",
-                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-                variant: "default",
-                duration: 3000,
-              });
+              if (showRouteToast) {
+                toast({
+                  icon: MandoToastIcon,
+                  title: "Saved as note",
+                  description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+                  variant: "default",
+                  duration: 3000,
+                });
+              }
             } else {
               logger.error(`WhisperWoof markdown save failed: ${saveResult?.error || "unknown"}`);
               toast({ title: "Failed to save note", description: saveResult?.error, variant: "destructive", duration: 5000 });
@@ -336,13 +348,15 @@ export const useAudioRecording = (toast, options = {}) => {
           } else if (routedTo === "project") {
             // Fn+P: Save entry tagged for project routing (entry is saved below, project picker handles dispatch)
             logger.info("WhisperWoof routed to project", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
-            toast({
-              icon: MandoToastIcon,
-              title: "Captured to project",
-              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-              variant: "default",
-              duration: 3000,
-            });
+            if (showRouteToast) {
+              toast({
+                icon: MandoToastIcon,
+                title: "Captured to project",
+                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+                variant: "default",
+                duration: 3000,
+              });
+            }
           } else if (autoPasteEnabled) {
             const pasteStart = performance.now();
             await audioManagerRef.current.safePaste(textToPaste, {
@@ -360,7 +374,9 @@ export const useAudioRecording = (toast, options = {}) => {
             );
           } else {
             if (keepTranscriptionInClipboard) {
-              await navigator.clipboard.writeText(textToPaste);
+              await copyTextFromOverlay(textToPaste, window.electronAPI, (text) =>
+                navigator.clipboard.writeText(text)
+              );
             }
             logger.info(
               "WhisperWoof auto-paste disabled — skipped paste-at-cursor",
@@ -499,8 +515,13 @@ export const useAudioRecording = (toast, options = {}) => {
       onToggle?.();
     });
 
+    const disposeRoute = window.electronAPI.onDictationRoute?.((hotkeyUsed) => {
+      setDictationRoute(routeForHotkey(hotkeyUsed));
+    });
+
     const disposeStop = window.electronAPI.onStopDictation?.((hotkeyUsed) => {
       activeHotkeyRef.current = hotkeyUsed ?? null;
+      setDictationRoute(routeForHotkey(hotkeyUsed));
       handleStop();
       onToggle?.();
     });
@@ -540,6 +561,7 @@ export const useAudioRecording = (toast, options = {}) => {
       disposeToggle?.();
       disposeStart?.();
       disposeStop?.();
+      disposeRoute?.();
       disposeCancel?.();
       disposeNoAudio?.();
       clearTimeout(liveDoneTimerRef.current);
@@ -590,6 +612,7 @@ export const useAudioRecording = (toast, options = {}) => {
     liveSegments,
     isLiveMode,
     liveFinalText,
+    dictationRoute,
     isStarting,
     startRecording: performStartRecording,
     stopRecording: performStopRecording,

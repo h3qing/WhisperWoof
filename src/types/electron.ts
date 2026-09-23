@@ -335,6 +335,7 @@ declare global {
       onToggleDictation: (callback: () => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
+      onDictationRoute?: (callback: (hotkeyUsed: string) => void) => () => void;
 
       // STT config
       getSttConfig?: () => Promise<{
