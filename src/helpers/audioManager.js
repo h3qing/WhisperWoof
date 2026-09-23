@@ -78,6 +78,10 @@ const STREAMING_PROVIDERS = {
 
 class AudioManager {
   constructor() {
+    // Load the live tap's worklet ahead of the first capture (see _ensureLocalTapContext).
+    queueMicrotask(() => {
+      if (this.getLiveDictationPlan().stream) this._ensureLocalTapContext().catch(() => {});
+    });
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.isRecording = false;
@@ -161,12 +165,11 @@ class AudioManager {
     }
 
     try {
-      // Device-rate context, downsampled inside the worklet: a second consumer
-      // clocked at 16kHz on the same mic (e.g. AirPods at 24kHz) buried the
-      // MediaRecorder capture it shares the device with in noise.
-      this._localTapCtx = new AudioContext();
+      this._localTapCtx = await this._ensureLocalTapContext();
+      await this._localTapCtx.resume();
       this._localTapSource = this._localTapCtx.createMediaStreamSource(micStream);
-      await this._localTapCtx.audioWorklet.addModule(this.getWorkletBlobUrl());
+      // Released while the worklet loaded: stop already tore the tap down.
+      if (!this._localStreamActive || !this._localTapCtx) return;
       this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor", {
         processorOptions: { targetRate: 16000 },
       });
@@ -210,6 +213,31 @@ class AudioManager {
     }
   }
 
+  /**
+   * The tap's AudioContext + worklet module are created once and reused:
+   * building them per capture cost ~2s before the first chunk (words spoken
+   * in that window never reached the preview). Warmed at construction when
+   * the live plan streams; suspended between captures.
+   */
+  _ensureLocalTapContext() {
+    if (!this._localTapCtxPromise) {
+      this._localTapCtxPromise = (async () => {
+        // Device-rate context, downsampled inside the worklet: a second consumer
+        // clocked at 16kHz on the same mic (e.g. AirPods at 24kHz) buried the
+        // MediaRecorder capture it shares the device with in noise. No output
+        // sink — the tap only reads.
+        const ctx = new AudioContext({ sinkId: { type: "none" } });
+        await ctx.audioWorklet.addModule(this.getWorkletBlobUrl());
+        await ctx.suspend();
+        return ctx;
+      })().catch((error) => {
+        this._localTapCtxPromise = null;
+        throw error;
+      });
+    }
+    return this._localTapCtxPromise;
+  }
+
   _teardownLocalStreamTap() {
     this._localStreamActive = false;
     this._localStreamBuffered = [];
@@ -220,7 +248,7 @@ class AudioManager {
     try {
       this._localTapSource?.disconnect();
     } catch {}
-    this._localTapCtx?.close().catch(() => {});
+    this._localTapCtx?.suspend().catch(() => {});
     this._localTapNode = null;
     this._localTapSource = null;
     this._localTapCtx = null;
@@ -3030,6 +3058,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   cleanup() {
+    this._localTapCtxPromise?.then((ctx) => ctx.close()).catch(() => {});
+    this._localTapCtxPromise = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
     if (this.isStreaming) {
