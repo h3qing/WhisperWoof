@@ -289,6 +289,7 @@ export default function App() {
   // Floating icon auto-hide setting (read from store, synced via IPC)
   const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
+  const liveModeEnabled = useSettingsStore((s) => s.dictationMode === "live" && s.useLocalWhisper);
   const prevAutoHideRef = useRef(floatingIconAutoHide);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
@@ -401,14 +402,17 @@ export default function App() {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
       } else if (toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
-      } else if (showLivePanel) {
+      } else if (showLivePanel || liveModeEnabled) {
+        // Live mode keeps the wide size even when idle: resizing at every
+        // capture start/end drew the panel into the narrow window first (center
+        // strip, then the sides) and left a stale frame behind on shrink.
         window.electronAPI?.resizeMainWindow?.("LIVE");
       } else {
         window.electronAPI?.resizeMainWindow?.("BASE");
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount, showLivePanel]);
+  }, [isCommandMenuOpen, toastCount, showLivePanel, liveModeEnabled]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
