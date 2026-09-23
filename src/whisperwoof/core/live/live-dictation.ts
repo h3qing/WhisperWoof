@@ -11,7 +11,10 @@ export type DictationMode = "live" | "batch";
 /** "preview" = paste the streamed text; "transcription" = re-decode with the transcription model. */
 export type LiveFinalPass = "preview" | "transcription";
 
-export const DEFAULT_LIVE_PREVIEW_MODEL = "x-asr-zh-en-streaming-480ms";
+// 160ms chunks: first words ~0.2s sooner and updates several times a second;
+// on the owner's real dictations it was also slightly more accurate than 480ms
+// (2.3% vs 2.8% MER) at the cost of a few more visible rewrites.
+export const DEFAULT_LIVE_PREVIEW_MODEL = "x-asr-zh-en-streaming-160ms";
 
 export interface LivePlanSettings {
   useLocalWhisper: boolean;

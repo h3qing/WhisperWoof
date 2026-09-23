@@ -121,6 +121,16 @@ describe("parakeetModelInfo registry wiring", () => {
     ]);
   });
 
+  it("registers the low-latency X-ASR 160ms variant with the same file layout", () => {
+    expect(getModelRuntime("x-asr-zh-en-streaming-160ms")).toBe("online");
+    expect(getRequiredModelFiles("x-asr-zh-en-streaming-160ms")).toEqual([
+      "encoder.int8.onnx",
+      "decoder.onnx",
+      "joiner.int8.onnx",
+      "tokens.txt",
+    ]);
+  });
+
   it("defaults transducer file names for models without an override", () => {
     expect(getTransducerFileNames("parakeet-tdt-0.6b-v3")).toEqual({
       encoder: "encoder.int8.onnx",

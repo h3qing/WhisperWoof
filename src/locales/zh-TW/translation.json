@@ -1434,7 +1434,8 @@
       "parakeet": {
         "parakeet_tdt_0_6b_v3": "快速多語言 ASR，自動語言偵測（25 種語言）",
         "parakeet_unified_en_0_6b": "僅英語 ASR，業界領先精度（平均 WER 5.91%）",
-        "x_asr_zh_en_streaming_480ms": "中英混說的即時串流辨識——邊說邊出字，含標點。體積小、速度快（134MB），專為即時預覽設計。"
+        "x_asr_zh_en_streaming_480ms": "中英混說的即時串流辨識——邊說邊出字，含標點。體積小、速度快（134MB），專為即時預覽設計。",
+        "x_asr_zh_en_streaming_160ms": "中英混說即時串流辨識，含標點，160ms 分塊：出字更早，每秒更新多次。"
       },
       "whisper": {
         "tiny": "最快、最不準；中文較弱。",

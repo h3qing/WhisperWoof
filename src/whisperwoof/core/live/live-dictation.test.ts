@@ -11,11 +11,13 @@ import {
 } from "./live-dictation";
 
 const ONLINE = new Set([
+  "x-asr-zh-en-streaming-160ms",
   "x-asr-zh-en-streaming-480ms",
   "nemotron-3.5-asr-streaming-0.6b",
   "nemotron-speech-streaming-en-0.6b",
 ]);
 const LANGS: Record<string, string[]> = {
+  "x-asr-zh-en-streaming-160ms": ["zh", "en"],
   "x-asr-zh-en-streaming-480ms": ["zh", "en"],
   "nemotron-3.5-asr-streaming-0.6b": ["en", "ja"],
   "nemotron-speech-streaming-en-0.6b": ["en"],
@@ -66,7 +68,7 @@ describe("resolveLiveDictationPlan", () => {
     expect(plan).toEqual({
       live: true,
       stream: true,
-      previewModel: "x-asr-zh-en-streaming-480ms",
+      previewModel: "x-asr-zh-en-streaming-160ms",
       useStreamedAsFinal: false,
     });
   });
@@ -128,7 +130,7 @@ describe("resolveLiveDictationPlan", () => {
       {
         ...base,
         dictationMode: "live",
-        parakeetModel: "x-asr-zh-en-streaming-480ms",
+        parakeetModel: "x-asr-zh-en-streaming-160ms",
       },
       deps
     );
@@ -225,7 +227,13 @@ describe("listStreamingModels", () => {
       runtime: "online",
     },
     "x-asr-zh-en-streaming-480ms": {
-      name: "X-ASR",
+      name: "X-ASR Steady",
+      sizeMb: 134,
+      supportedLanguages: ["zh", "en"],
+      runtime: "online",
+    },
+    "x-asr-zh-en-streaming-160ms": {
+      name: "X-ASR Fast",
       sizeMb: 134,
       supportedLanguages: ["zh", "en"],
       runtime: "online",
@@ -234,8 +242,9 @@ describe("listStreamingModels", () => {
 
   it("keeps only streaming models, default first, and flags Chinese coverage", () => {
     expect(listStreamingModels(info)).toEqual([
-      { id: "x-asr-zh-en-streaming-480ms", name: "X-ASR", sizeMb: 134, languages: ["zh", "en"], coversChinese: true, isDefault: true },
+      { id: "x-asr-zh-en-streaming-160ms", name: "X-ASR Fast", sizeMb: 134, languages: ["zh", "en"], coversChinese: true, isDefault: true },
       { id: "nemotron-speech-streaming-en-0.6b", name: "Nemotron EN", sizeMb: 442, languages: ["en"], coversChinese: false, isDefault: false },
+      { id: "x-asr-zh-en-streaming-480ms", name: "X-ASR Steady", sizeMb: 134, languages: ["zh", "en"], coversChinese: true, isDefault: false },
     ]);
   });
 });
