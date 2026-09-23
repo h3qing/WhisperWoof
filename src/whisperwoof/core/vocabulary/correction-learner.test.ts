@@ -47,9 +47,22 @@ describe("extractCorrections", () => {
     expect(extractCorrections("meet at the cafe", "meet at the library", [])).toEqual([]);
   });
 
-  it("ignores case-only and very short fixes", () => {
+  it("ignores case-only fixes", () => {
     expect(extractCorrections("ask bob today", "ask Bob today", [])).toEqual([]);
-    expect(extractCorrections("go to al now", "go to Al now", [])).toEqual([]);
+  });
+
+  it("ignores fixes shorter than 3 characters", () => {
+    expect(extractCorrections("call el now", "call Al now", [])).toEqual([]);
+  });
+
+  it("learns each corrected word once per edit", () => {
+    expect(
+      extractCorrections(
+        "use Superbase and Superbase auth",
+        "use Supabase and Supabase auth",
+        [],
+      ),
+    ).toEqual(["Supabase"]);
   });
 
   it("returns [] for empty inputs", () => {
