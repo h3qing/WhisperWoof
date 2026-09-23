@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-09-24 — Memory and Word Packs actually reach speech-to-text
+
+### Fixed
+- **Whisper was nudged toward the wrong spellings.** Every Memory word and Word Pack entry keeps "alternatives": how speech gets misheard ("air mez", "keen wah", "hero" for gyro). All of them went into the Whisper prompt, which Whisper reads as prior context, so they pushed it toward writing exactly those mishearings. Only correct spellings are sent now.
+- **Your own words were cut from the prompt.** The prompt budget assumed 4 characters per token; whisper.cpp's tokenizer measures about 3, so the default Word Packs alone came to 296 tokens. Whisper keeps only the last 224, and the dropped start was exactly where Memory and Dictionary words sat. The prompt now fits (about 203 tokens), your words go last where Whisper keeps them, and pack words are the first to go when space runs out.
+- **New corrections stopped reaching STT after about 80 learned words.** Memory was ordered oldest first, so once it filled the prompt, fresh corrections never made it in. Newest words now come first, for both Memory and the Dictionary.
+- **Dictionary words disappeared from the prompt** as soon as Memory or any Word Pack had words. Memory, the Dictionary and Word Packs are now merged.
+- **Undo on "Learned X" didn't stick.** It cleared the Dictionary but left the word in Memory, and the next keystroke in the same field learned it again. Undo now clears both and stops watching that field.
+- **Deleting a learned word only deleted it in one place.** Deleting it in Memory now clears the Dictionary copy, and deleting it in the Dictionary tab clears the Memory copy.
+
 ## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
 
 ### Added
