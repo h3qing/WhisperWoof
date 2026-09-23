@@ -19,6 +19,7 @@ import {
   isDuplicateWord,
   flattenSttHints,
   removeLearnedWords,
+  removeFromDictionary,
   computeVocabularyStats,
   planVocabularyImport,
 } from "../../bridge/vocabulary-pure";
@@ -284,8 +285,39 @@ describe("removeLearnedWords", () => {
     expect(SAMPLE).toHaveLength(5);
   });
 
+  it("keeps imported entries with the same word", () => {
+    const imported: VocabEntry[] = [{ ...SAMPLE[2]!, source: "import" }];
+    expect(removeLearnedWords(imported, ["Ollama"])).toEqual(imported);
+  });
+
   it("handles empty or bad input", () => {
     expect(removeLearnedWords(SAMPLE, [])).toHaveLength(5);
+    expect(removeLearnedWords(SAMPLE, null)).toHaveLength(5);
     expect(removeLearnedWords(null, ["x"])).toEqual([]);
+  });
+});
+
+describe("removeFromDictionary", () => {
+  it("drops matching words case-insensitively and keeps the rest in order", () => {
+    expect(removeFromDictionary(["Supabase", "Ollama", "Heqing"], ["supabase"])).toEqual([
+      "Ollama",
+      "Heqing",
+    ]);
+  });
+
+  it("returns the same contents when nothing matches", () => {
+    expect(removeFromDictionary(["Ollama"], ["x"])).toEqual(["Ollama"]);
+  });
+
+  it("returns a new array and leaves the input untouched", () => {
+    const dict = ["Supabase", "Ollama"];
+    const next = removeFromDictionary(dict, ["Supabase"]);
+    expect(next).not.toBe(dict);
+    expect(dict).toEqual(["Supabase", "Ollama"]);
+  });
+
+  it("handles empty or bad input", () => {
+    expect(removeFromDictionary(["Ollama"], null)).toEqual(["Ollama"]);
+    expect(removeFromDictionary(null, ["x"])).toEqual([]);
   });
 });

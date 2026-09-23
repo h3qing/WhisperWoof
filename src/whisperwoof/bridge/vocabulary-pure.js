@@ -178,6 +178,16 @@ function removeLearnedWords(entries, words) {
   return list.filter((e) => !(e.source === "auto-learn" && remove.has(e.word.toLowerCase())));
 }
 
+/**
+ * Drop `words` from the custom Dictionary (case-insensitive). Returns a new
+ * array; used when a learned word is undone or deleted from Memory.
+ */
+function removeFromDictionary(dictionary, words) {
+  const list = Array.isArray(dictionary) ? dictionary : [];
+  const remove = new Set((words || []).map((w) => String(w).toLowerCase()));
+  return list.filter((w) => !remove.has(String(w).toLowerCase()));
+}
+
 module.exports = {
   DEFAULT_CATEGORIES,
   MAX_ENTRIES,
@@ -185,6 +195,7 @@ module.exports = {
   isDuplicateWord,
   flattenSttHints,
   removeLearnedWords,
+  removeFromDictionary,
   computeVocabularyStats,
   planVocabularyImport,
 };

@@ -561,7 +561,22 @@ class IPCHandlers {
       if (!Array.isArray(words)) {
         throw new Error("words must be an array");
       }
-      return this.databaseManager.setDictionary(words);
+      const { removeFromDictionary } = require("../whisperwoof/bridge/vocabulary-pure");
+      const removed = removeFromDictionary(this._getDictionarySafe(), words);
+      const result = this.databaseManager.setDictionary(words);
+      // A learned word deleted in the Dictionary tab should leave Memory too,
+      // or it keeps steering STT from there.
+      if (removed.length > 0 && result?.success !== false) {
+        try {
+          const { forgetLearnedWords } = require("../whisperwoof/bridge/vocabulary");
+          forgetLearnedWords(removed);
+        } catch (vocabErr) {
+          debugLogger.debug("[AutoLearn] Dictionary delete: Memory update failed", {
+            error: vocabErr.message,
+          });
+        }
+      }
+      return result;
     });
 
     ipcMain.handle("undo-learned-corrections", async (_event, words) => {
@@ -573,17 +588,17 @@ class IPCHandlers {
         if (validWords.length === 0) {
           return { success: false };
         }
-        const currentDict = this._getDictionarySafe();
-        const removeSet = new Set(validWords.map((w) => w.toLowerCase()));
-        const updatedDict = currentDict.filter((w) => !removeSet.has(w.toLowerCase()));
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Undo failed to save dictionary", {
-            error: saveResult.error,
-          });
+        if (!this._removeFromDictionary(validWords)) {
           return { success: false };
         }
-        this.broadcastToWindows("dictionary-updated", updatedDict);
+        // Stop watching the pasted field: the word has left the Dictionary, so
+        // the next keystroke there would learn it straight back.
+        this.textEditMonitor?.stopMonitoring();
+        if (this._autoLearnDebounceTimer) {
+          clearTimeout(this._autoLearnDebounceTimer);
+          this._autoLearnDebounceTimer = null;
+        }
+        this._autoLearnLatestData = null;
         try {
           const { forgetLearnedWords } = require("../whisperwoof/bridge/vocabulary");
           forgetLearnedWords(validWords);
@@ -2497,15 +2512,17 @@ class IPCHandlers {
       try {
         const { removeWord } = require("../whisperwoof/bridge/vocabulary");
         const result = removeWord(id);
-        // Auto-learn wrote the word to the Dictionary too; forgetting it in
-        // Memory should stop it steering STT and polish as well.
-        if (result.success && result.entry?.source === "auto-learn") {
-          const removeKey = result.entry.word.toLowerCase();
-          const currentDict = this._getDictionarySafe();
-          const updatedDict = currentDict.filter((w) => w.toLowerCase() !== removeKey);
-          if (updatedDict.length !== currentDict.length) {
-            this.databaseManager.setDictionary(updatedDict);
-            this.broadcastToWindows("dictionary-updated", updatedDict);
+        // A Memory word can also sit in the Dictionary (auto-learn writes both,
+        // even when Memory already had it); forgetting it in Memory should stop
+        // it steering STT and polish as well. The Memory delete is already
+        // saved, so a Dictionary failure is logged, not reported as a failed delete.
+        if (result.success && result.entry) {
+          try {
+            this._removeFromDictionary([result.entry.word]);
+          } catch (dictErr) {
+            debugLogger.debug("[AutoLearn] Memory delete: Dictionary update failed", {
+              error: dictErr.message,
+            });
           }
         }
         return result;
