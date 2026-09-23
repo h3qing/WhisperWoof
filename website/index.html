@@ -181,6 +181,7 @@
     .feat{ grid-column:span 2; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:26px 24px; transition:transform .2s, box-shadow .2s, border-color .2s; }
     .feat:hover{ transform:translateY(-4px); box-shadow:var(--shadow-sm); border-color:rgba(189,94,32,.35); }
     .feat.wide{ grid-column:span 3; }
+    .feat.full{ grid-column:span 6; }
     @media(max-width:900px){ .feat,.feat.wide{ grid-column:span 6; } }
     .feat-ic{ width:42px; height:42px; border-radius:12px; background:rgba(189,94,32,.1); display:flex; align-items:center; justify-content:center; color:var(--amber); margin-bottom:16px; }
     .feat-ic svg{ width:21px; height:21px; }
@@ -302,7 +303,7 @@
         <div class="step reveal" style="transition-delay:.08s">
           <div class="n">2</div>
           <h3>Just talk</h3>
-          <p>Ramble. Say "um." Restart your sentence. Mando nods along while on-device Whisper hears every word — Chinese and 90+ languages included.</p>
+          <p>Ramble. Say "um." Restart your sentence. Mando nods along while on-device Whisper hears every word — Chinese and 90+ languages included. Turn on Live typing to watch the words appear as you say them.</p>
         </div>
         <div class="step reveal" style="transition-delay:.16s">
           <div class="n">3</div>
@@ -322,28 +323,34 @@
       </div>
       <div class="feat-grid">
         <div class="feat wide reveal">
+          <span class="tag">New in 1.18</span>
+          <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7h10M4 12h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 17h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="1.5 2.5"/><path d="M19 5v14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <h3>Live typing</h3>
+          <p>See your words while you speak, like a phone keyboard's voice input: settled text is solid, the part that may still change is underlined. Release and it's re-checked, polished and pasted. A local streaming model built for mixed Chinese and English.</p>
+        </div>
+        <div class="feat wide reveal" style="transition-delay:.06s">
           <span class="tag">Speech-to-text</span>
           <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M8 6v12M16 6v12M4 10v4M20 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
           <h3>On-device transcription</h3>
           <p>Whisper runs locally and is the default — multilingual, including Chinese. Prefer raw speed for English &amp; European? Opt into NVIDIA Parakeet. Nothing is ever uploaded.</p>
         </div>
-        <div class="feat wide reveal" style="transition-delay:.06s">
+        <div class="feat reveal">
           <span class="tag">On by default</span>
           <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3l1.5 4.5H18l-3.5 2.5L16 14.5 12 12l-4 2.5 1.5-4.5L6 7.5h4.5L12 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
           <h3>Smart Cleanup</h3>
-          <p>A small bundled local model strips filler, fixes grammar and punctuation, assembles spoken emails, and keeps your voice. Set up in one click; tuned for ~250ms polish.</p>
+          <p>A small bundled local model strips filler, fixes grammar and punctuation, and keeps your voice. Say "first… second… third…" and you get a numbered list.</p>
         </div>
-        <div class="feat reveal">
+        <div class="feat reveal" style="transition-delay:.06s">
           <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="19" cy="18" r="2.4" stroke="currentColor" stroke-width="1.6"/></svg></div>
           <h3>Hotkey routing</h3>
           <p>The combo is the intent. Paste at cursor, send to clipboard, save a Markdown note, tag a project — explicit, not magic.</p>
         </div>
-        <div class="feat reveal" style="transition-delay:.06s">
+        <div class="feat reveal" style="transition-delay:.12s">
           <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
           <h3>Clipboard timeline</h3>
           <p>Everything you copy, in a card timeline grouped by day — with the source app and image thumbnails. Click to re-copy.</p>
         </div>
-        <div class="feat reveal" style="transition-delay:.12s">
+        <div class="feat full reveal">
           <div class="feat-ic"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
           <h3>MCP plugins</h3>
           <p>Route voice to Todoist, Notion, Slack, your calendar — any Model Context Protocol server works as a plugin.</p>

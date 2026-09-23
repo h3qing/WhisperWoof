@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.17.0-C87B3A?style=flat-square" alt="v1.17.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.18.0-C87B3A?style=flat-square" alt="v1.18.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-862%20passing-brightgreen?style=flat-square" alt="862 tests passing">
+  <img src="https://img.shields.io/badge/tests-990%20passing-brightgreen?style=flat-square" alt="990 tests passing">
 </p>
 
 <p align="center">
@@ -65,6 +65,8 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 
 Hands-free: **double-tap Fn** to lock recording on, then tap once to stop and paste.
 
+**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid, the tail that may still change is underlined; on release it's re-checked by your transcription model, polished, and pasted.
+
 ```
 Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
               │
@@ -91,8 +93,9 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 <td width="50%" valign="top">
 
 ### Core Pipeline
+- **Live typing** *(new in 1.18)* — Text streams into a floating panel as you talk, IME-style, from a local Chinese + English streaming model (X-ASR, 134MB). On release the whole recording is re-checked by your transcription model (or the live text is pasted as is, your choice), then polished. Settings explain streaming vs whole-recording models side by side.
 - **Local voice-to-text** — Whisper STT on your machine (multilingual incl. Chinese), or opt into NVIDIA Parakeet for faster English/European dictation. No cloud, no latency, no data leaving your laptop.
-- **Smart Cleanup, on by default** — A small bundled local model (llama-server) removes filler, fixes grammar, assembles spoken emails, and keeps your voice. Set up in one click during onboarding; tuned prompt + thinking-mode disabled for ~250ms polish. Customizable in Prompt Studio.
+- **Smart Cleanup, on by default** — A small bundled local model (llama-server) removes filler, fixes grammar, assembles spoken emails, and keeps your voice. Spoken enumerations ("第一… 第二…") become numbered lists; silent captures are dropped instead of guessed at. Set up in one click during onboarding; tuned prompt + thinking-mode disabled for ~250ms polish. Customizable in Prompt Studio.
 - **Hotkey-driven routing** — Different combos send voice to different destinations. Explicit, not magic.
 
 ### Capture & History
