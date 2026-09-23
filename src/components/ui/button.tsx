@@ -7,24 +7,23 @@ import { cn } from "../lib/utils";
 const buttonVariants = cva(
   [
     "inline-flex items-center justify-center gap-2 whitespace-nowrap",
-    "rounded text-sm font-medium cursor-pointer select-none",
+    "rounded-md text-sm font-medium cursor-pointer select-none",
     "transition-[background-color,border-color,color,transform] duration-200 ease-out",
-    "outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+    "outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0",
   ].join(" "),
   {
     variants: {
       variant: {
-        // Primary CTA — ultra-premium with subtle depth
+        // Primary CTA — the one amber (glass-tint) action in a view
         default: [
           "relative text-primary-foreground font-semibold tracking-[0.005em]",
           "bg-primary",
           "border border-primary/60",
-          "shadow-sm",
-          "hover:bg-primary/95 hover:shadow",
+          "shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]",
+          "hover:bg-primary/92",
           "active:bg-primary/85 active:scale-[0.985]",
-          "transition-[background-color,border-color,color,transform] duration-200 ease-out",
         ].join(" "),
 
         // Success — uses design tokens
@@ -47,45 +46,39 @@ const buttonVariants = cva(
           "active:bg-destructive/80 active:scale-[0.98]",
         ].join(" "),
 
-        // Outline — refined with subtle glassmorphism
+        // Outline — neutral control. Lives on content cards, so solid and light
+        // (glass is for the functional layer, and a shadow per button is noise).
         outline: [
           "relative font-medium",
-          "text-foreground bg-muted/70 backdrop-blur-sm",
-          "border border-border/70",
-          "shadow-sm",
-          "hover:bg-muted hover:border-border-hover",
+          "text-foreground bg-surface-2/80 border border-border",
+          "hover:bg-accent/60 hover:border-border-hover",
           "active:scale-[0.985]",
-          "dark:bg-surface-raised/90 dark:border-border-hover dark:hover:bg-surface-raised",
-          "transition-[background-color,border-color,color,transform] duration-200 ease-out",
         ].join(" "),
 
         // Outline flat — transparent with thin border, no fill or shadow
         "outline-flat": [
           "font-medium",
-          "text-muted-foreground/70 bg-transparent",
-          "border border-border/50",
-          "hover:text-foreground/80 hover:border-border hover:bg-foreground/3",
+          "text-muted-foreground bg-transparent",
+          "border border-border/60",
+          "hover:text-foreground hover:border-border-hover hover:bg-accent/40",
           "active:scale-[0.98]",
-          "dark:border-white/10 dark:hover:bg-white/5 dark:hover:border-white/15",
         ].join(" "),
 
-        // Secondary — uses design tokens
+        // Secondary — neutral solid, never amber
         secondary: [
           "relative font-medium",
-          "text-foreground bg-secondary",
+          "text-secondary-foreground bg-secondary",
           "border border-border/50",
-          "hover:bg-muted",
+          "hover:bg-accent",
           "active:scale-[0.98]",
-          "dark:text-foreground/90 dark:bg-white/8 dark:border-white/5 dark:hover:bg-white/12",
         ].join(" "),
 
-        // Ghost — uses design tokens
+        // Ghost — transparent until hovered
         ghost: [
           "font-medium",
           "text-foreground",
-          "hover:bg-muted",
+          "hover:bg-accent/70",
           "active:scale-[0.98]",
-          "dark:text-foreground/90 dark:hover:bg-white/8",
         ].join(" "),
 
         // Link — uses design tokens
@@ -96,16 +89,12 @@ const buttonVariants = cva(
           "underline-offset-4",
         ].join(" "),
 
-        // Social button for auth flows - ultra-premium glassmorphism
+        // Social button for auth flows — neutral glass
         social: [
           "relative font-medium",
-          "text-foreground bg-surface-1/80 backdrop-blur-xl",
-          "border border-border/60",
-          "shadow-sm gap-2",
-          "hover:bg-surface-2/90 hover:border-border-hover hover:shadow",
-          "active:scale-[0.985] active:shadow-sm",
-          "dark:bg-surface-raised/80 dark:border-border-hover dark:hover:bg-surface-raised/95",
-          "transition-[background-color,border-color,color,transform] duration-200 ease-out",
+          "text-foreground glass gap-2",
+          "hover:bg-accent/60",
+          "active:scale-[0.985]",
         ].join(" "),
       },
       size: {

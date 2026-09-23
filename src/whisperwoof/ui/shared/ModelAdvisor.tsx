@@ -81,8 +81,8 @@ function QuestionCard({
             className={cn(
               "w-full text-left px-4 py-3 rounded-lg border transition-all",
               selected === opt.value
-                ? "border-[#A06A3C]/40 bg-[#A06A3C]/[0.06]"
-                : "border-border/15 dark:border-white/6 hover:border-border/30"
+                ? "border-primary/40 bg-primary/[0.06]"
+                : "border-border-subtle hover:border-border/30"
             )}
           >
             <div className="flex items-center justify-between">
@@ -90,7 +90,7 @@ function QuestionCard({
                 <span className="text-xs font-medium text-foreground">{opt.label}</span>
                 <p className="text-[11px] text-muted-foreground/60 mt-0.5">{opt.desc}</p>
               </div>
-              {selected === opt.value && <Check size={14} className="text-[#A06A3C] shrink-0" />}
+              {selected === opt.value && <Check size={14} className="text-primary shrink-0" />}
             </div>
           </button>
         ))}
@@ -130,7 +130,7 @@ export default function ModelAdvisor({ onSelect, compact }: ModelAdvisorProps) {
       {/* Header */}
       {step !== "result" && (
         <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-[#A06A3C]" />
+          <Sparkles size={14} className="text-mando" />
           <span className="text-xs font-medium text-foreground/70">Help me pick a model</span>
           <div className="flex gap-1 ml-auto">
             {["ram", "language", "priority"].map((s, i) => (
@@ -138,7 +138,7 @@ export default function ModelAdvisor({ onSelect, compact }: ModelAdvisorProps) {
                 key={s}
                 className={cn(
                   "w-2 h-2 rounded-full",
-                  step === s ? "bg-[#A06A3C]" : answers[s as keyof Answer] ? "bg-[#A06A3C]/40" : "bg-foreground/10"
+                  step === s ? "bg-primary" : answers[s as keyof Answer] ? "bg-primary/40" : "bg-foreground/10"
                 )}
               />
             ))}
@@ -189,11 +189,11 @@ export default function ModelAdvisor({ onSelect, compact }: ModelAdvisorProps) {
       {step === "result" && result && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Sparkles size={14} className="text-[#A06A3C]" />
+            <Sparkles size={14} className="text-mando" />
             <span className="text-xs font-medium text-foreground/70">Recommended for you</span>
           </div>
 
-          <div className="rounded-lg border border-[#A06A3C]/30 bg-[#A06A3C]/[0.04] p-4 space-y-2">
+          <div className="rounded-lg bg-card shadow-card border border-primary/30 p-4 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-foreground">{result.name}</h3>
               <span className="text-[11px] text-muted-foreground/50">{result.size}</span>
@@ -209,14 +209,14 @@ export default function ModelAdvisor({ onSelect, compact }: ModelAdvisorProps) {
             {onSelect && (
               <button
                 onClick={() => onSelect(result.id)}
-                className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#A06A3C] hover:bg-[#B8863C] px-4 py-2 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 px-4 py-2 rounded-lg transition-colors"
               >
                 <Check size={12} /> Use {result.name}
               </button>
             )}
             <button
               onClick={reset}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-foreground px-3 py-2 rounded-lg border border-border/15 dark:border-white/6 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-foreground px-3 py-2 rounded-lg border border-border-subtle transition-colors"
             >
               <RotateCcw size={11} /> Try again
             </button>

@@ -226,7 +226,7 @@ export function RegeneratePanel({ entry, onUpdated, onClose }: RegeneratePanelPr
   }, [inventory]);
 
   return (
-    <div className="rounded-md border border-border/20 dark:border-white/6 bg-muted/30 dark:bg-white/[0.03] p-3 flex flex-col gap-3">
+    <div className="rounded-lg bg-card shadow-card p-3 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-foreground">Regenerate this entry</span>
         <button

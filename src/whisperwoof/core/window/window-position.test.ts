@@ -6,7 +6,13 @@
  * laptop screen — instead of the bottom of the monitor the user was on.
  */
 import { describe, it, expect } from "vitest";
-import { WindowPositionUtil } from "../../../helpers/windowConfig.js";
+import {
+  WindowPositionUtil,
+  WINDOW_SIZES,
+  MAIN_WINDOW_CONFIG,
+  vibrancyForSize,
+  controlPanelBackground,
+} from "../../../helpers/windowConfig.js";
 
 const laptop = { workArea: { x: 0, y: 33, width: 1512, height: 949 } };
 // BenQ 2560x1440 arranged above the laptop, shifted 445pt left (Electron coords).
@@ -39,5 +45,36 @@ describe("WindowPositionUtil.getMainWindowPosition", () => {
   it("never places the window above the top of the display's work area", () => {
     const tiny = { workArea: { x: 0, y: -300, width: 800, height: 200 } };
     expect(WindowPositionUtil.getMainWindowPosition(tiny, size, "center").y).toBe(-300);
+  });
+});
+
+describe("native vibrancy per overlay size", () => {
+  it("gives only the live panel size a native material, sized exactly to the panel", () => {
+    // The material fills the whole window rectangle, so it is only safe where
+    // the window IS the panel.
+    expect(vibrancyForSize("LIVE_PANEL")).toBe("popover");
+    // Idle live mode shows only Mando in the same rectangle: no material.
+    expect(vibrancyForSize("LIVE")).toBeNull();
+    expect(vibrancyForSize("BASE")).toBeNull();
+    expect(vibrancyForSize("WITH_TOAST")).toBeNull();
+    expect(vibrancyForSize("WITH_MENU")).toBeNull();
+    expect(WINDOW_SIZES.LIVE_PANEL).toEqual({ width: 420, height: 112 });
+    expect(WINDOW_SIZES.LIVE).toEqual(WINDOW_SIZES.LIVE_PANEL);
+  });
+
+  it("ignores size keys that are not its own (renderer input)", () => {
+    expect(vibrancyForSize("__proto__")).toBeNull();
+    expect(vibrancyForSize("toString")).toBeNull();
+  });
+
+  it("keeps the dictation overlay's material active while unfocused", () => {
+    expect(MAIN_WINDOW_CONFIG.visualEffectState).toBe("active");
+  });
+});
+
+describe("control panel first paint", () => {
+  it("uses the warm theme background, not the old cold navy", () => {
+    expect(controlPanelBackground(false)).toBe("#f6f0e8");
+    expect(controlPanelBackground(true)).toBe("#1c1814");
   });
 });

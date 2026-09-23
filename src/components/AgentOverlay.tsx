@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "./lib/utils";
+import { getPlatform } from "../utils/platform";
 import { AgentTitleBar } from "./agent/AgentTitleBar";
 import { AgentChat } from "./agent/AgentChat";
 import { AgentInput } from "./agent/AgentInput";
@@ -291,9 +292,9 @@ export default function AgentOverlay() {
       <div
         className={cn(
           "flex flex-col w-full h-full",
-          "bg-surface-0",
-          "border border-border/50 rounded-lg",
-          "shadow-[var(--shadow-elevated)]",
+          // macOS: the window carries native vibrancy with native corners, so
+          // only a light Mando tint here. Elsewhere the panel draws CSS glass.
+          getPlatform() === "darwin" ? "bg-mando/[0.07]" : "glass rounded-xl",
           "overflow-hidden"
         )}
       >

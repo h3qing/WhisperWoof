@@ -42,7 +42,7 @@ function displayText(entry: Entry): string {
 
 function SourceIcon({ source }: { readonly source: EntrySource }) {
   if (source === "voice") {
-    return <Mic size={14} className="shrink-0 text-amber-500" />;
+    return <Mic size={14} className="shrink-0 text-mando" />;
   }
   return <Clipboard size={14} className="shrink-0 text-muted-foreground" />;
 }
@@ -51,7 +51,7 @@ function SourceBadge({ source }: { readonly source: EntrySource }) {
   const label = source === "voice" ? "Voice" : source === "clipboard" ? "Clipboard" : source;
   const badgeClass =
     source === "voice"
-      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      ? "bg-mando/10 text-mando-deep"
       : "bg-muted text-muted-foreground";
 
   return (
@@ -92,7 +92,7 @@ function EntryRow({
   };
 
   return (
-    <div className="w-full text-left px-3 py-2.5 rounded-md hover:bg-foreground/4 dark:hover:bg-white/4 transition-colors duration-150 group">
+    <div className="w-full text-left px-3 py-2.5 rounded-md hover:bg-foreground/4 transition-colors duration-150 group">
       <div className="flex items-start gap-2">
         <div className="mt-0.5">
           <SourceIcon source={entry.source} />
@@ -129,7 +129,7 @@ function EntryRow({
               </span>
             )}
             {status === "success" && (
-              <span className="p-1.5 text-green-500">
+              <span className="p-1.5 text-success">
                 <Check size={13} />
               </span>
             )}
@@ -167,7 +167,7 @@ function ProjectItem({ project, isSelected, entryCount, integrationName, onSelec
         "focus-visible:ring-1 focus-visible:ring-primary/30",
         isSelected
           ? "bg-primary/8 dark:bg-primary/12"
-          : "hover:bg-foreground/4 dark:hover:bg-white/4"
+          : "hover:bg-foreground/4"
       )}
     >
       <div className="flex items-center justify-between gap-1">
@@ -236,7 +236,7 @@ function NewProjectInput({
         onKeyDown={handleKeyDown}
         onBlur={onCancel}
         placeholder="Project name\u2026"
-        className="w-full h-7 px-2 text-xs rounded-md border border-border/25 dark:border-white/10 bg-background outline-none focus:ring-1 focus:ring-primary/30"
+        className="w-full h-7 px-2 text-xs rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary/30"
       />
     </div>
   );
@@ -258,7 +258,7 @@ function IntegrationSelector({
       <select
         value={currentPluginId ?? ""}
         onChange={(e) => onSelect(e.target.value || null)}
-        className="h-7 px-2 text-xs rounded-md border border-border/25 dark:border-white/10 bg-background text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+        className="h-7 px-2 text-xs rounded-md border border-border bg-background text-foreground outline-none focus:ring-1 focus:ring-primary/30"
       >
         <option value="">No integration</option>
         {enabledPlugins.map((p) => (
@@ -270,7 +270,7 @@ function IntegrationSelector({
       {currentPluginId && (
         <button
           onClick={() => onSelect(null)}
-          className="p-1 rounded hover:bg-foreground/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+          className="p-1 rounded hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-colors"
           title="Remove integration"
         >
           <Unlink size={13} />
@@ -455,12 +455,12 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
   return (
     <div className={cn("flex h-full max-w-5xl mx-auto w-full", className)}>
       {/* Project list panel */}
-      <div className="w-60 shrink-0 flex flex-col border-r border-border/15 dark:border-white/6">
+      <div className="w-60 shrink-0 flex flex-col border-r border-border-subtle">
         <div className="p-3 pb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-foreground/80">Projects</span>
           <button
             onClick={() => setIsCreating(true)}
-            className="p-1 rounded hover:bg-foreground/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-colors"
             aria-label="New Project"
           >
             <Plus size={15} />
@@ -497,10 +497,10 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
                 Group voice entries by topic. Link a project to a plugin
                 (Todoist, TickTick, etc.) to send captured text as tasks with one click.
               </p>
-              <div className="rounded-lg border border-border/20 dark:border-white/6 bg-foreground/[0.02] dark:bg-white/[0.02] px-4 py-3 mb-5 max-w-[260px]">
+              <div className="rounded-lg bg-card shadow-card px-4 py-3 mb-5 max-w-[260px]">
                 <p className="text-[11px] text-foreground/50 leading-relaxed">
                   <span className="font-medium text-foreground/70">Example:</span> Create
-                  "Work Tasks" → link to Todoist → press <kbd className="px-1 py-0.5 rounded bg-foreground/5 dark:bg-white/5 text-[10px] font-mono">Fn+P</kbd> and
+                  "Work Tasks" → link to Todoist → press <kbd className="px-1 py-0.5 rounded bg-foreground/5 text-[10px] font-mono">Fn+P</kbd> and
                   say "fix the login bug" → it becomes a Todoist task.
                 </p>
               </div>

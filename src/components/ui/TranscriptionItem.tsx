@@ -71,10 +71,9 @@ export default function TranscriptionItem({
   return (
     <div
       className={cn(
-        "group rounded-md border px-3 py-2.5 transition-colors duration-150",
-        isFailed
-          ? "border-destructive/30 bg-destructive/5 hover:bg-destructive/10"
-          : "border-border/40 dark:border-border-subtle/60 bg-card/50 dark:bg-surface-2/60 hover:bg-muted/30 dark:hover:bg-surface-2/80"
+        // A row inside the day's grouped card: no card of its own.
+        "group px-3 py-2.5 transition-colors duration-150",
+        isFailed ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-foreground/[0.03]"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -250,7 +249,7 @@ export default function TranscriptionItem({
             isExpanded ? "max-h-96" : "max-h-0"
           )}
         >
-          <div className="border-t border-border/20 mt-2 pt-2">
+          <div className="mt-2">
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
               {t("controlPanel.history.rawTranscript")}
             </span>

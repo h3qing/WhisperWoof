@@ -130,7 +130,7 @@ function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg border border-border/50 dark:border-border-subtle/70 bg-card/50 dark:bg-surface-2/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border-subtle/50 ${className}`}
+      className={`rounded-lg bg-card shadow-card divide-y divide-border/60 ${className}`}
     >
       {children}
     </div>
@@ -316,13 +316,13 @@ function TranscriptionSection({
               <div
                 className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                   isCustomMode
-                    ? "bg-accent/10 dark:bg-accent/15"
+                    ? "bg-mando/15"
                     : "bg-muted/60 dark:bg-surface-raised group-hover:bg-muted dark:group-hover:bg-surface-3"
                 }`}
               >
                 <Key
                   className={`w-4 h-4 transition-colors ${
-                    isCustomMode ? "text-accent" : "text-muted-foreground"
+                    isCustomMode ? "text-mando-deep" : "text-muted-foreground"
                   }`}
                 />
               </div>
@@ -332,7 +332,7 @@ function TranscriptionSection({
                     {t("settingsPage.transcription.customSetup")}
                   </span>
                   {isCustomMode && (
-                    <span className="text-xs font-medium text-accent bg-accent/10 dark:bg-accent/15 px-1.5 py-px rounded-sm">
+                    <span className="text-xs font-medium text-mando-deep bg-mando/15 px-1.5 py-px rounded-sm">
                       {t("common.active")}
                     </span>
                   )}
@@ -344,13 +344,13 @@ function TranscriptionSection({
               <div
                 className={`w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${
                   isCustomMode
-                    ? "border-accent bg-accent"
+                    ? "border-mando-deep bg-mando-deep"
                     : "border-border-hover dark:border-border-subtle"
                 }`}
               >
                 {isCustomMode && (
                   <div className="w-full h-full flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-accent-foreground" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-card" />
                   </div>
                 )}
               </div>
@@ -564,13 +564,13 @@ function AiModelsSection({
                   <div
                     className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                       isCustomMode
-                        ? "bg-accent/10 dark:bg-accent/15"
+                        ? "bg-mando/15"
                         : "bg-muted/60 dark:bg-surface-raised group-hover:bg-muted dark:group-hover:bg-surface-3"
                     }`}
                   >
                     <Key
                       className={`w-4 h-4 transition-colors ${
-                        isCustomMode ? "text-accent" : "text-muted-foreground"
+                        isCustomMode ? "text-mando-deep" : "text-muted-foreground"
                       }`}
                     />
                   </div>
@@ -580,7 +580,7 @@ function AiModelsSection({
                         {t("settingsPage.aiModels.customSetup")}
                       </span>
                       {isCustomMode && (
-                        <span className="text-xs font-medium text-accent bg-accent/10 dark:bg-accent/15 px-1.5 py-px rounded-sm">
+                        <span className="text-xs font-medium text-mando-deep bg-mando/15 px-1.5 py-px rounded-sm">
                           {t("common.active")}
                         </span>
                       )}
@@ -592,13 +592,13 @@ function AiModelsSection({
                   <div
                     className={`w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${
                       isCustomMode
-                        ? "border-accent bg-accent"
+                        ? "border-mando-deep bg-mando-deep"
                         : "border-border-hover dark:border-border-subtle"
                     }`}
                   >
                     {isCustomMode && (
                       <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-accent-foreground" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-card" />
                       </div>
                     )}
                   </div>
@@ -1349,7 +1349,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   </SettingsPanelRow>
                 </SettingsPanel>
 
-                <div className="rounded-lg border border-primary/20 dark:border-primary/15 bg-primary/3 dark:bg-primary/6 p-4">
+                <div className="rounded-lg border border-primary/20 bg-card shadow-card p-4">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-md bg-primary/10 dark:bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
                       <Sparkles className="w-4 h-4 text-primary" />
@@ -1419,8 +1419,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     className={cn(
                       "rounded-md p-2.5 flex flex-col",
                       !usage?.isSubscribed && !usage?.isTrial
-                        ? "border-2 border-primary/30 bg-primary/3 dark:border-primary/20 dark:bg-primary/5"
-                        : "border border-border/50 dark:border-border-subtle/60 bg-card/30 dark:bg-surface-2/30"
+                        ? "border-2 border-primary/30 bg-card shadow-card"
+                        : "border border-border/50 bg-card shadow-card"
                     )}
                   >
                     <p className="text-xs font-semibold text-foreground">
@@ -1490,8 +1490,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     className={cn(
                       "rounded-md border-2 p-2.5 flex flex-col",
                       usage?.isSubscribed && usage?.plan === "pro"
-                        ? "border-primary/40 bg-primary/5 dark:border-primary/30 dark:bg-primary/8"
-                        : "border-primary/20 bg-primary/2 dark:border-primary/15 dark:bg-primary/3"
+                        ? "border-primary/40 bg-card shadow-card"
+                        : "border-primary/20 bg-card shadow-card"
                     )}
                   >
                     <p className="text-xs font-semibold text-foreground">
@@ -1507,7 +1507,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         className={`relative w-7 h-4 rounded-full transition-colors ${billingState.pro ? "bg-primary" : "bg-muted"}`}
                       >
                         <div
-                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.pro ? "translate-x-3" : ""}`}
+                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-primary-foreground transition-transform ${billingState.pro ? "translate-x-3" : ""}`}
                         />
                       </div>
                       <span className="text-[9px] text-muted-foreground">
@@ -1580,7 +1580,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   </div>
 
                   {/* Business */}
-                  <div className="rounded-md border-2 border-primary/50 bg-primary/8 dark:border-primary/40 dark:bg-primary/10 p-2.5 flex flex-col relative">
+                  <div className="rounded-md border-2 border-primary/50 bg-card shadow-card p-2.5 flex flex-col relative">
                     <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[8px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       {t("settingsPage.account.pricing.business.badge")}
                     </span>
@@ -1599,7 +1599,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         className={`relative w-7 h-4 rounded-full transition-colors ${billingState.business ? "bg-primary" : "bg-muted"}`}
                       >
                         <div
-                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.business ? "translate-x-3" : ""}`}
+                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-primary-foreground transition-transform ${billingState.business ? "translate-x-3" : ""}`}
                         />
                       </div>
                       <span className="text-[9px] text-muted-foreground">
@@ -1670,7 +1670,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   </div>
 
                   {/* Enterprise */}
-                  <div className="rounded-md border border-border/50 dark:border-border-subtle/60 bg-card/30 dark:bg-surface-2/30 p-2.5 flex flex-col">
+                  <div className="rounded-md border border-border/50 bg-card shadow-card p-2.5 flex flex-col">
                     <p className="text-xs font-semibold text-foreground">
                       {t("settingsPage.account.pricing.enterprise.name")}
                     </p>
@@ -1697,7 +1697,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         >
                           <Check
                             size={9}
-                            className="mt-[2px] text-purple-500 dark:text-purple-400 shrink-0"
+                            className="mt-[2px] text-primary shrink-0"
                           />
                           {feature}
                         </li>
@@ -1739,7 +1739,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     </DialogHeader>
                     {switchPreview && (
                       <div className="rounded-lg border border-border/50 dark:border-border-subtle/60 overflow-hidden">
-                        <div className="flex justify-between items-center px-3 py-2.5 bg-muted/40 dark:bg-surface-2/50">
+                        <div className="flex justify-between items-center px-3 py-2.5 bg-muted/60">
                           <span className="text-xs text-muted-foreground">
                             {switchPreview.immediateAmount < 0
                               ? t("settingsPage.account.pricing.confirmSwitch.accountCredit")
@@ -1749,7 +1749,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                             className={cn(
                               "text-sm font-semibold",
                               switchPreview.immediateAmount < 0
-                                ? "text-emerald-600 dark:text-emerald-400"
+                                ? "text-success"
                                 : "text-foreground"
                             )}
                           >
@@ -1827,7 +1827,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           <SettingsPanelRow>
                             <Alert
                               variant="warning"
-                              className="dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-200 dark:[&>svg]:text-amber-400"
                             >
                               <AlertTriangle className="h-4 w-4" />
                               <AlertTitle>{t("settingsPage.account.pastDue.title")}</AlertTitle>
@@ -2088,7 +2087,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                               transition-colors duration-100
                               ${
                                 isSelected
-                                  ? "bg-background dark:bg-surface-raised text-foreground shadow-sm"
+                                  ? "bg-card text-foreground shadow-card"
                                   : "text-muted-foreground hover:text-foreground"
                               }
                             `}
@@ -2198,7 +2197,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           e.target.value as "bottom-right" | "center" | "bottom-left"
                         )
                       }
-                      className="h-7 rounded border border-border/70 bg-surface-1/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-border-hover hover:bg-surface-2/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
+                      className="h-7 rounded border border-border/70 bg-card px-2.5 text-xs font-medium text-foreground shadow-card hover:border-border-hover hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
                     >
                       <option value="bottom-right">
                         {t("settingsPage.general.floatingIcon.bottomRight")}
@@ -2645,7 +2644,7 @@ EOF`,
                           <SettingsPanelRow>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+                                <CircleCheck className="h-4 w-4 text-success" />
                                 <span className="text-sm">
                                   {t("settingsPage.general.waylandPaste.allGoodDesc", {
                                     defaultValue: "Auto-paste is ready to go.",
@@ -2669,9 +2668,9 @@ EOF`,
                                 <div key={item.key} className="px-4 py-3">
                                   <div className="flex items-center gap-2.5">
                                     {item.ok ? (
-                                      <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                                      <CircleCheck className="h-4 w-4 shrink-0 text-success" />
                                     ) : (
-                                      <CircleX className="h-4 w-4 shrink-0 text-red-500" />
+                                      <CircleX className="h-4 w-4 shrink-0 text-destructive" />
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm font-medium">{item.label}</span>
@@ -2679,7 +2678,7 @@ EOF`,
                                         {item.desc}
                                       </span>
                                       {item.note && (
-                                        <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                        <p className="text-[11px] text-warning mt-0.5">
                                           {item.note}
                                         </p>
                                       )}
@@ -3281,7 +3280,7 @@ EOF`,
                     <select
                       value={audioRetentionDays}
                       onChange={(e) => setAudioRetentionDays(parseInt(e.target.value, 10))}
-                      className="h-7 rounded border border-border/70 bg-surface-1/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-border-hover hover:bg-surface-2/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
+                      className="h-7 rounded border border-border/70 bg-card px-2.5 text-xs font-medium text-foreground shadow-card hover:border-border-hover hover:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
                     >
                       <option value={0}>{t("settingsPage.privacy.audioRetentionDisabled")}</option>
                       <option value={7}>

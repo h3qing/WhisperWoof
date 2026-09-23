@@ -65,7 +65,7 @@ function ModeCard({
       role="radio"
       aria-checked={selected}
       onClick={onSelect}
-      className={`flex-1 min-w-0 flex flex-col items-stretch justify-start text-left rounded-lg border p-3 transition-colors ${
+      className={`flex-1 min-w-0 flex flex-col items-stretch justify-start text-left rounded-lg border bg-card shadow-card p-3 transition-colors ${
         selected
           ? "border-primary bg-primary/5"
           : "border-border/60 hover:border-border-hover dark:border-border-subtle"
@@ -87,10 +87,10 @@ function LiveDemo() {
   return (
     <span className="text-foreground">
       今天下午三点
-      <span className="underline decoration-dotted decoration-2 decoration-amber-500 underline-offset-4 text-muted-foreground">
+      <span className="underline decoration-dotted decoration-2 decoration-mando underline-offset-4 text-muted-foreground">
         开个会
       </span>
-      <span className="inline-block w-0.5 h-3.5 bg-amber-500 align-[-2px] ml-px animate-pulse" />
+      <span className="inline-block w-0.5 h-3.5 bg-mando align-[-2px] ml-px animate-pulse" />
     </span>
   );
 }
@@ -193,7 +193,7 @@ export default function DictationModeSection() {
       </div>
 
       {dictationMode === "live" && !useLocalWhisper && (
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+        <p className="text-xs text-warning mt-2">
           {t(`${k}.needsLocal`, {
             defaultValue: "Live typing runs on local models. Switch transcription to Local below to use it.",
           })}
@@ -201,7 +201,7 @@ export default function DictationModeSection() {
       )}
 
       {dictationMode === "live" && (
-        <div className="mt-3 rounded-lg border border-border/50 dark:border-border-subtle/70 divide-y divide-border/30 dark:divide-border-subtle/50">
+        <div className="mt-3 rounded-lg bg-card shadow-card divide-y divide-border/30 dark:divide-border-subtle/50">
           <div className="py-2">
             <p className="px-3 pb-1 text-xs font-semibold text-foreground">
               {t(`${k}.preview.title`, { defaultValue: "Live preview model" })}
@@ -217,7 +217,7 @@ export default function DictationModeSection() {
                   title={
                     <>
                       <span className="font-medium">{m.name}</span>
-                      <span className="text-[10px] font-semibold px-1.5 rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      <span className="text-[10px] font-semibold px-1.5 rounded-sm bg-success/15 text-success">
                         {t(`${k}.badge.streaming`, { defaultValue: "Streaming" })}
                       </span>
                       <span className="text-xs text-muted-foreground/60 tabular-nums">{m.sizeMb}MB</span>
@@ -259,7 +259,7 @@ export default function DictationModeSection() {
               );
             })}
             {!downloaded.has(activePreview) && (
-              <p className="px-3 pt-1 text-xs text-amber-600 dark:text-amber-400">
+              <p className="px-3 pt-1 text-xs text-warning">
                 {t(`${k}.preview.needsDownload`, {
                   defaultValue: "Download the preview model to see text while you speak.",
                 })}

@@ -104,7 +104,7 @@ export default function NoteListItem({
       className={cn(
         "group relative w-full text-left px-3 py-2 cursor-pointer transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
-        isActive ? "bg-primary/6 dark:bg-primary/8" : "hover:bg-foreground/3 dark:hover:bg-white/3",
+        isActive ? "bg-primary/15" : "hover:bg-foreground/5",
         isDragging && "opacity-40 scale-[0.97]"
       )}
     >
@@ -122,7 +122,7 @@ export default function NoteListItem({
             {note.title || t("notes.list.untitled")}
           </p>
           <div className="flex items-center gap-0.5 shrink-0">
-            <span className="text-xs text-muted-foreground dark:text-muted-foreground/30 tabular-nums group-hover:opacity-0 transition-opacity">
+            <span className="text-xs text-muted-foreground tabular-nums group-hover:opacity-0 transition-opacity">
               {relativeTime(note.updated_at, t)}
             </span>
             <DropdownMenu
@@ -139,7 +139,7 @@ export default function NoteListItem({
                   size="icon"
                   variant="ghost"
                   onClick={(e) => e.stopPropagation()}
-                  className="h-5 w-5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity absolute right-2 text-muted-foreground/60 dark:text-muted-foreground/40 hover:text-foreground/60 hover:bg-foreground/5 active:bg-foreground/8"
+                  className="h-5 w-5 rounded-sm opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity absolute right-2 text-muted-foreground/60 hover:text-foreground/60 hover:bg-foreground/5 active:bg-foreground/8"
                 >
                   <MoreHorizontal size={12} />
                 </Button>
@@ -149,7 +149,7 @@ export default function NoteListItem({
                   <DropdownMenuSubTrigger className="text-xs gap-2 rounded-lg px-2.5 py-1.5 cursor-pointer focus:bg-foreground/5 data-[state=open]:bg-foreground/5">
                     <FolderOpen
                       size={12}
-                      className="text-muted-foreground/80 dark:text-muted-foreground/60"
+                      className="text-muted-foreground/80"
                     />
                     {t("notes.context.moveToFolder")}
                   </DropdownMenuSubTrigger>
@@ -253,7 +253,7 @@ export default function NoteListItem({
           </div>
         </div>
         {preview && (
-          <p className="text-xs text-muted-foreground/80 dark:text-muted-foreground/40 line-clamp-1 mt-0.5">
+          <p className="text-xs text-muted-foreground/80 line-clamp-1 mt-0.5">
             {preview}
           </p>
         )}

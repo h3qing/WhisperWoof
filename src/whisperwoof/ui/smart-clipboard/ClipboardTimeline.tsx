@@ -111,8 +111,8 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
     <div
       className={cn(
         "group relative flex items-start gap-2.5 rounded-lg px-3 py-2 cursor-pointer select-none",
-        "border border-border/30 dark:border-white/5 bg-card/40 dark:bg-card/50",
-        "hover:border-border/70 hover:bg-card/80 transition-colors"
+        "bg-card shadow-card",
+        "hover:shadow-card-hover transition-shadow"
       )}
       onClick={() => !image && onCopy(entry)}
       title={image ? "Image capture" : "Click to copy"}
@@ -122,7 +122,7 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
           <Thumb path={m.thumbPath} />
         </div>
       ) : (
-        <div className="shrink-0 mt-0.5 w-6 h-6 rounded-md bg-foreground/[0.04] dark:bg-white/[0.05] flex items-center justify-center">
+        <div className="shrink-0 mt-0.5 w-6 h-6 rounded-md bg-foreground/[0.04] flex items-center justify-center">
           {image ? (
             <ImageIcon size={13} className="text-muted-foreground/70" />
           ) : (
@@ -163,10 +163,10 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
               e.stopPropagation();
               onCopy(entry);
             }}
-            className="p-1.5 rounded-md text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
+            className="p-1.5 rounded-md text-muted-foreground/70 hover:text-foreground hover:bg-foreground/5"
             title="Copy"
           >
-            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+            {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
           </button>
         )}
         <button
@@ -182,7 +182,7 @@ function ClipboardCard({ entry, copied, onCopy, onDelete }: CardProps) {
       </div>
 
       {copied && (
-        <span className="absolute right-2 top-2 text-[10px] font-medium text-emerald-500">Copied</span>
+        <span className="absolute right-2 top-2 text-[10px] font-medium text-success">Copied</span>
       )}
     </div>
   );

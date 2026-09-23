@@ -336,8 +336,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           return (
             <div className="space-y-6">
               <div className="text-center">
-                <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-7 h-7 text-emerald-600" />
+                <div className="w-14 h-14 bg-success/15 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-7 h-7 text-success" />
                 </div>
                 <h2 className="text-2xl font-semibold text-foreground mb-2">
                   {t("onboarding.setup.title")}
@@ -620,9 +620,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background"
+      className="relative h-screen flex flex-col"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
+      <div className="mando-field" aria-hidden />
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={(open) => !open && hideConfirmDialog()}
@@ -644,7 +645,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       {/* Title Bar / drag region */}
       {currentStep === 0 ? (
         <div
-          className="flex items-center justify-end w-full h-10 shrink-0"
+          className="relative z-10 flex items-center justify-end w-full h-10 shrink-0"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         >
           {onboardingPlatform !== "darwin" && (
@@ -654,10 +655,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           )}
         </div>
       ) : (
-        <div className="shrink-0 z-10">
+        <div className="relative shrink-0 z-10">
           <TitleBar
             showTitle={true}
-            className="bg-background backdrop-blur-xl border-b border-border shadow-sm"
+            className="glass"
             actions={isSignedIn ? <SupportDropdown /> : undefined}
           ></TitleBar>
         </div>
@@ -665,7 +666,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Progress Bar - hidden on welcome/auth step */}
       {showProgress && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-b border-white/5 px-6 md:px-12 py-3 z-10">
+        <div className="relative shrink-0 glass px-6 md:px-12 py-3 z-10">
           <div className="max-w-3xl mx-auto">
             <StepProgress steps={steps.slice(1)} currentStep={currentStep - 1} />
           </div>
@@ -674,10 +675,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Content - This will grow to fill available space */}
       <div
-        className={`flex-1 px-6 md:px-12 overflow-y-auto ${currentStep === 0 ? "flex items-center" : "py-6"}`}
+        className={`relative z-10 flex-1 px-6 md:px-12 overflow-y-auto ${currentStep === 0 ? "flex items-center" : "py-6"}`}
       >
         <div className={`w-full ${currentStep === 0 ? "max-w-sm" : "max-w-3xl"} mx-auto`}>
-          <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
+          <Card className="bg-card border border-border/50 shadow-card rounded-xl overflow-hidden">
             <CardContent className={currentStep === 0 ? "p-6" : "p-6 md:p-8"}>
               {renderStep()}
             </CardContent>
@@ -687,7 +688,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       {/* Footer Navigation - hidden on welcome/auth step */}
       {showProgress && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-t border-white/5 px-6 md:px-12 py-3 z-10">
+        <div className="relative shrink-0 glass px-6 md:px-12 py-3 z-10">
           <div className="max-w-3xl mx-auto flex items-center justify-between">
             {/* Hide back button on first step for signed-in users */}
             {!(currentStep === 1 && isSignedIn && !skipAuth) && (

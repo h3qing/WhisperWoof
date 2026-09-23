@@ -170,16 +170,16 @@ const ToastViewport: React.FC<{
 
 const variantConfig = {
   default: {
-    accentClass: "bg-white/20",
-    progressClass: "bg-white/15",
+    accentClass: "bg-primary/60",
+    progressClass: "bg-primary/25",
   },
   destructive: {
-    accentClass: "bg-red-400",
-    progressClass: "bg-red-400/30",
+    accentClass: "bg-destructive",
+    progressClass: "bg-destructive/30",
   },
   success: {
-    accentClass: "bg-emerald-400",
-    progressClass: "bg-emerald-400/30",
+    accentClass: "bg-success",
+    progressClass: "bg-success/30",
   },
 };
 
@@ -256,15 +256,15 @@ const Toast: React.FC<
         {icon && <div className="shrink-0 mt-px">{icon}</div>}
         <div className="flex-1 min-w-0">
           {message && (
-            <div className="text-xs font-medium leading-tight text-white/90">{message}</div>
+            <div className="text-xs font-medium leading-tight text-foreground">{message}</div>
           )}
           {detail &&
             (isDestructive ? (
               <div
                 className={cn(
                   "text-xs leading-snug mt-1 px-1.5 py-1 rounded-[3px] font-mono",
-                  "bg-white/4 border border-white/6",
-                  "text-red-300/80"
+                  "bg-foreground/[0.04] border border-foreground/10",
+                  "text-destructive"
                 )}
               >
                 <div className="flex items-start justify-between gap-1.5">
@@ -273,8 +273,8 @@ const Toast: React.FC<
                     onClick={handleCopyError}
                     className={cn(
                       "shrink-0 p-0.5 rounded-xs mt-px",
-                      "text-white/30 hover:text-white/70",
-                      "hover:bg-white/6",
+                      "text-muted-foreground/60 hover:text-foreground",
+                      "hover:bg-foreground/[0.06]",
                       "transition-colors duration-150"
                     )}
                     aria-label="Copy error"
@@ -284,7 +284,7 @@ const Toast: React.FC<
                 </div>
               </div>
             ) : (
-              <div className="text-xs leading-snug mt-0.5 text-white/45">{detail}</div>
+              <div className="text-xs leading-snug mt-0.5 text-muted-foreground">{detail}</div>
             ))}
         </div>
 
@@ -296,10 +296,10 @@ const Toast: React.FC<
           onClick={onClose}
           className={cn(
             "absolute right-1 top-1 p-1 rounded-[3px]",
-            "text-white/0 group-hover:text-white/50 hover:!text-white/80",
-            "hover:bg-white/6",
+            "text-foreground/0 group-hover:text-muted-foreground hover:!text-foreground",
+            "hover:bg-foreground/[0.06]",
             "transition-colors duration-150",
-            "focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20"
+            "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
           )}
         >
           <X className="size-3" />

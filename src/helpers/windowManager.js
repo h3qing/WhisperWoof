@@ -1,4 +1,4 @@
-const { app, screen, BrowserWindow, shell, dialog } = require("electron");
+const { app, screen, BrowserWindow, shell, dialog, nativeTheme } = require("electron");
 const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
 const { isGlobeLikeHotkey } = HotkeyManager;
@@ -10,9 +10,11 @@ const { DEV_SERVER_PORT } = DevServerManager;
 const {
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
+  controlPanelBackground,
   AGENT_OVERLAY_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,
   WINDOW_SIZES,
+  vibrancyForSize,
   WindowPositionUtil,
 } = require("./windowConfig");
 
@@ -162,6 +164,10 @@ class WindowManager {
       width: newSize.width,
       height: newSize.height,
     });
+
+    if (process.platform === "darwin") {
+      this.mainWindow.setVibrancy(vibrancyForSize(sizeKey));
+    }
 
     return { success: true, bounds: { x: newX, y: newY, ...newSize } };
   }
@@ -538,6 +544,15 @@ class WindowManager {
     });
   }
 
+  // The window's native background shows while a page loads (e.g. on reload);
+  // keep it on the app's theme once the renderer has reported it.
+  syncControlPanelBackground() {
+    if (!this.controlPanelWindow || this.controlPanelWindow.isDestroyed()) return;
+    this.controlPanelWindow.setBackgroundColor(
+      controlPanelBackground(nativeTheme.shouldUseDarkColors)
+    );
+  }
+
   async createControlPanelWindow() {
     if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
       if (this.controlPanelWindow.isMinimized()) {
@@ -550,7 +565,10 @@ class WindowManager {
       return;
     }
 
-    this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
+    this.controlPanelWindow = new BrowserWindow({
+      ...CONTROL_PANEL_CONFIG,
+      backgroundColor: controlPanelBackground(nativeTheme.shouldUseDarkColors),
+    });
 
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);

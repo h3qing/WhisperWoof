@@ -17,7 +17,7 @@ export default function ReferralModal({ open, onOpenChange }: ReferralModalProps
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-black/60 backdrop-blur-lg",
+            "fixed inset-0 z-50 bg-background/40",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
           )}
@@ -26,9 +26,9 @@ export default function ReferralModal({ open, onOpenChange }: ReferralModalProps
           className={cn(
             "fixed left-[50%] top-[50%] z-50 w-full max-w-[500px] min-h-[520px]",
             "translate-x-[-50%] translate-y-[-50%]",
-            "rounded-xl border overflow-hidden shadow-2xl duration-200",
+            "rounded-2xl border overflow-hidden duration-200",
             "bg-card border-border",
-            "shadow-[0_24px_48px_-12px_oklch(0_0_0/0.12)] dark:shadow-[0_24px_48px_-12px_oklch(0_0_0/0.5)]",
+            "shadow-modal",
             "data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

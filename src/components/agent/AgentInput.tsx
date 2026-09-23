@@ -21,8 +21,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
         "text-[10px] font-medium leading-none",
         "text-muted-foreground/70",
         "bg-foreground/6 border border-foreground/8",
-        "rounded-sm",
-        "shadow-[0_1px_0_0_rgba(0,0,0,0.04)]"
+        "rounded-sm"
       )}
     >
       {children}
@@ -78,7 +77,7 @@ export function AgentInput({ agentState, partialTranscript }: AgentInputProps) {
     <div
       className={cn(
         "flex items-center gap-3 h-12 px-3 py-2 shrink-0",
-        "bg-surface-1 border-t border-border/30"
+        "border-t border-border/40"
       )}
     >
       {agentState === "idle" && (

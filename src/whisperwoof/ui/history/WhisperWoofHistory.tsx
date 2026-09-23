@@ -98,10 +98,10 @@ function formatFullTimestamp(iso: string): string {
 
 function SourceIcon({ source }: { readonly source: EntrySource }) {
   if (source === "voice") {
-    return <Mic size={14} className="shrink-0 text-amber-500" />;
+    return <Mic size={14} className="shrink-0 text-mando" />;
   }
   if (source === "import") {
-    return <Upload size={14} className="shrink-0 text-emerald-500" />;
+    return <Upload size={14} className="shrink-0 text-success" />;
   }
   return <Clipboard size={14} className="shrink-0 text-muted-foreground" />;
 }
@@ -118,8 +118,8 @@ function sourceLabel(source: EntrySource): string {
 
 function sourceBadgeClass(source: EntrySource): string {
   switch (source) {
-    case "voice": return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
-    case "import": return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+    case "voice": return "bg-mando/10 text-mando-deep";
+    case "import": return "bg-success/10 text-success";
     default: return "bg-muted text-muted-foreground";
   }
 }
@@ -161,7 +161,7 @@ function FilterChips({
             "px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150",
             active === f
               ? "bg-primary/10 text-primary dark:bg-primary/15"
-              : "text-muted-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
+              : "text-muted-foreground hover:bg-foreground/5"
           )}
         >
           {f === "favorites" && <Star size={11} className="inline mr-1" />}
@@ -195,13 +195,13 @@ const EntryRow = React.memo(function EntryRow({
         "focus-visible:ring-1 focus-visible:ring-primary/30",
         isSelected
           ? "bg-primary/8 dark:bg-primary/12"
-          : "hover:bg-foreground/4 dark:hover:bg-white/4"
+          : "hover:bg-foreground/4"
       )}
     >
       <div className="flex items-start gap-2">
         <div className="mt-0.5">
           {imageMeta ? (
-            <ImageIcon size={14} className="shrink-0 text-blue-500" />
+            <ImageIcon size={14} className="shrink-0 text-mando-deep" />
           ) : (
             <SourceIcon source={entry.source} />
           )}
@@ -239,8 +239,8 @@ const EntryRow = React.memo(function EntryRow({
             className={cn(
               "transition-colors",
               isFavorite
-                ? "fill-amber-400 text-amber-400"
-                : "text-muted-foreground/40 hover:text-amber-400"
+                ? "fill-primary text-primary"
+                : "text-muted-foreground/40 hover:text-primary"
             )}
           />
         </button>
@@ -299,7 +299,7 @@ function ImagePreview({ imagePath }: { readonly imagePath: string }) {
     <img
       src={`data:image/png;base64,${imageData}`}
       alt="Clipboard capture"
-      className="max-w-full rounded-md border border-border/20 dark:border-white/6"
+      className="max-w-full rounded-md border border-border-subtle"
     />
   );
 }
@@ -366,8 +366,8 @@ function EntryDetail({
             className={cn(
               "transition-colors",
               isFavorite
-                ? "fill-amber-400 text-amber-400"
-                : "text-muted-foreground/40 hover:text-amber-400"
+                ? "fill-primary text-primary"
+                : "text-muted-foreground/40 hover:text-primary"
             )}
           />
         </button>
@@ -377,8 +377,8 @@ function EntryDetail({
       {imageMeta && entry.audioPath ? (
         <div>
           <div className="flex items-center gap-1.5 mb-2">
-            <ImageIcon size={13} className="text-blue-500" />
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+            <ImageIcon size={13} className="text-mando-deep" />
+            <span className="text-xs font-medium text-mando-deep">
               Image {imageMeta.width}&times;{imageMeta.height}
             </span>
           </div>
@@ -389,8 +389,8 @@ function EntryDetail({
           {/* Polished text */}
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Sparkles size={13} className="text-purple-500" />
-              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Polished</span>
+              <Sparkles size={13} className="text-mando" />
+              <span className="text-xs font-medium text-mando-deep">Polished</span>
             </div>
             <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
               {entry.polished}
@@ -400,7 +400,7 @@ function EntryDetail({
           {/* Original transcript — always visible, muted */}
           <div>
             <span className="text-[11px] font-medium text-muted-foreground/70">Original transcript</span>
-            <div className="mt-1 p-3 rounded-md bg-muted/50 dark:bg-white/5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+            <div className="mt-1 p-3 rounded-md bg-muted/50 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
               {entry.rawText}
             </div>
           </div>
@@ -425,14 +425,14 @@ function EntryDetail({
           <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground/70">
             Previous version{history.length > 1 ? ` (${history.length} kept)` : ""}
           </summary>
-          <div className="mt-1 p-3 rounded-md bg-muted/50 dark:bg-white/5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+          <div className="mt-1 p-3 rounded-md bg-muted/50 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
             {history[0].polished ?? history[0].rawText ?? ""}
           </div>
         </details>
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-2 border-t border-border/20 dark:border-white/6 flex-wrap">
+      <div className="flex items-center gap-2 pt-2 border-t border-border-subtle flex-wrap">
         {canRegenerate && (
           <Button
             variant="outline-flat"
@@ -704,7 +704,7 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
   return (
     <div className={cn("flex h-full max-w-5xl mx-auto w-full", className)}>
       {/* List panel */}
-      <div className="w-72 shrink-0 flex flex-col border-r border-border/15 dark:border-white/6">
+      <div className="w-72 shrink-0 flex flex-col border-r border-border-subtle">
         {/* Search */}
         <div className="p-3 pb-2">
           <div className="relative">

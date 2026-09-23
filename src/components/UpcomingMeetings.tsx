@@ -165,7 +165,7 @@ export default function UpcomingMeetings({ events, isLoading }: UpcomingMeetings
                   return (
                     <div
                       key={event.id}
-                      className="group rounded-md border border-border/40 dark:border-border-subtle/60 bg-card/50 dark:bg-surface-2/60 px-3 py-2.5 transition-colors duration-150 hover:bg-muted/30 dark:hover:bg-surface-2/80"
+                      className="group rounded-md bg-card shadow-card px-3 py-2.5 transition-colors duration-150 hover:bg-surface-2"
                       onMouseEnter={() => setHoveredEventId(event.id)}
                       onMouseLeave={() => setHoveredEventId(null)}
                     >
@@ -175,10 +175,10 @@ export default function UpcomingMeetings({ events, isLoading }: UpcomingMeetings
                           {isNow ? (
                             <div className="flex items-center gap-1.5">
                               <span className="relative flex h-1.5 w-1.5">
-                                <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-green-500 opacity-75" />
-                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-500" />
+                                <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-success opacity-75" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
                               </span>
-                              <span className="text-[11px] font-medium text-green-600 dark:text-green-400 tabular-nums">
+                              <span className="text-[11px] font-medium text-success tabular-nums">
                                 {t("upcoming.now")}
                               </span>
                             </div>

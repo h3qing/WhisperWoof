@@ -26,17 +26,16 @@ export default function RealtimeTranscriptionBanner({
     <div
       className={cn(
         "flex items-center gap-2 px-3 h-8 shrink-0",
-        "backdrop-blur-xl bg-primary/[0.03] dark:bg-primary/[0.06]",
-        "border-b border-primary/10 dark:border-primary/15",
+        "glass",
         "animate-in slide-in-from-top-2 duration-300"
       )}
     >
-      <Zap size={11} className="text-primary/40 shrink-0" />
-      <p className="text-xs text-primary/40 flex-1 truncate">{t("notes.realtimeBanner.message")}</p>
+      <Zap size={11} className="text-primary shrink-0" />
+      <p className="text-xs text-foreground/80 flex-1 truncate">{t("notes.realtimeBanner.message")}</p>
       {onUpgrade && (
         <button
           onClick={onUpgrade}
-          className="text-xs font-medium text-primary/50 hover:text-primary/70 transition-colors shrink-0"
+          className="text-xs font-medium text-primary hover:text-primary/80 transition-colors shrink-0"
         >
           {t("notes.realtimeBanner.upgrade")}
         </button>

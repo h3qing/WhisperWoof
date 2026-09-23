@@ -41,8 +41,8 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
 }) => {
   const baseClasses = "space-y-3 p-3 rounded-lg border";
   const variantClasses = {
-    default: "bg-card/50 dark:bg-surface-2/50 border-border/50 dark:border-border-subtle",
-    highlighted: "bg-primary/5 dark:bg-primary/10 border-primary/20 dark:border-primary/30",
+    default: "bg-card border-border-subtle shadow-card",
+    highlighted: "bg-primary/8 border-primary/25",
   };
 
   return (
@@ -88,7 +88,7 @@ export function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg border border-border/50 dark:border-border-subtle/70 bg-card/50 dark:bg-surface-2/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border-subtle/50 ${className}`}
+      className={`rounded-lg border border-border-subtle bg-card shadow-card divide-y divide-border-subtle ${className}`}
     >
       {children}
     </div>

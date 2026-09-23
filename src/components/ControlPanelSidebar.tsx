@@ -98,7 +98,7 @@ export default function ControlPanelSidebar({
   const navItems: { id: ControlPanelView; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [];
 
   return (
-    <div className="w-48 h-full shrink-0 border-r border-border/15 dark:border-white/6 flex flex-col bg-surface-1/60 dark:bg-surface-1">
+    <div className="w-48 h-[calc(100%-1rem)] m-2 mr-0 shrink-0 rounded-xl glass-thick flex flex-col overflow-hidden">
       <div
         className="w-full h-10 shrink-0"
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -108,17 +108,17 @@ export default function ControlPanelSidebar({
         <div className="px-2 pt-2 pb-1">
           <button
             onClick={onOpenSearch}
-            className="group flex items-center w-full h-7 px-2.5 rounded-md border border-border/25 dark:border-white/8 bg-foreground/3 dark:bg-white/3 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors gap-2 outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+            className="group flex items-center w-full h-7 px-2.5 rounded-md border border-border/60 bg-card/60 hover:bg-card transition-colors gap-2 outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
           >
-            <Search size={11} className="text-muted-foreground/50 shrink-0" />
-            <span className="flex-1 text-[11px] text-left text-muted-foreground/50">
+            <Search size={11} className="text-muted-foreground/70 shrink-0" />
+            <span className="flex-1 text-[11px] text-left text-muted-foreground/70">
               {t("commandSearch.shortPlaceholder")}
             </span>
             <div className="flex items-center gap-0.5 shrink-0">
-              <kbd className="text-[10px] px-1 py-px rounded border border-border/30 dark:border-white/8 bg-muted/40 text-muted-foreground/40 font-mono leading-tight">
+              <kbd className="text-[10px] px-1 py-px rounded border border-border/60 bg-muted/40 text-muted-foreground/70 font-mono leading-tight">
                 {platform === "darwin" ? "⌘" : "Ctrl"}
               </kbd>
-              <kbd className="text-[10px] px-1 py-px rounded border border-border/30 dark:border-white/8 bg-muted/40 text-muted-foreground/40 font-mono leading-tight">
+              <kbd className="text-[10px] px-1 py-px rounded border border-border/60 bg-muted/40 text-muted-foreground/70 font-mono leading-tight">
                 K
               </kbd>
             </div>
@@ -130,7 +130,7 @@ export default function ControlPanelSidebar({
         {navSections.map((section, si) => (
           <div key={si}>
             {section.label && (
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/30 font-medium px-2.5 pt-3 pb-1">
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium px-2.5 pt-3 pb-1">
                 {section.label}
               </div>
             )}
@@ -145,20 +145,17 @@ export default function ControlPanelSidebar({
                     "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
                     "focus-visible:ring-1 focus-visible:ring-primary/30",
                     isActive
-                      ? "bg-primary/8 dark:bg-primary/10"
-                      : "hover:bg-foreground/4 dark:hover:bg-white/4 active:bg-foreground/6"
+                      ? "bg-primary/15 text-foreground"
+                      : "bg-transparent hover:bg-foreground/5 active:bg-foreground/8"
                   )}
                 >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3.5 rounded-r-full bg-primary" />
-                  )}
                   <Icon
                     size={15}
                     className={cn(
                       "shrink-0 transition-colors duration-150",
                       isActive
-                        ? "text-primary"
-                        : "text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/55 dark:group-hover:text-foreground/70"
+                        ? "text-foreground"
+                        : "text-muted-foreground group-hover:text-foreground"
                     )}
                   />
                   <span
@@ -166,7 +163,7 @@ export default function ControlPanelSidebar({
                   "text-xs transition-colors duration-150",
                   isActive
                     ? "text-foreground font-medium"
-                    : "text-foreground/80 group-hover:text-foreground dark:text-foreground/75 dark:group-hover:text-foreground/90"
+                    : "text-foreground/85 group-hover:text-foreground"
                 )}
               >
                 {item.label}
@@ -211,7 +208,7 @@ export default function ControlPanelSidebar({
                 localStorage.setItem("upgradeProDismissed", "true");
               }}
               aria-label={t("common.dismiss")}
-              className="absolute top-1.5 right-1.5 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="absolute top-1.5 right-1.5 p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
             >
               <X size={12} />
             </button>
@@ -245,13 +242,13 @@ export default function ControlPanelSidebar({
         <button
           onClick={onOpenSettings}
           aria-label={t("sidebar.settings")}
-          className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/4 dark:hover:bg-white/4 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
+          className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
         >
           <Settings
             size={15}
-            className="shrink-0 text-foreground/60 group-hover:text-foreground/75 dark:text-foreground/50 dark:group-hover:text-foreground/65 transition-colors duration-150"
+            className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors duration-150"
           />
-          <span className="text-xs text-foreground/80 group-hover:text-foreground dark:text-foreground/70 dark:group-hover:text-foreground/85 transition-colors duration-150">
+          <span className="text-xs text-foreground/85 group-hover:text-foreground transition-colors duration-150">
             {t("sidebar.settings")}
           </span>
         </button>
@@ -259,7 +256,7 @@ export default function ControlPanelSidebar({
         {/* Branding */}
         <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md mt-1">
           <img src={logoIcon} alt="" className="w-5 h-5 rounded-sm shrink-0" />
-          <p className="text-xs text-foreground/60 dark:text-foreground/55 font-medium">
+          <p className="text-xs text-muted-foreground font-medium">
             WhisperWoof
           </p>
         </div>

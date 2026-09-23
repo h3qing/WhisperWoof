@@ -106,8 +106,8 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
         style={{ animation: "float-up 0.4s ease-out" }}
       >
         <div className="flex flex-col items-center text-center">
-          <div className="w-10 h-10 rounded-[10px] bg-gradient-to-b from-accent/10 to-accent/[0.03] dark:from-accent/15 dark:to-accent/5 border border-accent/15 dark:border-accent/20 flex items-center justify-center mb-3">
-            <Sparkles size={17} strokeWidth={1.5} className="text-accent/60" />
+          <div className="w-10 h-10 rounded-[10px] bg-card shadow-card flex items-center justify-center mb-3">
+            <Sparkles size={17} strokeWidth={1.5} className="text-mando-deep" />
           </div>
           <h2 className="text-sm font-semibold text-foreground mb-1">
             {t("notes.onboarding.actions.title")}
@@ -123,8 +123,8 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
             className={cn(
               "rounded-lg border transition-colors duration-200",
               isLLMConfigured
-                ? "border-success/20 bg-success/[0.03]"
-                : "border-foreground/8 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02]"
+                ? "border-success/20 bg-card shadow-card"
+                : "border-transparent bg-card shadow-card"
             )}
           >
             <button
@@ -191,8 +191,8 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
             className={cn(
               "rounded-lg border transition-colors duration-200",
               systemAudioGranted
-                ? "border-success/20 bg-success/[0.03]"
-                : "border-foreground/8 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02]"
+                ? "border-success/20 bg-card shadow-card"
+                : "border-transparent bg-card shadow-card"
             )}
           >
             <div className="flex items-center justify-between w-full px-4 py-3">
@@ -241,9 +241,9 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
             </span>
           </div>
           {builtInAction && (
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-foreground/6 dark:border-white/6 bg-surface-1/20 dark:bg-white/[0.02]">
-              <div className="w-7 h-7 rounded-md bg-accent/8 dark:bg-accent/12 border border-accent/10 dark:border-accent/15 flex items-center justify-center shrink-0">
-                <Sparkles size={12} className="text-accent/60" />
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-card shadow-card">
+              <div className="w-7 h-7 rounded-md bg-mando/15 flex items-center justify-center shrink-0">
+                <Sparkles size={12} className="text-mando-deep" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-foreground/70 truncate">
@@ -265,9 +265,9 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
               {customActions.map((action) => (
                 <div
                   key={action.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-success/20 bg-success/[0.03]"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-success/20 bg-card shadow-card"
                 >
-                  <div className="w-7 h-7 rounded-md bg-success/8 border border-success/15 dark:border-success/20 flex items-center justify-center shrink-0">
+                  <div className="w-7 h-7 rounded-md bg-success/8 border border-success/20 flex items-center justify-center shrink-0">
                     <Check size={12} className="text-success/60" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -286,7 +286,7 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
         <div
           className={cn(
             "rounded-lg border transition-colors duration-200",
-            "border-foreground/8 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02]"
+            "border-transparent bg-card shadow-card"
           )}
         >
           <button

@@ -78,7 +78,7 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
       <DialogContent className="sm:max-w-lg gap-2.5">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
-            <Sparkles size={13} className="text-accent" />
+            <Sparkles size={13} className="text-mando-deep" />
             {t("notes.actions.manageTitle")}
           </DialogTitle>
         </DialogHeader>
@@ -141,7 +141,7 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
           </div>
         </div>
 
-        <div className="border-t border-border/20 dark:border-white/4 pt-2.5">
+        <div className="border-t border-border/20 pt-2.5">
           {actions.length === 0 ? (
             <p className="text-xs text-muted-foreground/40 text-center py-4">
               {t("notes.actions.noActions")}
@@ -153,18 +153,18 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
                   key={action.id}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-2 rounded-md group",
-                    "hover:bg-foreground/3 dark:hover:bg-white/3",
+                    "hover:bg-foreground/3",
                     "transition-colors duration-150"
                   )}
                 >
-                  <Sparkles size={12} className="text-accent/40 shrink-0" />
+                  <Sparkles size={12} className="text-mando-deep shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium truncate">
                         {getActionName(action, t)}
                       </span>
                       {action.is_builtin === 1 && (
-                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-foreground/5 dark:bg-white/6 text-muted-foreground/50 shrink-0">
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-foreground/5 text-muted-foreground/50 shrink-0">
                           {t("notes.actions.builtIn")}
                         </span>
                       )}
@@ -182,8 +182,8 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
                       className={cn(
                         "p-1.5 rounded-md",
                         "text-muted-foreground/40 hover:text-foreground/70",
-                        "hover:bg-foreground/5 dark:hover:bg-white/6",
-                        "active:bg-foreground/8 dark:active:bg-white/8",
+                        "hover:bg-foreground/5",
+                        "active:bg-foreground/8",
                         "transition-colors duration-150"
                       )}
                     >

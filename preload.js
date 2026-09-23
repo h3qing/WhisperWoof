@@ -553,6 +553,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   notifyHotkeyChanged: (hotkey) => ipcRenderer.send("hotkey-changed", hotkey),
   registerMeetingHotkey: (hotkey) => ipcRenderer.invoke("register-meeting-hotkey", hotkey),
 
+  notifyAppThemeChanged: (theme) => ipcRenderer.send("app-theme-changed", theme),
+
   // Floating icon auto-hide
   notifyFloatingIconAutoHideChanged: (enabled) =>
     ipcRenderer.send("floating-icon-auto-hide-changed", enabled),

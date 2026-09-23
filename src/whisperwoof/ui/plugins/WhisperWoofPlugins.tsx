@@ -43,7 +43,7 @@ function StatusDot({ enabled }: { readonly enabled: boolean }) {
     <span
       className={cn(
         "inline-block w-2 h-2 rounded-full shrink-0",
-        enabled ? "bg-green-500" : "bg-muted-foreground/30"
+        enabled ? "bg-primary" : "bg-muted-foreground/30"
       )}
     />
   );
@@ -71,7 +71,7 @@ function PluginToggle({
     >
       <span
         className={cn(
-          "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          "inline-block h-3.5 w-3.5 rounded-full bg-background shadow-sm transition-transform duration-200",
           enabled ? "translate-x-4" : "translate-x-0.5"
         )}
       />
@@ -95,9 +95,9 @@ function PluginCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={cn(
-        "flex items-start gap-3 px-4 py-3 rounded-lg border transition-colors duration-150",
-        "border-border/15 dark:border-white/6",
-        "hover:bg-foreground/3 dark:hover:bg-white/3"
+        "flex items-start gap-3 px-4 py-3 rounded-lg transition-shadow duration-150",
+        "bg-card shadow-card",
+        "hover:shadow-card-hover"
       )}
     >
       <div className="mt-0.5 w-8 h-8 rounded-md bg-primary/8 dark:bg-primary/12 flex items-center justify-center shrink-0">
@@ -205,19 +205,19 @@ function SetupGuide({
             value={apiKey}
             onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
             placeholder={`Paste your ${setup.label.toLowerCase()} here`}
-            className="flex-1 h-8 px-2.5 text-xs rounded-md border border-border/25 dark:border-white/10 bg-background outline-none focus:ring-1 focus:ring-primary/30 font-mono"
+            className="flex-1 h-8 px-2.5 text-xs rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary/30 font-mono"
           />
           <button
             type="button"
             onClick={handleTest}
             disabled={testing || apiKey.trim().length === 0}
-            className="h-8 px-3 rounded-md text-xs font-medium border border-border/25 dark:border-white/10 text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
+            className="h-8 px-3 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-40"
           >
             {testing ? "Testing..." : "Test"}
           </button>
         </div>
         {testResult === "success" && (
-          <p className="text-[11px] text-green-600 dark:text-green-400">Connection looks good.</p>
+          <p className="text-[11px] text-success">Connection looks good.</p>
         )}
         {testResult === "error" && (
           <p className="text-[11px] text-destructive">Token seems too short. Double-check you copied the full token.</p>
@@ -236,7 +236,7 @@ function SetupGuide({
         <button
           type="button"
           onClick={onCancel}
-          className="h-7 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+          className="h-7 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
         >
           Cancel
         </button>
@@ -270,7 +270,7 @@ function AddPluginForm({
   };
 
   const inputClass =
-    "w-full h-8 px-2.5 text-xs rounded-md border border-border/25 dark:border-white/10 bg-background outline-none focus:ring-1 focus:ring-primary/30";
+    "w-full h-8 px-2.5 text-xs rounded-md border border-border bg-background outline-none focus:ring-1 focus:ring-primary/30";
 
   return (
     <form onSubmit={handleSubmit} className="rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/8 p-4 space-y-3">
@@ -293,7 +293,7 @@ function AddPluginForm({
         <button
           type="button"
           onClick={onCancel}
-          className="h-7 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+          className="h-7 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
         >
           Cancel
         </button>

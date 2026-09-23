@@ -11,13 +11,15 @@ import type { LivePanelView } from '../../core/live/live-dictation';
 
 const LINE_HEIGHT_PX = 22;
 const MAX_LINES = 3;
+// Fits WINDOW_SIZES.LIVE_PANEL (112px): 10 + pill row 22 + 3 lines + 12.
+const PANEL_HEIGHT_PX = 112;
 
-const PHASE_STYLE: Record<string, { bg: string; fg: string }> = {
-  listening: { bg: 'rgba(232,160,96,0.16)', fg: '#E8A060' },
-  streaming: { bg: 'rgba(232,160,96,0.16)', fg: '#E8A060' },
-  correcting: { bg: 'rgba(175,169,236,0.16)', fg: '#AFA9EC' },
-  polishing: { bg: 'rgba(175,169,236,0.16)', fg: '#AFA9EC' },
-  done: { bg: 'rgba(151,196,89,0.16)', fg: '#97C459' },
+const PHASE_PILL: Record<string, string> = {
+  listening: 'bg-mando/15 text-mando-deep',
+  streaming: 'bg-mando/15 text-mando-deep',
+  correcting: 'bg-foreground/8 text-muted-foreground',
+  polishing: 'bg-foreground/8 text-muted-foreground',
+  done: 'bg-success/15 text-success',
 };
 
 interface LiveDictationPanelProps {
@@ -25,9 +27,18 @@ interface LiveDictationPanelProps {
   speaking: boolean;
   celebrating: boolean;
   onCelebrationEnd?: () => void;
+  /** The window is exactly this panel and carries macOS vibrancy: fill it and
+   *  add only a light Mando tint. Otherwise the panel draws its own CSS glass. */
+  native?: boolean;
 }
 
-export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationEnd }: LiveDictationPanelProps) {
+export function LiveDictationPanel({
+  view,
+  speaking,
+  celebrating,
+  onCelebrationEnd,
+  native = false,
+}: LiveDictationPanelProps) {
   const { t } = useTranslation();
   const { phase, committed, partial } = view;
   const recording = phase === 'listening' || phase === 'streaming';
@@ -38,7 +49,7 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
     processing,
     celebrating,
   });
-  const pill = PHASE_STYLE[phase] ?? PHASE_STYLE.listening;
+  const pillClass = PHASE_PILL[phase] ?? PHASE_PILL.listening;
   const settled = processing;
 
   const label = {
@@ -49,21 +60,14 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
     done: t('app.live.done', { defaultValue: 'Pasted' }),
   }[phase as Exclude<typeof phase, 'hidden'>];
 
+  const surface = native
+    ? 'w-[420px] bg-mando/[0.07]'
+    : 'w-[412px] glass rounded-xl';
+
   return (
     <div
-      style={{
-        width: '420px',
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'flex-start',
-        padding: '10px 14px 12px 10px',
-        borderRadius: '16px',
-        background: 'rgba(28,24,20,0.94)',
-        border: '1px solid rgba(232,213,195,0.12)',
-        boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
-        textAlign: 'left',
-        cursor: 'inherit',
-      }}
+      className={`relative flex items-start gap-2.5 text-left text-foreground ${surface}`}
+      style={{ height: `${PANEL_HEIGHT_PX}px`, padding: '10px 14px 12px 10px', cursor: 'inherit' }}
     >
       <style>{`
         @keyframes liveCaret { 50% { opacity: 0; } }
@@ -78,17 +82,8 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
         style={{ flexShrink: 0 }}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              padding: '1px 8px',
-              borderRadius: '6px',
-              background: pill.bg,
-              color: pill.fg,
-            }}
-          >
+        <div role="status" aria-live="polite" className="mb-1 flex h-5 items-center gap-2">
+          <span className={`rounded-full px-2 text-[11px] font-semibold leading-[18px] ${pillClass}`}>
             {label}
           </span>
         </div>
@@ -111,14 +106,13 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
               margin: 0,
               fontSize: '15px',
               lineHeight: `${LINE_HEIGHT_PX}px`,
-              color: '#F2E6D8',
               wordBreak: 'break-word',
               whiteSpace: 'pre-line', // numbered lists from formatSpokenEnumeration
               animation: settled ? 'liveSettle 1.6s ease-in-out infinite' : 'none',
             }}
           >
             {phase === 'listening' ? (
-              <span style={{ color: 'rgba(232,213,195,0.45)' }}>
+              <span className="text-muted-foreground/70">
                 {t('app.live.startTalking', { defaultValue: 'Start talking…' })}
               </span>
             ) : (
@@ -126,11 +120,10 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
                 {committed}
                 {partial && (
                   <span
+                    className="text-foreground/70 decoration-mando"
                     style={{
-                      color: 'rgba(242,230,216,0.72)',
                       textDecorationLine: 'underline',
                       textDecorationStyle: 'dotted',
-                      textDecorationColor: '#E8A060',
                       textDecorationThickness: '2px',
                       textUnderlineOffset: '4px',
                     }}
@@ -142,13 +135,13 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
             )}
             {recording && (
               <span
+                className="bg-mando"
                 style={{
                   display: 'inline-block',
                   width: '2px',
                   height: '16px',
                   marginLeft: '1px',
                   verticalAlign: '-3px',
-                  background: '#E8A060',
                   animation: 'liveCaret 1s steps(1) infinite',
                 }}
               />

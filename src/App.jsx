@@ -7,6 +7,7 @@ import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
 import { formatHotkeyLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
+import { getPlatform } from "./utils/platform";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
@@ -258,7 +259,7 @@ const Tooltip = ({ children, content, emoji, align = "center" }) => {
       <div onMouseEnter={() => setIsVisible(true)} onMouseLeave={() => setIsVisible(false)}>
         {children}
       </div>
-      {isVisible && (
+      {isVisible && content && (
         <div
           className={`absolute bottom-full ${alignClass} mb-2 px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
         >
@@ -347,9 +348,9 @@ export default function App() {
                 }
               }}
               className="text-[10px] font-medium px-2.5 py-1 rounded-sm whitespace-nowrap
-                text-emerald-100/90 hover:text-white
-                bg-emerald-500/15 hover:bg-emerald-500/25
-                border border-emerald-400/20 hover:border-emerald-400/35
+                text-success hover:text-foreground
+                bg-success/15 hover:bg-success/25
+                border border-success/25 hover:border-success/40
                 transition-all duration-150"
             >
               {t("app.toasts.undo")}
@@ -418,6 +419,11 @@ export default function App() {
     windowHidden,
   });
   const showLivePanel = liveFrame !== null;
+  // On macOS the window becomes exactly the panel and carries native vibrancy
+  // (LIVE_PANEL). A toast or menu needs transparent room around the panel, so
+  // then the panel falls back to CSS glass.
+  const nativeLivePanel =
+    showLivePanel && getPlatform() === "darwin" && toastCount === 0 && !isCommandMenuOpen;
 
   useEffect(() => {
     const resizeWindow = () => {
@@ -427,7 +433,9 @@ export default function App() {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
       } else if (toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
-      } else if (showLivePanel || liveModeEnabled) {
+      } else if (showLivePanel) {
+        window.electronAPI?.resizeMainWindow?.("LIVE_PANEL");
+      } else if (liveModeEnabled) {
         // Live mode keeps the wide size even when idle: resizing at every
         // capture start/end drew the panel into the narrow window first (center
         // strip, then the sides) and left a stale frame behind on shrink.
@@ -554,6 +562,11 @@ export default function App() {
     const baseClasses =
       "w-auto h-auto flex items-center justify-center relative overflow-visible cursor-pointer";
 
+    // The live panel is its own surface: never dim it.
+    if (showLivePanel) {
+      return { className: baseClasses, tooltip: null };
+    }
+
     switch (micState) {
       case "idle":
       case "hover":
@@ -581,16 +594,31 @@ export default function App() {
 
   const micProps = getMicButtonProps();
 
+  const cancelButton = (
+    <CancelRecordingButton
+      isRecording={isRecording}
+      isProcessing={isProcessing}
+      onCancelRecording={cancelRecording}
+      onCancelProcessing={cancelProcessing}
+      recordingLabel={t("app.buttons.cancelRecording")}
+      processingLabel={t("app.buttons.cancelProcessing")}
+    />
+  );
+
   return (
     <div className="dictation-window">
       {/* Voice button - position determined by panelStartPosition setting */}
       <div
-        className={`fixed bottom-1 z-50 ${
-          panelStartPosition === "bottom-left"
-            ? "left-1"
-            : panelStartPosition === "center"
-              ? "left-1/2 -translate-x-1/2"
-              : "right-1"
+        className={`fixed z-50 ${
+          nativeLivePanel
+            ? "inset-0"
+            : showLivePanel
+              ? "bottom-0 left-1/2 -translate-x-1/2" // 112px panel in a 112px-tall window
+            : panelStartPosition === "bottom-left"
+              ? "bottom-1 left-1"
+              : panelStartPosition === "center"
+                ? "bottom-1 left-1/2 -translate-x-1/2"
+                : "bottom-1 right-1"
         }`}
       >
         <div
@@ -606,14 +634,13 @@ export default function App() {
             }
           }}
         >
-          <CancelRecordingButton
-            isRecording={isRecording}
-            isProcessing={isProcessing}
-            onCancelRecording={cancelRecording}
-            onCancelProcessing={cancelProcessing}
-            recordingLabel={t("app.buttons.cancelRecording")}
-            processingLabel={t("app.buttons.cancelProcessing")}
-          />
+          {showLivePanel ? (
+            // Over the panel's top-right corner, outside the mic button (no
+            // nested buttons).
+            <div className="absolute right-3.5 top-2.5 z-10">{cancelButton}</div>
+          ) : (
+            cancelButton
+          )}
           <Tooltip
             content={micProps.tooltip}
             align={
@@ -692,6 +719,7 @@ export default function App() {
                     speaking={isSpeaking}
                     celebrating={celebrating}
                     onCelebrationEnd={endCelebration}
+                    native={nativeLivePanel}
                   />
                 ) : (
                 <WhisperWoofIndicator

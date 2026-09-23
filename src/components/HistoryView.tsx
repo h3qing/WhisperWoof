@@ -121,19 +121,19 @@ export default function HistoryView({
         {/* WhisperWoof: active model indicator — what STT + cleanup models are running */}
         <ModelStatusBar onOpenSettings={onOpenSettings} />
         {showCloudMigrationBanner && (
-          <div className="mb-3 relative rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
+          <div className="mb-3 relative rounded-lg bg-card shadow-card p-3">
             <button
               onClick={() => {
                 setShowCloudMigrationBanner(false);
                 localStorage.setItem("cloudMigrationShown", "true");
               }}
               aria-label={t("common.close")}
-              className="absolute top-2 right-2 p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="absolute top-2 right-2 p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
             >
               <X size={14} />
             </button>
             <div className="flex items-start gap-3 pr-6">
-              <div className="shrink-0 w-8 h-8 rounded-md bg-primary/10 dark:bg-primary/20 flex items-center justify-center">
+              <div className="shrink-0 w-8 h-8 rounded-md bg-primary/15 flex items-center justify-center">
                 <Cloud size={16} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
@@ -175,13 +175,13 @@ export default function HistoryView({
             {/* WhisperWoof: Search bar + favorites toggle */}
             <div className="mb-3 flex items-center gap-2">
               <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search transcripts..."
-                  className="w-full h-8 pl-9 pr-3 rounded-lg border border-border/30 dark:border-white/8 bg-foreground/3 dark:bg-white/3 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+                  className="w-full h-8 pl-9 pr-3 rounded-lg border border-border bg-card shadow-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -197,35 +197,35 @@ export default function HistoryView({
                 className={cn(
                   "flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors",
                   showFavoritesOnly
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                    : "text-muted-foreground hover:bg-foreground/5 dark:hover:bg-white/5"
+                    ? "bg-primary/15 text-foreground"
+                    : "text-muted-foreground hover:bg-foreground/5"
                 )}
               >
-                <Star size={13} className={showFavoritesOnly ? "fill-amber-400 text-amber-400" : ""} />
+                <Star size={13} className={showFavoritesOnly ? "fill-primary text-primary" : ""} />
                 Favorites
               </button>
             </div>
 
             {!dataRetentionEnabled && (
-              <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 px-3.5 py-2.5 flex items-center gap-2.5">
-                <span className="text-amber-600 dark:text-amber-400 shrink-0 text-sm">⊘</span>
-                <p className="text-xs text-amber-700 dark:text-amber-300/90 leading-relaxed">
+              <div className="mb-3 rounded-lg bg-card shadow-card border border-warning/30 px-3.5 py-2.5 flex items-center gap-2.5">
+                <span className="text-warning shrink-0 text-sm">⊘</span>
+                <p className="text-xs text-foreground/85 leading-relaxed">
                   {t("controlPanel.history.dataRetentionDisabled")}
                 </p>
               </div>
             )}
             {isLoading ? (
-              <div className="rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm">
+              <div className="rounded-lg bg-card shadow-card">
                 <div className="flex items-center justify-center gap-2 py-8">
                   <Loader2 size={14} className="animate-spin text-primary" />
                   <span className="text-sm text-muted-foreground">{t("controlPanel.loading")}</span>
                 </div>
               </div>
             ) : history.length === 0 ? (
-              <div className="rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm">
+              <div className="rounded-lg bg-card shadow-card">
                 <div className="flex flex-col items-center justify-center py-16 px-4">
                   <svg
-                    className="text-foreground dark:text-white mb-5"
+                    className="text-foreground mb-5"
                     width="64"
                     height="64"
                     viewBox="0 0 64 64"
@@ -308,12 +308,12 @@ export default function HistoryView({
                       strokeLinecap="round"
                     />
                   </svg>
-                  <h3 className="text-xs font-semibold text-foreground/70 dark:text-foreground/60 mb-2">
+                  <h3 className="text-xs font-semibold text-foreground/70 mb-2">
                     {t("controlPanel.history.empty")}
                   </h3>
-                  <div className="flex items-center gap-2 text-xs text-foreground/50 dark:text-foreground/25">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{t("controlPanel.history.press")}</span>
-                    <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-1 dark:bg-white/6 border border-border/50 text-xs font-mono font-medium text-foreground/60 dark:text-foreground/40">
+                    <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-1 border border-border/50 text-xs font-mono font-medium text-muted-foreground">
                       {formatHotkeyLabel(hotkey)}
                     </kbd>
                     <span>{t("controlPanel.history.toStart")}</span>
@@ -324,26 +324,27 @@ export default function HistoryView({
               <div className="group">
                 {groupedHistory.map((group, index) => (
                   <div key={group.label} data-date={group.date} className={index > 0 ? "mt-4" : ""}>
-                    <div className="sticky -top-1 z-10 pt-2 pb-2 bg-background flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-muted-foreground dark:text-muted-foreground uppercase tracking-wide">
+                    <div className="sticky top-1 z-10 mb-2 flex items-center justify-between">
+                      <span className="glass rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                         {group.label}
                       </span>
                       {index === 0 && (
                         <button
                           onClick={clearAllTranscriptions}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:!text-destructive hover:!bg-destructive/8 dark:hover:!bg-destructive/10 active:scale-[0.98] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/30 transition-all duration-200"
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:!text-destructive hover:!bg-destructive/10 active:scale-[0.98] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/30 transition-all duration-200"
                         >
                           <Trash2 size={11} />
                           <span>{t("controlPanel.history.clearAll")}</span>
                         </button>
                       )}
                     </div>
-                    <div className="space-y-1.5 relative z-0">
+                    {/* One grouped card per day, rows split by hairlines. */}
+                    <div className="relative z-0 rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border-subtle">
                       {group.items.map((item) => (
-                        <div key={item.id} className="flex items-start gap-1">
+                        <div key={item.id} className="flex items-start gap-0.5 pl-2">
                           <button
                             onClick={() => toggleFavorite(item.id)}
-                            className="shrink-0 mt-3 p-0.5 rounded hover:bg-foreground/5 transition-colors"
+                            className="shrink-0 mt-2.5 p-0.5 rounded hover:bg-foreground/5 transition-colors"
                             aria-label={favorites.has(item.id) ? "Remove from favorites" : "Add to favorites"}
                           >
                             <Star
@@ -351,8 +352,8 @@ export default function HistoryView({
                               className={cn(
                                 "transition-colors",
                                 favorites.has(item.id)
-                                  ? "fill-amber-400 text-amber-400"
-                                  : "text-muted-foreground/30 hover:text-amber-400"
+                                  ? "fill-primary text-primary"
+                                  : "text-muted-foreground/50 hover:text-primary"
                               )}
                             />
                           </button>

@@ -6,6 +6,7 @@ export function useTheme() {
 
   useEffect(() => {
     const htmlElement = document.documentElement;
+    window.electronAPI?.notifyAppThemeChanged?.(theme === "auto" ? "system" : theme);
 
     // Determine effective theme
     const effectiveTheme: "light" | "dark" =

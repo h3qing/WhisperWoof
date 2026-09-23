@@ -489,7 +489,8 @@ export default function ControlPanel() {
   }, []);
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="relative h-screen flex flex-col">
+      <div className="mando-field" aria-hidden />
       <MeetingRecordingPill
         onJumpToNote={handleMeetingPillJump}
         onStopMeeting={handleMeetingPillStop}
@@ -552,7 +553,7 @@ export default function ControlPanel() {
         <CommandBar isOpen={showCommandBar} onClose={() => setShowCommandBar(false)} />
       </Suspense>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative z-10 flex flex-1 overflow-hidden">
         <div
           className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
           style={{ width: isMeetingMode ? 0 : undefined }}
@@ -619,9 +620,9 @@ export default function ControlPanel() {
               activeView === "home" &&
               !gpuBannerDismissed && (
                 <div className="max-w-3xl mx-auto w-full mb-3">
-                  <div className="rounded-lg border border-primary/20 dark:border-primary/15 bg-primary/5 p-3">
+                  <div className="rounded-lg bg-card shadow-card p-3">
                     <div className="flex items-start gap-3">
-                      <div className="shrink-0 w-8 h-8 rounded-md bg-primary/10 dark:bg-primary/15 flex items-center justify-center">
+                      <div className="shrink-0 w-8 h-8 rounded-md bg-primary/15 flex items-center justify-center">
                         <Zap size={16} className="text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">

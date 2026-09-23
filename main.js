@@ -4,6 +4,7 @@ const {
   BrowserWindow,
   dialog,
   ipcMain,
+  nativeTheme,
   session,
   systemPreferences,
 } = require("electron");
@@ -655,6 +656,15 @@ async function startApp() {
     // Relay to the floating icon window so it can react immediately
     if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
       windowManager.mainWindow.webContents.send("floating-icon-auto-hide-changed", enabled);
+    }
+  });
+
+  // Native materials (the live panel's vibrancy) follow the app's theme, not
+  // just the system's, so the glass and the text on it always agree.
+  ipcMain.on("app-theme-changed", (_event, theme) => {
+    if (theme === "light" || theme === "dark" || theme === "system") {
+      nativeTheme.themeSource = theme;
+      windowManager.syncControlPanelBackground?.();
     }
   });
 
