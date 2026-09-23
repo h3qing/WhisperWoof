@@ -5,6 +5,26 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-23 — Live typing: see your words while you speak
+
+### Added
+- **Live typing mode: text appears while you speak, IME-style.** Settings → Transcription → "How dictation works" now offers two modes, each with a small demo of what you'll see: **Live typing** and **After you finish** (the previous behavior, still the default). In live mode the dictation indicator becomes a wide panel: committed words are solid, the tail the model may still rewrite carries a dotted underline, older lines scroll off the top (3 lines max). On release the panel shows Checking… → Polishing… → Pasted with the final text, then collapses. The streamed draft stays on screen through the final pass, so there is never a blank wait.
+- **A Chinese + English streaming model for the preview: X-ASR Streaming 中英 (134MB).** A sherpa-onnx zipformer transducer with punctuation, registered as `x-asr-zh-en-streaming-480ms`. Its int8 export keeps the decoder in fp32, so the registry gained per-model `transducerFiles` overrides. The Nemotron streaming models can be picked as the preview too (marked "No Chinese").
+- **You choose what gets pasted in live mode:** re-check the whole recording with your transcription model (default, most accurate) or paste the live text as is (fastest). If the re-check fails, the live draft is pasted instead, so a dictation is never lost; silence and an empty result are still treated as silence.
+- **Streaming vs whole-recording models, explained in the app.** A collapsible explainer in the new section, a "Streaming" tag on streaming models in the model list, and language labels that come from each model's own list (Nemotron 3.5 and SenseVoice were both labelled "25 languages").
+
+### Changed
+- **Offline and streaming sherpa models now run as two separate servers** (disjoint port ranges, separate sidecar pid keys). The live preview model stays loaded while SenseVoice/Parakeet decode the same capture; a streaming model picked as the transcription model previews itself, so nothing swaps models per dictation. The preview model is pre-warmed at startup (`LIVE_PREVIEW_MODEL`).
+- **Streaming flush tail padding raised from 0.6s to 1.0s.** 0.6s clipped the last token on X-ASR ("检查报告" came back "检查报") for ~15ms more latency.
+- **Streaming partials carry a committed/provisional split** (`{text, committed, partial}`), joined CJK-aware: no space between Chinese segments, and the tokenizer's spelled-out acronyms ("V P N") are rejoined.
+
+### Fixed
+- **Local streaming could not start in dev: the CSP blocked the mic PCM worklet.** AudioWorklet modules are governed by `script-src`, not `worker-src`, and the worklet is built as a same-page `blob:` URL, so `addModule` failed with "Unable to load a worklet's module" and every capture silently fell back to batch. `script-src` now allows `blob:`. Only verified in dev.
+- **The "Text polished" learning toast no longer duplicates the live panel**, and the toast-sized window is wide enough for the panel's Pasted hold.
+
+### Measured
+- **On 52 of the owner's real dictations (zh/en code-switching), every engine lands at 2-3% MER:** X-ASR streaming final 2.8% (24ms after release), SenseVoice re-check 2.1% (65ms), Whisper Turbo re-check 3.1% (807ms). The profiles differ more than the totals: Whisper Turbo keeps English terms (9% missed vs ~20%), SenseVoice and X-ASR are better on Chinese homophones. 480ms chunks give 3x fewer visible rewrites than 160ms for ~0.2s later first text. Aggregates only in `eval/dictation-bench/README.md`; the new `run_streaming.py` reproduces the TTS half.
+
 ## [1.17.0] - 2026-09-22 — Animated Mando, Fn hold-to-talk with double-tap latch, polish that never translates or answers, History → Regenerate
 
 > This is the first release since 1.15.6: the 1.16.0 section below (reliable zh/en transcription, turbo default, Nemotron streaming, SenseVoice) was merged without a VERSION bump and never published, so upgrading from 1.15.6 brings all of it too.

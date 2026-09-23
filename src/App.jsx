@@ -10,6 +10,8 @@ import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
+import { LiveDictationPanel } from "./whisperwoof/ui/indicator/LiveDictationPanel";
+import { deriveLivePanelView, pickLivePanelFrame } from "./whisperwoof/core/live/live-dictation";
 import {
   pickMandoAction,
   nextCelebration,
@@ -287,6 +289,7 @@ export default function App() {
   // Floating icon auto-hide setting (read from store, synced via IPC)
   const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
+  const liveModeEnabled = useSettingsStore((s) => s.dictationMode === "live" && s.useLocalWhisper);
   const prevAutoHideRef = useRef(floatingIconAutoHide);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
@@ -372,6 +375,50 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
 
+  const handleDictationToggle = React.useCallback(() => {
+    setIsCommandMenuOpen(false);
+    setWindowInteractivity(false);
+  }, [setWindowInteractivity]);
+
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, isStarting, toggleListening, cancelRecording, cancelProcessing } =
+    useAudioRecording(toast, {
+      onToggle: handleDictationToggle,
+    });
+  const indicatorMode = localStorage.getItem("indicatorStyle") || "full";
+  const livePanelView = deriveLivePanelView({
+    isRecording,
+    isProcessing,
+    processingPhase,
+    segments: liveSegments,
+    finalText: liveFinalText,
+  });
+  // A live capture is actually running (recording, final pass, or Pasted hold).
+  const liveBusy = isLiveMode && livePanelView.phase !== "hidden";
+  const [windowHidden, setWindowHidden] = useState(() => document.hidden);
+  useEffect(() => {
+    const onVisibility = () => setWindowHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  // Remember the last frame a live capture drew (React's "store info from
+  // previous renders" pattern; the key comparison stops it from looping).
+  const [lastLiveFrame, setLastLiveFrame] = useState(null);
+  const liveFrameKey = `${livePanelView.phase}|${livePanelView.committed}|${livePanelView.partial}`;
+  const lastLiveFrameKey = lastLiveFrame
+    ? `${lastLiveFrame.phase}|${lastLiveFrame.committed}|${lastLiveFrame.partial}`
+    : null;
+  if (liveBusy && liveFrameKey !== lastLiveFrameKey) setLastLiveFrame(livePanelView);
+  const liveFrame = pickLivePanelFrame({
+    view: livePanelView,
+    lastFrame: lastLiveFrame,
+    isLiveCapture: isLiveMode,
+    starting: isStarting,
+    liveMode: liveModeEnabled,
+    autoHide: floatingIconAutoHide,
+    windowHidden,
+  });
+  const showLivePanel = liveFrame !== null;
+
   useEffect(() => {
     const resizeWindow = () => {
       if (isCommandMenuOpen && toastCount > 0) {
@@ -380,23 +427,17 @@ export default function App() {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
       } else if (toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
+      } else if (showLivePanel || liveModeEnabled) {
+        // Live mode keeps the wide size even when idle: resizing at every
+        // capture start/end drew the panel into the narrow window first (center
+        // strip, then the sides) and left a stale frame behind on shrink.
+        window.electronAPI?.resizeMainWindow?.("LIVE");
       } else {
         window.electronAPI?.resizeMainWindow?.("BASE");
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
-
-  const handleDictationToggle = React.useCallback(() => {
-    setIsCommandMenuOpen(false);
-    setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
-
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
-  const indicatorMode = localStorage.getItem("indicatorStyle") || "full";
+  }, [isCommandMenuOpen, toastCount, showLivePanel, liveModeEnabled]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -432,24 +473,32 @@ export default function App() {
     return () => clearTimeout(id);
   }, [completedCount, isProcessing, isRecording, endCelebration]);
   // Only the full indicator renders the hop; dot/compact users shouldn't wait for it.
-  const hopShowing = celebrating && indicatorMode === "full";
+  const hopShowing = celebrating && (indicatorMode === "full" || isLiveMode);
 
   // Auto-hide the floating icon when idle (setting enabled or dictation cycle completed)
   useEffect(() => {
     let hideTimeout;
 
-    if (floatingIconAutoHide && !isRecording && !isProcessing && !hopShowing && toastCount === 0) {
-      // Delay briefly so processing can start after recording stops without a flash
+    if (
+      floatingIconAutoHide &&
+      !isRecording &&
+      !isProcessing &&
+      !hopShowing &&
+      !liveBusy &&
+      toastCount === 0
+    ) {
+      // Delay briefly so processing can start after recording stops without a
+      // flash. Live mode holds its finished frame instead, so it can go at once.
       hideTimeout = setTimeout(() => {
         window.electronAPI?.hideWindow?.();
-      }, 500);
+      }, liveModeEnabled ? 0 : 500);
     } else if (!floatingIconAutoHide && prevAutoHideRef.current) {
       window.electronAPI?.showDictationPanel?.();
     }
 
     prevAutoHideRef.current = floatingIconAutoHide;
     return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, hopShowing, floatingIconAutoHide, toastCount]);
+  }, [isRecording, isProcessing, hopShowing, liveBusy, liveModeEnabled, floatingIconAutoHide, toastCount]);
 
   const handleClose = () => {
     window.electronAPI.hideWindow();
@@ -637,6 +686,14 @@ export default function App() {
             >
               {/* WhisperWoof indicator — Mando head + waveform + status */}
               <div className="flex flex-col items-center">
+                {showLivePanel ? (
+                  <LiveDictationPanel
+                    view={liveFrame}
+                    speaking={isSpeaking}
+                    celebrating={celebrating}
+                    onCelebrationEnd={endCelebration}
+                  />
+                ) : (
                 <WhisperWoofIndicator
                   state={micState === "recording" ? "recording" : micState === "processing" ? "processing" : "idle"}
                   speaking={isSpeaking}
@@ -648,6 +705,7 @@ export default function App() {
                   partialTranscript={partialTranscript}
                   processingPhase={processingPhase}
                 />
+                )}
               </div>
             </button>
           </Tooltip>

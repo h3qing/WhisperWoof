@@ -25,7 +25,15 @@ const SILENCE_RMS_THRESHOLD = 0.001;
 
 class ParakeetServerManager {
   constructor() {
+    // Offline models (Parakeet TDT, SenseVoice) and online streaming models get
+    // separate processes, so live dictation's preview model stays loaded while
+    // the final pass decodes the same capture with an offline model.
     this.wsServer = new ParakeetWsServer();
+    this.streamServer = new ParakeetWsServer({ pidKey: "parakeet-stream", stream: true });
+  }
+
+  _serverFor(modelName) {
+    return getModelRuntime(modelName) === "online" ? this.streamServer : this.wsServer;
   }
 
   getBinaryPath(runtime) {
@@ -116,8 +124,9 @@ class ParakeetServerManager {
     try {
       throwIfAborted();
       const runtime = getModelRuntime(modelName);
+      const server = this._serverFor(modelName);
       // Awaiting unconditionally also covers a startup's warm-up completion.
-      await this.wsServer.start(modelName, modelDir, runtime);
+      await server.start(modelName, modelDir, runtime);
 
       const samples = wavToFloat32Samples(wavBuffer);
       const durationSeconds = samples.length / BYTES_PER_SAMPLE / SAMPLE_RATE;
@@ -133,7 +142,7 @@ class ParakeetServerManager {
       const maxSegmentBytes = maxSegmentSeconds * SAMPLE_RATE * BYTES_PER_SAMPLE;
 
       if (samples.length <= maxSegmentBytes) {
-        const result = await this.wsServer.transcribe(samples, SAMPLE_RATE, { signal });
+        const result = await server.transcribe(samples, SAMPLE_RATE, { signal });
         if (result.text?.trim()) return result;
         throwIfAborted();
         // The RMS gate above already established audible audio, so an empty
@@ -143,7 +152,7 @@ class ParakeetServerManager {
           rms,
           samplesBytes: samples.length,
         });
-        const retry = await this.wsServer.transcribe(samples, SAMPLE_RATE, { signal });
+        const retry = await server.transcribe(samples, SAMPLE_RATE, { signal });
         return { ...retry, elapsed: (result.elapsed || 0) + (retry.elapsed || 0) };
       }
 
@@ -160,7 +169,7 @@ class ParakeetServerManager {
         throwIfAborted();
         const end = Math.min(offset + maxSegmentBytes, samples.length);
         const segment = samples.subarray(offset, end);
-        let result = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
+        let result = await server.transcribe(segment, SAMPLE_RATE, { signal });
         totalElapsed += result.elapsed || 0;
         if (!result.text && computeFloat32RMS(segment) >= SILENCE_RMS_THRESHOLD) {
           throwIfAborted();
@@ -170,7 +179,7 @@ class ParakeetServerManager {
             segmentIndex: offset / maxSegmentBytes,
             segmentDuration: segment.length / BYTES_PER_SAMPLE / SAMPLE_RATE,
           });
-          result = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
+          result = await server.transcribe(segment, SAMPLE_RATE, { signal });
           totalElapsed += result.elapsed || 0;
           if (!result.text) {
             truncated = true;
@@ -210,7 +219,8 @@ class ParakeetServerManager {
 
   async startServer(modelName) {
     const runtime = getModelRuntime(modelName);
-    if (!this.wsServer.isAvailable(runtime)) {
+    const server = this._serverFor(modelName);
+    if (!server.isAvailable(runtime)) {
       return { success: false, reason: "parakeet WS server binary not found" };
     }
 
@@ -220,8 +230,8 @@ class ParakeetServerManager {
     }
 
     try {
-      await this.wsServer.start(modelName, modelDir, runtime);
-      return { success: true, port: this.wsServer.port };
+      await server.start(modelName, modelDir, runtime);
+      return { success: true, port: server.port };
     } catch (error) {
       debugLogger.error("Failed to start parakeet WS server", { error: error.message });
       return { success: false, reason: error.message };
@@ -229,15 +239,23 @@ class ParakeetServerManager {
   }
 
   async stopServer() {
+    await Promise.all([this.wsServer.stop(), this.streamServer.stop()]);
+  }
+
+  async stopOfflineServer() {
     await this.wsServer.stop();
   }
 
+  async stopStreamServer() {
+    await this.streamServer.stop();
+  }
+
   getServerStatus() {
-    return this.wsServer.getStatus();
+    return { ...this.wsServer.getStatus(), stream: this.streamServer.getStatus() };
   }
 
   createOnlineStream(options) {
-    return this.wsServer.createOnlineStream(options);
+    return this.streamServer.createOnlineStream(options);
   }
 }
 

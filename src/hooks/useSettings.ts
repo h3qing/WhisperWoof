@@ -156,6 +156,8 @@ function useSettingsInternal() {
     reasoningProvider,
     reasoningModel,
     useReasoningModel,
+    dictationMode,
+    livePreviewModel,
   } = store;
 
   useEffect(() => {
@@ -173,6 +175,7 @@ function useSettingsInternal() {
         reasoningProvider: reasoningPrefs.reasoningProvider,
         reasoningModel: reasoningPrefs.reasoningModel,
         useReasoningModel,
+        livePreviewModel: dictationMode === "live" ? livePreviewModel : undefined,
       })
       .catch((err) =>
         logger.warn(
@@ -189,6 +192,8 @@ function useSettingsInternal() {
     reasoningProvider,
     reasoningModel,
     useReasoningModel,
+    dictationMode,
+    livePreviewModel,
   ]);
 
   return {

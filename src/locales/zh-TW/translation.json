@@ -320,7 +320,9 @@
     },
     "parakeet": {
       "multilingual": "25 種語言",
-      "english": "英文"
+      "english": "英文",
+      "streaming": "串流",
+      "languageCount": "{{count}} 種語言"
     },
     "apiKeyOptional": "API Key（選填）",
     "getKey": "取得金鑰 ->",
@@ -1387,6 +1389,43 @@
           "description": "設定你自己的供應商和 API Key。",
           "title": "已切換至自訂設定"
         }
+      },
+      "dictationMode": {
+        "title": "聽寫方式",
+        "description": "選擇說話時就出字，還是說完再出字。",
+        "live": {
+          "title": "即時出字",
+          "description": "邊說邊看到文字。放開後再校正、潤飾，然後貼上。"
+        },
+        "batch": {
+          "title": "說完再出字",
+          "description": "說話時只顯示波形，放開後一次辨識。最省電腦資源。",
+          "demo": "聆聽中…"
+        },
+        "needsLocal": "即時出字使用本機模型。請在下方把辨識切換到「本機」。",
+        "badge": {
+          "streaming": "串流"
+        },
+        "preview": {
+          "title": "即時預覽模型",
+          "zhEn": "中文 + 英文，含標點。",
+          "noChinese": "不支援中文 —— {{languages}}。",
+          "needsDownload": "下載預覽模型後，說話時就能看到文字。"
+        },
+        "final": {
+          "title": "最終貼上的文字",
+          "recheck": "用辨識模型再精確辨識一次",
+          "recheckHint": "最準確。放開後要多等一下。",
+          "preview": "直接使用即時文字",
+          "previewHint": "最快。即時文字裡的錯字只靠潤飾修正。"
+        },
+        "explainer": {
+          "toggle": "兩種模型有什麼差別？",
+          "streamingTitle": "串流模型",
+          "streamingBody": "把聲音切成小段邊聽邊猜，所以字會馬上出現。有底線的部分在聽到更多內容後仍可能改變。模型小、速度快，準確度略低。",
+          "batchTitle": "整段辨識模型",
+          "batchBody": "等整段錄音結束後一次讀完，每個字都能參考整句話。更準確，但放開前看不到文字。"
+        }
       }
     }
   },
@@ -1394,7 +1433,9 @@
     "descriptions": {
       "parakeet": {
         "parakeet_tdt_0_6b_v3": "快速多語言 ASR，自動語言偵測（25 種語言）",
-        "parakeet_unified_en_0_6b": "僅英語 ASR，業界領先精度（平均 WER 5.91%）"
+        "parakeet_unified_en_0_6b": "僅英語 ASR，業界領先精度（平均 WER 5.91%）",
+        "x_asr_zh_en_streaming_480ms": "中英混說的即時串流辨識——邊說邊出字，含標點。體積小、速度快（134MB），專為即時預覽設計。",
+        "x_asr_zh_en_streaming_160ms": "中英混說即時串流辨識，含標點，160ms 分塊：出字更早，每秒更新多次。"
       },
       "whisper": {
         "tiny": "最快、最不準；中文較弱。",
@@ -1828,6 +1869,13 @@
     "oauth": {
       "redirectTitle": "正在跳轉到應用程式...",
       "closeTab": "您可以關閉此分頁。"
+    },
+    "live": {
+      "listening": "聆聽中",
+      "correcting": "校正中…",
+      "polishing": "潤飾中…",
+      "done": "已貼上",
+      "startTalking": "開始說話吧…"
     }
   },
   "agentMode": {

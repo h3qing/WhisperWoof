@@ -330,3 +330,11 @@ src/.vite/
 # Mando animation source pack (78MB of PNG frames); the app ships the small
 # spritesheets in src/assets/mando built by scripts/build-mando-sprites.js
 Mando-assets-v6/
+
+# ASR bench artifacts (large, regenerable)
+eval/models/
+eval/.venv/
+eval/dictation-bench/raw/
+eval/dictation-bench/webm/
+eval/dictation-bench/wav/
+eval/dictation-bench/__pycache__/

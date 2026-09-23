@@ -1,0 +1,6 @@
+[
+ {"id":"h-xa-0","wav":"sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05/test_wavs/0.wav","silver":true,"text":"昨天是 Monday，today is 礼拜二，the day after tomorrow 是星期三。"},
+ {"id":"h-xa-1","wav":"sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05/test_wavs/1.wav","silver":true,"text":"这是第一种，第二种叫呃与 always，always 什么意思啊？"},
+ {"id":"h-xa-2","wav":"sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05/test_wavs/2.wav","silver":true,"text":"这个是频繁的啊，不认识记下来，frequently 频繁的。"},
+ {"id":"h-xa-3","wav":"sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05/test_wavs/3.wav","silver":true,"text":"第一句是个什么时态，加了 es 是一般现在时，对，后面把它时态写上去。"}
+]

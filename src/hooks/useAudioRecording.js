@@ -8,6 +8,10 @@ import { getRecordingErrorTitle } from "../utils/recordingErrors";
 import { LatencyTracker } from "../whisperwoof/core/latency/latency-tracker";
 import { PERCEIVED_LATENCY_BUDGET_MS } from "../whisperwoof/core/latency/types";
 import mandoHeadSvg from "../assets/mando-head.svg";
+import { EMPTY_LIVE_SEGMENTS, toLiveSegments } from "../whisperwoof/core/live/live-dictation";
+
+// How long the live panel keeps showing the pasted text before it collapses.
+const LIVE_DONE_HOLD_MS = 1600;
 
 const MandoToastIcon = React.createElement("img", {
   src: mandoHeadSvg,
@@ -28,6 +32,15 @@ export const useAudioRecording = (toast, options = {}) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
+  // Live dictation: committed/provisional split of the stream, whether this
+  // capture runs in live mode, and the pasted text held briefly afterwards.
+  const [liveSegments, setLiveSegments] = useState(EMPTY_LIVE_SEGMENTS);
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [liveFinalText, setLiveFinalText] = useState("");
+  // True from the hotkey press until recording actually starts (mic open takes
+  // 100-500ms), so the live panel can show "Listening" instead of the idle icon.
+  const [isStarting, setIsStarting] = useState(false);
+  const liveDoneTimerRef = useRef(null);
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
@@ -41,6 +54,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const performStartRecording = useCallback(async () => {
     if (startLockRef.current) return false;
     startLockRef.current = true;
+    setIsStarting(true);
     try {
       if (!audioManagerRef.current) return false;
 
@@ -102,6 +116,7 @@ export const useAudioRecording = (toast, options = {}) => {
       return didStart;
     } finally {
       startLockRef.current = false;
+      setIsStarting(false);
     }
   }, []);
 
@@ -153,6 +168,16 @@ export const useAudioRecording = (toast, options = {}) => {
         if (!isStreaming) {
           setPartialTranscript("");
         }
+        if (isRecording) {
+          clearTimeout(liveDoneTimerRef.current);
+          setLiveFinalText("");
+          setLiveSegments(EMPTY_LIVE_SEGMENTS);
+          setIsLiveMode(!!audioManagerRef.current?.getLiveDictationPlan?.().live);
+        } else if (!isProcessing) {
+          // Live mode keeps the draft on screen through the final pass; it's
+          // only dropped once processing ends (the pasted text takes over).
+          setLiveSegments(EMPTY_LIVE_SEGMENTS);
+        }
       },
       onRmsUpdate: (rms) => {
         // Voice-activity detection with hysteresis. The old flat 0.005 threshold
@@ -186,8 +211,13 @@ export const useAudioRecording = (toast, options = {}) => {
         }
         void playStartCue();
       },
-      onPartialTranscript: (text) => {
-        setPartialTranscript(text);
+      // Stream couldn't start (preview model missing, server error): the panel
+      // would sit on "Start talking…" forever, so show the regular indicator.
+      onLiveStreamUnavailable: () => setIsLiveMode(false),
+      onPartialTranscript: (payload) => {
+        const segments = toLiveSegments(payload);
+        setLiveSegments(segments);
+        setPartialTranscript(segments.text);
       },
       onProcessingPhase: (phase) => {
         setProcessingPhase(phase);
@@ -203,6 +233,10 @@ export const useAudioRecording = (toast, options = {}) => {
           if (!transcribedText) {
             return;
           }
+
+          clearTimeout(liveDoneTimerRef.current);
+          setLiveFinalText(transcribedText);
+          liveDoneTimerRef.current = setTimeout(() => setLiveFinalText(""), LIVE_DONE_HOLD_MS);
 
           // WhisperWoof latency: the STT stage just completed — mark it.
           // The tracker was started in performStartRecording (hotkey) and
@@ -227,7 +261,9 @@ export const useAudioRecording = (toast, options = {}) => {
             const isLearningMode = captureCount < 20;
             localStorage.setItem("whisperwoof_capture_count", String(captureCount + 1));
 
-            if (isLearningMode) {
+            // The live panel already shows the polished text as it lands.
+            const liveShowsResult = !!audioManagerRef.current?.getLiveDictationPlan?.().live;
+            if (isLearningMode && !liveShowsResult) {
               toast({
                 title: "\u2728 Text polished",
                 description: `"${textToPaste.slice(0, 60)}${textToPaste.length > 60 ? "..." : ""}"`,
@@ -506,6 +542,7 @@ export const useAudioRecording = (toast, options = {}) => {
       disposeStop?.();
       disposeCancel?.();
       disposeNoAudio?.();
+      clearTimeout(liveDoneTimerRef.current);
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
       }
@@ -550,6 +587,10 @@ export const useAudioRecording = (toast, options = {}) => {
     isSpeaking,
     transcript,
     partialTranscript,
+    liveSegments,
+    isLiveMode,
+    liveFinalText,
+    isStarting,
     startRecording: performStartRecording,
     stopRecording: performStopRecording,
     cancelRecording,

@@ -11,6 +11,11 @@ import { ensureAgentNameInDictionary } from "../utils/agentName";
 import logger from "../utils/logger";
 import type { LocalTranscriptionProvider } from "../types/electron";
 import type { GoogleCalendarAccount } from "../types/calendar";
+import {
+  DEFAULT_LIVE_PREVIEW_MODEL,
+  type DictationMode,
+  type LiveFinalPass,
+} from "../whisperwoof/core/live/live-dictation";
 import type {
   TranscriptionSettings,
   ReasoningSettings,
@@ -147,6 +152,10 @@ export interface SettingsState
   meetingAudioDetection: boolean;
   meetingAutoStart: boolean;
   panelStartPosition: "bottom-right" | "center" | "bottom-left";
+  /** "live" = streaming preview while speaking; "batch" = transcribe after release. */
+  dictationMode: DictationMode;
+  livePreviewModel: string;
+  liveFinalPass: LiveFinalPass;
   autoPasteEnabled: boolean;
   keepTranscriptionInClipboard: boolean;
 
@@ -166,6 +175,9 @@ export interface SettingsState
   setCloudReasoningBaseUrl: (value: string) => void;
   setCustomDictionary: (words: string[]) => void;
   setAssemblyAiStreaming: (value: boolean) => void;
+  setDictationMode: (value: DictationMode) => void;
+  setLivePreviewModel: (value: string) => void;
+  setLiveFinalPass: (value: LiveFinalPass) => void;
   setUseReasoningModel: (value: boolean) => void;
   setReasoningModel: (value: string) => void;
   setReasoningProvider: (value: string) => void;
@@ -297,6 +309,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   cloudReasoningBaseUrl: readString("cloudReasoningBaseUrl", API_ENDPOINTS.OPENAI_BASE),
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
+  dictationMode: (readString("dictationMode", "batch") === "live" ? "live" : "batch") as DictationMode,
+  livePreviewModel: readString("livePreviewModel", DEFAULT_LIVE_PREVIEW_MODEL),
+  liveFinalPass: (readString("liveFinalPass", "transcription") === "preview"
+    ? "preview"
+    : "transcription") as LiveFinalPass,
 
   // WhisperWoof: polish ON by default and local-first. Onboarding's Smart Cleanup
   // step downloads a model and sets reasoningModel; until then this no-ops cleanly
@@ -392,6 +409,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setCloudReasoningMode: createStringSetter("cloudReasoningMode"),
   setCloudReasoningBaseUrl: createStringSetter("cloudReasoningBaseUrl"),
   setAssemblyAiStreaming: createBooleanSetter("assemblyAiStreaming"),
+  setDictationMode: createStringSetter("dictationMode") as (value: DictationMode) => void,
+  setLivePreviewModel: createStringSetter("livePreviewModel"),
+  setLiveFinalPass: createStringSetter("liveFinalPass") as (value: LiveFinalPass) => void,
   setUseReasoningModel: createBooleanSetter("useReasoningModel"),
   setReasoningModel: createStringSetter("reasoningModel"),
   setReasoningProvider: createStringSetter("reasoningProvider"),

@@ -13,6 +13,20 @@ import {
 } from "../whisperwoof/core/language/normalize-chinese-script";
 import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
+  formatSpokenEnumeration,
+  punctuateShortCjk,
+} from "../whisperwoof/core/polish/format-dictation";
+import {
+  resolveLiveDictationPlan,
+  toLiveSegments,
+} from "../whisperwoof/core/live/live-dictation";
+import { createDownsampler } from "../whisperwoof/core/audio/downsampler";
+import {
+  createSpeechGate,
+  recordSpeechWindow,
+  speechGateDecision,
+} from "../whisperwoof/core/audio/speech-gate";
+import {
   getSettings,
   getEffectiveReasoningModel,
   isCloudReasoningMode,
@@ -73,6 +87,10 @@ const STREAMING_PROVIDERS = {
 
 class AudioManager {
   constructor() {
+    // Load the live tap's worklet ahead of the first capture (see _ensureLocalTapContext).
+    queueMicrotask(() => {
+      if (this.getLiveDictationPlan().stream) this._ensureLocalTapContext().catch(() => {});
+    });
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.isRecording = false;
@@ -121,43 +139,49 @@ class AudioManager {
   }
 
   /**
-   * Live local streaming (Nemotron): while the MediaRecorder captures the
-   * batch-quality webm, a parallel 16k PCM worklet tap feeds the sherpa online
-   * WS server through the main process. Partials drive the indicator; on stop
-   * the committed text replaces the batch decode entirely — unless the flush
-   * was unclean, in which case the recording falls back to batch as if
-   * streaming never happened. The batch recording is therefore never at risk.
+   * Live local streaming: while the MediaRecorder captures the batch-quality
+   * webm, a parallel 16k PCM worklet tap feeds the sherpa online WS server
+   * through the main process. Partials drive the indicator. On stop, the plan
+   * decides the final: either the stream's committed text (legacy Nemotron, or
+   * live mode's "use the preview" option) or a full-capture decode with the
+   * transcription model, which falls back to the streamed draft if it fails.
+   * An unclean flush always falls back to batch, so the recording is never at risk.
+   * See resolveLiveDictationPlan for the routing matrix.
    */
-  shouldStreamLocalCapture() {
+  getLiveDictationPlan() {
     const s = getSettings();
-    if (!s.useLocalWhisper || s.localTranscriptionProvider !== "nvidia") return false;
-    if (!isOnlineParakeetModel(s.parakeetModel)) return false;
-    // A pinned language the model can't serve batch-reroutes to Whisper, so
-    // streaming it would decode with the wrong engine's text.
-    const base = getBaseLanguageCode(s.preferredLanguage);
-    if (base && validateLanguageForModel(s.preferredLanguage, s.parakeetModel) === undefined) {
-      return false;
-    }
-    return true;
+    return resolveLiveDictationPlan(s, {
+      isOnlineModel: isOnlineParakeetModel,
+      // A pinned language the model can't serve would stream the wrong text.
+      supportsLanguage: (language, modelId) =>
+        !language || validateLanguageForModel(language, modelId) !== undefined,
+    });
   }
 
-  async _startLocalStreamTap(micStream) {
-    const model = getSettings().parakeetModel;
+  async _startLocalStreamTap(micStream, model) {
     this._localStreamBuffered = [];
+    this._localStreamText = "";
     this._localStreamReady = false;
     this._localStreamActive = true;
 
     if (!this._localPartialUnsub && window.electronAPI?.onParakeetStreamPartial) {
-      this._localPartialUnsub = window.electronAPI.onParakeetStreamPartial((text) => {
-        if (this._localStreamActive) this.onPartialTranscript?.(text);
+      this._localPartialUnsub = window.electronAPI.onParakeetStreamPartial((payload) => {
+        if (!this._localStreamActive) return;
+        const segments = toLiveSegments(payload);
+        this._localStreamText = segments.text;
+        this.onPartialTranscript?.(segments);
       });
     }
 
     try {
-      this._localTapCtx = new AudioContext({ sampleRate: 16000 });
+      this._localTapCtx = await this._ensureLocalTapContext();
+      await this._localTapCtx.resume();
       this._localTapSource = this._localTapCtx.createMediaStreamSource(micStream);
-      await this._localTapCtx.audioWorklet.addModule(this.getWorkletBlobUrl());
-      this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor");
+      // Released while the worklet loaded: stop already tore the tap down.
+      if (!this._localStreamActive || !this._localTapCtx) return;
+      this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor", {
+        processorOptions: { targetRate: 16000 },
+      });
       this._localTapNode.port.onmessage = (event) => {
         if (!this._localStreamActive) return;
         // Until the main-process stream exists, chunks sent over IPC are
@@ -171,7 +195,11 @@ class AudioManager {
       this._localTapSource.connect(this._localTapNode);
 
       const started = await window.electronAPI?.parakeetStreamStart?.({ model });
-      if (!this._localStreamActive) return; // stopped while starting
+      if (!this._localStreamActive) {
+        // Released during a cold start: the stream main just created has no owner.
+        if (started?.success) window.electronAPI?.parakeetStreamAbort?.();
+        return;
+      }
       if (started?.success) {
         this._localStreamReady = true;
         for (const chunk of this._localStreamBuffered) {
@@ -185,11 +213,38 @@ class AudioManager {
           "audio"
         );
         this._teardownLocalStreamTap();
+        this.onLiveStreamUnavailable?.();
       }
     } catch (e) {
       logger.warn("Local stream tap setup failed", { error: e.message }, "audio");
       this._teardownLocalStreamTap();
+      this.onLiveStreamUnavailable?.();
     }
+  }
+
+  /**
+   * The tap's AudioContext + worklet module are created once and reused:
+   * building them per capture cost ~2s before the first chunk (words spoken
+   * in that window never reached the preview). Warmed at construction when
+   * the live plan streams; suspended between captures.
+   */
+  _ensureLocalTapContext() {
+    if (!this._localTapCtxPromise) {
+      this._localTapCtxPromise = (async () => {
+        // Device-rate context, downsampled inside the worklet: a second consumer
+        // clocked at 16kHz on the same mic (e.g. AirPods at 24kHz) buried the
+        // MediaRecorder capture it shares the device with in noise. No output
+        // sink — the tap only reads.
+        const ctx = new AudioContext({ sinkId: { type: "none" } });
+        await ctx.audioWorklet.addModule(this.getWorkletBlobUrl());
+        await ctx.suspend();
+        return ctx;
+      })().catch((error) => {
+        this._localTapCtxPromise = null;
+        throw error;
+      });
+    }
+    return this._localTapCtxPromise;
   }
 
   _teardownLocalStreamTap() {
@@ -202,16 +257,26 @@ class AudioManager {
     try {
       this._localTapSource?.disconnect();
     } catch {}
-    this._localTapCtx?.close().catch(() => {});
+    this._localTapCtx?.suspend().catch(() => {});
     this._localTapNode = null;
     this._localTapSource = null;
     this._localTapCtx = null;
   }
 
-  /** @returns {Promise<{streamed: boolean, text: string}>} */
-  async _stopLocalStreamTap() {
+  /**
+   * `abort` skips the server's final flush — used when a full-capture pass will
+   * produce the final anyway, so it can start without waiting on the stream.
+   * @returns {Promise<{streamed: boolean, text: string}>}
+   */
+  async _stopLocalStreamTap({ abort = false } = {}) {
     if (!this._localStreamActive) return { streamed: false, text: "" };
     const wasReady = this._localStreamReady;
+    if (abort) {
+      const draft = this._localStreamText || "";
+      this._teardownLocalStreamTap();
+      window.electronAPI?.parakeetStreamAbort?.();
+      return { streamed: false, text: draft };
+    }
     // Flush the worklet's partial buffer, give the flush a beat to cross the
     // IPC boundary, then ask the server to commit.
     try {
@@ -238,9 +303,13 @@ class AudioManager {
     if (this.workletBlobUrl) return this.workletBlobUrl;
     const code = `
 const BUFFER_SIZE = 800;
+const createDownsampler = ${createDownsampler.toString()};
 class PCMStreamingProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
+    // No targetRate: the context already runs at the rate the consumer wants.
+    const targetRate = options?.processorOptions?.targetRate || sampleRate;
+    this._resample = createDownsampler(sampleRate, targetRate);
     this._buffer = new Int16Array(BUFFER_SIZE);
     this._offset = 0;
     this._stopped = false;
@@ -258,8 +327,9 @@ class PCMStreamingProcessor extends AudioWorkletProcessor {
   }
   process(inputs) {
     if (this._stopped) return false;
-    const input = inputs[0]?.[0];
-    if (!input) return true;
+    const raw = inputs[0]?.[0];
+    if (!raw) return true;
+    const input = this._resample(raw);
     for (let i = 0; i < input.length; i++) {
       const s = Math.max(-1, Math.min(1, input[i]));
       this._buffer[this._offset++] = s < 0 ? s * 0x8000 : s * 0x7fff;
@@ -304,6 +374,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onError,
     onTranscriptionComplete,
     onPartialTranscript,
+    onLiveStreamUnavailable = null,
     onStreamingCommit,
     onRmsUpdate,
     onMicReady,
@@ -313,6 +384,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onPartialTranscript = onPartialTranscript;
+    this.onLiveStreamUnavailable = onLiveStreamUnavailable;
     this.onStreamingCommit = onStreamingCommit;
     this._onRmsUpdate = onRmsUpdate ?? null;
     this.onMicReady = onMicReady ?? null;
@@ -455,23 +527,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._silenceAnalyser.fftSize = 2048;
         const sourceNode = this._silenceCtx.createMediaStreamSource(micStream);
         sourceNode.connect(this._silenceAnalyser);
-        this._peakRms = 0;
-        const dataArray = new Uint8Array(this._silenceAnalyser.fftSize);
+        this._speechGate = createSpeechGate();
+        // Float samples: the byte variant quantizes to 1/128, coarser than the
+        // speech gate's 0.002-0.006 thresholds.
+        const dataArray = new Float32Array(this._silenceAnalyser.fftSize);
         this._silenceInterval = setInterval(() => {
-          this._silenceAnalyser.getByteTimeDomainData(dataArray);
+          this._silenceAnalyser.getFloatTimeDomainData(dataArray);
           let sum = 0;
+          let peak = 0;
           for (let i = 0; i < dataArray.length; i++) {
-            const v = (dataArray[i] - 128) / 128;
+            const v = dataArray[i];
             sum += v * v;
+            if (Math.abs(v) > peak) peak = Math.abs(v);
           }
           const rms = Math.sqrt(sum / dataArray.length);
-          if (rms > this._peakRms) this._peakRms = rms;
+          this._speechGate = recordSpeechWindow(this._speechGate, rms, peak);
           // Emit real-time RMS for voice activity visualization
           if (this._onRmsUpdate) this._onRmsUpdate(rms);
         }, 100);
       } catch (e) {
         logger.warn("Silence detection setup failed, skipping", { error: e.message }, "audio");
-        this._peakRms = 1; // assume speech if detection fails
+        this._speechGate = null; // no measurements → the gate never skips
       }
 
       this.mediaRecorder = new MediaRecorder(micStream);
@@ -516,13 +592,23 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           : null;
         this.recordingStartTime = null;
 
+        const plan = this._livePlan;
+        this._livePlan = null;
         let streamedText = null;
+        let streamedDraft = null;
         if (this._localStreamActive) {
-          const streamed = await this._stopLocalStreamTap();
-          if (streamed.streamed) streamedText = streamed.text;
+          const useStreamed = !!plan?.useStreamedAsFinal;
+          const streamed = await this._stopLocalStreamTap({ abort: !useStreamed });
+          if (useStreamed && streamed.streamed) streamedText = streamed.text;
+          if (!useStreamed && streamed.text?.trim()) streamedDraft = streamed.text;
         }
 
-        await this.processAudio(audioBlob, { durationSeconds, streamedText });
+        await this.processAudio(audioBlob, {
+          durationSeconds,
+          streamedText,
+          streamedDraft,
+          streamModel: plan?.previewModel || null,
+        });
 
         micStream.getTracks().forEach((track) => track.stop());
       };
@@ -531,10 +617,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
 
-      if (this.shouldStreamLocalCapture()) {
+      this._livePlan = this.getLiveDictationPlan();
+      if (this._livePlan.stream) {
         // Fire-and-forget: batch capture is already running, streaming only
         // adds live partials + a faster commit when it succeeds.
-        void this._startLocalStreamTap(micStream);
+        void this._startLocalStreamTap(micStream, this._livePlan.previewModel);
       }
 
       return { success: true, micAcquiredAt: tMicAcquired };
@@ -608,21 +695,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   async processAudio(audioBlob, metadata = {}) {
     const pipelineStart = performance.now();
 
-    // Skip transcription if recording was silence
-    const SILENCE_THRESHOLD = 0.002;
-    if (this._peakRms != null && this._peakRms < SILENCE_THRESHOLD) {
+    // Skip transcription when the capture holds no speech: silence, or room
+    // noise that engines turn into hallucinated text ("Thank you.").
+    const gate = speechGateDecision(this._speechGate);
+    this._speechGate = null;
+    if (gate.skip) {
       logger.info(
-        "Silence detected, skipping transcription",
-        { peakRms: this._peakRms.toFixed(4), threshold: SILENCE_THRESHOLD },
+        "No speech detected, skipping transcription",
+        { reason: gate.reason, peakRms: gate.peakRms?.toFixed(4), speechWindows: gate.speechWindowCount },
         "audio"
       );
-      this._peakRms = null;
       this.isProcessing = false;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
       this.onTranscriptionComplete?.({ success: true, text: "" });
       return;
     }
-    this._peakRms = null;
 
     try {
       const s = getSettings();
@@ -661,19 +748,35 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       let result;
       let activeModel;
-      if (useLocalWhisper && metadata.streamedText && effectiveProvider === "nvidia") {
+      if (useLocalWhisper && metadata.streamedText) {
         // The online server already decoded this capture as it was spoken and
-        // committed cleanly on stop — the batch decode would only repeat the
-        // same work slower. Same normalize + polish path as batch.
-        activeModel = parakeetModel;
+        // committed cleanly on stop, and the live plan says that's the final —
+        // the batch decode would only repeat the work. Same normalize + polish.
+        activeModel = metadata.streamModel || parakeetModel;
         result = await this.processStreamedLocalResult(metadata.streamedText);
       } else if (useLocalWhisper) {
-        if (effectiveProvider === "nvidia") {
-          activeModel = parakeetModel;
-          result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
-        } else {
-          activeModel = whisperModel;
-          result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+        try {
+          if (effectiveProvider === "nvidia") {
+            activeModel = parakeetModel;
+            result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
+          } else {
+            activeModel = whisperModel;
+            result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
+          }
+        } catch (error) {
+          // Live mode's full-capture pass failed, but the user already watched
+          // the streamed draft appear — paste that rather than lose the dictation.
+          // Silence and an empty polish result are verdicts, not failures.
+          // (The engines wrap messages, e.g. "Parakeet failed: No text transcribed".)
+          const verdict = /No audio detected|No text transcribed/.test(error.message || "");
+          if (!metadata.streamedDraft || !this.isProcessing || verdict) throw error;
+          logger.warn(
+            "Final pass failed, using the live streamed draft",
+            { error: error.message, streamModel: metadata.streamModel },
+            "transcription"
+          );
+          activeModel = metadata.streamModel;
+          result = await this.processStreamedLocalResult(metadata.streamedDraft);
         }
       } else if (isOpenWhisprCloudMode) {
         if (!isSignedIn) {
@@ -836,7 +939,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const { allowOpenAIFallback, useLocalWhisper: isLocalMode } = getSettings();
 
-      if (allowOpenAIFallback && isLocalMode) {
+      // A live-mode draft is already on screen; local-first means it wins over the cloud.
+      if (allowOpenAIFallback && isLocalMode && !metadata.streamedDraft) {
         try {
           const fallbackResult = await this.processWithOpenAIAPI(audioBlob, metadata);
           return { ...fallbackResult, source: "openai-fallback" };
@@ -916,7 +1020,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const { allowOpenAIFallback, useLocalWhisper: isLocalMode } = getSettings();
 
-      if (allowOpenAIFallback && isLocalMode) {
+      // A live-mode draft is already on screen; local-first means it wins over the cloud.
+      if (allowOpenAIFallback && isLocalMode && !metadata.streamedDraft) {
         try {
           const fallbackResult = await this.processWithOpenAIAPI(audioBlob, metadata);
           return { ...fallbackResult, source: "openai-fallback" };
@@ -1205,7 +1310,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // Deterministic punctuation pass: Chinese output gets real full-width
     // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
     // untouched. Costs the model nothing (pure string transform on the output).
-    return typeof result === "string" ? normalizeCjkPunctuation(result) : result;
+    // Then spoken enumerations (第一… 第二…) are laid out as a numbered list.
+    return typeof result === "string"
+      ? formatSpokenEnumeration(normalizeCjkPunctuation(result))
+      : result;
   }
 
   async _cleanupTranscription(text, source) {
@@ -1232,7 +1340,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         textLength: normalizedText.length,
         threshold: skipThreshold,
       });
-      return normalizedText;
+      // No LLM for short text, but it still deserves punctuation.
+      return punctuateShortCjk(normalizedText);
     }
 
     logger.logReasoning("TRANSCRIPTION_RECEIVED", {
@@ -2966,6 +3075,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   cleanup() {
+    this._localTapCtxPromise?.then((ctx) => ctx.close()).catch(() => {});
+    this._localTapCtxPromise = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
     if (this.isStreaming) {
@@ -2992,6 +3103,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onError = null;
     this.onTranscriptionComplete = null;
     this.onPartialTranscript = null;
+    this.onLiveStreamUnavailable = null;
     this.onStreamingCommit = null;
     if (this._onApiKeyChanged) {
       window.removeEventListener("api-key-changed", this._onApiKeyChanged);

@@ -15,7 +15,21 @@ const path = require("path");
  * speaker needs and what eval/dictation-bench measured (17.3% MER). `use-itn`
  * matches the bench config too — it is what turns spoken numbers into digits.
  */
-function buildServerArgs({ modelDir, runtime, kind, port, threads, onlineEndTailPaddingS }) {
+const DEFAULT_TRANSDUCER_FILES = {
+  encoder: "encoder.int8.onnx",
+  decoder: "decoder.int8.onnx",
+  joiner: "joiner.int8.onnx",
+};
+
+function buildServerArgs({
+  modelDir,
+  runtime,
+  kind,
+  port,
+  threads,
+  onlineEndTailPaddingS,
+  files = DEFAULT_TRANSDUCER_FILES,
+}) {
   const modelArgs =
     kind === "sense-voice"
       ? [
@@ -26,9 +40,9 @@ function buildServerArgs({ modelDir, runtime, kind, port, threads, onlineEndTail
         ]
       : [
           `--tokens=${path.join(modelDir, "tokens.txt")}`,
-          `--encoder=${path.join(modelDir, "encoder.int8.onnx")}`,
-          `--decoder=${path.join(modelDir, "decoder.int8.onnx")}`,
-          `--joiner=${path.join(modelDir, "joiner.int8.onnx")}`,
+          `--encoder=${path.join(modelDir, files.encoder)}`,
+          `--decoder=${path.join(modelDir, files.decoder)}`,
+          `--joiner=${path.join(modelDir, files.joiner)}`,
         ];
 
   return [

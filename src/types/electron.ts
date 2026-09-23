@@ -505,6 +505,7 @@ declare global {
         reasoningProvider: string;
         reasoningModel?: string;
         useReasoningModel?: boolean;
+        livePreviewModel?: string;
       }) => Promise<void>;
 
       // Clipboard operations

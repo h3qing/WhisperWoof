@@ -777,10 +777,28 @@ export default function TranscriptionModelPicker({
     [showConfirmDialog, deleteParakeetModel, t]
   );
 
-  const getParakeetLanguageLabel = (language: string) => {
-    return language === "multilingual"
-      ? t("transcription.parakeet.multilingual")
-      : t("transcription.parakeet.english");
+  // Streaming models get a label so they're distinguishable from whole-recording ones;
+  // the language part comes from each model's own list, not a blanket "25 languages".
+  const getParakeetLanguageLabel = (info: {
+    language: string;
+    supportedLanguages?: string[];
+    runtime?: string;
+  }) => {
+    const langs = info.supportedLanguages ?? [];
+    const languages =
+      langs.length === 0
+        ? info.language === "multilingual"
+          ? t("transcription.parakeet.multilingual")
+          : t("transcription.parakeet.english")
+        : langs.length <= 3
+          ? langs.join(" / ")
+          : t("transcription.parakeet.languageCount", {
+              count: langs.length,
+              defaultValue: "{{count}} languages",
+            });
+    return info.runtime === "online"
+      ? `${t("transcription.parakeet.streaming", { defaultValue: "Streaming" })} · ${languages}`
+      : languages;
   };
 
   const renderParakeetModels = () => {
@@ -819,7 +837,7 @@ export default function TranscriptionModelPicker({
               isCancelling={isCancellingParakeet}
               recommended={info.recommended}
               provider="nvidia"
-              languageLabel={getParakeetLanguageLabel(info.language)}
+              languageLabel={getParakeetLanguageLabel(info)}
               onSelect={() => handleParakeetModelSelect(modelId)}
               onDelete={() => handleParakeetDelete(modelId)}
               onDownload={() =>

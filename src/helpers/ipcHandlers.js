@@ -13,6 +13,7 @@ const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
 const MeetingAudioBuffer = require("./meetingAudioBuffer");
 const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
+const { getModelRuntime } = require("./parakeetModelInfo");
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
@@ -1247,9 +1248,11 @@ class IPCHandlers {
         }
         const sender = event.sender;
         const stream = await this.parakeetManager.createOnlineStream(model, {
-          onUpdate: (text) => {
+          // Payload carries the committed/provisional split so live dictation
+          // can underline only the tail that may still be rewritten.
+          onUpdate: (text, parts) => {
             if (this._parakeetStream === stream && !sender.isDestroyed()) {
-              sender.send("parakeet-stream-partial", text);
+              sender.send("parakeet-stream-partial", { text, ...parts });
             }
           },
           onError: (error) => {
@@ -1825,7 +1828,9 @@ class IPCHandlers {
         } else {
           setVars.LOCAL_WHISPER_MODEL = prefs.model;
           clearVars.push("PARAKEET_MODEL");
-          this.parakeetManager.stopServer().catch((err) => {
+          // Only the offline model — live dictation's streaming preview server
+          // is governed by livePreviewModel below.
+          this.parakeetManager.stopOfflineServer().catch((err) => {
             debugLogger.error("Failed to stop parakeet-server on provider switch", {
               error: err.message,
             });
@@ -1887,6 +1892,24 @@ class IPCHandlers {
             error: err.message,
           });
         });
+      }
+
+      // Live dictation keeps its streaming preview model warm; turning live
+      // mode off frees it unless the transcription model itself streams.
+      if (prefs.useLocalWhisper && prefs.livePreviewModel) {
+        setVars.LIVE_PREVIEW_MODEL = prefs.livePreviewModel;
+        this.parakeetManager.prewarmStreamModel(prefs.livePreviewModel).catch((err) => {
+          debugLogger.warn("Failed to pre-warm live preview model", { error: err.message });
+        });
+      } else {
+        clearVars.push("LIVE_PREVIEW_MODEL");
+        const mainModelStreams =
+          prefs.localTranscriptionProvider === "nvidia" && getModelRuntime(prefs.model) === "online";
+        if (prefs.useLocalWhisper && !mainModelStreams) {
+          this.parakeetManager.stopStreamServer().catch((err) => {
+            debugLogger.warn("Failed to stop live preview server", { error: err.message });
+          });
+        }
       }
 
       this._syncStartupEnv(setVars, clearVars);

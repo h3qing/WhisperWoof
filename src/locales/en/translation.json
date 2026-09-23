@@ -320,7 +320,9 @@
     },
     "parakeet": {
       "multilingual": "25 languages",
-      "english": "English"
+      "english": "English",
+      "streaming": "Streaming",
+      "languageCount": "{{count}} languages"
     },
     "apiKeyOptional": "API Key (Optional)",
     "getKey": "Get key ->",
@@ -1436,6 +1438,43 @@
           "description": "Configure your own provider and API key.",
           "title": "Switched to Custom Setup"
         }
+      },
+      "dictationMode": {
+        "title": "How dictation works",
+        "description": "Choose whether text appears while you speak or after you finish.",
+        "live": {
+          "title": "Live typing",
+          "description": "See words as you speak. When you release, the text is checked, polished, and pasted."
+        },
+        "batch": {
+          "title": "After you finish",
+          "description": "Shows a waveform while you speak, then transcribes everything at once. Lightest on your Mac.",
+          "demo": "Listening…"
+        },
+        "needsLocal": "Live typing runs on local models. Switch transcription to Local below to use it.",
+        "badge": {
+          "streaming": "Streaming"
+        },
+        "preview": {
+          "title": "Live preview model",
+          "zhEn": "Chinese + English, with punctuation.",
+          "noChinese": "No Chinese — {{languages}}.",
+          "needsDownload": "Download the preview model to see text while you speak."
+        },
+        "final": {
+          "title": "Text that gets pasted",
+          "recheck": "Re-check with your transcription model",
+          "recheckHint": "Most accurate. Adds a short wait after you release.",
+          "preview": "Use the live text as is",
+          "previewHint": "Fastest. Mistakes in the live text are only fixed by polish."
+        },
+        "explainer": {
+          "toggle": "What's the difference between the two kinds of models?",
+          "streamingTitle": "Streaming models",
+          "streamingBody": "Hear audio in small slices and guess as they go, so words appear right away. The underlined tail can still change once more context arrives. Small and fast, a bit less accurate.",
+          "batchTitle": "Whole-recording models",
+          "batchBody": "Wait for the full recording and read it all at once, so every word sees the whole sentence. More accurate, but nothing shows until you release."
+        }
       }
     }
   },
@@ -1443,7 +1482,9 @@
     "descriptions": {
       "parakeet": {
         "parakeet_tdt_0_6b_v3": "Fast multilingual ASR with auto language detection (25 languages)",
-        "parakeet_unified_en_0_6b": "English-only ASR with state-of-the-art accuracy (5.91% avg WER)"
+        "parakeet_unified_en_0_6b": "English-only ASR with state-of-the-art accuracy (5.91% avg WER)",
+        "x_asr_zh_en_streaming_480ms": "Live streaming for Chinese + English mixed speech — text appears as you speak, with punctuation. Small and fast (134MB), built for the live preview.",
+        "x_asr_zh_en_streaming_160ms": "Chinese + English live streaming with punctuation, 160ms chunks: words appear sooner and update several times a second."
       },
       "whisper": {
         "tiny": "Fastest, least accurate; weak on Chinese.",
@@ -1877,6 +1918,13 @@
     "oauth": {
       "redirectTitle": "Redirecting to app...",
       "closeTab": "You can close this tab."
+    },
+    "live": {
+      "listening": "Listening",
+      "correcting": "Checking…",
+      "polishing": "Polishing…",
+      "done": "Pasted",
+      "startTalking": "Start talking…"
     }
   },
   "agentMode": {

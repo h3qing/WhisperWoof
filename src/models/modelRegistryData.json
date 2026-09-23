@@ -105,6 +105,48 @@
       "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25.tar.bz2",
       "extractDir": "sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25"
     },
+    "x-asr-zh-en-streaming-160ms": {
+      "name": "X-ASR Streaming 中英 · Fast",
+      "description": "Chinese + English live streaming with punctuation, 160ms chunks: words appear sooner and update several times a second. Measured slightly more accurate on real dictation.",
+      "descriptionKey": "models.descriptions.parakeet.x_asr_zh_en_streaming_160ms",
+      "size": "134MB",
+      "sizeMb": 134,
+      "expectedSizeBytes": 133898007,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "zh",
+        "en"
+      ],
+      "runtime": "online",
+      "transducerFiles": {
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.onnx",
+        "joiner": "joiner.int8.onnx"
+      },
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05.tar.bz2",
+      "extractDir": "sherpa-onnx-x-asr-160ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05"
+    },
+    "x-asr-zh-en-streaming-480ms": {
+      "name": "X-ASR Streaming 中英 · Steady",
+      "description": "Chinese + English live streaming with punctuation, 480ms chunks: text updates about twice a second and rarely rewrites itself.",
+      "descriptionKey": "models.descriptions.parakeet.x_asr_zh_en_streaming_480ms",
+      "size": "134MB",
+      "sizeMb": 134,
+      "expectedSizeBytes": 133895136,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "zh",
+        "en"
+      ],
+      "runtime": "online",
+      "transducerFiles": {
+        "encoder": "encoder.int8.onnx",
+        "decoder": "decoder.onnx",
+        "joiner": "joiner.int8.onnx"
+      },
+      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05.tar.bz2",
+      "extractDir": "sherpa-onnx-x-asr-480ms-streaming-zipformer-transducer-zh-en-punct-int8-2026-06-05"
+    },
     "sense-voice-zh-en": {
       "name": "SenseVoice",
       "description": "Best for Chinese/English mixed speech — 17.3% mixed error rate vs Whisper Turbo's 24.8% on our bench, and ~4x faster. Also covers Japanese, Korean, Cantonese. Simplified Chinese output with punctuation built in.",

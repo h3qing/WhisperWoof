@@ -97,6 +97,8 @@ export interface ParakeetModelInfo {
   runtime?: "online" | "offline";
   /** Distinguishes SenseVoice (single fused model file) from transducer exports. */
   modelType?: "sense-voice";
+  /** Overrides the int8 transducer file names for exports that ship some parts in fp32. */
+  transducerFiles?: { encoder?: string; decoder?: string; joiner?: string };
 }
 
 export type ParakeetModelsMap = Record<string, ParakeetModelInfo>;

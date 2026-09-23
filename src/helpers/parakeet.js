@@ -116,6 +116,14 @@ class ParakeetManager {
       this.isInitialized = true;
     }
 
+    if (settings.livePreviewModel) {
+      await this.prewarmStreamModel(settings.livePreviewModel).catch((err) => {
+        debugLogger.warn("Live preview pre-warm failed (will start on first use)", {
+          error: err.message,
+        });
+      });
+    }
+
     debugLogger.info("Parakeet initialization complete", {
       totalTimeMs: Date.now() - startTime,
       binaryAvailable: this.serverManager.hasAnyWsBinary(),
@@ -191,6 +199,26 @@ class ParakeetManager {
 
   async stopServer() {
     await this.serverManager.stopServer();
+  }
+
+  async stopOfflineServer() {
+    await this.serverManager.stopOfflineServer();
+  }
+
+  async stopStreamServer() {
+    await this.serverManager.stopStreamServer();
+  }
+
+  /**
+   * Load live dictation's preview model into the streaming server ahead of the
+   * first capture, so the first words don't wait on model load. Idempotent.
+   */
+  async prewarmStreamModel(modelName) {
+    if (getModelRuntime(modelName) !== "online") return;
+    if (!getParakeetCapability().supported || !this.serverManager.isAvailable("online")) return;
+    if (!this.serverManager.isModelDownloaded(modelName)) return;
+    const started = await this.serverManager.startServer(modelName);
+    debugLogger.info("Live preview model pre-warm", { model: modelName, ...started });
   }
 
   getServerStatus() {
@@ -413,7 +441,9 @@ class ParakeetManager {
 
       // Pre-warm the downloaded model, but never hijack a server that is already
       // serving (or starting) another model — e.g. mid-dictation.
-      const serverStatus = this.serverManager.getServerStatus();
+      const allStatus = this.serverManager.getServerStatus();
+      const serverStatus =
+        getModelRuntime(modelName) === "online" ? allStatus.stream : allStatus;
       if (
         this.serverManager.isAvailable(getModelRuntime(modelName)) &&
         !serverStatus.running &&

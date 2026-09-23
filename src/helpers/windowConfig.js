@@ -31,8 +31,9 @@ const FLOATING_OVERLAY_TYPE =
 const WINDOW_SIZES = {
   BASE: { width: 220, height: 188 }, // WhisperWoof: Mando head + status + waveform (vertical, bottom-anchored). Tall enough that the head (topmost) isn't clipped in the taller "speaking" layout.
   WITH_MENU: { width: 240, height: 280 },
-  WITH_TOAST: { width: 400, height: 500 },
+  WITH_TOAST: { width: 470, height: 500 }, // Wide enough for the live dictation panel's "Pasted" hold.
   EXPANDED: { width: 400, height: 500 },
+  LIVE: { width: 470, height: 188 }, // Live dictation panel: 420px text panel + cancel button, up to 3 lines.
 };
 
 // Main dictation window configuration
@@ -125,20 +126,24 @@ class WindowPositionUtil {
     const MARGIN = 48; // WhisperWoof: 48px from bottom edge per design spec
     const workArea = display.workArea || display.bounds;
 
-    let x, y;
+    // Clamp to the display's own work area, never to 0: displays left of or
+    // above the primary have negative coordinates, and a 0 clamp dropped the
+    // widget onto the primary screen's top edge.
+    const minX = workArea.x;
+    const minY = workArea.y;
+    const bottomY = Math.max(minY, workArea.y + workArea.height - height - MARGIN);
+
+    let x;
     if (position === "bottom-left") {
       x = workArea.x + MARGIN;
-      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
     } else if (position === "center") {
-      x = Math.round(workArea.x + (workArea.width - width) / 2);
-      y = Math.max(0, workArea.y + workArea.height - height - 48); // bottom-center, just above dock
+      x = Math.round(workArea.x + (workArea.width - width) / 2); // bottom-center, just above dock
     } else {
       // bottom-right (default)
-      x = Math.max(0, workArea.x + workArea.width - width - MARGIN);
-      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
+      x = Math.max(minX, workArea.x + workArea.width - width - MARGIN);
     }
 
-    return { x, y, width, height };
+    return { x, y: bottomY, width, height };
   }
 
   static getNotificationPosition(display) {
