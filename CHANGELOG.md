@@ -5,6 +5,8 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-09-23 — Fn+T / Fn+N / Fn+P work, and show where your words go
+
 ### Fixed
 - **Fn+T / Fn+N / Fn+P never worked on installed builds.** Builds ran with `mac.identity=null`, which skips signing, so the app kept Electron's stock signature, which no longer matched the renamed bundle (`codesign --verify` failed). macOS cannot hold an Accessibility grant for an app whose signature doesn't verify, so the Fn listener fell back to a read-only monitor: it saw Fn but never the letter, the letter was typed into the focused app, and the text was pasted. Paste kept working through its AppleScript fallback, which hid the problem. An `afterPack` hook now ad-hoc signs the whole bundle (`scripts/after-pack-adhoc-sign.js`), and the build fails if the signature doesn't verify.
 - **The Fn listener picks up Accessibility without an app restart.** In fallback mode it polls `AXIsProcessTrusted()` and restarts itself in tap mode once permission is granted.
