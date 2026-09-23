@@ -94,8 +94,8 @@
       background:var(--sheet); border:1px solid var(--rule); border-bottom-width:3px; border-radius:7px;
     }
     .keycap.down{ border-bottom-width:1px; transform:translateY(2px); background:var(--fur-wash); border-color:var(--fur); }
-    /* Mando sits on the rule that starts the pitch below. */
-    .mando{ width:240px; height:260px; object-fit:contain; object-position:bottom; align-self:end; justify-self:center; margin-bottom:-58px; position:relative; z-index:1; }
+    /* Mando is centered on the headline block, above the CTA column. */
+    .mando{ width:240px; height:260px; object-fit:contain; align-self:center; justify-self:center; }
     .pitch{ display:grid; grid-template-columns:minmax(0, 620px) var(--side); gap:40px; align-items:end; justify-content:space-between; margin-top:56px; padding-top:28px; border-top:1.5px solid var(--ink); }
     .pitch p{ margin:0; font-size:21px; line-height:1.5; }
     .ctas{ display:flex; gap:12px; flex-wrap:wrap; }
@@ -177,7 +177,16 @@
     .foot a{ text-decoration:none; }
     .foot a:hover{ color:var(--ink); }
 
+    /* The scroll-along companion: a small Mando runs along the bottom edge as
+       you read (right going down, left going up) and sits when you stop. */
+    .buddy{ position:fixed; bottom:10px; left:0; width:78px; height:84px; z-index:15; pointer-events:none;
+      opacity:0; transition:opacity .25s; will-change:transform; }
+    .buddy.on{ opacity:1; }
+    .buddy img{ width:100%; height:100%; object-fit:contain; }
+    @media(max-width:760px){ .buddy{ width:56px; height:60px; } }
+
     @media (prefers-reduced-motion: reduce){
+      .buddy{ display:none; }
       .said .caret, .wave i{ animation:none; }
       html{ scroll-behavior:auto; }
     }
@@ -328,7 +337,7 @@
   <!-- DOWNLOAD -->
   <section class="dl" id="download">
     <div class="wrap">
-      <img src="mando/hd/hop.webp" alt="Mando hopping" width="192" height="208" loading="lazy">
+      <img src="mando/hd/wave.webp" alt="Mando waving" width="192" height="208" loading="lazy">
       <h2 class="h2">Give Mando your voice</h2>
       <p class="lede">Free and open source, built for Apple Silicon Macs.</p>
       <div class="ctas">
@@ -343,6 +352,8 @@
     </div>
   </section>
 </main>
+
+<div class="buddy" id="buddy" aria-hidden="true"><img src="mando/hd/wait.webp" alt=""></div>
 
 <footer>
   <div class="wrap foot">
@@ -427,6 +438,44 @@
     // Start once the hero is on screen; a hidden tab doesn't need to animate.
     setTimeout(loop, 900);
   }
+})();
+</script>
+<script>
+(() => {
+  // Scroll-along Mando: position = reading progress, sprite = scroll direction.
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const buddy = document.getElementById("buddy");
+  const img = buddy.querySelector("img");
+  const SPRITES = { right: "mando/hd/run-right.webp", left: "mando/hd/run-left.webp", sit: "mando/hd/wait.webp" };
+  Object.values(SPRITES).forEach((src) => { const i = new Image(); i.src = src; });
+  const show = (k) => { if (!img.src.endsWith(SPRITES[k])) img.src = SPRITES[k]; };
+
+  // Stay out of the way while a big Mando (hero, download) is on screen.
+  const bigMandos = new Map();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => bigMandos.set(e.target, e.isIntersecting));
+    buddy.classList.toggle("on", ![...bigMandos.values()].some(Boolean));
+  });
+  [document.getElementById("mando"), document.querySelector(".dl img")].forEach((el) => io.observe(el));
+
+  let lastY = window.scrollY;
+  let idle;
+  const place = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = max > 0 ? window.scrollY / max : 0;
+    const x = 16 + progress * (window.innerWidth - buddy.offsetWidth - 32);
+    buddy.style.transform = `translateX(${x}px)`;
+  };
+  window.addEventListener("scroll", () => {
+    const y = window.scrollY;
+    if (y !== lastY) show(y > lastY ? "right" : "left");
+    lastY = y;
+    place();
+    clearTimeout(idle);
+    idle = setTimeout(() => show("sit"), 220);
+  }, { passive: true });
+  window.addEventListener("resize", place);
+  place();
 })();
 </script>
 </body>

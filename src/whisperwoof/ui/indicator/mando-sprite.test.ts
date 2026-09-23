@@ -165,10 +165,13 @@ describe('manifest and assets', () => {
     // The site plays full-resolution loops from website/mando/hd, written by
     // scripts/build-mando-sprites.js from the same pack as the app sheets.
     const html = fs.readFileSync(path.join(REPO_ROOT, 'website/index.html'), 'utf8');
-    const referenced = [...html.matchAll(/mando\/hd\/(\w+)\.webp/g)].map((m) => m[1]);
+    const build = fs.readFileSync(path.join(REPO_ROOT, 'scripts/build-mando-sprites.js'), 'utf8');
+    const siteOnly = JSON.parse(build.match(/SITE_ONLY_ACTIONS = (\[[^\]]*\])/)?.[1] ?? '[]') as string[];
+    const built = [...ACTIONS, ...siteOnly];
+    const referenced = [...html.matchAll(/mando\/hd\/([\w-]+)\.webp/g)].map((m) => m[1]);
     expect(referenced.length).toBeGreaterThan(0);
     new Set(referenced).forEach((action) => {
-      expect(ACTIONS).toContain(action);
+      expect(built).toContain(action);
       expect(fs.existsSync(path.join(REPO_ROOT, 'website/mando/hd', `${action}.webp`))).toBe(true);
     });
   });

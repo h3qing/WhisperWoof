@@ -32,6 +32,8 @@ const SITE_HD_DIR = path.join(SITE_DIR, "hd");
 // Actions the app actually uses. Cell size keeps the source 12:13 aspect and
 // is 2x the CSS size so it stays crisp on Retina.
 const ACTIONS = ["wait", "think", "review", "hop"];
+// Website-only HD loops (the scroll-along companion runs; the download CTA waves).
+const SITE_ONLY_ACTIONS = ["run-right", "run-left", "wave"];
 const CELL_WIDTH = 120;
 const CELL_HEIGHT = 130;
 // Every other source frame: the pack interpolates 3-6 key poses to 25fps, so
@@ -84,15 +86,20 @@ function listPngFrames(dir) {
   return fs.readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
 }
 
-/** Downscale every FRAME_STEP-th source frame into tmpDir/<id><suffix>/NNN.png. */
-function extractFrames(entry, framesPattern, tmpDir, { width = CELL_WIDTH, height = CELL_HEIGHT, suffix = "" } = {}) {
+/** Downscale every step-th source frame into tmpDir/<id><suffix>/NNN.png. */
+function extractFrames(
+  entry,
+  framesPattern,
+  tmpDir,
+  { width = CELL_WIDTH, height = CELL_HEIGHT, suffix = "", step = FRAME_STEP } = {}
+) {
   const framesDir = path.join(tmpDir, `${entry.id}${suffix}`);
   fs.mkdirSync(framesDir);
   run("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     "-start_number", String(entry.startNumber),
     "-i", framesPattern,
-    "-vf", `select=not(mod(n\\,${FRAME_STEP})),scale=${width}:${height}:flags=lanczos`,
+    "-vf", `select=not(mod(n\\,${step})),scale=${width}:${height}:flags=lanczos`,
     "-fps_mode", "passthrough",
     "-pix_fmt", "rgba",
     path.join(framesDir, "%03d.png"),
@@ -151,8 +158,24 @@ function buildAction(entry, tmpDir) {
   };
 }
 
+/** Full-resolution loop only, for the website. Short loops (runs: 4 frames) keep every frame. */
+function buildSiteOnlyAction(entry, tmpDir) {
+  const framesPattern = validateEntry(entry);
+  const step = entry.frameCount <= 8 ? 1 : FRAME_STEP;
+  const dir = extractFrames(entry, framesPattern, tmpDir, {
+    width: entry.width,
+    height: entry.height,
+    suffix: "-hd",
+    step,
+  });
+  return {
+    id: entry.id,
+    animatedHd: buildAnimatedWebp(entry, dir, listPngFrames(dir), entry.frameDurationMs * step, tmpDir, "-hd"),
+  };
+}
+
 /** Copy every finished asset into the repo and write the manifest, all at once. */
-function publish(built) {
+function publish(built, siteOnly) {
   [APP_SHEET_DIR, SITE_SHEET_DIR, SITE_HD_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
   built.forEach(({ id, sheet, animated, animatedHd }) => {
     fs.copyFileSync(animatedHd, path.join(SITE_HD_DIR, `${id}.webp`));
@@ -160,6 +183,7 @@ function publish(built) {
     fs.copyFileSync(sheet, path.join(SITE_SHEET_DIR, `${id}.webp`));
     fs.copyFileSync(animated, path.join(SITE_DIR, `${id}.webp`));
   });
+  siteOnly.forEach(({ id, animatedHd }) => fs.copyFileSync(animatedHd, path.join(SITE_HD_DIR, `${id}.webp`)));
   const manifest = Object.fromEntries(
     built.map(({ id, frameCount, frameDurationMs, cellWidth, cellHeight }) => [
       id,
@@ -186,8 +210,16 @@ function main() {
       if (!entry) throw new Error(`Action "${id}" missing from animations.json`);
       return buildAction(entry, tmpDir);
     });
+    const siteOnly = SITE_ONLY_ACTIONS.map((id) => {
+      const entry = source.animations.find((a) => a.id === id);
+      if (!entry) throw new Error(`Action "${id}" missing from animations.json`);
+      return buildSiteOnlyAction(entry, tmpDir);
+    });
     report(built);
-    publish(built);
+    siteOnly.forEach(({ id, animatedHd }) =>
+      console.log(`${id.padEnd(9)} site hd ${(fs.statSync(animatedHd).size / 1024).toFixed(0)} KB`)
+    );
+    publish(built, siteOnly);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
