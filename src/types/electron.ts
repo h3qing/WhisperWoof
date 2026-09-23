@@ -336,6 +336,8 @@ declare global {
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
       onDictationRoute?: (callback: (hotkeyUsed: string) => void) => () => void;
+      whisperwoofOpenVoiceNote?: (name: string | null) => Promise<{ success: boolean; error?: string }>;
+      onWhisperwoofNavigateVoiceNote?: (callback: (name: string | null) => void) => () => void;
 
       // STT config
       getSttConfig?: () => Promise<{

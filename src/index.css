@@ -443,6 +443,18 @@ textarea {
   box-shadow: 0 0 0 2px oklch(from var(--color-ring) l c h / 0.15);
 }
 
+/* Borderless editor sitting directly on a card (Notes view). The input rules
+   above are unlayered, so Tailwind utilities can't undo them. */
+:root textarea.bare-field,
+:root textarea.bare-field:focus,
+.dark textarea.bare-field,
+.dark textarea.bare-field:focus {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* Card styling - elevated parchment */
 .card {
   background-color: var(--color-card);

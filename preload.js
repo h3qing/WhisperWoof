@@ -838,6 +838,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
   whisperwoofSetNotesDir: (dir) => ipcRenderer.invoke("whisperwoof-set-notes-dir", dir),
   whisperwoofPickNotesDir: () => ipcRenderer.invoke("whisperwoof-pick-notes-dir"),
+  whisperwoofNotesList: () => ipcRenderer.invoke("whisperwoof-notes-list"),
+  whisperwoofNotesUpdate: (name, body) => ipcRenderer.invoke("whisperwoof-notes-update", name, body),
+  whisperwoofNotesTrash: (name) => ipcRenderer.invoke("whisperwoof-notes-trash", name),
+  whisperwoofNotesReveal: (name) => ipcRenderer.invoke("whisperwoof-notes-reveal", name),
+  whisperwoofNotesOpenFolder: () => ipcRenderer.invoke("whisperwoof-notes-open-folder"),
+  whisperwoofNotesWatch: () => ipcRenderer.invoke("whisperwoof-notes-watch"),
+  onWhisperwoofNotesChanged: registerListener("whisperwoof-notes-changed", (callback) => () => callback()),
+  whisperwoofOpenVoiceNote: (name) => ipcRenderer.invoke("whisperwoof-open-voice-note", name),
+  onWhisperwoofNavigateVoiceNote: registerListener(
+    "whisperwoof-navigate-voice-note",
+    (callback) => (_event, name) => callback(name)
+  ),
 
   // WhisperWoof: History entries (voice + clipboard unified view)
   whisperwoofGetEntries: (limit, offset) => ipcRenderer.invoke("whisperwoof-get-entries", limit, offset),

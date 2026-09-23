@@ -99,7 +99,7 @@ function saveAsMarkdown(text) {
       textLength: text.length,
     });
 
-    return { success: true, filePath };
+    return { success: true, filePath, name: filename };
   } catch (err) {
     debugLogger.error("[WhisperWoof] Failed to save markdown note", {
       error: err.message,
