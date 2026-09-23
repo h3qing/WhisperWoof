@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-23 — Liquid glass in Mando's hue
+
+### Changed
+- **Liquid glass in Mando's hue.** The whole UI follows Apple's Liquid Glass layering (rules in `docs/design/liquid-glass.md`): a slow, blurred field of Mando colours behind each window; sidebars, toolbars, popovers, toasts, Cmd+K and the overlays are glass (`glass`, `glass-thick`, `glass-tint` utilities); content stays on solid cards. The light theme is warm cream instead of cool grey, amber is kept for the primary action and selection, and every screen uses theme tokens, so light and dark both work. Reduced transparency, increased contrast and reduced motion are respected.
+- **Native macOS glass on the live dictation panel and the agent overlay.** The window becomes exactly the panel and carries real desktop vibrancy (`LIVE_PANEL` size, `vibrancyForSize`); the cancel button moved into the panel's corner. With a toast or menu open, or off macOS, the panel falls back to CSS glass. The native material follows the app's own theme setting (`nativeTheme.themeSource`).
+- **Home: lighter cards.** Each day's history is one grouped card with hairline rows instead of a card per entry, the date header is a small floating capsule, the activity heatmap has small cells aligned to the right, and cards have a lit edge in dark mode.
+
+### Fixed
+- The control panel window no longer flashes cold navy before the page loads; it paints the theme's background.
+
 ## [1.18.0] - 2026-09-23 — Live typing: see your words while you speak
 
 ### Added
