@@ -5,6 +5,17 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Fixed
+- **Fn+T / Fn+N / Fn+P never worked on installed builds.** Builds ran with `mac.identity=null`, which skips signing, so the app kept Electron's stock signature, which no longer matched the renamed bundle (`codesign --verify` failed). macOS cannot hold an Accessibility grant for an app whose signature doesn't verify, so the Fn listener fell back to a read-only monitor: it saw Fn but never the letter, the letter was typed into the focused app, and the text was pasted. Paste kept working through its AppleScript fallback, which hid the problem. An `afterPack` hook now ad-hoc signs the whole bundle (`scripts/after-pack-adhoc-sign.js`), and the build fails if the signature doesn't verify.
+- **The Fn listener picks up Accessibility without an app restart.** In fallback mode it polls `AXIsProcessTrusted()` and restarts itself in tap mode once permission is granted.
+- **Fn+T copied nothing.** The dictation overlay never takes focus, and Chromium rejects `navigator.clipboard.writeText` from an unfocused page. The copy now goes through the main process's clipboard (`core/router/copy-to-clipboard.ts`, with tests).
+
+### Added
+- **You can see where a dictation is going.** When Fn+T, Fn+N or Fn+P is pressed, the overlay shows a Copy, Note or Project chip. In live mode the panel then ends on "Copied", "Saved as note" or "Filed to project" instead of "Pasted", and no toast covers it. The hotkey → route map lives in one place (`core/router/dictation-route.ts`, with tests).
+
+### Note
+- Ad-hoc signatures change with every build, so macOS asks for the Accessibility grant again after each update. In Settings → Privacy & Security → Accessibility, remove WhisperWoof and add it back.
+
 ## [1.19.0] - 2026-09-23 — Liquid glass in Mando's hue
 
 ### Changed

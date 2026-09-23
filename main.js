@@ -824,6 +824,11 @@ async function startApp() {
 
     globeKeyManager.on("globe-down", async () => {
       activeFnComboKey = null;
+      // Reset the overlay's route chip; a letter pressed during this hold
+      // re-sends it (same channel, so ordering is preserved).
+      if (isLiveWindow(windowManager.mainWindow)) {
+        windowManager.mainWindow.webContents.send("dictation-route", "Fn");
+      }
       const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
       const mainWindowLive = isLiveWindow(windowManager.mainWindow);
       debugLogger?.debug("[Globe] globe-down received", {
@@ -894,6 +899,10 @@ async function startApp() {
     globeKeyManager.on("fn-combo-key", (key) => {
       activeFnComboKey = key;
       debugLogger?.debug("[Globe] Fn combo key detected", { key, hotkeyUsed: `Fn+${key}` });
+      // Tell the overlay right away so it can show where this dictation will go.
+      if (isLiveWindow(windowManager.mainWindow)) {
+        windowManager.mainWindow.webContents.send("dictation-route", `Fn+${key}`);
+      }
     });
 
     globeKeyManager.on("modifier-up", (modifier) => {

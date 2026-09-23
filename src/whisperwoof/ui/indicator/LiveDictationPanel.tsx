@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { MandoSprite } from './MandoSprite';
 import { pickMandoAction } from './mando-sprite';
 import type { LivePanelView } from '../../core/live/live-dictation';
+import type { DictationRoute } from '../../core/router/dictation-route';
+import { RouteChip } from './RouteChip';
 
 // Live dictation panel: replaces the Mando indicator while a live-mode capture
 // runs. Committed text is solid; the provisional tail (which the streaming
@@ -30,6 +32,9 @@ interface LiveDictationPanelProps {
   /** The window is exactly this panel and carries macOS vibrancy: fill it and
    *  add only a light Mando tint. Otherwise the panel draws its own CSS glass. */
   native?: boolean;
+  /** Where this dictation goes; anything but paste shows a chip from the
+   *  moment Fn+letter is pressed, and the done label names the destination. */
+  route?: DictationRoute;
 }
 
 export function LiveDictationPanel({
@@ -38,6 +43,7 @@ export function LiveDictationPanel({
   celebrating,
   onCelebrationEnd,
   native = false,
+  route = 'paste-at-cursor',
 }: LiveDictationPanelProps) {
   const { t } = useTranslation();
   const { phase, committed, partial } = view;
@@ -57,8 +63,14 @@ export function LiveDictationPanel({
     streaming: t('app.live.listening', { defaultValue: 'Listening' }),
     correcting: t('app.live.correcting', { defaultValue: 'Checking…' }),
     polishing: t('app.live.polishing', { defaultValue: 'Polishing…' }),
-    done: t('app.live.done', { defaultValue: 'Pasted' }),
+    done: {
+      'paste-at-cursor': t('app.live.done', { defaultValue: 'Pasted' }),
+      'copy-to-clipboard': t('app.live.doneCopied', { defaultValue: 'Copied' }),
+      'save-as-markdown': t('app.live.doneNote', { defaultValue: 'Saved as note' }),
+      project: t('app.live.doneProject', { defaultValue: 'Filed to project' }),
+    }[route],
   }[phase as Exclude<typeof phase, 'hidden'>];
+
 
   const surface = native
     ? 'w-[420px] bg-mando/[0.07]'
@@ -86,6 +98,7 @@ export function LiveDictationPanel({
           <span className={`rounded-full px-2 text-[11px] font-semibold leading-[18px] ${pillClass}`}>
             {label}
           </span>
+          {phase !== 'done' && <RouteChip route={route} />}
         </div>
         <div
           aria-hidden="true"
