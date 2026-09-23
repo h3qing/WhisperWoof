@@ -38,6 +38,7 @@ const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
 const CommandSearch = React.lazy(() => import("./CommandSearch"));
 const WhisperWoofHistory = React.lazy(() => import("../whisperwoof/ui/history/WhisperWoofHistory"));
 const WhisperWoofProjects = React.lazy(() => import("../whisperwoof/ui/projects/WhisperWoofProjects"));
+const VoiceNotesView = React.lazy(() => import("../whisperwoof/ui/notes/VoiceNotesView"));
 // WhisperWoofSettings moved into SettingsModal as "Voice & Polish" tab
 const WhisperWoofPlugins = React.lazy(() => import("../whisperwoof/ui/plugins/WhisperWoofPlugins"));
 const ClipboardTimeline = React.lazy(() => import("../whisperwoof/ui/smart-clipboard/ClipboardTimeline"));
@@ -172,6 +173,16 @@ export default function ControlPanel() {
     };
     detect();
   }, [useLocalWhisper, localTranscriptionProvider, useReasoningModel, gpuBannerDismissed]);
+
+  // "Saved as note → Open" from the dictation overlay.
+  const [voiceNoteFocus, setVoiceNoteFocus] = useState<string | null>(null);
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onWhisperwoofNavigateVoiceNote?.((name) => {
+      setVoiceNoteFocus(name);
+      setActiveView("voice-notes");
+    });
+    return () => cleanup?.();
+  }, []);
 
   useEffect(() => {
     const cleanup = window.electronAPI?.onNavigateToMeetingNote?.((data) => {
@@ -729,6 +740,11 @@ export default function ControlPanel() {
             {activeView === "whisperwoof-history" && (
               <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
                 <WhisperWoofHistory />
+              </Suspense>
+            )}
+            {activeView === "voice-notes" && (
+              <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
+                <VoiceNotesView focusName={voiceNoteFocus} />
               </Suspense>
             )}
             {activeView === "whisperwoof-projects" && (

@@ -1,0 +1,84 @@
+/**
+ * Notes folder — fs side of the Notes view. Lists, reads, edits, trashes and
+ * reveals the .md files in the notes folder (the one Fn+N writes to), and
+ * watches it so a new voice note shows up while the view is open.
+ * Every name coming from the renderer goes through isSafeNoteName.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const { shell } = require("electron");
+const { getNotesDirectory } = require("./markdown-route");
+const pure = require("./notes-folder-pure");
+
+const MAX_NOTES = 500;
+const MAX_NOTE_BYTES = 512 * 1024;
+
+function notePath(name) {
+  if (!pure.isSafeNoteName(name)) throw new Error("Invalid note name");
+  return path.join(getNotesDirectory(), name);
+}
+
+function listNotes() {
+  const dir = getNotesDirectory();
+  if (!fs.existsSync(dir)) return { dir, notes: [] };
+  const entries = fs
+    .readdirSync(dir)
+    .filter(pure.isSafeNoteName)
+    .map((name) => {
+      const stat = fs.statSync(path.join(dir, name));
+      return { name, stat };
+    })
+    .filter(({ stat }) => stat.isFile() && stat.size <= MAX_NOTE_BYTES);
+  const newest = pure
+    .sortNewestFirst(entries.map(({ name, stat }) => ({ name, mtimeMs: stat.mtimeMs })))
+    .slice(0, MAX_NOTES);
+  const notes = newest.map(({ name, mtimeMs }) => {
+    const { title, body, date } = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
+    return { name, title: title || name.replace(/\.md$/, ""), body, date, mtimeMs };
+  });
+  return { dir, notes };
+}
+
+function readNote(name) {
+  return fs.readFileSync(notePath(name), "utf-8");
+}
+
+/** Replace the body, keeping the file's frontmatter. */
+function updateNoteBody(name, body) {
+  const file = notePath(name);
+  const next = pure.withBody(fs.readFileSync(file, "utf-8"), body);
+  fs.writeFileSync(file, next, "utf-8");
+  return pure.parseNote(next);
+}
+
+async function trashNote(name) {
+  await shell.trashItem(notePath(name));
+}
+
+function revealNote(name) {
+  shell.showItemInFolder(notePath(name));
+}
+
+function openNotesFolder() {
+  const dir = getNotesDirectory();
+  fs.mkdirSync(dir, { recursive: true });
+  return shell.openPath(dir);
+}
+
+/** Calls onChange (debounced) when files in the notes folder change. */
+function watchNotesFolder(onChange) {
+  const dir = getNotesDirectory();
+  fs.mkdirSync(dir, { recursive: true });
+  let timer = null;
+  const watcher = fs.watch(dir, () => {
+    clearTimeout(timer);
+    timer = setTimeout(onChange, 250);
+  });
+  return () => {
+    clearTimeout(timer);
+    watcher.close();
+  };
+}
+
+module.exports = { listNotes, readNote, updateNoteBody, trashNote, revealNote, openNotesFolder, watchNotesFolder };
