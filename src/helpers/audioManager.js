@@ -13,10 +13,19 @@ import {
 } from "../whisperwoof/core/language/normalize-chinese-script";
 import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
+  formatSpokenEnumeration,
+  punctuateShortCjk,
+} from "../whisperwoof/core/polish/format-dictation";
+import {
   resolveLiveDictationPlan,
   toLiveSegments,
 } from "../whisperwoof/core/live/live-dictation";
 import { createDownsampler } from "../whisperwoof/core/audio/downsampler";
+import {
+  createSpeechGate,
+  recordSpeechWindow,
+  speechGateDecision,
+} from "../whisperwoof/core/audio/speech-gate";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -518,23 +527,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._silenceAnalyser.fftSize = 2048;
         const sourceNode = this._silenceCtx.createMediaStreamSource(micStream);
         sourceNode.connect(this._silenceAnalyser);
-        this._peakRms = 0;
-        const dataArray = new Uint8Array(this._silenceAnalyser.fftSize);
+        this._speechGate = createSpeechGate();
+        // Float samples: the byte variant quantizes to 1/128, coarser than the
+        // speech gate's 0.002-0.006 thresholds.
+        const dataArray = new Float32Array(this._silenceAnalyser.fftSize);
         this._silenceInterval = setInterval(() => {
-          this._silenceAnalyser.getByteTimeDomainData(dataArray);
+          this._silenceAnalyser.getFloatTimeDomainData(dataArray);
           let sum = 0;
+          let peak = 0;
           for (let i = 0; i < dataArray.length; i++) {
-            const v = (dataArray[i] - 128) / 128;
+            const v = dataArray[i];
             sum += v * v;
+            if (Math.abs(v) > peak) peak = Math.abs(v);
           }
           const rms = Math.sqrt(sum / dataArray.length);
-          if (rms > this._peakRms) this._peakRms = rms;
+          this._speechGate = recordSpeechWindow(this._speechGate, rms, peak);
           // Emit real-time RMS for voice activity visualization
           if (this._onRmsUpdate) this._onRmsUpdate(rms);
         }, 100);
       } catch (e) {
         logger.warn("Silence detection setup failed, skipping", { error: e.message }, "audio");
-        this._peakRms = 1; // assume speech if detection fails
+        this._speechGate = null; // no measurements → the gate never skips
       }
 
       this.mediaRecorder = new MediaRecorder(micStream);
@@ -682,21 +695,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   async processAudio(audioBlob, metadata = {}) {
     const pipelineStart = performance.now();
 
-    // Skip transcription if recording was silence
-    const SILENCE_THRESHOLD = 0.002;
-    if (this._peakRms != null && this._peakRms < SILENCE_THRESHOLD) {
+    // Skip transcription when the capture holds no speech: silence, or room
+    // noise that engines turn into hallucinated text ("Thank you.").
+    const gate = speechGateDecision(this._speechGate);
+    this._speechGate = null;
+    if (gate.skip) {
       logger.info(
-        "Silence detected, skipping transcription",
-        { peakRms: this._peakRms.toFixed(4), threshold: SILENCE_THRESHOLD },
+        "No speech detected, skipping transcription",
+        { reason: gate.reason, peakRms: gate.peakRms?.toFixed(4), speechWindows: gate.speechWindowCount },
         "audio"
       );
-      this._peakRms = null;
       this.isProcessing = false;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
       this.onTranscriptionComplete?.({ success: true, text: "" });
       return;
     }
-    this._peakRms = null;
 
     try {
       const s = getSettings();
@@ -1297,7 +1310,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // Deterministic punctuation pass: Chinese output gets real full-width
     // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
     // untouched. Costs the model nothing (pure string transform on the output).
-    return typeof result === "string" ? normalizeCjkPunctuation(result) : result;
+    // Then spoken enumerations (第一… 第二…) are laid out as a numbered list.
+    return typeof result === "string"
+      ? formatSpokenEnumeration(normalizeCjkPunctuation(result))
+      : result;
   }
 
   async _cleanupTranscription(text, source) {
@@ -1324,7 +1340,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         textLength: normalizedText.length,
         threshold: skipThreshold,
       });
-      return normalizedText;
+      // No LLM for short text, but it still deserves punctuation.
+      return punctuateShortCjk(normalizedText);
     }
 
     logger.logReasoning("TRANSCRIPTION_RECEIVED", {

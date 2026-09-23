@@ -113,6 +113,7 @@ export function LiveDictationPanel({ view, speaking, celebrating, onCelebrationE
               lineHeight: `${LINE_HEIGHT_PX}px`,
               color: '#F2E6D8',
               wordBreak: 'break-word',
+              whiteSpace: 'pre-line', // numbered lists from formatSpokenEnumeration
               animation: settled ? 'liveSettle 1.6s ease-in-out infinite' : 'none',
             }}
           >
