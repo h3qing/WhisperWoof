@@ -113,6 +113,7 @@
       ]
     }
   ],
+  "afterPack": "scripts/after-pack-adhoc-sign.js",
   "mac": {
     "category": "public.app-category.productivity",
     "target": ["dmg", "zip"],
