@@ -36,6 +36,7 @@ import MicrophoneSettings from "./ui/MicrophoneSettings";
 import PermissionCard from "./ui/PermissionCard";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
+import DictationModeSection from "../whisperwoof/ui/settings/DictationModeSection";
 import {
   ConfirmDialog,
   AlertDialog,
@@ -357,6 +358,8 @@ function TranscriptionSection({
           </SettingsPanelRow>
         </SettingsPanel>
       )}
+
+      <DictationModeSection />
 
       {/* WhisperWoof: always show model picker (no cloud gate) */}
       {(isCustomMode || !isSignedIn || true) && (

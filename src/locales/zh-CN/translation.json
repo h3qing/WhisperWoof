@@ -320,7 +320,9 @@
     },
     "parakeet": {
       "multilingual": "25 种语言",
-      "english": "英语"
+      "english": "英语",
+      "streaming": "流式",
+      "languageCount": "{{count}} 种语言"
     },
     "apiKeyOptional": "API Key（可选）",
     "getKey": "获取密钥 ->",
@@ -1387,6 +1389,43 @@
           "description": "请配置你的服务商和 API Key。",
           "title": "已切换到自定义设置"
         }
+      },
+      "dictationMode": {
+        "title": "听写方式",
+        "description": "选择说话时就出字，还是说完再出字。",
+        "live": {
+          "title": "实时出字",
+          "description": "边说边看到文字。松开后再校正、润色，然后粘贴。"
+        },
+        "batch": {
+          "title": "说完再出字",
+          "description": "说话时只显示波形，松开后一次性识别。最省电脑资源。",
+          "demo": "聆听中…"
+        },
+        "needsLocal": "实时出字使用本地模型。请在下方把识别切换到“本地”。",
+        "badge": {
+          "streaming": "流式"
+        },
+        "preview": {
+          "title": "实时预览模型",
+          "zhEn": "中文 + 英文，带标点。",
+          "noChinese": "不支持中文 —— {{languages}}。",
+          "needsDownload": "下载预览模型后，说话时就能看到文字。"
+        },
+        "final": {
+          "title": "最终粘贴的文字",
+          "recheck": "用识别模型再精确识别一遍",
+          "recheckHint": "最准确。松开后要多等一小会儿。",
+          "preview": "直接用实时出的文字",
+          "previewHint": "最快。实时文字里的错字只靠润色修正。"
+        },
+        "explainer": {
+          "toggle": "两种模型有什么区别？",
+          "streamingTitle": "流式模型",
+          "streamingBody": "把声音切成小段边听边猜，所以字会马上出现。带下划线的部分在听到更多内容后还可能改变。模型小、速度快，准确率略低。",
+          "batchTitle": "整段识别模型",
+          "batchBody": "等整段录音结束后一次读完，每个字都能参考整句话。更准确，但松开之前看不到文字。"
+        }
       }
     }
   },
@@ -1394,7 +1433,8 @@
     "descriptions": {
       "parakeet": {
         "parakeet_tdt_0_6b_v3": "快速多语言语音识别，自动语言检测（25 种语言）",
-        "parakeet_unified_en_0_6b": "仅英语 ASR，业界领先精度（平均 WER 5.91%）"
+        "parakeet_unified_en_0_6b": "仅英语 ASR，业界领先精度（平均 WER 5.91%）",
+        "x_asr_zh_en_streaming_480ms": "中英混说的实时流式识别——边说边出字，带标点。体积小、速度快（134MB），专为实时预览设计。"
       },
       "whisper": {
         "tiny": "最快、最不准；中文较弱。",
@@ -1828,6 +1868,13 @@
     "oauth": {
       "redirectTitle": "正在跳转到应用...",
       "closeTab": "您可以关闭此标签页。"
+    },
+    "live": {
+      "listening": "聆听中",
+      "correcting": "校正中…",
+      "polishing": "润色中…",
+      "done": "已粘贴",
+      "startTalking": "开始说话吧…"
     }
   },
   "agentMode": {
