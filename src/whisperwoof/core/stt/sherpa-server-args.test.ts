@@ -10,6 +10,7 @@ import {
   getModelKind,
   getModelRuntime,
   getRequiredModelFiles,
+  getTransducerFileNames,
 } from "../../../helpers/parakeetModelInfo.js";
 
 describe("buildServerArgs", () => {
@@ -44,6 +45,20 @@ describe("buildServerArgs", () => {
     // A transducer flag pointing at a file SenseVoice does not ship would
     // crash the server at startup.
     expect(args.join(" ")).not.toContain("--encoder");
+  });
+
+  it("uses per-model transducer file names when the archive ships non-default ones", () => {
+    const args = buildServerArgs({
+      modelDir: "/m/x-asr",
+      runtime: "online",
+      kind: "transducer",
+      port: 6010,
+      threads: 3,
+      onlineEndTailPaddingS: 0.6,
+      files: { encoder: "encoder.int8.onnx", decoder: "decoder.onnx", joiner: "joiner.int8.onnx" },
+    });
+    expect(args).toContain("--decoder=/m/x-asr/decoder.onnx");
+    expect(args).toContain("--encoder=/m/x-asr/encoder.int8.onnx");
   });
 
   it("adds the streaming knobs only for the online runtime", () => {
@@ -87,6 +102,31 @@ describe("parakeetModelInfo registry wiring", () => {
       "joiner.int8.onnx",
       "tokens.txt",
     ]);
+  });
+
+  it("registers the X-ASR zh/en streaming model with its fp32 decoder", () => {
+    // Verified against the extracted archive on 2026-09-23: the int8 export
+    // keeps the (tiny) decoder in fp32.
+    expect(getModelRuntime("x-asr-zh-en-streaming-480ms")).toBe("online");
+    expect(getTransducerFileNames("x-asr-zh-en-streaming-480ms")).toEqual({
+      encoder: "encoder.int8.onnx",
+      decoder: "decoder.onnx",
+      joiner: "joiner.int8.onnx",
+    });
+    expect(getRequiredModelFiles("x-asr-zh-en-streaming-480ms")).toEqual([
+      "encoder.int8.onnx",
+      "decoder.onnx",
+      "joiner.int8.onnx",
+      "tokens.txt",
+    ]);
+  });
+
+  it("defaults transducer file names for models without an override", () => {
+    expect(getTransducerFileNames("parakeet-tdt-0.6b-v3")).toEqual({
+      encoder: "encoder.int8.onnx",
+      decoder: "decoder.int8.onnx",
+      joiner: "joiner.int8.onnx",
+    });
   });
 
   it("treats an unknown model as an offline transducer", () => {

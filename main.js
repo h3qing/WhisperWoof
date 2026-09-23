@@ -626,7 +626,9 @@ async function startApp() {
         ...details.responseHeaders,
         "Content-Security-Policy": [
           "default-src 'self'" + (isDev ? " http://127.0.0.1:*" : "") + ";" +
-          " script-src 'self'" + (isDev ? " 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:*" : "") + ";" +
+          // blob: — AudioWorklet modules are governed by script-src (not worker-src);
+          // the mic PCM tap for streaming STT is built as a same-page blob URL.
+          " script-src 'self' blob:" + (isDev ? " 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:*" : "") + ";" +
           " style-src 'self' 'unsafe-inline';" +
           " img-src 'self' data: blob:;" +
           " font-src 'self' data:;" +
@@ -737,6 +739,7 @@ async function startApp() {
   const parakeetSettings = {
     localTranscriptionProvider: process.env.LOCAL_TRANSCRIPTION_PROVIDER || "",
     parakeetModel: process.env.PARAKEET_MODEL,
+    livePreviewModel: process.env.LIVE_PREVIEW_MODEL,
   };
   parakeetManager.initializeAtStartup(parakeetSettings).catch((err) => {
     debugLogger.debug("Parakeet startup init error (non-fatal)", { error: err.message });

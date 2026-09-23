@@ -28,6 +28,7 @@ const MODEL_LANGUAGE_MAP: Record<string, Set<string>> = {
   "nemotron-3.5-asr-streaming-0.6b": NEMOTRON_35_LANGUAGES,
   "nemotron-speech-streaming-en-0.6b": new Set(["en"]),
   "sense-voice-zh-en": new Set(["zh", "en", "ja", "ko", "yue"]),
+  "x-asr-zh-en-streaming-480ms": new Set(["zh", "en"]),
 };
 
 const LANGUAGE_INSTRUCTIONS: Record<string, string> = Object.fromEntries(

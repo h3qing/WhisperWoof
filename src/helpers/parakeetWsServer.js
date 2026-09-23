@@ -18,11 +18,15 @@ const {
   computeTranscriptionTimeoutMs,
   TRANSCRIPTION_TIMEOUT_FLOOR_MS,
 } = require("./transcriptionTimeout");
-const { getModelKind } = require("./parakeetModelInfo");
+const { getModelKind, getTransducerFileNames } = require("./parakeetModelInfo");
 const { buildServerArgs } = require("./sherpaServerArgs");
 
 const PORT_RANGE_START = 6006;
 const PORT_RANGE_END = 6029;
+// Live dictation runs a second (online) server next to the offline one; a
+// disjoint range keeps two concurrent startups from probing the same port.
+const STREAM_PORT_RANGE_START = 6030;
+const STREAM_PORT_RANGE_END = 6049;
 const STARTUP_TIMEOUT_MS = 60000;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const FLOAT32_BYTES_PER_SAMPLE = 4;
@@ -33,10 +37,16 @@ const ONLINE_TIMEOUT_PER_AUDIO_SECOND_MS = 2000;
 // After "Done" is sent, give up only after this long without any result message.
 const ONLINE_FINISH_IDLE_TIMEOUT_MS = 10000;
 // Must cover the model's 560ms chunk so the flush decodes the final words.
-const ONLINE_END_TAIL_PADDING_S = 0.6;
+// 0.6s clipped the last token on the X-ASR zipformer ("检查报告" → "检查报"); 1.0s fixes it
+// for ~15ms (eval/dictation-bench, 2026-09-23).
+const ONLINE_END_TAIL_PADDING_S = 1.0;
 
 class ParakeetWsServer {
-  constructor() {
+  constructor({ pidKey = "parakeet", stream = false } = {}) {
+    this.pidKey = pidKey;
+    this.portRange = stream
+      ? [STREAM_PORT_RANGE_START, STREAM_PORT_RANGE_END]
+      : [PORT_RANGE_START, PORT_RANGE_END];
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -97,7 +107,7 @@ class ParakeetWsServer {
     if (!wsBinary) throw new Error(`sherpa-onnx ${runtime} WS server binary not found`);
     if (!fs.existsSync(modelDir)) throw new Error(`Model directory not found: ${modelDir}`);
 
-    this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
+    this.port = await findAvailablePort(...this.portRange);
     this.modelName = modelName;
     this.modelDir = modelDir;
     this.modelRuntime = runtime;
@@ -107,6 +117,7 @@ class ParakeetWsServer {
       modelDir,
       runtime,
       kind: getModelKind(modelName),
+      files: getTransducerFileNames(modelName),
       port: this.port,
       threads,
       onlineEndTailPaddingS: ONLINE_END_TAIL_PADDING_S,
@@ -121,7 +132,7 @@ class ParakeetWsServer {
       detached: process.platform !== "win32",
     });
     this.process = child;
-    sidecarPidFile.write("parakeet", child.pid);
+    sidecarPidFile.write(this.pidKey, child.pid);
 
     let stderrBuffer = "";
     let exitCode = null;
@@ -156,7 +167,7 @@ class ParakeetWsServer {
         this.ready = false;
         this.process = null;
         this.stopHealthCheck();
-        sidecarPidFile.clear("parakeet");
+        sidecarPidFile.clear(this.pidKey);
       }
       readyResolve(false);
     });
@@ -497,7 +508,7 @@ class ParakeetWsServer {
       const text = results.push(message);
       if (!closed && text && text !== lastEmitted) {
         lastEmitted = text;
-        onUpdate?.(text);
+        onUpdate?.(text, results.parts());
       }
     });
 
