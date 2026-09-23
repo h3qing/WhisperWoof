@@ -109,9 +109,9 @@ describe("isDuplicateWord", () => {
 });
 
 describe("flattenSttHints", () => {
-  it("includes every correctly spelled word", () => {
+  it("includes every correctly spelled word, newest first", () => {
     const hints: string[] = flattenSttHints(SAMPLE);
-    expect(hints).toEqual(["WhisperWoof", "Heqing", "Ollama", "LGTM", "Mando"]);
+    expect(hints).toEqual(["Mando", "LGTM", "Ollama", "Heqing", "WhisperWoof"]);
   });
 
   it("never includes misheard alternatives (they would bias STT toward the wrong spelling)", () => {
@@ -142,6 +142,11 @@ describe("flattenSttHints", () => {
     const hints: string[] = flattenSttHints(withContext, "com.microsoft.VSCode");
     // Ollama (the app-specific entry) should land before WhisperWoof
     expect(hints.indexOf("Ollama")).toBeLessThan(hints.indexOf("WhisperWoof"));
+  });
+
+  it("leaves alternatives out on the app-boosted path too", () => {
+    const appContexts = { "com.x": { count: 3, firstSeen: "", lastSeen: "" } };
+    expect(flattenSttHints([{ ...SAMPLE[2]!, appContexts }], "com.x")).toEqual(["Ollama"]);
   });
 
   it("returns empty for empty or null input", () => {

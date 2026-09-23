@@ -277,8 +277,9 @@ function getTrackedApps() {
 }
 
 /**
- * Get a flat list of all words + alternatives for STT hint injection.
- * When bundleId is provided, boost app-specific words to the front.
+ * Get a flat list of correctly spelled words (no misheard alternatives) for
+ * STT hint injection. When bundleId is provided, boost app-specific words to
+ * the front.
  */
 function getSttHints(bundleId) {
   return flattenSttHints(loadVocabulary(), bundleId);

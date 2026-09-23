@@ -18,6 +18,7 @@ import {
   getActivePackEntries,
   mergePackHints,
   truncateHintsToPrompt,
+  buildSttPrompt,
   packHasUpdate,
   validatePacks,
 } from "./pack-manager-pure";
@@ -387,6 +388,55 @@ describe("mergePackHints", () => {
   });
 });
 
+// --- Full STT prompt: Memory -> Dictionary -> packs ---
+
+describe("buildSttPrompt", () => {
+  const enabled: PackInstallState = {
+    packId: "food-and-drink",
+    enabled: true,
+    installedVersion: "1.0.0",
+    disabledEntries: [],
+  };
+  const food = [{ pack: FOOD_PACK, state: enabled }];
+
+  // Whisper (whisper.cpp and the OpenAI API) keeps only the LAST 224 prompt
+  // tokens, so the highest-priority words go at the end.
+  it("ends with Memory words, after Dictionary words, after pack words", () => {
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food)).toBe(
+      "açaí, quinoa, bruschetta, gnocchi, pho, Heqing, Supabase",
+    );
+  });
+
+  it("prefers the newest Dictionary words (stored oldest first)", () => {
+    expect(buildSttPrompt([], ["Oldest", "Newest"], [], 6)).toBe("Newest");
+    expect(buildSttPrompt([], ["Oldest", "Newest"], [])).toBe("Oldest, Newest");
+  });
+
+  it("keeps a word in both Memory and the Dictionary once, with Memory's spelling", () => {
+    expect(buildSttPrompt(["Supabase", "WhisperWoof"], ["supabase", "Vitest"], [])).toBe(
+      "Vitest, WhisperWoof, Supabase",
+    );
+  });
+
+  it("includes Dictionary words when there are no Memory words or packs", () => {
+    expect(buildSttPrompt([], ["Heqing", "LGTM"], [])).toBe("Heqing, LGTM");
+  });
+
+  it("drops pack words first, then Dictionary words, when over the limit", () => {
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food, 16)).toBe("Heqing, Supabase");
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food, 10)).toBe("Supabase");
+  });
+
+  it("default budget fits Whisper's 224-token window (measured ~2.97 chars/token)", () => {
+    expect(MAX_HINT_CHARS / 2.97).toBeLessThan(224);
+  });
+
+  it("returns an empty string when there is nothing to hint", () => {
+    expect(buildSttPrompt([], [], [])).toBe("");
+    expect(buildSttPrompt(null, null, null)).toBe("");
+  });
+});
+
 // --- Prompt truncation ---
 
 describe("truncateHintsToPrompt", () => {
@@ -493,8 +543,8 @@ describe("packHasUpdate", () => {
 describe("constants", () => {
   it("has sensible Whisper prompt limits", () => {
     expect(WHISPER_PROMPT_TOKEN_LIMIT).toBe(224);
-    expect(CHARS_PER_TOKEN).toBe(4);
-    expect(MAX_HINT_CHARS).toBe(896);
+    expect(CHARS_PER_TOKEN).toBe(2.5);
+    expect(MAX_HINT_CHARS).toBe(560);
   });
 
   it("PACK_CATEGORIES contains expected categories", () => {

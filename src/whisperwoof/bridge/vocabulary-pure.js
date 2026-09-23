@@ -54,10 +54,11 @@ function isDuplicateWord(entries, word) {
 
 /**
  * Return a flat, deduped list of STT hint strings (every correctly spelled
- * word). Alternatives are how the STT *mis*hears a word, so they are left
- * out: a Whisper prompt is read as prior context and would bias the model
- * toward the wrong spelling. When `bundleId` is provided, app-specific
- * entries are boosted to the front, ordered by usage count in that app.
+ * word), newest first so fresh corrections survive prompt truncation.
+ * Alternatives are how the STT *mis*hears a word, so they are left out: a
+ * Whisper prompt is read as prior context and would bias the model toward
+ * the wrong spelling. When `bundleId` is provided, app-specific entries are
+ * boosted to the front, ordered by usage count in that app.
  */
 function flattenSttHints(entries, bundleId) {
   const list = Array.isArray(entries) ? entries : [];
@@ -79,7 +80,7 @@ function flattenSttHints(entries, bundleId) {
     for (const entry of appEntries) push(entry.word);
   }
 
-  for (const entry of list) push(entry.word);
+  for (const entry of [...list].reverse()) push(entry.word);
 
   return hints;
 }

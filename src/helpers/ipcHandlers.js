@@ -146,15 +146,33 @@ class IPCHandlers {
   }
 
   /**
-   * STT hint prompt for every engine that takes one (local whisper-server
-   * initial prompt, cloud `prompt`): Memory words (app-boosted) first, then
-   * the manual Dictionary, then enabled Word Packs, deduped and truncated.
+   * STT hint prompt for local whisper-server (initial prompt) and the batch
+   * cloud providers (`prompt`): Memory words, the Dictionary and enabled Word
+   * Packs, deduped, budgeted and ordered by buildSttPrompt. Streaming
+   * providers still use the renderer's Dictionary (audioManager getKeyterms).
    */
   _getSttHintPrompt(bundleId) {
     const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
     const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
-    const userHints = [...getSttHints(bundleId || undefined), ...this._getDictionarySafe()];
-    return getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+    return getPackEnhancedSttPrompt(getSttHints(bundleId || undefined), this._getDictionarySafe());
+  }
+
+  /**
+   * Remove words from the custom Dictionary (case-insensitive) and tell the
+   * renderers. Saves only when something changed; false means the save failed.
+   */
+  _removeFromDictionary(words) {
+    const { removeFromDictionary } = require("../whisperwoof/bridge/vocabulary-pure");
+    const currentDict = this._getDictionarySafe();
+    const updatedDict = removeFromDictionary(currentDict, words);
+    if (updatedDict.length === currentDict.length) return true;
+    const saveResult = this.databaseManager.setDictionary(updatedDict);
+    if (saveResult?.success === false) {
+      debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
+      return false;
+    }
+    this.broadcastToWindows("dictionary-updated", updatedDict);
+    return true;
   }
 
   _cleanupTextEditMonitor() {

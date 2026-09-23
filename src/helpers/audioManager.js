@@ -1836,7 +1836,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             .split(",")
             .flatMap((entry) => entry.trim().split(/\s+/))
             .filter(Boolean)
-            .slice(0, 100);
+            // The prompt ends with the highest-priority words (Memory, Dictionary).
+            .slice(-100);
           if (tokens.length > 0) {
             proxyData.contextBias = tokens;
           }
