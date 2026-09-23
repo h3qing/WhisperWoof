@@ -25,6 +25,9 @@ const APP_SHEET_DIR = path.join(REPO_ROOT, "src", "assets", "mando");
 const MANIFEST_PATH = path.join(REPO_ROOT, "src", "whisperwoof", "ui", "indicator", "mando-manifest.json");
 const SITE_DIR = path.join(REPO_ROOT, "website", "mando");
 const SITE_SHEET_DIR = path.join(SITE_DIR, "sprites");
+// The website shows Mando at ~240px, so it gets full-resolution loops too
+// (the 120px ones stay for the README, where file size matters more).
+const SITE_HD_DIR = path.join(SITE_DIR, "hd");
 
 // Actions the app actually uses. Cell size keeps the source 12:13 aspect and
 // is 2x the CSS size so it stays crisp on Retina.
@@ -81,15 +84,15 @@ function listPngFrames(dir) {
   return fs.readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
 }
 
-/** Downscale every FRAME_STEP-th source frame into tmpDir/<id>/NNN.png. */
-function extractFrames(entry, framesPattern, tmpDir) {
-  const framesDir = path.join(tmpDir, entry.id);
+/** Downscale every FRAME_STEP-th source frame into tmpDir/<id><suffix>/NNN.png. */
+function extractFrames(entry, framesPattern, tmpDir, { width = CELL_WIDTH, height = CELL_HEIGHT, suffix = "" } = {}) {
+  const framesDir = path.join(tmpDir, `${entry.id}${suffix}`);
   fs.mkdirSync(framesDir);
   run("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y",
     "-start_number", String(entry.startNumber),
     "-i", framesPattern,
-    "-vf", `select=not(mod(n\\,${FRAME_STEP})),scale=${CELL_WIDTH}:${CELL_HEIGHT}:flags=lanczos`,
+    "-vf", `select=not(mod(n\\,${FRAME_STEP})),scale=${width}:${height}:flags=lanczos`,
     "-fps_mode", "passthrough",
     "-pix_fmt", "rgba",
     path.join(framesDir, "%03d.png"),
@@ -112,8 +115,8 @@ function buildSheet(entry, framesDir, frameCount, tmpDir) {
   return sheetWebp;
 }
 
-function buildAnimatedWebp(entry, framesDir, frames, frameDurationMs, tmpDir) {
-  const out = path.join(tmpDir, `${entry.id}-animated.webp`);
+function buildAnimatedWebp(entry, framesDir, frames, frameDurationMs, tmpDir, suffix = "") {
+  const out = path.join(tmpDir, `${entry.id}${suffix}-animated.webp`);
   run("img2webp", [
     "-loop", "0", "-lossy", "-q", String(WEBP_QUALITY), "-d", String(frameDurationMs),
     ...frames.map((f) => path.join(framesDir, f)),
@@ -131,6 +134,11 @@ function buildAction(entry, tmpDir) {
     throw new Error(`Action "${entry.id}": expected ${expected} frames after decimation, ffmpeg produced ${frames.length}`);
   }
   const frameDurationMs = entry.frameDurationMs * FRAME_STEP;
+  const hdDir = extractFrames(entry, framesPattern, tmpDir, {
+    width: entry.width,
+    height: entry.height,
+    suffix: "-hd",
+  });
   return {
     id: entry.id,
     frameCount: frames.length,
@@ -139,13 +147,15 @@ function buildAction(entry, tmpDir) {
     cellHeight: CELL_HEIGHT,
     sheet: buildSheet(entry, framesDir, frames.length, tmpDir),
     animated: buildAnimatedWebp(entry, framesDir, frames, frameDurationMs, tmpDir),
+    animatedHd: buildAnimatedWebp(entry, hdDir, listPngFrames(hdDir), frameDurationMs, tmpDir, "-hd"),
   };
 }
 
 /** Copy every finished asset into the repo and write the manifest, all at once. */
 function publish(built) {
-  [APP_SHEET_DIR, SITE_SHEET_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
-  built.forEach(({ id, sheet, animated }) => {
+  [APP_SHEET_DIR, SITE_SHEET_DIR, SITE_HD_DIR].forEach((dir) => fs.mkdirSync(dir, { recursive: true }));
+  built.forEach(({ id, sheet, animated, animatedHd }) => {
+    fs.copyFileSync(animatedHd, path.join(SITE_HD_DIR, `${id}.webp`));
     fs.copyFileSync(sheet, path.join(APP_SHEET_DIR, `${id}.webp`));
     fs.copyFileSync(sheet, path.join(SITE_SHEET_DIR, `${id}.webp`));
     fs.copyFileSync(animated, path.join(SITE_DIR, `${id}.webp`));
@@ -160,9 +170,9 @@ function publish(built) {
 }
 
 function report(built) {
-  built.forEach(({ id, frameCount, sheet, animated }) => {
+  built.forEach(({ id, frameCount, sheet, animated, animatedHd }) => {
     const kb = (file) => (fs.statSync(file).size / 1024).toFixed(0).padStart(3);
-    console.log(`${id.padEnd(7)} ${String(frameCount).padStart(2)} frames  sheet ${kb(sheet)} KB  animated ${kb(animated)} KB`);
+    console.log(`${id.padEnd(7)} ${String(frameCount).padStart(2)} frames  sheet ${kb(sheet)} KB  animated ${kb(animated)} KB  hd ${kb(animatedHd)} KB`);
   });
   console.log(`\nWrote sheets to ${path.relative(REPO_ROOT, APP_SHEET_DIR)} + ${path.relative(REPO_ROOT, SITE_SHEET_DIR)}, animations to ${path.relative(REPO_ROOT, SITE_DIR)}`);
 }

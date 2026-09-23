@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WhisperWoof — voice dictation that types as you speak</title>
   <meta name="description" content="Talk and watch the words appear. WhisperWoof transcribes Chinese, English, or both at once, cleans it up, and pastes it at your cursor — entirely on your Mac. Free and open source.">
-  <meta name="theme-color" content="#E9EAEC">
+  <meta name="theme-color" content="#F1EBE3">
   <meta property="og:title" content="WhisperWoof — voice dictation that types as you speak">
   <meta property="og:description" content="Local voice dictation for macOS. Live typing, Chinese + English, polished on-device. Nothing leaves your Mac.">
   <meta property="og:image" content="https://h3qing.github.io/WhisperWoof/social-preview.png">
@@ -18,14 +18,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
   <style>
     :root{
-      --porcelain:#E9EAEC;   /* page: cool keycap porcelain */
-      --sheet:#F7F7F5;       /* where text lands */
-      --ink:#1B1D22;         /* body + settled text */
-      --ink-2:#5C616B;       /* secondary */
+      --porcelain:#F1EBE3;   /* page: warm oat */
+      --sheet:#FBF8F4;       /* where text lands */
+      --ink:#231D18;         /* body + settled text, warm ink */
+      --ink-2:#6E645B;       /* secondary */
       --fur:#B8793C;         /* Mando's coat: live / provisional */
       --fur-deep:#7E4E1F;
-      --fur-wash:#F1E3D1;
-      --rule:#CFD1D6;
+      --fur-wash:#F3E2CC;
+      --rule:#DDD3C7;
+      --dark-2:#BDB2A6;      /* secondary text on the ink panel */
+      --dark-rule:#3D342D;
       --display:"Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
       --text:"Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
       --han:"LXGW WenKai Screen", "PingFang SC", serif;
@@ -65,7 +67,7 @@
 
     /* HERO: the headline is a live dictation */
     .hero{ padding:40px 0 88px; }
-    .stage{ position:relative; display:grid; grid-template-columns:1fr 250px; gap:28px; align-items:end; }
+    .stage{ position:relative; display:grid; grid-template-columns:1fr 240px; gap:28px; align-items:end; }
     /* Fixed height (status + four lines) so the page never jumps while the demo types. */
     .sheet{ height:calc(var(--said-size) * 1.02 * 4 + 46px); display:flex; flex-direction:column; justify-content:flex-end; overflow:hidden; }
     .said{
@@ -92,7 +94,7 @@
     }
     .keycap.down{ border-bottom-width:1px; transform:translateY(2px); background:var(--fur-wash); border-color:var(--fur); }
     /* Mando sits on the rule that starts the pitch below. */
-    .mando{ width:250px; height:270px; object-fit:contain; object-position:bottom; align-self:end; margin-bottom:-58px; position:relative; z-index:1; }
+    .mando{ width:240px; height:260px; object-fit:contain; object-position:bottom; align-self:end; margin-bottom:-58px; position:relative; z-index:1; }
     .pitch{ display:grid; grid-template-columns:minmax(0, 620px) auto; gap:40px; align-items:end; justify-content:space-between; margin-top:56px; padding-top:28px; border-top:1.5px solid var(--ink); }
     .pitch p{ margin:0; font-size:21px; line-height:1.5; }
     .ctas{ display:flex; gap:12px; flex-wrap:wrap; }
@@ -147,10 +149,10 @@
     /* LOCAL: the manifest */
     .local{ background:var(--ink); color:var(--sheet); border-radius:32px; padding:72px 64px; display:grid; grid-template-columns:1fr 1.1fr; gap:56px; align-items:center; }
     .local .h2{ color:var(--sheet); }
-    .local .lede{ color:#B5B8BF; margin-bottom:0; }
+    .local .lede{ color:var(--dark-2); margin-bottom:0; }
     .manifest{ font-size:17px; }
-    .manifest div{ display:grid; grid-template-columns:1fr auto; gap:16px; padding:15px 0; border-bottom:1px solid #3A3D45; }
-    .manifest span:first-child{ color:#B5B8BF; }
+    .manifest div{ display:grid; grid-template-columns:1fr auto; gap:16px; padding:15px 0; border-bottom:1px solid var(--dark-rule); }
+    .manifest span:first-child{ color:var(--dark-2); }
     .manifest b{ font-weight:600; }
     .manifest .zero{ border-bottom:none; padding-top:22px; font-size:20px; align-items:end; }
     .manifest .zero b{ color:var(--fur-wash); font-size:96px; line-height:.8; font-weight:700; font-variation-settings:"wdth" 75, "opsz" 96; }
@@ -158,7 +160,7 @@
 
     /* DOWNLOAD */
     .dl{ text-align:center; padding:110px 0 90px; }
-    .dl img{ width:150px; }
+    .dl img{ width:192px; height:auto; }
     .dl .h2{ margin:18px auto 14px; }
     .dl .lede{ margin:0 auto 32px; }
     .dl .ctas{ justify-content:center; }
@@ -203,7 +205,7 @@
           <p class="status" aria-hidden="true"><span class="keycap" id="fn">fn</span><span id="state"><b>Hold fn</b> and talk</span></p>
           <p class="said" id="said" aria-hidden="true">Talk, and watch it type.</p>
         </div>
-        <img class="mando" id="mando" src="mando/wait.webp" alt="Mando, the WhisperWoof dog, listening">
+        <img class="mando" id="mando" src="mando/hd/wait.webp" alt="Mando, the WhisperWoof dog, listening">
       </div>
       <div class="pitch">
         <div>
@@ -323,7 +325,7 @@
   <!-- DOWNLOAD -->
   <section class="dl" id="download">
     <div class="wrap">
-      <img src="mando/hop.webp" alt="Mando hopping">
+      <img src="mando/hd/hop.webp" alt="Mando hopping" width="192" height="208" loading="lazy">
       <h2 class="h2">Give Mando your voice</h2>
       <p class="lede">Free and open source, built for Apple Silicon Macs.</p>
       <div class="ctas">
@@ -358,7 +360,7 @@
   const state = document.getElementById("state");
   const fn = document.getElementById("fn");
   const mando = document.getElementById("mando");
-  const SPRITES = { wait: "mando/wait.webp", listen: "mando/review.webp", think: "mando/think.webp", hop: "mando/hop.webp" };
+  const SPRITES = { wait: "mando/hd/wait.webp", listen: "mando/hd/review.webp", think: "mando/hd/think.webp", hop: "mando/hd/hop.webp" };
   Object.values(SPRITES).forEach((src) => { const i = new Image(); i.src = src; });
 
   const SAMPLES = [
