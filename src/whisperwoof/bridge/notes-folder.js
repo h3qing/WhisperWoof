@@ -16,7 +16,14 @@ const MAX_NOTE_BYTES = 512 * 1024;
 
 function notePath(name) {
   if (!pure.isSafeNoteName(name)) throw new Error("Invalid note name");
-  return path.join(getNotesDirectory(), name);
+  const dir = getNotesDirectory();
+  const file = path.join(dir, name);
+  // A *.md symlink inside the folder must not lead outside it.
+  if (fs.existsSync(file)) {
+    const real = fs.realpathSync(file);
+    if (path.dirname(real) !== fs.realpathSync(dir)) throw new Error("Invalid note name");
+  }
+  return file;
 }
 
 function listNotes() {
@@ -26,16 +33,24 @@ function listNotes() {
     .readdirSync(dir)
     .filter(pure.isSafeNoteName)
     .map((name) => {
-      const stat = fs.statSync(path.join(dir, name));
-      return { name, stat };
+      // Broken symlinks, or files iCloud/Obsidian replace mid-scan, are skipped.
+      try {
+        return { name, stat: fs.statSync(path.join(dir, name)) };
+      } catch {
+        return null;
+      }
     })
-    .filter(({ stat }) => stat.isFile() && stat.size <= MAX_NOTE_BYTES);
+    .filter((entry) => entry && entry.stat.isFile() && entry.stat.size <= MAX_NOTE_BYTES);
   const newest = pure
     .sortNewestFirst(entries.map(({ name, stat }) => ({ name, mtimeMs: stat.mtimeMs })))
     .slice(0, MAX_NOTES);
-  const notes = newest.map(({ name, mtimeMs }) => {
-    const { title, body, date } = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
-    return { name, title: title || name.replace(/\.md$/, ""), body, date, mtimeMs };
+  const notes = newest.flatMap(({ name, mtimeMs }) => {
+    try {
+      const { title, body, date } = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
+      return [{ name, title: title || name.replace(/\.md$/, ""), body, date, mtimeMs }];
+    } catch {
+      return [];
+    }
   });
   return { dir, notes };
 }
@@ -75,6 +90,8 @@ function watchNotesFolder(onChange) {
     clearTimeout(timer);
     timer = setTimeout(onChange, 250);
   });
+  // e.g. the folder's drive was unmounted: stop watching rather than throw.
+  watcher.on("error", () => watcher.close());
   return () => {
     clearTimeout(timer);
     watcher.close();

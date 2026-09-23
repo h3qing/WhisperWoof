@@ -80,6 +80,24 @@ describe("notes folder", () => {
     expect(() => folder.revealNote("/etc/passwd")).toThrow("Invalid note name");
   });
 
+  it("won't write through a .md symlink that leads outside the folder", () => {
+    const { folder } = loadBridge();
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ww-outside-"));
+    const target = path.join(outside, "secret.md");
+    fs.writeFileSync(target, "original");
+    fs.symlinkSync(target, path.join(dir, "link.md"));
+    expect(() => folder.updateNoteBody("link.md", "overwritten")).toThrow("Invalid note name");
+    expect(fs.readFileSync(target, "utf-8")).toBe("original");
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+
+  it("skips a broken symlink instead of failing the whole list", () => {
+    const { route, folder } = loadBridge();
+    route.saveAsMarkdown("still listed");
+    fs.symlinkSync(path.join(dir, "missing.md"), path.join(dir, "dangling.md"));
+    expect(folder.listNotes().notes.map((n: { title: string }) => n.title)).toEqual(["still listed"]);
+  });
+
   it("moves a note to the Trash through the OS, not a hard delete", async () => {
     const { route, folder } = loadBridge();
     const { name } = route.saveAsMarkdown("temp");

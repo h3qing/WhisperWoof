@@ -2762,11 +2762,15 @@ class IPCHandlers {
         const unwatch = notesFolder().watchNotesFolder(() => {
           if (!sender.isDestroyed()) sender.send("whisperwoof-notes-changed");
         });
+        const firstWatch = !notesWatchers.has(sender.id);
         notesWatchers.set(sender.id, unwatch);
-        sender.once("destroyed", () => {
-          notesWatchers.get(sender.id)?.();
-          notesWatchers.delete(sender.id);
-        });
+        if (firstWatch) {
+          const id = sender.id;
+          sender.once("destroyed", () => {
+            notesWatchers.get(id)?.();
+            notesWatchers.delete(id);
+          });
+        }
         return { success: true };
       } catch (error) {
         return { success: false, error: error.message };

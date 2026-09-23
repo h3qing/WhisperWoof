@@ -71,6 +71,11 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
   const knownNames = useRef<Set<string> | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
+  // Which note the draft belongs to, what we last wrote (trimmed, as it comes
+  // back from disk), and a counter so an older save can't clear newer typing.
+  const draftOf = useRef<string | null>(null);
+  const lastSaved = useRef<{ name: string; body: string } | null>(null);
+  const editSeq = useRef(0);
 
   const load = useCallback(async () => {
     const result = await api()?.whisperwoofNotesList?.();
@@ -104,22 +109,37 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
     if (focusName) setSelected(focusName);
   }, [focusName]);
 
-  // Default to the newest note once the list arrives.
+  // Default to the newest note once the list arrives (or when the selected
+  // one is gone).
   useEffect(() => {
-    if (!selected && notes.length) setSelected(notes[0].name);
+    if (notes.length && (!selected || !notes.some((n) => n.name === selected))) {
+      setSelected(notes[0].name);
+    }
   }, [notes, selected]);
 
   const current = notes.find((n) => n.name === selected) ?? null;
 
-  // Follow the file unless the user has unsaved typing in it.
+  // Load the file into the editor when switching notes, or when the file
+  // changed outside the app. Our own save coming back (trimmed) is ignored, so
+  // a trailing space or newline you just typed isn't eaten.
   useEffect(() => {
-    if (current && !dirty.current) setDraft(current.body);
+    if (!current) return;
+    if (draftOf.current !== current.name) {
+      draftOf.current = current.name;
+      setDraft(current.body);
+      return;
+    }
+    if (dirty.current) return;
+    const saved = lastSaved.current;
+    if (saved && saved.name === current.name && saved.body === current.body) return;
+    setDraft(current.body);
   }, [current]);
 
-  const flush = useCallback(async (name: string, body: string) => {
+  const flush = useCallback(async (name: string, body: string, seq: number) => {
     setSaveState("saving");
+    lastSaved.current = { name, body: body.trim() };
     const result = await api()?.whisperwoofNotesUpdate?.(name, body);
-    dirty.current = false;
+    if (seq === editSeq.current) dirty.current = false;
     setSaveState(result?.success ? "saved" : "idle");
     if (!result?.success) setError(result?.error ?? "Couldn't save the note");
   }, []);
@@ -128,16 +148,17 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
     if (!current) return;
     setDraft(value);
     dirty.current = true;
+    const seq = ++editSeq.current;
     setSaveState("idle");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const name = current.name;
-    saveTimer.current = setTimeout(() => flush(name, value), SAVE_DELAY_MS);
+    saveTimer.current = setTimeout(() => flush(name, value, seq), SAVE_DELAY_MS);
   };
 
   const select = (name: string) => {
     if (saveTimer.current && current && dirty.current) {
       clearTimeout(saveTimer.current);
-      flush(current.name, draft);
+      flush(current.name, draft, editSeq.current);
     }
     dirty.current = false;
     setSelected(name);
@@ -151,12 +172,15 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
 
   const trash = async () => {
     if (!current) return;
-    const result = await api()?.whisperwoofNotesTrash?.(current.name);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    dirty.current = false;
+    const trashed = current.name;
+    const result = await api()?.whisperwoofNotesTrash?.(trashed);
     if (!result?.success) {
       setError(result?.error ?? "Couldn't move the note to the Trash");
       return;
     }
-    setSelected(null);
+    setSelected(notes.find((n) => n.name !== trashed)?.name ?? null);
     load();
   };
 
