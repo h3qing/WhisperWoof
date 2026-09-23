@@ -3,10 +3,14 @@ import { FileText, FolderOpen, Search, Trash2, ExternalLink } from "lucide-react
 import { cn } from "../../../components/lib/utils";
 import { NoteProjectPicker } from "./NoteProjectPicker";
 import { PlayRecordingButton } from "./PlayRecordingButton";
+import { NOTE_DRAG_TYPE, ProjectFolders } from "./ProjectFolders";
+import { folderCounts, notesInFolder, projectOf, type NoteFolder } from "./note-folders";
+import { useNoteProjects } from "./useNoteProjects";
 
-// Notes: the .md files in the notes folder (where Fn+N saves). The files are
-// the source of truth — edits are written straight back, so the same folder
-// works in Obsidian, iCloud, Finder.
+// Notes: the .md files in the notes folder (where fn+N / fn+P save), filed
+// into projects from the folder column (drag a note onto a project). The files
+// are the source of truth — edits are written straight back, so the same
+// folder works in Obsidian, iCloud, Finder.
 
 interface VoiceNote {
   readonly name: string;
@@ -69,6 +73,7 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [folder, setFolder] = useState<NoteFolder>({ kind: "all" });
   const [selected, setSelected] = useState<string | null>(focusName);
   const [draft, setDraft] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
@@ -81,6 +86,8 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
   const draftOf = useRef<string | null>(null);
   const lastSaved = useRef<{ name: string; body: string } | null>(null);
   const editSeq = useRef(0);
+  const projectsState = useNoteProjects(setError);
+  const { projects, defaultId, reload: reloadProjects } = projectsState;
 
   const load = useCallback(async () => {
     const result = await api()?.whisperwoofNotesList?.();
@@ -106,21 +113,32 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
   useEffect(() => {
     load();
     api()?.whisperwoofNotesWatch?.();
-    const off = api()?.onWhisperwoofNotesChanged?.(() => load());
+    // fn+P can create the Inbox project while this view is open.
+    const off = api()?.onWhisperwoofNotesChanged?.(() => {
+      load();
+      reloadProjects();
+    });
     return () => off?.();
-  }, [load]);
+  }, [load, reloadProjects]);
 
   useEffect(() => {
-    if (focusName) setSelected(focusName);
+    if (!focusName) return;
+    setFolder({ kind: "all" });
+    setSelected(focusName);
   }, [focusName]);
 
-  // Default to the newest note once the list arrives (or when the selected
-  // one is gone).
+  const visible = useMemo(
+    () => notesInFolder(notes, folder, projects).filter((n) => matchesQuery(n, query)),
+    [notes, folder, projects, query]
+  );
+  const counts = useMemo(() => folderCounts(notes, projects), [notes, projects]);
+
+  // Default to the newest note in view (or when the selected one is gone).
   useEffect(() => {
-    if (notes.length && (!selected || !notes.some((n) => n.name === selected))) {
-      setSelected(notes[0].name);
+    if (!selected || !visible.some((n) => n.name === selected)) {
+      setSelected(visible[0]?.name ?? null);
     }
-  }, [notes, selected]);
+  }, [visible, selected]);
 
   const current = notes.find((n) => n.name === selected) ?? null;
 
@@ -185,19 +203,53 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
       setError(result?.error ?? "Couldn't move the note to the Trash");
       return;
     }
-    setSelected(notes.find((n) => n.name !== trashed)?.name ?? null);
+    setSelected(visible.find((n) => n.name !== trashed)?.name ?? null);
     load();
   };
 
-  const visible = useMemo(() => notes.filter((n) => matchesQuery(n, query)), [notes, query]);
+  const fileNote = async (name: string, projectId: string | null) => {
+    const result = await (window as unknown as {
+      electronAPI?: { whisperwoofNotesSetProject?: (n: string, p: string | null) => Promise<{ success: boolean; error?: string }> };
+    }).electronAPI?.whisperwoofNotesSetProject?.(name, projectId);
+    if (!result?.success) setError(result?.error ?? "Couldn't move the note");
+    load();
+  };
+
+  const folderLabel =
+    folder.kind === "all"
+      ? "All notes"
+      : folder.kind === "none"
+        ? "No project"
+        : projects.find((p) => p.id === folder.id)?.name ?? "Project";
 
   return (
-    <div className="flex h-full max-w-5xl mx-auto w-full gap-3 p-3">
+    <div className="flex h-full max-w-6xl mx-auto w-full gap-3 p-3">
+      <ProjectFolders
+        projects={projects}
+        counts={counts}
+        defaultId={defaultId}
+        folder={folder}
+        onSelect={setFolder}
+        onDropNote={fileNote}
+        onCreate={async (name) => {
+          const { id, error: err } = await projectsState.create(name);
+          if (id) setFolder({ kind: "project", id });
+          return err ?? null;
+        }}
+        onRename={projectsState.rename}
+        onDelete={async (id) => {
+          if (folder.kind === "project" && folder.id === id) setFolder({ kind: "all" });
+          await projectsState.remove(id);
+          load();
+        }}
+        onMakeDefault={projectsState.makeDefault}
+      />
+
       {/* List */}
-      <div className="w-72 shrink-0 flex flex-col min-h-0">
+      <div className="w-64 shrink-0 flex flex-col min-h-0">
         <div className="flex items-center justify-between px-1 pb-2">
-          <span className="text-sm font-semibold text-foreground">Notes</span>
-          <span className="text-xs text-muted-foreground tabular-nums">{notes.length}</span>
+          <span className="truncate text-sm font-semibold text-foreground">{folderLabel}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{visible.length}</span>
         </div>
         <label className="relative mb-2">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -213,13 +265,22 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
         <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-card shadow-card divide-y divide-border-subtle">
           {loaded && visible.length === 0 && (
             <p className="px-4 py-6 text-xs text-muted-foreground text-center">
-              {notes.length ? "No notes match your search." : "No notes yet."}
+              {query.trim()
+                ? "No notes match your search."
+                : folder.kind === "project"
+                  ? "Drag notes here, or make this the fn+P project."
+                  : "No notes yet."}
             </p>
           )}
           {visible.map((note) => (
             <button
               key={note.name}
               onClick={() => select(note.name)}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(NOTE_DRAG_TYPE, note.name);
+                e.dataTransfer.effectAllowed = "move";
+              }}
               className={cn(
                 "w-full text-left px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:bg-foreground/[0.05]",
                 note.name === selected ? "bg-primary/12" : "hover:bg-foreground/[0.03]"
@@ -232,7 +293,14 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
                 <span className="truncate text-sm font-medium text-foreground">{note.title}</span>
               </div>
               <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{preview(note) || " "}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground/80">{relativeTime(note.mtimeMs)}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
+                <span>{relativeTime(note.mtimeMs)}</span>
+                {folder.kind === "all" && projectOf(note, projects) && (
+                  <span className="truncate rounded-full bg-foreground/[0.06] px-1.5 text-muted-foreground">
+                    {projectOf(note, projects)?.name}
+                  </span>
+                )}
+              </p>
             </button>
           ))}
         </div>
@@ -263,11 +331,10 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
                 </p>
                 <div className="mt-2 -ml-1.5 flex flex-wrap items-center gap-1">
                   <NoteProjectPicker
-                    noteName={current.name}
+                    projects={projects}
                     projectId={current.projectId}
                     projectName={current.project}
-                    onChanged={load}
-                    onError={setError}
+                    onChange={(projectId) => fileNote(current.name, projectId)}
                   />
                   {current.entryId && <PlayRecordingButton entryId={current.entryId} />}
                 </div>

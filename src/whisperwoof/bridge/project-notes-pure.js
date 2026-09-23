@@ -15,4 +15,16 @@ function pickDefaultProject(projects, savedId) {
   return { project: null, create: INBOX_NAME };
 }
 
-module.exports = { INBOX_NAME, pickDefaultProject };
+const MAX_PROJECT_NAME = 80;
+
+/** A usable project name: trimmed, 1-80 chars, unique (ignoring case) except for `exceptId`. */
+function checkProjectName(raw, projects, exceptId = null) {
+  const name = String(raw ?? "").trim();
+  if (!name) return { ok: false, error: "Give the project a name" };
+  if (name.length > MAX_PROJECT_NAME) return { ok: false, error: "That name is too long" };
+  const taken = projects.some((p) => p.id !== exceptId && p.name.toLowerCase() === name.toLowerCase());
+  if (taken) return { ok: false, error: "A project with that name already exists" };
+  return { ok: true, name };
+}
+
+module.exports = { INBOX_NAME, pickDefaultProject, checkProjectName };

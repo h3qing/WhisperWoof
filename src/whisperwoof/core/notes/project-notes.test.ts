@@ -22,3 +22,23 @@ describe("pickDefaultProject", () => {
     expect(pickDefaultProject([reno], null)).toEqual({ project: null, create: INBOX_NAME });
   });
 });
+
+import { checkProjectName } from "../../bridge/project-notes-pure.js";
+
+describe("checkProjectName", () => {
+  const existing = [reno, inbox];
+
+  it("trims and accepts a new name", () => {
+    expect(checkProjectName("  Travel  ", existing)).toEqual({ ok: true, name: "Travel" });
+  });
+
+  it("rejects empty, too long, and duplicate names (case-insensitive)", () => {
+    expect(checkProjectName("   ", existing).ok).toBe(false);
+    expect(checkProjectName("x".repeat(81), existing).ok).toBe(false);
+    expect(checkProjectName("kitchen RENO", existing)).toEqual({ ok: false, error: "A project with that name already exists" });
+  });
+
+  it("lets a project keep its own name when renaming", () => {
+    expect(checkProjectName("Kitchen reno", existing, "p-reno")).toEqual({ ok: true, name: "Kitchen reno" });
+  });
+});

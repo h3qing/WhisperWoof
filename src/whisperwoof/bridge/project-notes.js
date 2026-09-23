@@ -11,7 +11,7 @@
 const appInit = require("./app-init");
 const { saveAsMarkdown, readSettings, updateSettings } = require("./markdown-route");
 const notesFolder = require("./notes-folder");
-const { pickDefaultProject } = require("./project-notes-pure");
+const { pickDefaultProject, checkProjectName } = require("./project-notes-pure");
 const { resolveAudioSource } = require("./regenerate-entry-pure");
 
 function findProject(id) {
@@ -73,6 +73,39 @@ function setNoteProject(name, projectId) {
   return note;
 }
 
+function nameOrThrow(raw, exceptId) {
+  const check = checkProjectName(raw, appInit.getWhisperWoofProjects(), exceptId);
+  if (!check.ok) throw new Error(check.error);
+  return check.name;
+}
+
+function createProject(rawName) {
+  const created = appInit.createWhisperWoofProject(nameOrThrow(rawName, null));
+  if (!created) throw new Error("WhisperWoof database not initialized");
+  return { id: created.id, name: created.name };
+}
+
+/** Rename, and update the name written in the project's notes. */
+function renameProject(projectId, rawName) {
+  if (!findProject(projectId)) throw new Error("Unknown project");
+  const name = nameOrThrow(rawName, projectId);
+  appInit.renameWhisperWoofProject(projectId, name);
+  for (const note of listProjectNotes(projectId)) {
+    notesFolder.setNoteFields(note.name, { project: name });
+  }
+  return { id: projectId, name };
+}
+
+/** Delete a project; its notes (and their dictations) are kept, just unfiled. */
+function deleteProject(projectId) {
+  for (const note of listProjectNotes(projectId)) {
+    notesFolder.setNoteFields(note.name, { project: null, project_id: null });
+  }
+  appInit.deleteWhisperWoofProject(projectId);
+  if (readSettings().defaultProjectId === projectId) updateSettings({ defaultProjectId: null });
+  return projectId;
+}
+
 function listProjectNotes(projectId) {
   return notesFolder.listNotes().notes.filter((note) => note.projectId === projectId);
 }
@@ -91,5 +124,8 @@ module.exports = {
   linkNoteToEntry,
   setNoteProject,
   listProjectNotes,
+  createProject,
+  renameProject,
+  deleteProject,
   getEntryRecordingId,
 };

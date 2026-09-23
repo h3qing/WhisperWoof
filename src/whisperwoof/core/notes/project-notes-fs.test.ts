@@ -27,6 +27,17 @@ function fakeDb() {
         return { ...p, createdAt: "" };
       },
       getWhisperWoofEntryRow: (id: string) => entries.get(id) ?? null,
+      renameWhisperWoofProject: (id: string, name: string) => {
+        const i = projects.findIndex((p) => p.id === id);
+        if (i < 0) return null;
+        projects[i] = { ...projects[i], name };
+        return projects[i];
+      },
+      deleteWhisperWoofProject: (id: string) => {
+        const i = projects.findIndex((p) => p.id === id);
+        if (i >= 0) projects.splice(i, 1);
+        for (const [key, row] of entries) if (row.project_id === id) entries.set(key, { ...row, project_id: null });
+      },
       setEntryProject: (id: string, projectId: string | null) => {
         const row = entries.get(id);
         if (!row) return false;
@@ -134,5 +145,39 @@ describe("note ↔ recording ↔ project", () => {
     expect(() => projectNotes.linkNoteToEntry(name, "e-missing")).toThrow("Unknown entry");
     expect(() => projectNotes.setNoteProject(name, "p-missing")).toThrow("Unknown project");
     expect(projectNotes.getEntryRecordingId("e-missing")).toBeNull();
+  });
+});
+
+describe("project folders: create, rename, delete", () => {
+  it("creates a project with a checked name", () => {
+    const db = fakeDb();
+    const { projectNotes } = load(db);
+    expect(projectNotes.createProject("  Travel ")).toMatchObject({ name: "Travel" });
+    expect(() => projectNotes.createProject("travel")).toThrow("already exists");
+  });
+
+  it("renaming updates the name written in its notes", () => {
+    const db = fakeDb();
+    const { projectNotes, folder } = load(db);
+    const reno = db.api.createWhisperWoofProject("Kitchen");
+    projectNotes.setDefaultProject(reno.id);
+    projectNotes.saveProjectNote("Pick tiles");
+    projectNotes.renameProject(reno.id, "Kitchen reno");
+    expect(folder.listNotes().notes[0]).toMatchObject({ project: "Kitchen reno", projectId: reno.id });
+  });
+
+  it("deleting keeps the notes, takes them out of the project, and clears the fn+P default", () => {
+    const db = fakeDb();
+    db.entries.set("e-9", { id: "e-9", project_id: null, source: "voice", metadata: "{}" });
+    const { projectNotes, folder } = load(db);
+    const reno = db.api.createWhisperWoofProject("Kitchen");
+    projectNotes.setDefaultProject(reno.id);
+    const { name } = projectNotes.saveProjectNote("Pick tiles");
+    projectNotes.linkNoteToEntry(name, "e-9");
+
+    projectNotes.deleteProject(reno.id);
+    expect(folder.listNotes().notes[0]).toMatchObject({ name, project: "", projectId: "" });
+    expect(db.entries.get("e-9")?.project_id).toBeNull();
+    expect(projectNotes.peekDefaultProject()).toBeNull();
   });
 });

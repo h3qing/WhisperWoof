@@ -506,6 +506,12 @@ function getWhisperWoofProjects() {
   return whisperwoofDb.prepare('SELECT * FROM bf_projects ORDER BY created_at DESC').all();
 }
 
+function renameWhisperWoofProject(id, name) {
+  if (!whisperwoofDb) return null;
+  whisperwoofDb.prepare('UPDATE bf_projects SET name = ? WHERE id = ?').run(name, id);
+  return whisperwoofDb.prepare('SELECT * FROM bf_projects WHERE id = ?').get(id) ?? null;
+}
+
 function deleteWhisperWoofProject(id) {
   if (!whisperwoofDb) return;
   // Set entries' project_id to null (don't delete entries)
@@ -527,15 +533,6 @@ function setEntryProject(entryId, projectId) {
     .prepare('UPDATE bf_entries SET project_id = ? WHERE id = ?')
     .run(projectId ?? null, entryId);
   return result.changes > 0;
-}
-
-/** projectId → number of entries, in one query. */
-function getProjectEntryCounts() {
-  if (!whisperwoofDb) return {};
-  const rows = whisperwoofDb
-    .prepare('SELECT project_id, COUNT(*) AS n FROM bf_entries WHERE project_id IS NOT NULL GROUP BY project_id')
-    .all();
-  return Object.fromEntries(rows.map((row) => [row.project_id, row.n]));
 }
 
 /**
@@ -589,9 +586,9 @@ module.exports = {
   createWhisperWoofProject,
   getWhisperWoofProjects,
   deleteWhisperWoofProject,
+  renameWhisperWoofProject,
   getProjectEntries,
   setEntryProject,
-  getProjectEntryCounts,
   updateProjectIntegration,
   getProjectIntegrations,
   // Database access (for storage-manager + other bridge modules)

@@ -2768,9 +2768,6 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-notes-set-project", (_e, name, projectId) =>
       settle(() => ({ note: projectNotes().setNoteProject(name, projectId ?? null) }))
     );
-    ipcMain.handle("whisperwoof-project-notes", (_e, projectId) =>
-      settle(() => ({ notes: projectNotes().listProjectNotes(projectId) }))
-    );
     ipcMain.handle("whisperwoof-get-default-project", () =>
       settle(() => ({ project: projectNotes().peekDefaultProject() }))
     );
@@ -2780,10 +2777,6 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-entry-recording-id", (_e, entryId) =>
       settle(() => ({ recordingId: projectNotes().getEntryRecordingId(entryId) }))
     );
-    ipcMain.handle("whisperwoof-project-entry-counts", () =>
-      settle(() => ({ counts: require("../whisperwoof/bridge/app-init").getProjectEntryCounts() }))
-    );
-
     // "Saved as note → Open": bring up the control panel on that note.
     ipcMain.handle("whisperwoof-open-voice-note", async (_event, name) => {
       const { isSafeNoteName } = require("../whisperwoof/bridge/notes-folder-pure");
@@ -3072,16 +3065,21 @@ class IPCHandlers {
     });
 
     // WhisperWoof: Projects — named buckets for "wandering mind" capture
+    // Checked name (unique, 1-80 chars) — see bridge/project-notes-pure.js.
     ipcMain.handle("whisperwoof-create-project", async (_event, name) => {
       try {
-        const { createWhisperWoofProject } = require("../whisperwoof/bridge/app-init");
-        const result = createWhisperWoofProject(name);
-        if (result) {
-          return { success: true, ...result };
-        }
-        return { success: false, error: "WhisperWoof database not initialized" };
+        const { createProject } = require("../whisperwoof/bridge/project-notes");
+        return { success: true, ...createProject(name) };
       } catch (error) {
-        debugLogger.log(`[WhisperWoof] create-project failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("whisperwoof-rename-project", async (_event, id, name) => {
+      try {
+        const { renameProject } = require("../whisperwoof/bridge/project-notes");
+        return { success: true, ...renameProject(id, name) };
+      } catch (error) {
         return { success: false, error: error.message };
       }
     });
@@ -3098,8 +3096,9 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-delete-project", async (_event, id) => {
       try {
-        const { deleteWhisperWoofProject } = require("../whisperwoof/bridge/app-init");
-        deleteWhisperWoofProject(id);
+        // Unfiles the project's notes too (they're kept).
+        const { deleteProject } = require("../whisperwoof/bridge/project-notes");
+        deleteProject(id);
         return { success: true };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] delete-project failed: ${error.message}`);
