@@ -13,14 +13,14 @@ export const Toggle = ({ checked, onChange, disabled = false }: ToggleProps) => 
     }
     return checked
       ? "bg-primary hover:bg-primary/90"
-      : "bg-muted-foreground/30 hover:bg-muted-foreground/40 dark:bg-surface-raised dark:hover:bg-surface-3";
+      : "bg-muted-foreground/30 hover:bg-muted-foreground/40";
   };
 
   return (
     <button
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1 ${getTrackClasses()} ${
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 ${getTrackClasses()} ${
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
       }`}
     >
