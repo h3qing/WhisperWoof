@@ -11,7 +11,7 @@ import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
 import { LiveDictationPanel } from "./whisperwoof/ui/indicator/LiveDictationPanel";
-import { deriveLivePanelView } from "./whisperwoof/core/live/live-dictation";
+import { deriveLivePanelView, pickLivePanelFrame } from "./whisperwoof/core/live/live-dictation";
 import {
   pickMandoAction,
   nextCelebration,
@@ -380,7 +380,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, isStarting, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -392,7 +392,32 @@ export default function App() {
     segments: liveSegments,
     finalText: liveFinalText,
   });
-  const showLivePanel = isLiveMode && livePanelView.phase !== "hidden";
+  // A live capture is actually running (recording, final pass, or Pasted hold).
+  const liveBusy = isLiveMode && livePanelView.phase !== "hidden";
+  const [windowHidden, setWindowHidden] = useState(() => document.hidden);
+  useEffect(() => {
+    const onVisibility = () => setWindowHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  // Remember the last frame a live capture drew (React's "store info from
+  // previous renders" pattern; the key comparison stops it from looping).
+  const [lastLiveFrame, setLastLiveFrame] = useState(null);
+  const liveFrameKey = `${livePanelView.phase}|${livePanelView.committed}|${livePanelView.partial}`;
+  const lastLiveFrameKey = lastLiveFrame
+    ? `${lastLiveFrame.phase}|${lastLiveFrame.committed}|${lastLiveFrame.partial}`
+    : null;
+  if (liveBusy && liveFrameKey !== lastLiveFrameKey) setLastLiveFrame(livePanelView);
+  const liveFrame = pickLivePanelFrame({
+    view: livePanelView,
+    lastFrame: lastLiveFrame,
+    isLiveCapture: isLiveMode,
+    starting: isStarting,
+    liveMode: liveModeEnabled,
+    autoHide: floatingIconAutoHide,
+    windowHidden,
+  });
+  const showLivePanel = liveFrame !== null;
 
   useEffect(() => {
     const resizeWindow = () => {
@@ -459,20 +484,21 @@ export default function App() {
       !isRecording &&
       !isProcessing &&
       !hopShowing &&
-      !showLivePanel &&
+      !liveBusy &&
       toastCount === 0
     ) {
-      // Delay briefly so processing can start after recording stops without a flash
+      // Delay briefly so processing can start after recording stops without a
+      // flash. Live mode holds its finished frame instead, so it can go at once.
       hideTimeout = setTimeout(() => {
         window.electronAPI?.hideWindow?.();
-      }, 500);
+      }, liveModeEnabled ? 0 : 500);
     } else if (!floatingIconAutoHide && prevAutoHideRef.current) {
       window.electronAPI?.showDictationPanel?.();
     }
 
     prevAutoHideRef.current = floatingIconAutoHide;
     return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, hopShowing, showLivePanel, floatingIconAutoHide, toastCount]);
+  }, [isRecording, isProcessing, hopShowing, liveBusy, liveModeEnabled, floatingIconAutoHide, toastCount]);
 
   const handleClose = () => {
     window.electronAPI.hideWindow();
@@ -662,7 +688,7 @@ export default function App() {
               <div className="flex flex-col items-center">
                 {showLivePanel ? (
                   <LiveDictationPanel
-                    view={livePanelView}
+                    view={liveFrame}
                     speaking={isSpeaking}
                     celebrating={celebrating}
                     onCelebrationEnd={endCelebration}

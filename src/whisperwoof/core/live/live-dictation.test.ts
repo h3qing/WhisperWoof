@@ -5,6 +5,9 @@ import {
   deriveLivePanelView,
   toLiveSegments,
   listStreamingModels,
+  pickLivePanelFrame,
+  type LivePanelView,
+  type LivePanelFrameInput,
 } from "./live-dictation";
 
 const ONLINE = new Set([
@@ -234,5 +237,39 @@ describe("listStreamingModels", () => {
       { id: "x-asr-zh-en-streaming-480ms", name: "X-ASR", sizeMb: 134, languages: ["zh", "en"], coversChinese: true, isDefault: true },
       { id: "nemotron-speech-streaming-en-0.6b", name: "Nemotron EN", sizeMb: 442, languages: ["en"], coversChinese: false, isDefault: false },
     ]);
+  });
+});
+
+describe("pickLivePanelFrame", () => {
+  const listening: LivePanelView = { phase: "listening", committed: "", partial: "" };
+  const hidden: LivePanelView = { phase: "hidden", committed: "", partial: "" };
+  const done: LivePanelView = { phase: "done", committed: "好的", partial: "" };
+  const base: LivePanelFrameInput = { view: hidden, lastFrame: null, isLiveCapture: false, starting: false, liveMode: true, autoHide: true, windowHidden: false };
+
+  it("shows the live view while a live capture runs", () => {
+    const streaming: LivePanelView = { phase: "streaming", committed: "a", partial: "b" };
+    expect(pickLivePanelFrame({ ...base, view: streaming, isLiveCapture: true })).toEqual(streaming);
+  });
+
+  it("shows Listening from the hotkey press, before the mic is open", () => {
+    expect(pickLivePanelFrame({ ...base, starting: true })).toEqual(listening);
+  });
+
+  it("holds the last frame while auto-hide takes the window away, instead of the idle icon", () => {
+    expect(pickLivePanelFrame({ ...base, lastFrame: done })).toEqual(done);
+  });
+
+  it("pre-renders Listening while hidden so the next show never flashes the old frame", () => {
+    expect(pickLivePanelFrame({ ...base, lastFrame: done, windowHidden: true })).toEqual(listening);
+  });
+
+  it("keeps the idle icon when auto-hide is off (the icon is meant to stay on screen)", () => {
+    expect(pickLivePanelFrame({ ...base, autoHide: false, lastFrame: done })).toBeNull();
+    expect(pickLivePanelFrame({ ...base, autoHide: false, starting: true })).toEqual(listening);
+  });
+
+  it("does nothing outside live mode", () => {
+    expect(pickLivePanelFrame({ ...base, liveMode: false, lastFrame: done })).toBeNull();
+    expect(pickLivePanelFrame({ ...base, liveMode: false, starting: true })).toBeNull();
   });
 });

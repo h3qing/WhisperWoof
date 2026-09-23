@@ -37,6 +37,9 @@ export const useAudioRecording = (toast, options = {}) => {
   const [liveSegments, setLiveSegments] = useState(EMPTY_LIVE_SEGMENTS);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [liveFinalText, setLiveFinalText] = useState("");
+  // True from the hotkey press until recording actually starts (mic open takes
+  // 100-500ms), so the live panel can show "Listening" instead of the idle icon.
+  const [isStarting, setIsStarting] = useState(false);
   const liveDoneTimerRef = useRef(null);
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
@@ -51,6 +54,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const performStartRecording = useCallback(async () => {
     if (startLockRef.current) return false;
     startLockRef.current = true;
+    setIsStarting(true);
     try {
       if (!audioManagerRef.current) return false;
 
@@ -112,6 +116,7 @@ export const useAudioRecording = (toast, options = {}) => {
       return didStart;
     } finally {
       startLockRef.current = false;
+      setIsStarting(false);
     }
   }, []);
 
@@ -585,6 +590,7 @@ export const useAudioRecording = (toast, options = {}) => {
     liveSegments,
     isLiveMode,
     liveFinalText,
+    isStarting,
     startRecording: performStartRecording,
     stopRecording: performStopRecording,
     cancelRecording,

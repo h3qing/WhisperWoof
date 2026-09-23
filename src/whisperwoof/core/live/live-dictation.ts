@@ -185,3 +185,32 @@ export function listStreamingModels(
     })
     .sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
 }
+
+const LISTENING_FRAME: LivePanelView = Object.freeze({ phase: "listening", committed: "", partial: "" });
+
+export interface LivePanelFrameInput {
+  view: LivePanelView;
+  /** The last frame the panel showed during the previous capture. */
+  lastFrame: LivePanelView | null;
+  /** This capture resolved to a live plan (the stream is running or ran). */
+  isLiveCapture: boolean;
+  /** Hotkey pressed, mic not open yet. */
+  starting: boolean;
+  liveMode: boolean;
+  autoHide: boolean;
+  windowHidden: boolean;
+}
+
+/**
+ * Which live-panel frame the overlay draws, or null for the regular indicator.
+ * In live mode the old idle icon must never flash: from the hotkey press the
+ * panel shows Listening; with auto-hide on, the finished frame holds while the
+ * window hides, and a hidden window pre-renders Listening for the next show.
+ */
+export function pickLivePanelFrame(input: LivePanelFrameInput): LivePanelView | null {
+  if (input.isLiveCapture && input.view.phase !== "hidden") return input.view;
+  if (!input.liveMode) return null;
+  if (input.starting) return LISTENING_FRAME;
+  if (!input.autoHide) return null;
+  return input.windowHidden ? LISTENING_FRAME : (input.lastFrame ?? LISTENING_FRAME);
+}
