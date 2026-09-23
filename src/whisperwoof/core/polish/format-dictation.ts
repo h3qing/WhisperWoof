@@ -7,28 +7,38 @@
 const HAN = "\\u4e00-\\u9fff\\u3400-\\u4dbf";
 const HAS_HAN = new RegExp(`[${HAN}]`);
 const ORDINALS = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-// 第X counts as a list marker only when a separator follows it, so 第一次 /
-// 第二天 (ordinals used as words) never match.
-const MARKER = new RegExp(`第([${ORDINALS.join("")}])\\s*[，,、：:]\\s*`, "g");
+const ORDINALS_EN = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+// An ordinal counts as a list marker only when a separator follows it, so
+// 第一次 / 第二天 / "the first time" (ordinals used as words) never match.
+const MARKER_ZH = new RegExp(`第([${ORDINALS.join("")}])\\s*[，,、：:]\\s*`, "g");
+const MARKER_EN = new RegExp(`\\b(${ORDINALS_EN.join("|")})(?:ly)?\\s*[,:]\\s*`, "gi");
 const TRIM_ITEM = /^[\s，,、；;。.]+|[\s，,、；;。.]+$/g;
 
-/** "…？ 第一， A； 第二， B。" → "…？\n1. A\n2. B" (needs 第一, 第二, … in order). */
-export function formatSpokenEnumeration(text: string): string {
-  const markers = [...text.matchAll(MARKER)];
-  if (markers.length < 2) return text;
-  const inOrder = markers.every((m, i) => m[1] === ORDINALS[i]);
-  if (!inOrder) return text;
+function toList(text: string, marker: RegExp, ordinals: string[], capitalize: boolean): string | null {
+  const markers = [...text.matchAll(marker)];
+  if (markers.length < 2) return null;
+  if (!markers.every((m, i) => m[1].toLowerCase() === ordinals[i])) return null;
 
   const items = markers.map((m, i) => {
     const start = (m.index ?? 0) + m[0].length;
     const end = i + 1 < markers.length ? markers[i + 1].index : text.length;
-    return text.slice(start, end).replace(TRIM_ITEM, "");
+    const item = text.slice(start, end).replace(TRIM_ITEM, "");
+    return capitalize ? item.charAt(0).toUpperCase() + item.slice(1) : item;
   });
-  if (items.some((item) => !item)) return text;
+  if (items.some((item) => !item)) return null;
 
   const lead = text.slice(0, markers[0].index).trim();
   const list = items.map((item, i) => `${i + 1}. ${item}`).join("\n");
   return lead ? `${lead}\n${list}` : list;
+}
+
+/**
+ * Spoken enumerations become a numbered list under the lead-in sentence:
+ * "…？ 第一， A； 第二， B。" / "… First, a. Second, b." → "…\n1. A\n2. B".
+ * Needs at least two ordinals, in order, starting from the first.
+ */
+export function formatSpokenEnumeration(text: string): string {
+  return toList(text, MARKER_ZH, ORDINALS, false) ?? toList(text, MARKER_EN, ORDINALS_EN, true) ?? text;
 }
 
 const HAS_PUNCTUATION = /[，。？！、；：,.?!;:]/;

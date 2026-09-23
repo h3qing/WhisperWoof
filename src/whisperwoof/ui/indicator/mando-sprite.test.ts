@@ -161,17 +161,19 @@ describe('manifest and assets', () => {
     });
   });
 
-  it('website demo constants stay in sync with the manifest', () => {
+  it('every Mando loop the website references is built and on disk', () => {
+    // The site plays full-resolution loops from website/mando/hd, written by
+    // scripts/build-mando-sprites.js from the same pack as the app sheets.
     const html = fs.readFileSync(path.join(REPO_ROOT, 'website/index.html'), 'utf8');
-    ACTIONS.forEach((action) => {
-      const frames = Number(html.match(new RegExp(`${action}:\\{frames:(\\d+)\\}`))?.[1]);
-      expect(frames).toBe(manifest[action].frameCount);
-      expect(manifest[action].frameDurationMs).toBe(Number(html.match(/MANDO_FRAME_MS = (\d+)/)?.[1]));
+    const build = fs.readFileSync(path.join(REPO_ROOT, 'scripts/build-mando-sprites.js'), 'utf8');
+    const siteOnly = JSON.parse(build.match(/SITE_ONLY_ACTIONS = (\[[^\]]*\])/)?.[1] ?? '[]') as string[];
+    const built = [...ACTIONS, ...siteOnly];
+    const referenced = [...html.matchAll(/mando\/hd\/([\w-]+)\.webp/g)].map((m) => m[1]);
+    expect(referenced.length).toBeGreaterThan(0);
+    new Set(referenced).forEach((action) => {
+      expect(built).toContain(action);
+      expect(fs.existsSync(path.join(REPO_ROOT, 'website/mando/hd', `${action}.webp`))).toBe(true);
     });
-    const h = Number(html.match(/MANDO_H = (\d+)/)?.[1]);
-    const w = Number(html.match(/MANDO_W = (\d+)/)?.[1]);
-    const style = mandoSpriteStyle('wait', { size: h, playing: true, loop: true, sheetUrl: 'x' });
-    expect(style.width).toBe(`${w}px`);
   });
 });
 
