@@ -520,6 +520,24 @@ function getProjectEntries(projectId, limit = 50) {
   ).all(projectId, limit).map(mapRow);
 }
 
+/** Put a dictation into a project (null takes it out). */
+function setEntryProject(entryId, projectId) {
+  if (!whisperwoofDb) return false;
+  const result = whisperwoofDb
+    .prepare('UPDATE bf_entries SET project_id = ? WHERE id = ?')
+    .run(projectId ?? null, entryId);
+  return result.changes > 0;
+}
+
+/** projectId → number of entries, in one query. */
+function getProjectEntryCounts() {
+  if (!whisperwoofDb) return {};
+  const rows = whisperwoofDb
+    .prepare('SELECT project_id, COUNT(*) AS n FROM bf_entries WHERE project_id IS NOT NULL GROUP BY project_id')
+    .all();
+  return Object.fromEntries(rows.map((row) => [row.project_id, row.n]));
+}
+
 /**
  * Bind a project to an MCP plugin (integration_target).
  * Pass null to unbind.
@@ -572,6 +590,8 @@ module.exports = {
   getWhisperWoofProjects,
   deleteWhisperWoofProject,
   getProjectEntries,
+  setEntryProject,
+  getProjectEntryCounts,
   updateProjectIntegration,
   getProjectIntegrations,
   // Database access (for storage-manager + other bridge modules)

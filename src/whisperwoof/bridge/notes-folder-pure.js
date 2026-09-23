@@ -19,12 +19,16 @@ function frontmatterField(yaml, key) {
   if (!line) return "";
   const raw = line.slice(key.length + 1).trim();
   if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
-    return raw.slice(1, -1).replace(/\\"/g, '"');
+    return raw.slice(1, -1).replace(/\\(["\\])/g, "$1");
   }
   return raw;
 }
 
-/** { title, body, date } — title from frontmatter, else a heading, else the first line. */
+/**
+ * { title, body, date, entryId, project, projectId } — title from frontmatter,
+ * else a heading, else the first line. `entry` links the note to its recorded
+ * dictation (bf_entries id); `project` / `project_id` to a project.
+ */
 function parseNote(content) {
   const text = String(content ?? "").replace(/\r\n/g, "\n");
   const fm = text.match(FRONTMATTER);
@@ -32,8 +36,15 @@ function parseNote(content) {
   const fmTitle = fm ? frontmatterField(fm[1], "title") : "";
   const firstLine = body.split("\n").find((l) => l.trim()) ?? "";
   const title = fmTitle || firstLine.replace(/^#+\s*/, "").trim();
-  const date = fm ? frontmatterField(fm[1], "date") : "";
-  return { title, body, date };
+  const field = (key) => (fm ? frontmatterField(fm[1], key) : "");
+  return {
+    title,
+    body,
+    date: field("date"),
+    entryId: field("entry"),
+    project: field("project"),
+    projectId: field("project_id"),
+  };
 }
 
 /** One line of body text for the list, without repeating the title. */
@@ -51,6 +62,30 @@ function withBody(content, newBody) {
   return fm ? `${fm[0].endsWith("\n") ? fm[0] : `${fm[0]}\n`}${body}` : body;
 }
 
+// One-line YAML scalar; newlines are flattened so a value can't add lines.
+function yamlScalar(value) {
+  const flat = String(value).replace(/[\r\n]+/g, " ").trim();
+  return /^[\w.-]+$/.test(flat) ? flat : `"${flat.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * The file with frontmatter `fields` set (string) or removed (null); other
+ * keys and the body are kept. Adds a frontmatter block if there was none.
+ */
+function withFields(content, fields) {
+  const text = String(content ?? "").replace(/\r\n/g, "\n");
+  const fm = text.match(FRONTMATTER);
+  const body = fm ? text.slice(fm[0].length) : text;
+  const keys = Object.keys(fields);
+  const kept = (fm ? fm[1].split("\n") : []).filter(
+    (line) => !keys.some((key) => line.startsWith(`${key}:`))
+  );
+  const added = keys
+    .filter((key) => fields[key] !== null && fields[key] !== undefined)
+    .map((key) => `${key}: ${yamlScalar(fields[key])}`);
+  return `---\n${[...kept, ...added].join("\n")}\n---\n${body}`;
+}
+
 function matchesQuery(note, query) {
   const q = String(query ?? "").trim().toLowerCase();
   if (!q) return true;
@@ -61,4 +96,4 @@ function sortNewestFirst(list) {
   return [...list].sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-module.exports = { isSafeNoteName, parseNote, previewOf, withBody, matchesQuery, sortNewestFirst };
+module.exports = { isSafeNoteName, parseNote, previewOf, withBody, withFields, matchesQuery, sortNewestFirst };

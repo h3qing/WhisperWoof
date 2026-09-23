@@ -846,6 +846,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofNotesWatch: () => ipcRenderer.invoke("whisperwoof-notes-watch"),
   onWhisperwoofNotesChanged: registerListener("whisperwoof-notes-changed", (callback) => () => callback()),
   whisperwoofOpenVoiceNote: (name) => ipcRenderer.invoke("whisperwoof-open-voice-note", name),
+  whisperwoofSaveProjectNote: (text) => ipcRenderer.invoke("whisperwoof-save-project-note", text),
+  whisperwoofNotesLinkEntry: (name, entryId) => ipcRenderer.invoke("whisperwoof-notes-link-entry", name, entryId),
+  whisperwoofNotesSetProject: (name, projectId) =>
+    ipcRenderer.invoke("whisperwoof-notes-set-project", name, projectId),
+  whisperwoofProjectNotes: (projectId) => ipcRenderer.invoke("whisperwoof-project-notes", projectId),
+  whisperwoofGetDefaultProject: () => ipcRenderer.invoke("whisperwoof-get-default-project"),
+  whisperwoofSetDefaultProject: (projectId) => ipcRenderer.invoke("whisperwoof-set-default-project", projectId),
+  whisperwoofEntryRecordingId: (entryId) => ipcRenderer.invoke("whisperwoof-entry-recording-id", entryId),
+  whisperwoofProjectEntryCounts: () => ipcRenderer.invoke("whisperwoof-project-entry-counts"),
   onWhisperwoofNavigateVoiceNote: registerListener(
     "whisperwoof-navigate-voice-note",
     (callback) => (_event, name) => callback(name)

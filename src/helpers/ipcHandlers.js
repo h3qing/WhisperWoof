@@ -2746,6 +2746,44 @@ class IPCHandlers {
       const error = await notesFolder().openNotesFolder();
       return error ? { success: false, error } : { success: true };
     });
+    // Notes ↔ projects ↔ recordings (bridge/project-notes.js).
+    const projectNotes = () => require("../whisperwoof/bridge/project-notes");
+    const settle = async (fn) => {
+      try {
+        return { success: true, ...(await fn()) };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    };
+    ipcMain.handle("whisperwoof-save-project-note", (_e, text) =>
+      settle(() => {
+        const result = projectNotes().saveProjectNote(text);
+        if (!result.success) throw new Error(result.error || "Couldn't save the note");
+        return { name: result.name, project: result.project };
+      })
+    );
+    ipcMain.handle("whisperwoof-notes-link-entry", (_e, name, entryId) =>
+      settle(() => ({ note: projectNotes().linkNoteToEntry(name, entryId) }))
+    );
+    ipcMain.handle("whisperwoof-notes-set-project", (_e, name, projectId) =>
+      settle(() => ({ note: projectNotes().setNoteProject(name, projectId ?? null) }))
+    );
+    ipcMain.handle("whisperwoof-project-notes", (_e, projectId) =>
+      settle(() => ({ notes: projectNotes().listProjectNotes(projectId) }))
+    );
+    ipcMain.handle("whisperwoof-get-default-project", () =>
+      settle(() => ({ project: projectNotes().getDefaultProject() }))
+    );
+    ipcMain.handle("whisperwoof-set-default-project", (_e, projectId) =>
+      settle(() => ({ projectId: projectNotes().setDefaultProject(projectId) }))
+    );
+    ipcMain.handle("whisperwoof-entry-recording-id", (_e, entryId) =>
+      settle(() => ({ recordingId: projectNotes().getEntryRecordingId(entryId) }))
+    );
+    ipcMain.handle("whisperwoof-project-entry-counts", () =>
+      settle(() => ({ counts: require("../whisperwoof/bridge/app-init").getProjectEntryCounts() }))
+    );
+
     // "Saved as note → Open": bring up the control panel on that note.
     ipcMain.handle("whisperwoof-open-voice-note", async (_event, name) => {
       const { isSafeNoteName } = require("../whisperwoof/bridge/notes-folder-pure");

@@ -307,6 +307,20 @@ export const useAudioRecording = (toast, options = {}) => {
           // The live panel already says "Copied" / "Saved as note"; a toast
           // on top of it would just cover it.
           const showRouteToast = !isLiveModeRef.current;
+          // The note fn+N / fn+P just wrote; linked to this dictation's entry
+          // once that's saved below, so the Notes view can play the recording.
+          let savedNoteName = null;
+          const openNoteAction = (name) =>
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: () => window.electronAPI?.whisperwoofOpenVoiceNote?.(name ?? null),
+                className:
+                  "text-[11px] font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              },
+              "Open"
+            );
 
           const isStreaming = result.source?.includes("streaming");
           const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
@@ -331,6 +345,7 @@ export const useAudioRecording = (toast, options = {}) => {
             // Fn+N: Save as Markdown file
             const saveResult = await window.electronAPI?.whisperwoofSaveMarkdown?.(textToPaste);
             if (saveResult?.success) {
+              savedNoteName = saveResult.name ?? null;
               logger.info("WhisperWoof routed to markdown", { hotkeyUsed, filePath: saveResult.filePath }, "whisperwoof");
               if (showRouteToast) {
                 toast({
@@ -339,16 +354,7 @@ export const useAudioRecording = (toast, options = {}) => {
                   description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
                   variant: "default",
                   duration: 5000,
-                  action: React.createElement(
-                    "button",
-                    {
-                      type: "button",
-                      onClick: () => window.electronAPI?.whisperwoofOpenVoiceNote?.(saveResult.name ?? null),
-                      className:
-                        "text-[11px] font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    },
-                    "Open"
-                  ),
+                  action: openNoteAction(saveResult.name),
                 });
               }
             } else {
@@ -356,16 +362,25 @@ export const useAudioRecording = (toast, options = {}) => {
               toast({ title: "Failed to save note", description: saveResult?.error, variant: "destructive", duration: 5000 });
             }
           } else if (routedTo === "project") {
-            // Fn+P: Save entry tagged for project routing (entry is saved below, project picker handles dispatch)
-            logger.info("WhisperWoof routed to project", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
-            if (showRouteToast) {
-              toast({
-                icon: MandoToastIcon,
-                title: "Captured to project",
-                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-                variant: "default",
-                duration: 3000,
-              });
+            // Fn+P: save as a note in the default project (Inbox until the
+            // user picks another in Projects).
+            const saveResult = await window.electronAPI?.whisperwoofSaveProjectNote?.(textToPaste);
+            if (saveResult?.success) {
+              savedNoteName = saveResult.name ?? null;
+              logger.info("WhisperWoof routed to project", { hotkeyUsed, project: saveResult.project?.name }, "whisperwoof");
+              if (showRouteToast) {
+                toast({
+                  icon: MandoToastIcon,
+                  title: `Saved to ${saveResult.project?.name ?? "project"}`,
+                  description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
+                  variant: "default",
+                  duration: 5000,
+                  action: openNoteAction(saveResult.name),
+                });
+              }
+            } else {
+              logger.error(`WhisperWoof project note save failed: ${saveResult?.error || "unknown"}`);
+              toast({ title: "Couldn't save to project", description: saveResult?.error, variant: "destructive", duration: 5000 });
             }
           } else if (autoPasteEnabled) {
             const pasteStart = performance.now();
@@ -437,7 +452,7 @@ export const useAudioRecording = (toast, options = {}) => {
           // Reset tracker for next capture
           latencyTrackerRef.current = null;
 
-          window.electronAPI?.whisperwoofSaveEntry?.({
+          const entrySaved = window.electronAPI?.whisperwoofSaveEntry?.({
             source: 'voice',
             rawText: rawText,
             polished: textToPaste !== rawText ? textToPaste : null,
@@ -457,6 +472,14 @@ export const useAudioRecording = (toast, options = {}) => {
               },
             },
           });
+          if (savedNoteName) {
+            const noteName = savedNoteName;
+            Promise.resolve(entrySaved).then((saved) => {
+              if (saved?.success && saved.id) {
+                window.electronAPI?.whisperwoofNotesLinkEntry?.(noteName, saved.id);
+              }
+            });
+          }
 
           if (result.source === "openai" && getSettings().useLocalWhisper) {
             toast({

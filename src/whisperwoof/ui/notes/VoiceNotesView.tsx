@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, FolderOpen, Search, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
+import { NoteProjectPicker } from "./NoteProjectPicker";
+import { PlayRecordingButton } from "./PlayRecordingButton";
 
 // Notes: the .md files in the notes folder (where Fn+N saves). The files are
 // the source of truth — edits are written straight back, so the same folder
@@ -12,6 +14,9 @@ interface VoiceNote {
   readonly body: string;
   readonly date: string;
   readonly mtimeMs: number;
+  readonly entryId: string;
+  readonly project: string;
+  readonly projectId: string;
 }
 
 interface NotesApi {
@@ -256,6 +261,16 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
                     {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
                   </span>
                 </p>
+                <div className="mt-2 -ml-1.5 flex flex-wrap items-center gap-1">
+                  <NoteProjectPicker
+                    noteName={current.name}
+                    projectId={current.projectId}
+                    projectName={current.project}
+                    onChanged={load}
+                    onError={setError}
+                  />
+                  {current.entryId && <PlayRecordingButton entryId={current.entryId} />}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button

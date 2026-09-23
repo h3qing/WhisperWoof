@@ -1310,6 +1310,7 @@ declare global {
       whisperwoofCreateProject: (name: string) => Promise<any>;
       whisperwoofDeleteProject: (id: string) => Promise<void>;
       whisperwoofGetProjectEntries: (projectId: string, limit: number) => Promise<any[]>;
+      whisperwoofProjectEntryCounts?: () => Promise<{ success: boolean; counts?: Record<string, number>; error?: string }>;
 
       // WhisperWoof — Voice Activity Detection
       whisperwoofGetVadConfig: () => Promise<{ silenceThreshold: number; autoStopSilenceMs: number; minRecordingMs: number; frameSizeSamples: number; trimPaddingMs: number }>;

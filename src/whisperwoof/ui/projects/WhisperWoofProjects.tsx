@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Trash2, FolderOpen, Mic, Clipboard, Send, Check, AlertCircle, Link2, Unlink } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
 import type { Entry, EntrySource, Project } from "../../core/storage/types";
+import { DefaultProjectToggle, ProjectNotesSection } from "./ProjectNotesSection";
 
 interface WhisperWoofProjectsProps {
   readonly className?: string;
@@ -354,10 +355,7 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
     const load = async () => {
       try {
         const data = await window.electronAPI.whisperwoofGetProjectEntries(selectedId, 100);
-        if (!cancelled) {
-          setEntries(data ?? []);
-          setEntryCounts((prev) => ({ ...prev, [selectedId]: (data ?? []).length }));
-        }
+        if (!cancelled) setEntries(data ?? []);
       } catch {
         if (!cancelled) setError("Failed to load project entries.");
       }
@@ -371,18 +369,11 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
   useEffect(() => {
     let cancelled = false;
 
+    // One grouped query (the old per-project fetch passed LIMIT 0, so every
+    // count read 0).
     const loadCounts = async () => {
-      const counts: Record<string, number> = {};
-      for (const project of projects) {
-        try {
-          const data = await window.electronAPI.whisperwoofGetProjectEntries(project.id, 0);
-          if (cancelled) return;
-          counts[project.id] = (data ?? []).length;
-        } catch {
-          counts[project.id] = 0;
-        }
-      }
-      if (!cancelled) setEntryCounts(counts);
+      const result = await window.electronAPI?.whisperwoofProjectEntryCounts?.();
+      if (!cancelled) setEntryCounts(result?.success ? result.counts ?? {} : {});
     };
 
     if (projects.length > 0) loadCounts();
@@ -533,7 +524,10 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
         {selectedProject ? (
           <div className="flex flex-col">
             <div className="px-4 pt-4 pb-2 flex items-center justify-between gap-3">
-              <h2 className="text-base font-medium text-foreground">{selectedProject.name}</h2>
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="truncate text-base font-medium text-foreground">{selectedProject.name}</h2>
+                <DefaultProjectToggle projectId={selectedProject.id} />
+              </div>
               {/* Integration selector */}
               <IntegrationSelector
                 plugins={plugins}
@@ -549,11 +543,15 @@ export default function WhisperWoofProjects({ className }: WhisperWoofProjectsPr
                 </p>
               </div>
             )}
+            <ProjectNotesSection projectId={selectedProject.id} />
+            {entries.length > 0 && (
+              <h3 className="px-4 pb-1.5 text-xs font-medium text-muted-foreground">Voice entries</h3>
+            )}
             {entries.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-center px-8">
                 <FolderOpen size={28} className="text-muted-foreground/30 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  No entries in this project yet. Use Fn+P to capture thoughts here.
+                  Nothing here yet. Make this the fn+P project, or add a note to it from Notes.
                 </p>
               </div>
             ) : (
