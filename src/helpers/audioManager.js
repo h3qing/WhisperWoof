@@ -16,6 +16,7 @@ import {
   resolveLiveDictationPlan,
   toLiveSegments,
 } from "../whisperwoof/core/live/live-dictation";
+import { createDownsampler } from "../whisperwoof/core/audio/downsampler";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -160,10 +161,15 @@ class AudioManager {
     }
 
     try {
-      this._localTapCtx = new AudioContext({ sampleRate: 16000 });
+      // Device-rate context, downsampled inside the worklet: a second consumer
+      // clocked at 16kHz on the same mic (e.g. AirPods at 24kHz) buried the
+      // MediaRecorder capture it shares the device with in noise.
+      this._localTapCtx = new AudioContext();
       this._localTapSource = this._localTapCtx.createMediaStreamSource(micStream);
       await this._localTapCtx.audioWorklet.addModule(this.getWorkletBlobUrl());
-      this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor");
+      this._localTapNode = new AudioWorkletNode(this._localTapCtx, "pcm-streaming-processor", {
+        processorOptions: { targetRate: 16000 },
+      });
       this._localTapNode.port.onmessage = (event) => {
         if (!this._localStreamActive) return;
         // Until the main-process stream exists, chunks sent over IPC are
@@ -260,9 +266,13 @@ class AudioManager {
     if (this.workletBlobUrl) return this.workletBlobUrl;
     const code = `
 const BUFFER_SIZE = 800;
+const createDownsampler = ${createDownsampler.toString()};
 class PCMStreamingProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
+    // No targetRate: the context already runs at the rate the consumer wants.
+    const targetRate = options?.processorOptions?.targetRate || sampleRate;
+    this._resample = createDownsampler(sampleRate, targetRate);
     this._buffer = new Int16Array(BUFFER_SIZE);
     this._offset = 0;
     this._stopped = false;
@@ -280,8 +290,9 @@ class PCMStreamingProcessor extends AudioWorkletProcessor {
   }
   process(inputs) {
     if (this._stopped) return false;
-    const input = inputs[0]?.[0];
-    if (!input) return true;
+    const raw = inputs[0]?.[0];
+    if (!raw) return true;
+    const input = this._resample(raw);
     for (let i = 0; i < input.length; i++) {
       const s = Math.max(-1, Math.min(1, input[i]));
       this._buffer[this._offset++] = s < 0 ? s * 0x8000 : s * 0x7fff;
