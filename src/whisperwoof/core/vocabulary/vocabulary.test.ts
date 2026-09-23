@@ -108,21 +108,25 @@ describe("isDuplicateWord", () => {
 });
 
 describe("flattenSttHints", () => {
-  it("includes every word and alternative", () => {
+  it("includes every correctly spelled word", () => {
     const hints: string[] = flattenSttHints(SAMPLE);
-    expect(hints).toContain("WhisperWoof");
-    expect(hints).toContain("whisper woof");
-    expect(hints).toContain("Heqing");
-    expect(hints).toContain("he ching");
-    expect(hints).toContain("LGTM");
+    expect(hints).toEqual(["WhisperWoof", "Heqing", "Ollama", "LGTM", "Mando"]);
   });
 
-  it("deduplicates when word and alternative collide", () => {
+  it("never includes misheard alternatives (they would bias STT toward the wrong spelling)", () => {
+    const hints: string[] = flattenSttHints(SAMPLE);
+    expect(hints).not.toContain("whisper woof");
+    expect(hints).not.toContain("he ching");
+    expect(hints).not.toContain("looks good to me");
+  });
+
+  it("deduplicates repeated words", () => {
     const withDup: VocabEntry[] = [
-      { id: "1", word: "test", category: "general", alternatives: ["test"], source: "manual", usageCount: 0 },
+      { id: "1", word: "test", category: "general", alternatives: [], source: "manual", usageCount: 0 },
+      { id: "2", word: "test", category: "general", alternatives: [], source: "auto-learn", usageCount: 0 },
     ];
     const hints: string[] = flattenSttHints(withDup);
-    expect(hints.filter((h) => h === "test")).toHaveLength(1);
+    expect(hints).toEqual(["test"]);
   });
 
   it("boosts app-specific entries to the front when bundleId is provided", () => {

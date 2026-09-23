@@ -160,11 +160,10 @@ function mergePackHints(userHints, packStates, bundleId) {
   // Phase 2: collect all active pack entries
   for (const { pack, state } of packStates || []) {
     const entries = getActivePackEntries(pack, state);
+    // Correct spellings only: alternatives are phonetic mishearings
+    // ("keen wah"), which would steer the STT toward them.
     for (const entry of entries) {
       add(entry.word);
-      for (const alt of entry.alternatives || []) {
-        add(alt);
-      }
     }
   }
 

@@ -348,12 +348,14 @@ describe("mergePackHints", () => {
     expect(phoOccurrences).toHaveLength(1);
   });
 
-  it("includes alternatives from pack entries", () => {
+  it("uses only the correct spelling of pack entries, never phonetic alternatives", () => {
     const packStates = [{ pack: FOOD_PACK, state: enabledState("food-and-drink") }];
     const merged = mergePackHints([], packStates);
 
-    expect(merged).toContain("fuh"); // pho alternative
-    expect(merged).toContain("keen wah"); // quinoa alternative
+    expect(merged).toContain("quinoa");
+    expect(merged).not.toContain("fuh"); // pho alternative
+    expect(merged).not.toContain("keen wah"); // quinoa alternative
+    expect(merged).toHaveLength(FOOD_PACK.entries.length);
   });
 
   it("merges multiple packs", () => {

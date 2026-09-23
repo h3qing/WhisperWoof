@@ -145,6 +145,18 @@ class IPCHandlers {
     }
   }
 
+  /**
+   * STT hint prompt for every engine that takes one (local whisper-server
+   * initial prompt, cloud `prompt`): Memory words (app-boosted) first, then
+   * the manual Dictionary, then enabled Word Packs, deduped and truncated.
+   */
+  _getSttHintPrompt(bundleId) {
+    const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
+    const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
+    const userHints = [...getSttHints(bundleId || undefined), ...this._getDictionarySafe()];
+    return getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+  }
+
   _cleanupTextEditMonitor() {
     if (this._autoLearnDebounceTimer) {
       clearTimeout(this._autoLearnDebounceTimer);
@@ -2487,12 +2499,8 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-get-stt-hints", async (_event, bundleId) => {
       try {
-        const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
-        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
-        const userHints = getSttHints(bundleId || undefined);
-        // Return pack-enhanced prompt string (merged user + pack hints, truncated to fit Whisper limit)
-        const prompt = getPackEnhancedSttPrompt(userHints, bundleId || undefined);
-        return prompt ? prompt.split(", ") : userHints;
+        const prompt = this._getSttHintPrompt(bundleId);
+        return prompt ? prompt.split(", ") : [];
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-stt-hints failed: ${error.message}`);
         return [];
@@ -2562,10 +2570,7 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (_event, bundleId) => {
       try {
-        const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
-        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
-        const userHints = getSttHints(bundleId || undefined);
-        return getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+        return this._getSttHintPrompt(bundleId);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-pack-enhanced-prompt failed: ${error.message}`);
         return "";
