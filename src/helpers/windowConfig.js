@@ -33,8 +33,21 @@ const WINDOW_SIZES = {
   WITH_MENU: { width: 240, height: 280 },
   WITH_TOAST: { width: 470, height: 500 }, // Wide enough for the live dictation panel's "Pasted" hold.
   EXPANDED: { width: 400, height: 500 },
-  LIVE: { width: 470, height: 188 }, // Live dictation panel: 420px text panel + cancel button, up to 3 lines.
+  // Live mode keeps this size while idle too (the Mando indicator sits at its
+  // bottom edge); LIVE_PANEL is the same rectangle while the panel is showing.
+  LIVE: { width: 420, height: 112 },
+  // The live dictation panel, and nothing else: on macOS this size carries a
+  // native material that fills the whole window, so the window is the panel.
+  LIVE_PANEL: { width: 420, height: 112 },
 };
+
+// Native macOS material per overlay size (null = none). Only sizes whose
+// window is exactly one panel qualify; toasts/menus need transparent margins.
+const WINDOW_VIBRANCY = { LIVE_PANEL: "popover" };
+
+function vibrancyForSize(sizeKey) {
+  return Object.hasOwn(WINDOW_VIBRANCY, sizeKey) ? WINDOW_VIBRANCY[sizeKey] : null;
+}
 
 // Main dictation window configuration
 const MAIN_WINDOW_CONFIG = {
@@ -58,14 +71,21 @@ const MAIN_WINDOW_CONFIG = {
   fullScreenable: false,
   hasShadow: false,
   acceptsFirstMouse: true,
+  // The overlay never takes focus; without this its material goes flat grey.
+  visualEffectState: "active",
   type: MAIN_OVERLAY_TYPE,
 };
+
+// Painted before the renderer loads; matches --color-background in index.css
+// so the window doesn't flash a foreign colour on open.
+function controlPanelBackground(dark) {
+  return dark ? "#1c1814" : "#f6f0e8";
+}
 
 // Control panel window configuration
 const CONTROL_PANEL_CONFIG = {
   width: 1200,
   height: 800,
-  backgroundColor: "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -200,6 +220,8 @@ const AGENT_OVERLAY_CONFIG = {
   acceptsFirstMouse: true,
   type: FLOATING_OVERLAY_TYPE,
   visibleOnAllWorkspaces: process.platform !== "win32",
+  // The chat panel fills the window, so on macOS the window is the material.
+  ...(process.platform === "darwin" && { vibrancy: "popover", visualEffectState: "active" }),
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -219,4 +241,6 @@ module.exports = {
   NOTIFICATION_WINDOW_CONFIG,
   WINDOW_SIZES,
   WindowPositionUtil,
+  vibrancyForSize,
+  controlPanelBackground,
 };
