@@ -10,6 +10,8 @@ import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
 import { MandoSprite } from "./whisperwoof/ui/indicator/MandoSprite";
+import { LiveDictationPanel } from "./whisperwoof/ui/indicator/LiveDictationPanel";
+import { deriveLivePanelView } from "./whisperwoof/core/live/live-dictation";
 import {
   pickMandoAction,
   nextCelebration,
@@ -372,6 +374,25 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
 
+  const handleDictationToggle = React.useCallback(() => {
+    setIsCommandMenuOpen(false);
+    setWindowInteractivity(false);
+  }, [setWindowInteractivity]);
+
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, toggleListening, cancelRecording, cancelProcessing } =
+    useAudioRecording(toast, {
+      onToggle: handleDictationToggle,
+    });
+  const indicatorMode = localStorage.getItem("indicatorStyle") || "full";
+  const livePanelView = deriveLivePanelView({
+    isRecording,
+    isProcessing,
+    processingPhase,
+    segments: liveSegments,
+    finalText: liveFinalText,
+  });
+  const showLivePanel = isLiveMode && livePanelView.phase !== "hidden";
+
   useEffect(() => {
     const resizeWindow = () => {
       if (isCommandMenuOpen && toastCount > 0) {
@@ -380,23 +401,14 @@ export default function App() {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
       } else if (toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
+      } else if (showLivePanel) {
+        window.electronAPI?.resizeMainWindow?.("LIVE");
       } else {
         window.electronAPI?.resizeMainWindow?.("BASE");
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
-
-  const handleDictationToggle = React.useCallback(() => {
-    setIsCommandMenuOpen(false);
-    setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
-
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, toggleListening, cancelRecording, cancelProcessing } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
-  const indicatorMode = localStorage.getItem("indicatorStyle") || "full";
+  }, [isCommandMenuOpen, toastCount, showLivePanel]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -432,13 +444,20 @@ export default function App() {
     return () => clearTimeout(id);
   }, [completedCount, isProcessing, isRecording, endCelebration]);
   // Only the full indicator renders the hop; dot/compact users shouldn't wait for it.
-  const hopShowing = celebrating && indicatorMode === "full";
+  const hopShowing = celebrating && (indicatorMode === "full" || isLiveMode);
 
   // Auto-hide the floating icon when idle (setting enabled or dictation cycle completed)
   useEffect(() => {
     let hideTimeout;
 
-    if (floatingIconAutoHide && !isRecording && !isProcessing && !hopShowing && toastCount === 0) {
+    if (
+      floatingIconAutoHide &&
+      !isRecording &&
+      !isProcessing &&
+      !hopShowing &&
+      !showLivePanel &&
+      toastCount === 0
+    ) {
       // Delay briefly so processing can start after recording stops without a flash
       hideTimeout = setTimeout(() => {
         window.electronAPI?.hideWindow?.();
@@ -449,7 +468,7 @@ export default function App() {
 
     prevAutoHideRef.current = floatingIconAutoHide;
     return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, hopShowing, floatingIconAutoHide, toastCount]);
+  }, [isRecording, isProcessing, hopShowing, showLivePanel, floatingIconAutoHide, toastCount]);
 
   const handleClose = () => {
     window.electronAPI.hideWindow();
@@ -637,6 +656,14 @@ export default function App() {
             >
               {/* WhisperWoof indicator — Mando head + waveform + status */}
               <div className="flex flex-col items-center">
+                {showLivePanel ? (
+                  <LiveDictationPanel
+                    view={livePanelView}
+                    speaking={isSpeaking}
+                    celebrating={celebrating}
+                    onCelebrationEnd={endCelebration}
+                  />
+                ) : (
                 <WhisperWoofIndicator
                   state={micState === "recording" ? "recording" : micState === "processing" ? "processing" : "idle"}
                   speaking={isSpeaking}
@@ -648,6 +675,7 @@ export default function App() {
                   partialTranscript={partialTranscript}
                   processingPhase={processingPhase}
                 />
+                )}
               </div>
             </button>
           </Tooltip>
