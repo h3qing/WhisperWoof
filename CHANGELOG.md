@@ -5,6 +5,23 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
+
+### Added
+- **Notes in the sidebar: every note you save with fn+N, in one place.**
+  - **The folder is the source of truth.** Notes are the Markdown files in your notes folder (default `~/Documents/WhisperWoof Notes/`, changeable in Settings), so Obsidian, iCloud and Finder keep working.
+  - **What the view does:**
+    - lists them newest first, with the title and a preview;
+    - searches titles and text, Chinese included;
+    - edits a note in place, saving as you type and keeping the file's frontmatter;
+    - shows a note in Finder, or moves it to the Trash (recoverable).
+  - **Live updates:** a note saved while the view is open appears straight away with a "new" dot.
+  - **Opening a new note:** outside live mode, the "Saved as note" toast has an **Open** button that jumps to the note.
+  - **Code:** `bridge/notes-folder.js` + `notes-folder-pure.js`. Every note name coming from the window is checked, so it can't point outside the notes folder. Tests: 14 new, including a real temp-folder integration test.
+
+### Fixed
+- **The install script could launch a stale build.** A leftover `dist/` copy with the same bundle id (1.15.6) was launched instead of the new `/Applications` build. The script now unregisters and removes the build's `dist/` copy after installing.
+
 ## [1.19.1] - 2026-09-23 — Fn+T / Fn+N / Fn+P work, and show where your words go
 
 ### Fixed

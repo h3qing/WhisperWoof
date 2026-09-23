@@ -338,7 +338,17 @@ export const useAudioRecording = (toast, options = {}) => {
                   title: "Saved as note",
                   description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
                   variant: "default",
-                  duration: 3000,
+                  duration: 5000,
+                  action: React.createElement(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => window.electronAPI?.whisperwoofOpenVoiceNote?.(saveResult.name ?? null),
+                      className:
+                        "text-[11px] font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    },
+                    "Open"
+                  ),
                 });
               }
             } else {

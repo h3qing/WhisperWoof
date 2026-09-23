@@ -2709,6 +2709,74 @@ class IPCHandlers {
       }
     });
 
+    // WhisperWoof: Notes view — the .md files in the notes folder (Fn+N).
+    const notesFolder = () => require("../whisperwoof/bridge/notes-folder");
+    const notesWatchers = new Map(); // webContents id -> unwatch
+    ipcMain.handle("whisperwoof-notes-list", async () => {
+      try {
+        return { success: true, ...notesFolder().listNotes() };
+      } catch (error) {
+        return { success: false, error: error.message, notes: [] };
+      }
+    });
+    ipcMain.handle("whisperwoof-notes-update", async (_event, name, body) => {
+      try {
+        return { success: true, note: notesFolder().updateNoteBody(name, body) };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle("whisperwoof-notes-trash", async (_event, name) => {
+      try {
+        await notesFolder().trashNote(name);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle("whisperwoof-notes-reveal", async (_event, name) => {
+      try {
+        notesFolder().revealNote(name);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle("whisperwoof-notes-open-folder", async () => {
+      const error = await notesFolder().openNotesFolder();
+      return error ? { success: false, error } : { success: true };
+    });
+    // "Saved as note → Open": bring up the control panel on that note.
+    ipcMain.handle("whisperwoof-open-voice-note", async (_event, name) => {
+      const { isSafeNoteName } = require("../whisperwoof/bridge/notes-folder-pure");
+      if (name != null && !isSafeNoteName(name)) return { success: false, error: "Invalid note name" };
+      await this.windowManager.createControlPanelWindow();
+      this.windowManager.sendToControlPanel("whisperwoof-navigate-voice-note", name ?? null);
+      return { success: true };
+    });
+    // (Re)start watching the current notes folder for the calling window.
+    ipcMain.handle("whisperwoof-notes-watch", async (event) => {
+      const sender = event.sender;
+      notesWatchers.get(sender.id)?.();
+      try {
+        const unwatch = notesFolder().watchNotesFolder(() => {
+          if (!sender.isDestroyed()) sender.send("whisperwoof-notes-changed");
+        });
+        const firstWatch = !notesWatchers.has(sender.id);
+        notesWatchers.set(sender.id, unwatch);
+        if (firstWatch) {
+          const id = sender.id;
+          sender.once("destroyed", () => {
+            notesWatchers.get(id)?.();
+            notesWatchers.delete(id);
+          });
+        }
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
     // WhisperWoof: History entries (voice + clipboard unified view)
     ipcMain.handle("whisperwoof-get-entries", async (_event, limit, offset) => {
       try {

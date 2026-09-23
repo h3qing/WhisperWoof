@@ -153,6 +153,12 @@ cp -R "$APP_BUILT" "/Applications/$APP_NAME.app"
 # refuse it until the quarantine attribute is cleared.
 xattr -dr com.apple.quarantine "/Applications/$APP_NAME.app" 2>/dev/null || true
 
+# Drop the build's own copy: with the same bundle id, LaunchServices can pick a
+# stale dist/ build over /Applications (a 1.15.6 launched in place of 1.19.1).
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREGISTER" -u "$APP_BUILT" 2>/dev/null || true
+rm -rf "$APP_BUILT"
+
 say "Launching"
 open "/Applications/$APP_NAME.app"
 
