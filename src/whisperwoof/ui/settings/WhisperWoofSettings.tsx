@@ -148,7 +148,7 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
               <button
                 onClick={handleOpenNotesFolder}
                 disabled={state.notesDirLoading}
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-foreground border border-border/50 dark:border-white/10 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-foreground border border-border hover:bg-foreground/5 transition-colors disabled:opacity-50"
               >
                 <FolderOpen size={13} />
                 Open
@@ -192,7 +192,7 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
                 localStorage.removeItem("onboardingCompleted");
                 window.location.reload();
               }}
-              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-medium text-foreground border border-border/50 dark:border-white/10 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-md text-xs font-medium text-foreground border border-border hover:bg-foreground/5 transition-colors"
             >
               Restart Setup
             </button>

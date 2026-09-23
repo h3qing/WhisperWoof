@@ -78,30 +78,34 @@ function isOAuthBrowserRedirect() {
       <style>
         /* Design tokens from index.css — single source of truth */
         :root {
-          --bg: #ffffff;
-          --surface-1: #fafafa;
-          --surface-2: #ffffff;
-          --border: #e5e5e5;
-          --border-subtle: #e5e5e5;
-          --text-primary: #171717;
-          --text-muted: #737373;
-          --primary: #2563eb;
-          --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-          --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+          --bg: #f6f0e8;
+          --surface-1: #fbf6ef;
+          --surface-2: #fffbf6;
+          --border: #e4d8c9;
+          --border-subtle: #e9dfd2;
+          --text-primary: #2a2019;
+          --text-muted: #6e6055;
+          --primary: #9c602b;
+          --primary-foreground: #fff8f0;
+          --logo-glow: rgb(156 96 43 / 0.2);
+          --shadow-card: 0 1px 2px rgb(80 45 15 / 0.06), 0 0 0 0.5px rgb(90 60 30 / 0.1);
+          --shadow-elevated: 0 10px 30px -8px rgb(80 45 15 / 0.22);
         }
 
         @media (prefers-color-scheme: dark) {
           :root {
-            --bg: oklch(0.1 0.005 270);
-            --surface-1: oklch(0.13 0.006 270);
-            --surface-2: oklch(0.155 0.008 270);
-            --border: oklch(0.23 0.005 270);
-            --border-subtle: oklch(0.2 0.004 270);
-            --text-primary: oklch(0.95 0 0);
-            --text-muted: oklch(0.55 0 0);
-            --primary: oklch(0.62 0.22 260);
-            --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
-            --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
+            --bg: oklch(0.18 0.01 67);
+            --surface-1: oklch(0.21 0.012 67);
+            --surface-2: oklch(0.24 0.013 67);
+            --border: oklch(0.31 0.016 60);
+            --border-subtle: oklch(0.28 0.012 60);
+            --text-primary: oklch(0.93 0.012 75);
+            --text-muted: oklch(0.66 0.02 65);
+            --primary: oklch(0.7 0.11 62);
+            --primary-foreground: oklch(0.17 0.02 60);
+            --logo-glow: rgb(232 160 96 / 0.25);
+            --shadow-card: 0 1px 3px oklch(0 0 0 / 0.25);
+            --shadow-elevated: 0 8px 24px oklch(0 0 0 / 0.4);
           }
         }
 
@@ -137,7 +141,7 @@ function isOAuthBrowserRedirect() {
           padding: 32px 40px;
           background: var(--surface-2);
           border: 1px solid var(--border);
-          border-radius: 8px;
+          border-radius: 16px;
           box-shadow: var(--shadow-elevated);
           animation: fade-in 300ms ease-out;
         }
@@ -146,7 +150,7 @@ function isOAuthBrowserRedirect() {
           .auth-card {
             background: var(--surface-2);
             border: 1px solid var(--border);
-            box-shadow: var(--shadow-elevated), 0 0 0 1px rgba(255, 255, 255, 0.03);
+            box-shadow: var(--shadow-elevated), 0 0 0 1px rgb(255 228 196 / 0.06);
           }
         }
 
@@ -158,13 +162,7 @@ function isOAuthBrowserRedirect() {
 
         .logo {
           display: block;
-          filter: drop-shadow(0 2px 8px rgba(37, 99, 235, 0.18));
-        }
-
-        @media (prefers-color-scheme: dark) {
-          .logo {
-            filter: drop-shadow(0 2px 12px rgba(100, 149, 237, 0.25));
-          }
+          filter: drop-shadow(0 2px 10px var(--logo-glow));
         }
 
         /* Premium spinner with metallic feel */
@@ -246,11 +244,11 @@ function isOAuthBrowserRedirect() {
         <div class="auth-card">
           <div class="logo-wrapper">
             <svg class="logo" viewBox="0 0 1024 1024" width="64" height="64" aria-label="OpenWhispr">
-              <rect width="1024" height="1024" rx="241" fill="#2056DF"/>
-              <circle cx="512" cy="512" r="314" fill="#2056DF" stroke="white" stroke-width="74"/>
-              <path d="M512 383V641" stroke="white" stroke-width="74" stroke-linecap="round"/>
-              <path d="M627 457V568" stroke="white" stroke-width="74" stroke-linecap="round"/>
-              <path d="M397 457V568" stroke="white" stroke-width="74" stroke-linecap="round"/>
+              <rect width="1024" height="1024" rx="241" fill="var(--primary)"/>
+              <circle cx="512" cy="512" r="314" fill="var(--primary)" stroke="var(--primary-foreground)" stroke-width="74"/>
+              <path d="M512 383V641" stroke="var(--primary-foreground)" stroke-width="74" stroke-linecap="round"/>
+              <path d="M627 457V568" stroke="var(--primary-foreground)" stroke-width="74" stroke-linecap="round"/>
+              <path d="M397 457V568" stroke="var(--primary-foreground)" stroke-width="74" stroke-linecap="round"/>
             </svg>
           </div>
 
@@ -456,18 +454,18 @@ function LoadingFallback({ message }) {
       <div className="flex flex-col items-center gap-4 animate-[scale-in_300ms_ease-out]">
         <svg
           viewBox="0 0 1024 1024"
-          className="w-12 h-12 drop-shadow-[0_2px_8px_rgba(37,99,235,0.18)] dark:drop-shadow-[0_2px_12px_rgba(100,149,237,0.25)]"
+          className="w-12 h-12 drop-shadow-sm"
           aria-label="OpenWhispr"
         >
-          <rect width="1024" height="1024" rx="241" fill="#2056DF" />
-          <circle cx="512" cy="512" r="314" fill="#2056DF" stroke="white" strokeWidth="74" />
-          <path d="M512 383V641" stroke="white" strokeWidth="74" strokeLinecap="round" />
-          <path d="M627 457V568" stroke="white" strokeWidth="74" strokeLinecap="round" />
-          <path d="M397 457V568" stroke="white" strokeWidth="74" strokeLinecap="round" />
+          <rect width="1024" height="1024" rx="241" fill="var(--color-primary)" />
+          <circle cx="512" cy="512" r="314" fill="var(--color-primary)" stroke="var(--color-primary-foreground)" strokeWidth="74" />
+          <path d="M512 383V641" stroke="var(--color-primary-foreground)" strokeWidth="74" strokeLinecap="round" />
+          <path d="M627 457V568" stroke="var(--color-primary-foreground)" strokeWidth="74" strokeLinecap="round" />
+          <path d="M397 457V568" stroke="var(--color-primary-foreground)" strokeWidth="74" strokeLinecap="round" />
         </svg>
         <div className="w-7 h-7 rounded-full border-[2.5px] border-transparent border-t-primary animate-[spinner-rotate_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] motion-reduce:animate-none motion-reduce:border-t-muted-foreground motion-reduce:opacity-50" />
         {fallbackMessage && (
-          <p className="text-[13px] font-medium text-muted-foreground dark:text-foreground/60 tracking-[-0.01em]">
+          <p className="text-[13px] font-medium text-muted-foreground tracking-[-0.01em]">
             {fallbackMessage}
           </p>
         )}

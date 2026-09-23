@@ -13,7 +13,7 @@ const BUBBLE_STYLES = {
   system: {
     align: "justify-end",
     radius: "rounded-br-sm",
-    bg: "bg-surface-2/70 border border-border/20 text-foreground/80",
+    bg: "bg-surface-2 border border-border/40 text-foreground/85",
     cursor: "bg-foreground/40",
   },
 } as const;

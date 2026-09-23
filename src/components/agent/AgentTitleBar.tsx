@@ -14,7 +14,7 @@ export function AgentTitleBar({ onNewChat, onClose }: AgentTitleBarProps) {
     <div
       className={cn(
         "flex items-center justify-between h-8 px-3",
-        "bg-surface-1 border-b border-border/30",
+        "border-b border-border/40",
         "select-none"
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}

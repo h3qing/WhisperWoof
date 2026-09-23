@@ -71,8 +71,7 @@ export default function ClipboardHistory({ onNavigateToHistory }: ClipboardHisto
           key={entry.id}
           className={cn(
             "flex items-start gap-2 px-3 py-2 rounded-lg",
-            "bg-foreground/[0.02] dark:bg-white/[0.03]",
-            "border border-border/20 dark:border-white/5"
+            "bg-card shadow-card"
           )}
         >
           <Clipboard size={13} className="shrink-0 mt-0.5 text-muted-foreground/50" />

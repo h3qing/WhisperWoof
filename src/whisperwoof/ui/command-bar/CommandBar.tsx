@@ -188,13 +188,13 @@ export default function CommandBar({ isOpen, onClose }: CommandBarProps) {
       }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-background/40" />
 
       {/* Command bar */}
-      <div className="relative w-full max-w-lg mx-4 rounded-xl border border-border bg-popover shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg mx-4 glass rounded-2xl overflow-hidden">
         {/* Input row */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
-          <Command size={16} className="text-amber-500 shrink-0" />
+          <Command size={16} className="text-primary shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -223,7 +223,7 @@ export default function CommandBar({ isOpen, onClose }: CommandBarProps) {
           <div className="px-4 py-2 flex items-center gap-2 text-xs">
             {route ? (
               <>
-                <span className="text-amber-500 font-medium">{route.label}</span>
+                <span className="text-primary font-medium">{route.label}</span>
                 <span className="text-muted-foreground">↵ Enter to send</span>
               </>
             ) : (
@@ -240,7 +240,7 @@ export default function CommandBar({ isOpen, onClose }: CommandBarProps) {
           <div className="px-4 py-2 space-y-1">
             {ROUTES.slice(0, 4).map((r) => (
               <div key={r.prefix} className="flex items-center gap-2 text-xs text-muted-foreground">
-                <code className="text-amber-500/70 font-mono">{r.prefix}</code>
+                <code className="text-mando-deep font-mono">{r.prefix}</code>
                 <span>{r.label}</span>
               </div>
             ))}

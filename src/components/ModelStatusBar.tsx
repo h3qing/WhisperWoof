@@ -99,7 +99,7 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
   }
 
   const pill =
-    "group flex items-center gap-2.5 rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm px-3 py-2 text-left transition-colors hover:border-border/80 hover:bg-card/80";
+    "group flex items-center gap-2.5 rounded-lg bg-card shadow-card px-3 py-2 text-left transition-colors hover:shadow-card-hover";
 
   return (
     <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -113,9 +113,9 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
               Speech-to-text
             </span>
             {sttLocal ? (
-              <Lock size={9} className="text-emerald-500" />
+              <Lock size={9} className="text-success" />
             ) : (
-              <Cloud size={9} className="text-sky-500" />
+              <Cloud size={9} className="text-mando" />
             )}
           </div>
           <div className="text-xs font-medium text-foreground truncate">{sttName}</div>
@@ -139,9 +139,9 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
               Cleanup
             </span>
             {polishOn && (polishLocal ? (
-              <Lock size={9} className="text-emerald-500" />
+              <Lock size={9} className="text-success" />
             ) : (
-              <Cloud size={9} className="text-sky-500" />
+              <Cloud size={9} className="text-mando" />
             ))}
           </div>
           <div className="text-xs font-medium text-foreground truncate">{polishName}</div>

@@ -144,9 +144,9 @@ function SourceBadge({ source }: { readonly source: string }) {
     <span className={cn(
       "text-[11px] px-1.5 py-0.5 rounded font-medium",
       isAuto
-        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+        ? "bg-success/10 text-success"
         : source === "import"
-          ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          ? "bg-mando/10 text-mando-deep"
           : "bg-foreground/[0.05] text-muted-foreground/70"
     )}>
       {isAuto ? "auto" : source}
@@ -164,14 +164,14 @@ function WordRow({
   const contexts = entry.appContexts ? Object.entries(entry.appContexts) : [];
 
   return (
-    <div className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-foreground/[0.03] dark:hover:bg-white/[0.03] transition-colors border-b border-border/8 dark:border-white/4 last:border-b-0">
+    <div className="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-foreground/[0.03] transition-colors border-b border-border-subtle last:border-b-0">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5">
           <span className="text-sm font-medium text-foreground">{entry.word}</span>
           <SourceBadge source={entry.source} />
           {entry.usageCount > 0 && (
             <span className="text-[11px] text-muted-foreground/60 flex items-center gap-0.5">
-              <Zap size={10} className="text-amber-500/60" /> {entry.usageCount}x
+              <Zap size={10} className="text-mando/70" /> {entry.usageCount}x
             </span>
           )}
         </div>
@@ -192,7 +192,7 @@ function WordRow({
       </div>
       <button
         onClick={() => onDelete(entry.id)}
-        className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-muted-foreground/30 hover:text-red-400 transition-all"
+        className="opacity-0 group-hover:opacity-100 p-1.5 rounded text-muted-foreground/30 hover:text-destructive transition-all"
       >
         <Trash2 size={13} />
       </button>
@@ -216,10 +216,10 @@ function PackCard({
   const categoryList = Object.entries(pack.categories).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="rounded-lg border border-border/15 dark:border-white/6 overflow-hidden">
+    <div className="rounded-lg bg-card shadow-card overflow-hidden">
       <button
         onClick={() => onExpand(pack.id)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-foreground/[0.02] transition-colors"
       >
         <Package size={16} className={cn(
           "shrink-0",
@@ -242,11 +242,11 @@ function PackCard({
             onClick={(e) => { e.stopPropagation(); onToggle(pack.id, !pack.enabled); }}
             className={cn(
               "w-8 h-[18px] rounded-full relative transition-colors",
-              pack.enabled ? "bg-primary" : "bg-foreground/10 dark:bg-white/10"
+              pack.enabled ? "bg-primary" : "bg-foreground/10"
             )}
           >
             <span className={cn(
-              "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform",
+              "absolute top-[2px] w-[14px] h-[14px] rounded-full bg-background shadow-sm transition-transform",
               pack.enabled ? "left-[16px]" : "left-[2px]"
             )} />
           </button>
@@ -255,12 +255,12 @@ function PackCard({
       </button>
 
       {isExpanded && (
-        <div className="border-t border-border/10 dark:border-white/4">
+        <div className="border-t border-border-subtle">
           {/* Category chips */}
           {categoryList.length > 1 && (
             <div className="flex flex-wrap gap-1.5 px-4 pt-3 pb-1">
               {categoryList.map(([cat, count]) => (
-                <span key={cat} className="text-[11px] px-2 py-0.5 rounded-full bg-foreground/[0.04] dark:bg-white/[0.04] text-muted-foreground/60">
+                <span key={cat} className="text-[11px] px-2 py-0.5 rounded-full bg-foreground/[0.04] text-muted-foreground/60">
                   {cat} ({count})
                 </span>
               ))}
@@ -307,7 +307,7 @@ function PackEntriesList({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter words..."
-            className="w-full text-xs bg-transparent border border-border/15 dark:border-white/6 rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/30 placeholder:text-muted-foreground/30"
+            className="w-full text-xs bg-transparent border border-border-subtle rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/30 placeholder:text-muted-foreground/30"
           />
         </div>
       )}
@@ -324,7 +324,7 @@ function PackEntriesList({
                 className={cn(
                   "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                   isDisabled
-                    ? "border-foreground/10 dark:border-white/10 bg-transparent"
+                    ? "border-border bg-transparent"
                     : "border-primary/40 bg-primary/10 text-primary"
                 )}
               >
@@ -486,7 +486,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
     return (
       <div className={cn("flex items-center justify-center h-full", className)}>
         <div className="text-center space-y-2">
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
           <button onClick={() => { setError(null); fetchData(); }} className="text-xs text-primary">Try again</button>
         </div>
       </div>
@@ -496,7 +496,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border/15 dark:border-white/6 shrink-0">
+      <div className="px-5 py-4 border-b border-border-subtle shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -519,7 +519,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search words..."
-                className="w-40 text-xs bg-transparent border border-border/20 dark:border-white/8 rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/40 placeholder:text-muted-foreground/30"
+                className="w-40 text-xs bg-transparent border border-border-subtle rounded-md pl-7 pr-2 py-1.5 outline-none focus:border-primary/40 placeholder:text-muted-foreground/30"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground">
@@ -534,7 +534,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
                   value={newWord}
                   onChange={(e) => setNewWord(e.target.value)}
                   placeholder="Word or phrase"
-                  className="w-36 text-xs bg-transparent border border-border/30 dark:border-white/10 rounded-md px-2 py-1.5 outline-none focus:border-primary/40"
+                  className="w-36 text-xs bg-transparent border border-border rounded-md px-2 py-1.5 outline-none focus:border-primary/40"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddWord(); if (e.key === "Escape") setIsAddingWord(false); }}
                 />
@@ -544,7 +544,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
             ) : (
               <button
                 onClick={() => setIsAddingWord(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-foreground px-2.5 py-1.5 rounded-md border border-border/20 dark:border-white/6 hover:border-border/40 transition-all"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-foreground px-2.5 py-1.5 rounded-md border border-border-subtle hover:border-border/40 transition-all"
               >
                 <Plus size={12} /> Add word
               </button>
@@ -596,7 +596,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
               Start dictating in different apps. When you correct a transcription,
               Memory auto-learns the right word and remembers which app you were in.
             </p>
-            <div className="rounded-lg border border-border/20 dark:border-white/6 bg-foreground/[0.02] dark:bg-white/[0.02] px-4 py-3 max-w-[300px]">
+            <div className="rounded-lg bg-card shadow-card px-4 py-3 max-w-[300px]">
               <p className="text-xs text-foreground/60 leading-relaxed">
                 <span className="font-medium text-foreground/80">How it works:</span> You say "deploy to supabase."
                 Whisper hears "deploy to super base." You fix it. Memory learns "Supabase"
@@ -622,10 +622,10 @@ export default function MemoryView({ className }: MemoryViewProps) {
 
         {/* Word Packs section */}
         {packs.length > 0 && (
-          <div className="px-5 py-4 border-t border-border/10 dark:border-white/4">
+          <div className="px-5 py-4 border-t border-border-subtle">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Package size={14} className="text-primary/60" />
+                <Package size={14} className="text-mando/70" />
                 Word Packs
               </h3>
               <span className="text-xs text-muted-foreground/50">
@@ -660,7 +660,7 @@ export default function MemoryView({ className }: MemoryViewProps) {
 
       {/* Footer stats */}
       {stats && stats.topUsed.length > 0 && !searchQuery && (
-        <div className="px-5 py-2.5 border-t border-border/10 dark:border-white/4 shrink-0">
+        <div className="px-5 py-2.5 border-t border-border-subtle shrink-0">
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground/50">
             <span>Top words:</span>
             {stats.topUsed.slice(0, 3).map((w) => (

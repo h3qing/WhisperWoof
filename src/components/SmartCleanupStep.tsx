@@ -65,8 +65,8 @@ export default function SmartCleanupStep() {
   return (
     <div className="space-y-4">
       <div className="text-center space-y-0.5">
-        <div className="w-12 h-12 bg-[#A06A3C]/10 rounded-full flex items-center justify-center mx-auto mb-2">
-          <Sparkles className="w-6 h-6 text-[#A06A3C]" />
+        <div className="w-12 h-12 bg-primary/15 rounded-full flex items-center justify-center mx-auto mb-2">
+          <Sparkles className="w-6 h-6 text-primary" />
         </div>
         <h2 className="text-lg font-semibold text-foreground tracking-tight">Smart Cleanup</h2>
         <p className="text-xs text-muted-foreground">
@@ -77,22 +77,22 @@ export default function SmartCleanupStep() {
       <div className="rounded-lg border border-border-subtle bg-surface-1 p-4 space-y-3">
         <ul className="space-y-1.5 text-sm text-foreground/90">
           <li className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-500 shrink-0" /> Removes “um”, “uh”, and false
+            <Check className="w-4 h-4 text-success shrink-0" /> Removes “um”, “uh”, and false
             starts
           </li>
           <li className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-500 shrink-0" /> Fixes grammar, punctuation, and
+            <Check className="w-4 h-4 text-success shrink-0" /> Fixes grammar, punctuation, and
             capitalization
           </li>
           <li className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-emerald-500 shrink-0" /> Formats lists and keeps your
+            <Check className="w-4 h-4 text-success shrink-0" /> Formats lists and keeps your
             voice
           </li>
         </ul>
 
         <div className="pt-1 border-t border-border-subtle">
           {enabled ? (
-            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 pt-2">
+            <div className="flex items-center gap-2 text-sm text-success pt-2">
               <Check className="w-4 h-4" />
               <span>
                 Smart Cleanup is on — using {MODEL_LABEL}, running locally.
@@ -116,7 +116,7 @@ export default function SmartCleanupStep() {
               </div>
               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[#A06A3C] transition-[width] duration-200"
+                  className="h-full bg-primary transition-[width] duration-200"
                   style={{ width: `${isInstalling ? 100 : downloadProgress.percentage}%` }}
                 />
               </div>

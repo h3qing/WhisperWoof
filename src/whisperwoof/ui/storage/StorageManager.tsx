@@ -86,10 +86,10 @@ const SOURCE_ICONS: Record<string, typeof Mic> = {
 
 function UsageBar({ usage }: { usage: StorageUsage }) {
   const segments = [
-    { label: "Database", bytes: usage.database.bytes, color: "#A06A3C" },
-    { label: "Images", bytes: usage.images.bytes, color: "#60A5FA" },
-    { label: "Audio", bytes: usage.audio.bytes, color: "#4ADE80" },
-    { label: "Notes", bytes: usage.notes.bytes, color: "#F472B6" },
+    { label: "Database", bytes: usage.database.bytes, color: "var(--color-mando)" },
+    { label: "Images", bytes: usage.images.bytes, color: "var(--color-success)" },
+    { label: "Audio", bytes: usage.audio.bytes, color: "var(--color-mando-deep)" },
+    { label: "Notes", bytes: usage.notes.bytes, color: "var(--color-muted-foreground)" },
   ].filter((s) => s.bytes > 0);
 
   const total = Math.max(usage.total, 1);
@@ -102,7 +102,7 @@ function UsageBar({ usage }: { usage: StorageUsage }) {
       </div>
 
       {/* Bar */}
-      <div className="h-2.5 rounded-full bg-foreground/[0.05] dark:bg-white/[0.05] overflow-hidden flex">
+      <div className="h-2.5 rounded-full bg-foreground/[0.05] overflow-hidden flex">
         {segments.map((seg) => (
           <div
             key={seg.label}
@@ -279,22 +279,22 @@ export default function StorageManager() {
     <div className="flex flex-col h-full">
       {/* Confirmation Dialog */}
       {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-background border border-border/30 dark:border-white/10 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
+          <div className="glass text-foreground rounded-2xl max-w-sm w-full mx-4 p-5">
             <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+              <AlertTriangle size={20} className="text-warning shrink-0 mt-0.5" />
               <p className="text-sm text-foreground leading-relaxed">{confirmAction.message}</p>
             </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="px-4 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border/20 dark:border-white/8 hover:bg-foreground/5 transition-colors"
+                className="px-4 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border-subtle hover:bg-foreground/5 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
-                className="px-4 py-1.5 text-xs text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+                className="px-4 py-1.5 text-xs text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors"
               >
                 Delete
               </button>
@@ -304,7 +304,7 @@ export default function StorageManager() {
       )}
 
       {/* Header */}
-      <div className="px-5 py-3 border-b border-border/15 dark:border-white/6 shrink-0">
+      <div className="px-5 py-3 border-b border-border-subtle shrink-0">
         <div className="flex items-center gap-2">
           <HardDrive size={14} className="text-primary/70" />
           <h2 className="text-sm font-semibold text-foreground">Storage Manager</h2>
@@ -323,21 +323,21 @@ export default function StorageManager() {
           <button
             onClick={handleCleanupOrphans}
             disabled={loading}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border-subtle text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
           >
             <Sparkles size={11} /> Clean orphaned files
           </button>
           <button
             onClick={() => handleDeleteOlder(30)}
             disabled={loading}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border-subtle text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
           >
             <Trash2 size={11} /> Delete older than 30 days
           </button>
           <button
             onClick={() => handleDeleteOlder(90)}
             disabled={loading}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border-subtle text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all disabled:opacity-50"
           >
             <Trash2 size={11} /> Delete older than 90 days
           </button>
@@ -346,14 +346,14 @@ export default function StorageManager() {
               aria-label="Export format"
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-              className="text-xs px-2 py-1.5 rounded-md border border-border/20 dark:border-white/6 bg-transparent text-muted-foreground/70 hover:text-foreground transition-all outline-none focus:ring-1 focus:ring-primary/30"
+              className="text-xs px-2 py-1.5 rounded-md border border-border-subtle bg-transparent text-muted-foreground/70 hover:text-foreground transition-all outline-none focus:ring-1 focus:ring-primary/30"
             >
               <option value="json">JSON</option>
               <option value="txt">TXT</option>
             </select>
             <button
               onClick={handleExportSelected}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border/20 dark:border-white/6 text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border-subtle text-muted-foreground/70 hover:text-foreground hover:border-border/40 transition-all"
             >
               <Download size={11} /> Export {selected.size > 0 ? `${selected.size} selected` : "all"}
             </button>
@@ -362,7 +362,7 @@ export default function StorageManager() {
 
         {/* Notification */}
         {actionResult && (
-          <div className="flex items-center gap-2 text-xs text-emerald-500/80 bg-emerald-500/5 px-3 py-2 rounded-md">
+          <div className="flex items-center gap-2 text-xs text-success bg-success/10 px-3 py-2 rounded-md">
             <Check size={12} /> {actionResult}
           </div>
         )}
@@ -396,13 +396,13 @@ export default function StorageManager() {
 
         {/* Batch Actions Bar */}
         {selected.size > 0 && (
-          <div className="flex items-center gap-2 bg-foreground/[0.03] dark:bg-white/[0.03] rounded-md px-3 py-2">
+          <div className="flex items-center gap-2 bg-foreground/[0.03] rounded-md px-3 py-2">
             <span className="text-xs text-foreground/70">{selected.size} selected</span>
             <div className="ml-auto flex gap-2">
-              <button onClick={handleExportAndDelete} className="text-[11px] text-amber-500 hover:text-amber-400 flex items-center gap-1">
+              <button onClick={handleExportAndDelete} className="text-[11px] text-primary hover:text-primary/80 flex items-center gap-1">
                 <Download size={10} /> Export & Delete
               </button>
-              <button onClick={handleDeleteSelected} className="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1">
+              <button onClick={handleDeleteSelected} className="text-[11px] text-destructive hover:text-destructive/80 flex items-center gap-1">
                 <Trash2 size={10} /> Delete
               </button>
             </div>
@@ -427,7 +427,7 @@ export default function StorageManager() {
                   "flex items-center gap-2.5 px-2 py-2 rounded-md transition-colors cursor-pointer",
                   isSelected
                     ? "bg-primary/[0.06] border border-primary/20"
-                    : "hover:bg-foreground/[0.02] dark:hover:bg-white/[0.02] border border-transparent"
+                    : "hover:bg-foreground/[0.02] border border-transparent"
                 )}
                 onClick={() => toggleSelect(entry.id)}
               >
@@ -447,8 +447,8 @@ export default function StorageManager() {
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground/40 mt-0.5">
                     <span>{relativeTime(entry.createdAt)}</span>
                     <span>{entry.textLength > 0 ? `${entry.textLength} chars` : ""}</span>
-                    {entry.fileSize > 0 && <span className="text-amber-500/50">{formatBytes(entry.fileSize)}</span>}
-                    {entry.favorite === 1 && <span className="text-amber-400">★</span>}
+                    {entry.fileSize > 0 && <span className="text-mando/70">{formatBytes(entry.fileSize)}</span>}
+                    {entry.favorite === 1 && <span className="text-primary">★</span>}
                   </div>
                 </div>
 
@@ -456,16 +456,16 @@ export default function StorageManager() {
                 {entry.filePath && entry.source === "voice" && (
                   <button
                     onClick={(e) => { e.stopPropagation(); handlePlayAudio(entry.filePath!); }}
-                    className="p-1 rounded hover:bg-foreground/8 dark:hover:bg-white/8 text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
+                    className="p-1 rounded hover:bg-foreground/8 text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
                     title={playingAudio === entry.filePath ? "Stop" : "Play recording"}
                   >
-                    {playingAudio === entry.filePath ? <StopCircle size={14} className="text-amber-500" /> : <Play size={14} />}
+                    {playingAudio === entry.filePath ? <StopCircle size={14} className="text-primary" /> : <Play size={14} />}
                   </button>
                 )}
 
                 {/* Size badge for large items */}
                 {entry.fileSize > 100000 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500/60 shrink-0">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-mando/10 text-mando-deep shrink-0">
                     {formatBytes(entry.fileSize)}
                   </span>
                 )}

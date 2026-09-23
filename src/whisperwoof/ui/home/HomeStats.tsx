@@ -113,12 +113,12 @@ function buildHeatmapWeeks(entriesPerDay: { day: string; count: number }[], numW
 
 function heatColor(count: number, max: number): string {
   if (count < 0) return "transparent";
-  if (count === 0) return "rgba(255,255,255,0.03)";
+  if (count === 0) return "color-mix(in srgb, var(--color-foreground) 5%, transparent)";
   const r = count / Math.max(max, 1);
-  if (r < 0.25) return "rgba(160,106,60,0.15)";
-  if (r < 0.5) return "rgba(160,106,60,0.3)";
-  if (r < 0.75) return "rgba(160,106,60,0.55)";
-  return "rgba(160,106,60,0.8)";
+  if (r < 0.25) return "color-mix(in srgb, var(--color-mando) 22%, transparent)";
+  if (r < 0.5) return "color-mix(in srgb, var(--color-mando) 42%, transparent)";
+  if (r < 0.75) return "color-mix(in srgb, var(--color-mando) 65%, transparent)";
+  return "var(--color-mando)";
 }
 
 function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: string; count: number }[]; onDayClick?: (date: string) => void }) {
@@ -131,14 +131,15 @@ function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: 
   }, [columns]);
 
   return (
-    <div className="relative w-full">
+    <div className="relative ml-auto w-fit max-w-full">
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columns.length}, 1fr)`,
-          gridTemplateRows: "repeat(7, 1fr)",
-          gap: "2px",
-          width: "100%",
+          // Cells stay small on wide windows: a wall of big empty squares
+          // outweighs the numbers next to it.
+          gridTemplateColumns: `repeat(${columns.length}, minmax(0, 13px))`,
+          gridTemplateRows: "repeat(7, auto)",
+          gap: "3px",
         }}
       >
         {columns.map((week, wi) =>
@@ -149,12 +150,12 @@ function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: 
                 gridColumn: wi + 1,
                 gridRow: di + 1,
                 aspectRatio: "1",
-                borderRadius: "2px",
+                borderRadius: "3px",
                 background: heatColor(day.count, maxCount),
                 cursor: day.count >= 0 ? "pointer" : "default",
                 transition: "transform 0.1s",
                 ...(hovered?.date === day.date && day.count >= 0
-                  ? { transform: "scale(1.3)", boxShadow: "0 0 0 1px rgba(160,106,60,0.5)", zIndex: 2, position: "relative" as const }
+                  ? { transform: "scale(1.3)", boxShadow: "0 0 0 1px var(--color-mando-deep)", zIndex: 2, position: "relative" as const }
                   : {}),
               }}
               onMouseEnter={() => day.count >= 0 && setHovered(day)}
@@ -165,11 +166,11 @@ function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: 
         )}
       </div>
       {hovered && (
-        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-[#1A1714] border border-[#2E2923] text-[10px] text-[#E8DDD0] whitespace-nowrap z-10 pointer-events-none shadow-lg">
+        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md glass text-[10px] text-foreground whitespace-nowrap z-10 pointer-events-none">
           <span className="font-semibold">{hovered.count}</span> entries · {new Date(hovered.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </div>
       )}
-      <div className="flex justify-between mt-1 text-[9px] text-[#736858]">
+      <div className="flex justify-between mt-1 text-[9px] text-muted-foreground">
         <span>26 weeks ago</span>
         <span>today</span>
       </div>
@@ -226,21 +227,21 @@ export default function HomeStats({ onDayClick }: HomeStatsProps) {
   if (voicePct > 0) parts.push(`${voicePct}% voice`);
 
   return (
-    <div className="pt-2 pb-3 mb-1">
+    <div className="rounded-xl bg-card shadow-card px-5 pt-4 pb-4 mb-1">
       <div className="flex gap-6 items-start">
         {/* Left: greeting + hero + fun facts */}
         <div className="shrink-0 w-[220px]">
-          <p className="text-[13px] text-[#736858]">{getGreeting()}</p>
+          <p className="text-[13px] text-muted-foreground">{getGreeting()}</p>
           <h2 className="text-[26px] font-extrabold tracking-tight leading-tight mt-0.5">
-            <span className="text-[#A06A3C]">{summary.thisWeekEntries}</span>
-            <span className="text-[#E8DDD0]"> this week</span>
+            <span className="text-primary">{summary.thisWeekEntries}</span>
+            <span className="text-foreground"> this week</span>
           </h2>
-          <p className="text-[11px] text-[#736858] mt-1">{parts.join(" · ")}</p>
+          <p className="text-[11px] text-muted-foreground mt-1">{parts.join(" · ")}</p>
 
           {/* Fun facts */}
           <div className="mt-3 space-y-1.5">
             {funFacts.map((fact, i) => (
-              <p key={i} className="text-[10px] text-[#736858]/70">
+              <p key={i} className="text-[10px] text-muted-foreground/80">
                 {fact}
               </p>
             ))}

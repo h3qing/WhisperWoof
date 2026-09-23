@@ -56,13 +56,9 @@ export default function ActionPicker({
         aria-label={t("notes.actions.runAction", { name: getActionName(activeAction, t) })}
         className={cn(
           "flex items-center gap-2 h-11 pl-5 pr-3 rounded-l-xl",
-          "bg-accent/8 dark:bg-accent/12",
-          "backdrop-blur-xl",
-          "border border-r-0 border-accent/15 dark:border-accent/20",
-          "shadow-sm hover:shadow-md",
-          "text-accent/70 hover:text-accent",
+          "glass",
+          "text-foreground/85 hover:text-foreground",
           "transition-[background-color,color,transform] duration-200",
-          "hover:bg-accent/12 dark:hover:bg-accent/18",
           "active:scale-[0.98]",
           "disabled:opacity-40 disabled:pointer-events-none"
         )}
@@ -80,13 +76,9 @@ export default function ActionPicker({
             aria-label={t("notes.actions.selectAction")}
             className={cn(
               "flex items-center justify-center h-11 w-8 rounded-r-xl",
-              "bg-accent/8 dark:bg-accent/12",
-              "backdrop-blur-xl",
-              "border border-l-0 border-accent/15 dark:border-accent/20",
-              "shadow-sm hover:shadow-md",
-              "text-accent/50 hover:text-accent",
+              "glass border-l border-border/40",
+              "text-muted-foreground hover:text-foreground",
               "transition-[background-color,color,transform] duration-200",
-              "hover:bg-accent/15 dark:hover:bg-accent/22",
               "disabled:opacity-40 disabled:pointer-events-none"
             )}
           >
@@ -100,10 +92,10 @@ export default function ActionPicker({
               onClick={() => handleRun(action)}
               className={cn(
                 "text-xs gap-2.5 rounded-md px-2.5 py-1.5",
-                action.id === activeAction.id && "bg-accent/5"
+                action.id === activeAction.id && "bg-primary/15"
               )}
             >
-              <Sparkles size={12} className="text-accent/50 shrink-0" />
+              <Sparkles size={12} className="text-mando-deep shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{getActionName(action, t)}</div>
                 {action.description && (

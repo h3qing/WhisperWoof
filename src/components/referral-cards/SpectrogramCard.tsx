@@ -30,8 +30,8 @@ const FREQUENCIES = Array.from({ length: ROWS }, (_, i) => {
 
 function spectrogramColor(value: number): string {
   if (value < 0.05) return "transparent";
-  const a = (0.1 + value * 0.8).toFixed(3);
-  return `oklch(0.72 0.22 260 / ${a})`;
+  const pct = ((0.1 + value * 0.8) * 100).toFixed(1);
+  return `color-mix(in srgb, var(--color-mando) ${pct}%, transparent)`;
 }
 
 function createAudio(data: number[][]): { stop: () => void } | null {
@@ -198,9 +198,9 @@ export function SpectrogramCard({ referralCode }: SpectrogramCardProps) {
             className="spectrogram-play absolute top-0 bottom-0 w-px pointer-events-none z-10"
             onAnimationEnd={resetPlayback}
             style={{
-              background: "oklch(0.72 0.22 260)",
+              background: "var(--color-mando)",
               boxShadow:
-                "0 0 10px 3px oklch(0.72 0.22 260 / 0.5), 0 0 24px 6px oklch(0.72 0.22 260 / 0.2)",
+                "0 0 10px 3px color-mix(in srgb, var(--color-mando) 50%, transparent), 0 0 24px 6px color-mix(in srgb, var(--color-mando) 20%, transparent)",
               animationDuration: `${DURATION}s`,
             }}
           />

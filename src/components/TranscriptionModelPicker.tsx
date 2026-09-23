@@ -103,12 +103,12 @@ function LocalModelCard({
             <div
               className={`w-1.5 h-1.5 rounded-full ${
                 isSelected
-                  ? "bg-primary shadow-[0_0_6px_oklch(0.62_0.22_260/0.6)] animate-[pulse-glow_2s_ease-in-out_infinite]"
-                  : "bg-success shadow-[0_0_4px_rgba(34,197,94,0.5)]"
+                  ? "bg-primary shadow-[0_0_6px_var(--color-primary)] animate-[pulse-glow_2s_ease-in-out_infinite]"
+                  : "bg-success"
               }`}
             />
           ) : isDownloading ? (
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.5)] animate-[spinner-rotate_1s_linear_infinite]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-warning animate-[spinner-rotate_1s_linear_infinite]" />
           ) : (
             <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/20" />
           )}
@@ -240,7 +240,7 @@ interface ModeToggleProps {
 function ModeToggle({ useLocalWhisper, onModeChange }: ModeToggleProps) {
   const { t } = useTranslation();
   return (
-    <div className="relative flex p-0.5 rounded-lg bg-surface-1/80 backdrop-blur-xl dark:bg-surface-1 border border-border/60 dark:border-white/8 shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark)">
+    <div className="relative flex p-0.5 rounded-lg bg-surface-1 border border-border/60 shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark)">
       <div
         className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-md bg-card border border-border/60 dark:border-border-subtle shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark) transition-transform duration-200 ease-out ${
           useLocalWhisper ? "translate-x-[calc(100%)]" : "translate-x-0"
@@ -968,7 +968,7 @@ export default function TranscriptionModelPicker({
               colorScheme="purple"
             />
             <div className="px-1 pt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
               <span>Active for dictation:</span>
               <span className="font-medium text-foreground">
                 {selectedLocalProvider === "nvidia" ? "NVIDIA Parakeet" : "OpenAI Whisper"}

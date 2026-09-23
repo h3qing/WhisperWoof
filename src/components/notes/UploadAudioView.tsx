@@ -471,7 +471,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
   };
 
   const modeSelector = isSignedIn ? (
-    <div className="flex items-center rounded-md border border-foreground/6 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02] p-0.5 mb-3">
+    <div className="flex items-center rounded-md bg-muted/70 p-0.5 mb-3">
       <button
         onClick={() => {
           setCloudTranscriptionMode("openwhispr");
@@ -481,8 +481,8 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         className={cn(
           "flex-1 flex items-center justify-center gap-1.5 h-7 rounded text-xs font-medium transition-colors duration-150",
           isOpenWhisprCloud
-            ? "bg-foreground/[0.06] dark:bg-white/8 text-foreground/70"
-            : "text-foreground/30 hover:text-foreground/50"
+            ? "bg-card shadow-card text-foreground"
+            : "text-muted-foreground hover:text-foreground"
         )}
       >
         <Cloud size={11} />
@@ -493,8 +493,8 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         className={cn(
           "flex-1 flex items-center justify-center gap-1.5 h-7 rounded text-xs font-medium transition-colors duration-150",
           !isOpenWhisprCloud
-            ? "bg-foreground/[0.06] dark:bg-white/8 text-foreground/70"
-            : "text-foreground/30 hover:text-foreground/50"
+            ? "bg-card shadow-card text-foreground"
+            : "text-muted-foreground hover:text-foreground"
         )}
       >
         <Key size={11} />
@@ -550,7 +550,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         {showSetup && (
           <div className="mb-6" style={{ animation: "float-up 0.3s ease-out" }}>
             <div className="flex flex-col items-center mb-5">
-              <div className="w-10 h-10 rounded-[10px] bg-linear-to-b from-primary/10 to-primary/[0.03] dark:from-primary/15 dark:to-primary/5 border border-primary/15 dark:border-primary/20 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-[10px] bg-card shadow-card flex items-center justify-center mb-3">
                 <Upload size={17} strokeWidth={1.5} className="text-primary/50" />
               </div>
               <h2 className="text-xs font-semibold text-foreground mb-1">
@@ -575,7 +575,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
               </Button>
             </div>
 
-            <div className="h-px bg-foreground/5 dark:bg-white/5 my-5" />
+            <div className="h-px bg-foreground/5 my-5" />
           </div>
         )}
 
@@ -720,11 +720,11 @@ function NoProviderView({ t, onOpenSettings }: NoProviderViewProps) {
       className="flex flex-col items-center gap-4 py-2"
       style={{ animation: "float-up 0.4s ease-out" }}
     >
-      <div className="w-10 h-10 rounded-[10px] bg-linear-to-b from-foreground/5 to-foreground/2 dark:from-white/8 dark:to-white/3 border border-foreground/8 dark:border-white/8 flex items-center justify-center">
+      <div className="w-10 h-10 rounded-[10px] bg-linear-to-b from-foreground/5 to-foreground/2 border border-foreground/8 flex items-center justify-center">
         <Settings
           size={17}
           strokeWidth={1.5}
-          className="text-foreground/25 dark:text-foreground/35"
+          className="text-foreground/25"
         />
       </div>
       <div className="text-center">
@@ -781,11 +781,11 @@ function IdleView({
   return (
     <>
       <div className="flex flex-col items-center mb-5">
-        <div className="w-10 h-10 rounded-[10px] bg-linear-to-b from-foreground/5 to-foreground/[0.02] dark:from-white/8 dark:to-white/3 border border-foreground/8 dark:border-white/8 flex items-center justify-center mb-4">
+        <div className="w-10 h-10 rounded-[10px] bg-card shadow-card flex items-center justify-center mb-4">
           <Upload
             size={17}
             strokeWidth={1.5}
-            className="text-foreground/25 dark:text-foreground/35"
+            className="text-foreground/25"
           />
         </div>
         <h2 className="text-xs font-semibold text-foreground mb-1">{t("notes.upload.title")}</h2>
@@ -821,27 +821,27 @@ function IdleView({
         onKeyDown={handleKeyDown}
         className={cn(
           "relative rounded-lg p-8 text-center cursor-pointer transition-[background-color,border-color,transform] duration-300 group",
-          "bg-surface-1/40 dark:bg-white/[0.03] backdrop-blur-sm",
-          "border border-foreground/6 dark:border-white/6",
-          "hover:bg-surface-1/60 dark:hover:bg-white/[0.05] hover:border-foreground/12 dark:hover:border-white/10",
+          "bg-card shadow-card",
+          "border border-dashed border-border",
+          "hover:border-border-hover hover:shadow-card-hover",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
-          isDragOver && "border-primary/30 bg-primary/[0.04] dark:bg-primary/[0.06] scale-[1.01]"
+          isDragOver && "border-primary/40 bg-surface-2 scale-[1.01]"
         )}
         style={isDragOver ? { animation: "drag-pulse 1.5s ease-in-out infinite" } : undefined}
       >
         <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
           <div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/[0.02] dark:via-white/[0.03] to-transparent"
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-foreground/[0.02] to-transparent"
             style={{ animation: "shimmer-slide 3s ease-in-out infinite" }}
           />
         </div>
 
         {!isDragOver ? (
           <div className="flex flex-col items-center gap-2 relative">
-            <div className="w-8 h-8 rounded-full bg-foreground/[0.03] dark:bg-white/[0.04] flex items-center justify-center mb-1">
+            <div className="w-8 h-8 rounded-full bg-foreground/[0.03] flex items-center justify-center mb-1">
               <Upload
                 size={14}
-                className="text-foreground/20 dark:text-foreground/30 group-hover:text-foreground/40 transition-colors"
+                className="text-foreground/20 group-hover:text-foreground/40 transition-colors"
               />
             </div>
             <p className="text-xs text-foreground/35 group-hover:text-foreground/50 transition-colors">
@@ -901,9 +901,9 @@ function SelectedView({
 
   return (
     <div style={{ animation: "float-up 0.3s ease-out" }}>
-      <div className="rounded-lg border border-foreground/8 dark:border-white/6 bg-surface-1/40 dark:bg-white/[0.03] backdrop-blur-sm p-4 mb-3">
+      <div className="rounded-lg bg-card shadow-card p-4 mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-[8px] bg-primary/8 dark:bg-primary/12 border border-primary/10 dark:border-primary/15 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-[8px] bg-primary/15 flex items-center justify-center shrink-0">
             <FileAudio size={15} className="text-primary/60" />
           </div>
           <div className="min-w-0 flex-1">
@@ -922,7 +922,7 @@ function SelectedView({
 
       {/* Cloud absolute limit (500 MB) */}
       {fileTooLarge && (
-        <div className="rounded-lg border border-destructive/12 dark:border-destructive/15 bg-destructive/[0.03] px-3 py-2.5 mb-3">
+        <div className="rounded-lg border border-destructive/20 bg-card shadow-card px-3 py-2.5 mb-3">
           <p className="text-xs text-destructive/60 leading-relaxed">
             {t("notes.upload.fileTooLarge")}
           </p>
@@ -931,7 +931,7 @@ function SelectedView({
 
       {/* BYOK file too large — shared explanation */}
       {byokTooLarge && (
-        <div className="rounded-lg border border-primary/12 dark:border-primary/15 bg-primary/[0.03] px-3 py-2.5 mb-3">
+        <div className="rounded-lg border border-primary/20 bg-card shadow-card px-3 py-2.5 mb-3">
           <p className="text-xs text-foreground/50 leading-relaxed">
             {t("notes.upload.byokTooLarge")}
           </p>
@@ -950,7 +950,7 @@ function SelectedView({
 
       {/* Cloud free user, file > 25 MB → needs paid plan */}
       {requiresUpgrade && !fileTooLarge && (
-        <div className="rounded-lg border border-primary/12 dark:border-primary/15 bg-primary/[0.03] px-3 py-2.5 mb-3">
+        <div className="rounded-lg border border-primary/20 bg-card shadow-card px-3 py-2.5 mb-3">
           <p className="text-xs text-foreground/50 leading-relaxed">
             {t("notes.upload.paidPlanRequired")}
           </p>
@@ -1052,7 +1052,7 @@ function TranscribingView({
         {[0, 1, 2, 3, 4, 5, 6].map((i) => (
           <div
             key={i}
-            className="w-[3px] rounded-full bg-primary/40 dark:bg-primary/50 origin-bottom"
+            className="w-[3px] rounded-full bg-primary/60 origin-bottom"
             style={{
               height: "100%",
               animation: `waveform-bar ${0.8 + i * 0.12}s ease-in-out infinite`,
@@ -1062,7 +1062,7 @@ function TranscribingView({
         ))}
       </div>
 
-      <div className="w-full max-w-[200px] h-[3px] rounded-full bg-foreground/5 dark:bg-white/5 overflow-hidden mb-3">
+      <div className="w-full max-w-[200px] h-[3px] rounded-full bg-foreground/5 overflow-hidden mb-3">
         <div
           className="h-full rounded-full bg-primary/50 transition-[width] duration-500 ease-out"
           style={{ width: `${Math.min(progress, 100)}%` }}
@@ -1229,7 +1229,7 @@ interface ErrorViewProps {
 function ErrorView({ t, error, reset, handleTranscribe }: ErrorViewProps) {
   return (
     <div style={{ animation: "float-up 0.3s ease-out" }}>
-      <div className="rounded-lg border border-destructive/15 dark:border-destructive/20 bg-destructive/[0.03] dark:bg-destructive/[0.05] backdrop-blur-sm p-4 mb-4">
+      <div className="rounded-lg border border-destructive/20 bg-card shadow-card p-4 mb-4">
         <div className="flex items-start gap-2.5">
           <AlertCircle size={14} className="text-destructive/50 shrink-0 mt-0.5" />
           <p className="flex-1 text-xs text-destructive/70 leading-relaxed">{error}</p>

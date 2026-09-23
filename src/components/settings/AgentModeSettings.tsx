@@ -148,13 +148,13 @@ export default function AgentModeSettings() {
                   <div
                     className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                       isCustomMode
-                        ? "bg-accent/10 dark:bg-accent/15"
+                        ? "bg-mando/15"
                         : "bg-muted/60 dark:bg-surface-raised group-hover:bg-muted dark:group-hover:bg-surface-3"
                     }`}
                   >
                     <Key
                       className={`w-4 h-4 transition-colors ${
-                        isCustomMode ? "text-accent" : "text-muted-foreground"
+                        isCustomMode ? "text-mando-deep" : "text-muted-foreground"
                       }`}
                     />
                   </div>
@@ -164,7 +164,7 @@ export default function AgentModeSettings() {
                         {t("agentMode.settings.customSetup")}
                       </span>
                       {isCustomMode && (
-                        <span className="text-xs font-medium text-accent bg-accent/10 dark:bg-accent/15 px-1.5 py-px rounded-sm">
+                        <span className="text-xs font-medium text-mando-deep bg-mando/15 px-1.5 py-px rounded-sm">
                           {t("common.active")}
                         </span>
                       )}
@@ -176,13 +176,13 @@ export default function AgentModeSettings() {
                   <div
                     className={`w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${
                       isCustomMode
-                        ? "border-accent bg-accent"
+                        ? "border-mando-deep bg-mando-deep"
                         : "border-border-hover dark:border-border-subtle"
                     }`}
                   >
                     {isCustomMode && (
                       <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-accent-foreground" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-card" />
                       </div>
                     )}
                   </div>

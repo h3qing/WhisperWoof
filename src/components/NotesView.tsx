@@ -9,9 +9,9 @@ import { formatDateGroup } from "../utils/dateFormatting";
 import { normalizeDbDate } from "../utils/dateFormatting";
 
 const NOTE_TYPE_COLORS: Record<NoteItem["note_type"], string> = {
-  personal: "bg-foreground/5 text-foreground/50",
-  meeting: "bg-blue-500/8 text-blue-500/60 dark:bg-blue-400/10 dark:text-blue-400/60",
-  upload: "bg-amber-500/8 text-amber-600/60 dark:bg-amber-400/10 dark:text-amber-400/60",
+  personal: "bg-foreground/5 text-muted-foreground",
+  meeting: "bg-mando/15 text-mando-deep",
+  upload: "bg-warning/15 text-warning",
 };
 
 function relativeTime(
@@ -140,7 +140,7 @@ export default function NotesView({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("notesView.searchPlaceholder")}
-            className="h-8 text-xs bg-card/50 dark:bg-card/60 border-border/50"
+            className="h-8 text-xs bg-card border-border/50"
           />
           <Button size="sm" className="h-8 text-xs shrink-0 gap-1.5" onClick={onNewNote}>
             <Plus size={13} />
@@ -149,35 +149,35 @@ export default function NotesView({
         </div>
 
         {isLoading ? (
-          <div className="rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm">
+          <div className="rounded-lg bg-card shadow-card">
             <div className="flex items-center justify-center gap-2 py-8">
               <Loader2 size={14} className="animate-spin text-primary" />
               <span className="text-sm text-muted-foreground">{t("controlPanel.loading")}</span>
             </div>
           </div>
         ) : query.trim() && displayedNotes.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm">
+          <div className="rounded-lg bg-card shadow-card">
             <div className="flex flex-col items-center justify-center py-16 px-4">
-              <h3 className="text-xs font-semibold text-foreground/70 dark:text-foreground/60 mb-1">
+              <h3 className="text-xs font-semibold text-foreground/70 mb-1">
                 {t("notesView.searchEmpty.title")}
               </h3>
-              <p className="text-xs text-foreground/50 dark:text-foreground/25">
+              <p className="text-xs text-muted-foreground">
                 {t("notesView.searchEmpty.description", { query })}
               </p>
             </div>
           </div>
         ) : displayedNotes.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card/50 dark:bg-card/60 backdrop-blur-sm">
+          <div className="rounded-lg bg-card shadow-card">
             <div className="flex flex-col items-center justify-center py-16 px-4">
               <StickyNote
                 size={40}
-                className="text-foreground/10 dark:text-foreground/8 mb-4"
+                className="text-muted-foreground/40 mb-4"
                 strokeWidth={1.25}
               />
-              <h3 className="text-xs font-semibold text-foreground/70 dark:text-foreground/60 mb-1">
+              <h3 className="text-xs font-semibold text-foreground/70 mb-1">
                 {t("notesView.empty.title")}
               </h3>
-              <p className="text-xs text-foreground/50 dark:text-foreground/25 mb-4">
+              <p className="text-xs text-muted-foreground mb-4">
                 {t("notesView.empty.description")}
               </p>
               <Button size="sm" className="h-7 text-xs gap-1.5" onClick={onNewNote}>
@@ -190,8 +190,8 @@ export default function NotesView({
           <div>
             {groupedNotes.map((group, index) => (
               <div key={group.label} className={index > 0 ? "mt-4" : ""}>
-                <div className="sticky -top-1 z-10 -mx-4 px-5 pt-2 pb-2 bg-background">
-                  <span className="text-[11px] font-semibold text-muted-foreground dark:text-muted-foreground uppercase tracking-wide">
+                <div className="sticky top-0 z-10 -mx-2 my-1 px-3 py-1.5 rounded-md glass">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                     {group.label}
                   </span>
                 </div>
@@ -209,8 +209,8 @@ export default function NotesView({
                           "group w-full text-left rounded-lg border px-4 py-3 transition-all duration-150",
                           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
                           isActive
-                            ? "border-primary/20 bg-primary/5 dark:bg-primary/8"
-                            : "border-border/50 bg-card/50 dark:bg-card/60 hover:border-border hover:bg-card dark:hover:bg-card/80"
+                            ? "border-primary/40 bg-card shadow-selected-glow"
+                            : "border-transparent bg-card shadow-card hover:shadow-card-hover"
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -231,13 +231,13 @@ export default function NotesView({
                             >
                               {t(`notesView.noteType.${note.note_type}`)}
                             </span>
-                            <span className="text-xs text-muted-foreground/60 dark:text-muted-foreground/30 tabular-nums">
+                            <span className="text-xs text-muted-foreground/70 tabular-nums">
                               {relativeTime(note.updated_at, t)}
                             </span>
                           </div>
                         </div>
                         {preview && (
-                          <p className="text-xs text-muted-foreground/70 dark:text-muted-foreground/35 mt-0.5 line-clamp-1">
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                             {preview}
                           </p>
                         )}

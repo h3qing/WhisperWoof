@@ -27,9 +27,10 @@ export default function PermissionsGate({ onComplete }: PermissionsGateProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background"
+      className="relative h-screen flex flex-col"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
+      <div className="mando-field" aria-hidden />
       <AlertDialog
         open={alertDialog.open}
         onOpenChange={(open: boolean) => !open && hideAlertDialog()}
@@ -39,7 +40,7 @@ export default function PermissionsGate({ onComplete }: PermissionsGateProps) {
       />
 
       <div
-        className="flex items-center justify-end w-full h-10 shrink-0"
+        className="relative z-10 flex items-center justify-end w-full h-10 shrink-0"
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       >
         {window.electronAPI?.getPlatform?.() !== "darwin" && (
@@ -49,9 +50,9 @@ export default function PermissionsGate({ onComplete }: PermissionsGateProps) {
         )}
       </div>
 
-      <div className="flex-1 px-6 overflow-y-auto flex items-center">
+      <div className="relative z-10 flex-1 px-6 overflow-y-auto flex items-center">
         <div className="w-full max-w-sm mx-auto">
-          <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
+          <Card className="bg-card border border-border/50 shadow-card rounded-xl overflow-hidden">
             <CardContent className="p-6 space-y-6">
               <div className="text-center">
                 <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">

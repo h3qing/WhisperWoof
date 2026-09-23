@@ -170,8 +170,7 @@ function StatGauge({
     <div
       className={cn(
         "stat-gauge rounded-md px-3 py-2.5",
-        "bg-foreground/3 border border-foreground/6",
-        "backdrop-blur-sm"
+        "bg-card shadow-card"
       )}
       data-active={mounted && value > 0 ? "true" : "false"}
     >
@@ -336,7 +335,7 @@ export function ReferralDashboard() {
         <div
           className="absolute w-50 h-50 rounded-full blur-[80px] opacity-3"
           style={{
-            background: "oklch(0.55 0.2 320)",
+            background: "var(--color-mando-deep)",
             top: "40%",
             left: "15%",
             animation: "mesh-drift 25s ease-in-out infinite alternate",
@@ -424,7 +423,7 @@ export function ReferralDashboard() {
                     className={cn(
                       "shrink-0 h-8 px-3.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-[background-color,color,transform] duration-200 active:scale-[0.97]",
                       copied
-                        ? "bg-emerald-500/15 text-emerald-400/80"
+                        ? "bg-success/15 text-success"
                         : "bg-foreground/7 text-foreground/55 border border-foreground/5 hover:bg-foreground/12 hover:text-foreground/90"
                     )}
                   >
@@ -515,8 +514,8 @@ export function ReferralDashboard() {
                           </div>
                           {isComplete ? (
                             <div className="flex items-center gap-1 ml-2 shrink-0">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400/80" />
-                              <span className="text-xs text-emerald-400/80 font-medium">
+                              <CheckCircle2 className="w-3 h-3 text-success" />
+                              <span className="text-xs text-success font-medium">
                                 {t("referral.friends.completed")}
                               </span>
                             </div>
@@ -530,7 +529,7 @@ export function ReferralDashboard() {
                           <div
                             className={cn(
                               "h-full rounded-full transition-[width] duration-500",
-                              isComplete ? "bg-emerald-400/60" : "bg-foreground/20"
+                              isComplete ? "bg-success/60" : "bg-foreground/20"
                             )}
                             style={{ width: `${progress}%` }}
                           />

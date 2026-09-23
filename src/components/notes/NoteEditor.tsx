@@ -233,7 +233,7 @@ export default function NoteEditor({
           aria-label={t("notes.editor.noteTitle")}
         />
         <div className="flex items-center mt-1">
-          <div className="flex items-center text-xs text-foreground/50 dark:text-foreground/20 min-w-0">
+          <div className="flex items-center text-xs text-foreground/50 min-w-0">
             {noteDate && <span>{noteDate}</span>}
             {noteDate && (isSaving || wordCount > 0) && <span className="mx-1.5">&middot;</span>}
             <span className="tabular-nums flex items-center gap-1 shrink-0">
@@ -250,10 +250,10 @@ export default function NoteEditor({
             {(enhancement || hasMeetingTranscript || hasChatSegments || isMeetingRecording) && (
               <div
                 ref={segmentContainerRef}
-                className="relative flex items-center shrink-0 rounded-md bg-foreground/3 dark:bg-white/3 p-0.5"
+                className="relative flex items-center shrink-0 rounded-md bg-foreground/3 p-0.5"
               >
                 <div
-                  className="absolute top-0.5 left-0 rounded bg-background dark:bg-surface-2 shadow-sm transition-[width,height,transform,opacity] duration-200 ease-out pointer-events-none"
+                  className="absolute top-0.5 left-0 rounded bg-card shadow-card transition-[width,height,transform,opacity] duration-200 ease-out pointer-events-none"
                   style={indicatorStyle}
                 />
                 {(hasMeetingTranscript || hasChatSegments || isMeetingRecording) && (
@@ -302,7 +302,7 @@ export default function NoteEditor({
                     {t("notes.editor.enhanced")}
                     {enhancement.isStale && (
                       <span
-                        className="w-1 h-1 rounded-full bg-amber-400/60"
+                        className="w-1 h-1 rounded-full bg-warning"
                         title={t("notes.editor.staleIndicator")}
                       />
                     )}
@@ -314,7 +314,7 @@ export default function NoteEditor({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md bg-foreground/3 dark:bg-white/3 text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 dark:hover:bg-white/6 transition-colors duration-150"
+                    className="shrink-0 h-6 w-6 flex items-center justify-center rounded-md bg-foreground/3 text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors duration-150"
                     aria-label={t("notes.editor.export")}
                   >
                     <Download size={11} />
