@@ -33,9 +33,23 @@ describe("formatSpokenEnumeration", () => {
     expect(formatSpokenEnumeration(text)).toBe(text);
   });
 
-  it("leaves English untouched", () => {
-    const text = "First, ship it. Second, iterate.";
-    expect(formatSpokenEnumeration(text)).toBe(text);
+  it("turns first/second/third into a numbered list in English too", () => {
+    expect(
+      formatSpokenEnumeration(
+        "Three things for tomorrow. First, reply to the investors. Second, review the pull request. Third, book the flight."
+      )
+    ).toBe("Three things for tomorrow.\n1. Reply to the investors\n2. Review the pull request\n3. Book the flight");
+  });
+
+  it("accepts firstly/secondly and colons", () => {
+    expect(formatSpokenEnumeration("Firstly: ship it. Secondly: iterate.")).toBe("1. Ship it\n2. Iterate");
+  });
+
+  it("leaves a lone or out-of-order English ordinal alone", () => {
+    const lone = "First, let me say thanks for coming.";
+    expect(formatSpokenEnumeration(lone)).toBe(lone);
+    const words = "The first time we met, the second one was better.";
+    expect(formatSpokenEnumeration(words)).toBe(words);
   });
 });
 
