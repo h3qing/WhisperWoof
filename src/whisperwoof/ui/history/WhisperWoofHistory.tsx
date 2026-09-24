@@ -158,13 +158,13 @@ function FilterChips({
           key={f}
           onClick={() => onChange(f)}
           className={cn(
-            "px-2.5 py-1 rounded-md text-xs font-medium transition-colors duration-150",
+            "press inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-semibold",
             active === f
-              ? "bg-primary/10 text-primary dark:bg-primary/15"
-              : "text-muted-foreground hover:bg-foreground/5"
+              ? "bg-select text-foreground"
+              : "text-muted-foreground hover:bg-surface-3"
           )}
         >
-          {f === "favorites" && <Star size={11} className="inline mr-1" />}
+          {f === "favorites" && <Star size={11} />}
           {filterLabel(f)}
         </button>
       ))}
@@ -191,11 +191,9 @@ const EntryRow = React.memo(function EntryRow({
     <button
       onClick={() => onSelect(entry.id)}
       className={cn(
-        "w-full text-left px-3 py-2.5 rounded-md transition-colors duration-150 outline-none",
-        "focus-visible:ring-1 focus-visible:ring-primary/30",
-        isSelected
-          ? "bg-primary/8 dark:bg-primary/12"
-          : "hover:bg-foreground/4"
+        "w-full text-left px-3 py-2.5 rounded-lg transition-colors duration-150 outline-none",
+        "focus-visible:ring-2 focus-visible:ring-ring",
+        isSelected ? "bg-select" : "hover:bg-surface-3"
       )}
     >
       <div className="flex items-start gap-2">
@@ -702,9 +700,10 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
   );
 
   return (
-    <div className={cn("flex h-full max-w-5xl mx-auto w-full", className)}>
+    // Two solid sheets side by side: the list and the entry it opens.
+    <div className={cn("flex h-full max-w-5xl mx-auto w-full gap-4 px-4 pb-4", className)}>
       {/* List panel */}
-      <div className="w-72 shrink-0 flex flex-col border-r border-border-subtle">
+      <div className="w-72 shrink-0 flex flex-col rounded-[var(--radius-sheet)] bg-card shadow-card overflow-hidden">
         {/* Search */}
         <div className="p-3 pb-2">
           <div className="relative">
@@ -780,7 +779,7 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
       </div>
 
       {/* Detail panel */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto rounded-[var(--radius-sheet)] bg-card shadow-card">
         {selectedEntry ? (
           <EntryDetail
             key={selectedEntry.id}

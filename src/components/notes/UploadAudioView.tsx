@@ -1173,7 +1173,7 @@ function CompleteView({
                     <span className="flex items-center gap-1.5">
                       {f.name}
                       {isMeetings && (
-                        <span className="text-[8px] uppercase tracking-wider text-foreground/25 font-medium">
+                        <span className="text-xs text-foreground/25 font-medium">
                           {t("notes.folders.soon")}
                         </span>
                       )}

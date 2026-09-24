@@ -121,7 +121,7 @@ export default function HistoryView({
         {/* WhisperWoof: active model indicator — what STT + cleanup models are running */}
         <ModelStatusBar onOpenSettings={onOpenSettings} />
         {showCloudMigrationBanner && (
-          <div className="mb-3 relative rounded-lg bg-card shadow-card p-3">
+          <div className="mb-3 relative rounded-[var(--radius-sheet)] bg-card shadow-card p-3">
             <button
               onClick={() => {
                 setShowCloudMigrationBanner(false);
@@ -167,7 +167,7 @@ export default function HistoryView({
             {isConnected && (
               <div className="flex items-center gap-1.5 pb-2.5">
                 <Mic size={12} className="text-muted-foreground" />
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                <span className="text-xs font-semibold text-muted-foreground">
                   {t("upcoming.transcriptions")}
                 </span>
               </div>
@@ -181,7 +181,7 @@ export default function HistoryView({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search transcripts..."
-                  className="w-full h-8 pl-9 pr-3 rounded-lg border border-border bg-card shadow-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+                  className="w-full h-9 pl-9 pr-3 rounded-full border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -207,7 +207,7 @@ export default function HistoryView({
             </div>
 
             {!dataRetentionEnabled && (
-              <div className="mb-3 rounded-lg bg-card shadow-card border border-warning/30 px-3.5 py-2.5 flex items-center gap-2.5">
+              <div className="mb-3 rounded-[var(--radius-sheet)] bg-card shadow-card border border-warning/30 px-3.5 py-2.5 flex items-center gap-2.5">
                 <span className="text-warning shrink-0 text-sm">⊘</span>
                 <p className="text-xs text-foreground/85 leading-relaxed">
                   {t("controlPanel.history.dataRetentionDisabled")}
@@ -215,14 +215,14 @@ export default function HistoryView({
               </div>
             )}
             {isLoading ? (
-              <div className="rounded-lg bg-card shadow-card">
+              <div className="rounded-[var(--radius-sheet)] bg-card shadow-card">
                 <div className="flex items-center justify-center gap-2 py-8">
                   <Loader2 size={14} className="animate-spin text-primary" />
                   <span className="text-sm text-muted-foreground">{t("controlPanel.loading")}</span>
                 </div>
               </div>
             ) : history.length === 0 ? (
-              <div className="rounded-lg bg-card shadow-card">
+              <div className="rounded-[var(--radius-sheet)] bg-card shadow-card">
                 <div className="flex flex-col items-center justify-center py-16 px-4">
                   <svg
                     className="text-foreground mb-5"
@@ -339,7 +339,7 @@ export default function HistoryView({
                       )}
                     </div>
                     {/* One grouped card per day, rows split by hairlines. */}
-                    <div className="relative z-0 rounded-xl bg-card shadow-card overflow-hidden divide-y divide-border-subtle">
+                    <div className="relative z-0 rounded-[var(--radius-sheet)] bg-card shadow-card overflow-hidden divide-y divide-border-subtle">
                       {group.items.map((item) => (
                         <div key={item.id} className="flex items-start gap-0.5 pl-2">
                           <button
@@ -391,8 +391,8 @@ export default function HistoryView({
             <div className="mt-6">
               <div className="flex items-center gap-1.5 pb-2.5">
                 <Clipboard size={12} className="text-muted-foreground" />
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Recent Clipboard
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Recent clipboard
                 </span>
               </div>
               <ClipboardHistory onNavigateToHistory={onNavigateToHistory} />

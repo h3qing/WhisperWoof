@@ -191,7 +191,7 @@ export default function NotesView({
             {groupedNotes.map((group, index) => (
               <div key={group.label} className={index > 0 ? "mt-4" : ""}>
                 <div className="sticky top-0 z-10 -mx-2 my-1 px-3 py-1.5 rounded-md glass">
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  <span className="text-xs font-semibold text-muted-foreground">
                     {group.label}
                   </span>
                 </div>

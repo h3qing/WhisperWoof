@@ -154,7 +154,7 @@ export default function DeveloperSection() {
         {/* Log Path — only when active */}
         {debugEnabled && logPath && (
           <div className="px-5 py-4">
-            <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+            <p className="text-xs font-medium text-muted-foreground/60 mb-2">
               {t("developerSection.currentLogFile")}
             </p>
             <div className="flex items-center gap-2">

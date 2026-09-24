@@ -315,7 +315,7 @@ function SectionHeader({ icon, label }: { icon: React.ReactNode; label: string }
   return (
     <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1">
       <span className="text-muted-foreground/45">{icon}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/50">
+      <span className="text-xs font-semibold text-muted-foreground/50">
         {label}
       </span>
     </div>

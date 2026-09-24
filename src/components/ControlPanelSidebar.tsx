@@ -98,39 +98,45 @@ export default function ControlPanelSidebar({
   const navItems: { id: ControlPanelView; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [];
 
   return (
-    <div className="w-48 h-[calc(100%-1rem)] m-2 mr-0 shrink-0 rounded-xl glass-thick flex flex-col overflow-hidden">
+    // Floating glass slab, 10px from the window edges; the traffic lights sit inside it.
+    <div className="relative w-[220px] h-[calc(100%-20px)] m-[10px] shrink-0 rounded-window glass-thick glass-rim flex flex-col overflow-hidden">
       <div
-        className="w-full h-10 shrink-0"
+        className="w-full h-[52px] shrink-0"
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
+      <div
+        className="flex items-center gap-2.5 px-4 pb-3"
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+      >
+        <img src={logoIcon} alt="" className="w-6 h-6 shrink-0" />
+        <p className="text-[17px] font-bold tracking-[-0.01em] text-foreground select-none">
+          WhisperWoof
+        </p>
+      </div>
+
       {onOpenSearch && (
-        <div className="px-2 pt-2 pb-1">
+        <div className="px-2.5 pb-1">
           <button
             onClick={onOpenSearch}
-            className="group flex items-center w-full h-7 px-2.5 rounded-md border border-border/60 bg-card/60 hover:bg-card transition-colors gap-2 outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+            className="group flex items-center w-full h-8 pl-3 pr-1.5 rounded-full border border-border bg-input/80 hover:bg-input transition-colors gap-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Search size={11} className="text-muted-foreground/70 shrink-0" />
-            <span className="flex-1 text-[11px] text-left text-muted-foreground/70">
+            <Search size={14} className="text-faint shrink-0" />
+            <span className="flex-1 text-[13px] text-left text-faint">
               {t("commandSearch.shortPlaceholder")}
             </span>
-            <div className="flex items-center gap-0.5 shrink-0">
-              <kbd className="text-[10px] px-1 py-px rounded border border-border/60 bg-muted/40 text-muted-foreground/70 font-mono leading-tight">
-                {platform === "darwin" ? "⌘" : "Ctrl"}
-              </kbd>
-              <kbd className="text-[10px] px-1 py-px rounded border border-border/60 bg-muted/40 text-muted-foreground/70 font-mono leading-tight">
-                K
-              </kbd>
-            </div>
+            <kbd className="shrink-0 text-[11px] font-semibold px-1.5 rounded-md border border-border border-b-2 bg-card text-muted-foreground leading-[18px]">
+              {platform === "darwin" ? "⌘K" : "Ctrl K"}
+            </kbd>
           </button>
         </div>
       )}
 
-      <nav className="flex flex-col gap-0.5 px-2 pt-2 pb-2">
+      <nav className="flex flex-col px-2.5 pt-1 pb-2" aria-label="Main">
         {navSections.map((section, si) => (
-          <div key={si}>
+          <div key={si} className="flex flex-col gap-0.5">
             {section.label && (
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium px-2.5 pt-3 pb-1">
+              <div className="text-xs font-semibold text-muted-foreground px-3 pt-3.5 pb-1 select-none">
                 {section.label}
               </div>
             )}
@@ -141,34 +147,23 @@ export default function ControlPanelSidebar({
                 <button
                   key={item.id}
                   onClick={() => onViewChange(item.id)}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "group relative flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md outline-none transition-colors duration-150 text-left",
-                    "focus-visible:ring-1 focus-visible:ring-primary/30",
-                    isActive
-                      ? "bg-primary/15 text-foreground"
-                      : "bg-transparent hover:bg-foreground/5 active:bg-foreground/8"
+                    "press group relative flex items-center gap-2.5 w-full min-h-9 px-3 rounded-full outline-none text-left",
+                    "focus-visible:ring-2 focus-visible:ring-ring",
+                    isActive ? "bg-select" : "bg-transparent hover:bg-[var(--glass-hover)]"
                   )}
                 >
-                  <Icon
-                    size={15}
-                    className={cn(
-                      "shrink-0 transition-colors duration-150",
-                      isActive
-                        ? "text-foreground"
-                        : "text-muted-foreground group-hover:text-foreground"
-                    )}
-                  />
+                  <Icon size={17} className="shrink-0 text-primary" />
                   <span
                     className={cn(
-                  "text-xs transition-colors duration-150",
-                  isActive
-                    ? "text-foreground font-medium"
-                    : "text-foreground/85 group-hover:text-foreground"
-                )}
-              >
-                {item.label}
-              </span>
-            </button>
+                      "text-sm text-foreground",
+                      isActive ? "font-semibold" : "font-medium"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -231,7 +226,7 @@ export default function ControlPanelSidebar({
         </div>
       )}
 
-      <div className="px-2 pb-2 space-y-0.5">
+      <div className="px-2.5 pb-2.5 space-y-0.5">
         {updateAction && (
           <div className="px-1 pb-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
             {updateAction}
@@ -242,24 +237,11 @@ export default function ControlPanelSidebar({
         <button
           onClick={onOpenSettings}
           aria-label={t("sidebar.settings")}
-          className="group flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-primary/30 transition-colors duration-150"
+          className="press group flex items-center gap-2.5 w-full min-h-9 px-3 rounded-full text-left outline-none hover:bg-[var(--glass-hover)] focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Settings
-            size={15}
-            className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors duration-150"
-          />
-          <span className="text-xs text-foreground/85 group-hover:text-foreground transition-colors duration-150">
-            {t("sidebar.settings")}
-          </span>
+          <Settings size={17} className="shrink-0 text-primary" />
+          <span className="text-sm font-medium text-foreground">{t("sidebar.settings")}</span>
         </button>
-
-        {/* Branding */}
-        <div className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md mt-1">
-          <img src={logoIcon} alt="" className="w-5 h-5 rounded-sm shrink-0" />
-          <p className="text-xs text-muted-foreground font-medium">
-            WhisperWoof
-          </p>
-        </div>
       </div>
     </div>
   );

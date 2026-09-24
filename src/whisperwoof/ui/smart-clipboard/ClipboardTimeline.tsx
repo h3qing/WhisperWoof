@@ -264,10 +264,7 @@ export default function ClipboardTimeline() {
   return (
     <div className="px-4 pt-4 pb-6">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-3">
-          <h1 className="text-base font-semibold text-foreground">Clipboard</h1>
-          <p className="text-xs text-muted-foreground">Everything you've copied, newest first.</p>
-        </div>
+        <p className="mb-3 text-sm text-muted-foreground">Everything you've copied, newest first.</p>
 
         <div className="relative mb-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
@@ -275,7 +272,7 @@ export default function ClipboardTimeline() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search clipboard…"
-            className="w-full h-9 pl-9 pr-3 rounded-lg text-sm bg-card/50 dark:bg-card/60 border border-border/40 focus:border-primary/50 focus:outline-none text-foreground placeholder:text-muted-foreground/50"
+            className="w-full h-9 pl-9 pr-3 rounded-full text-sm bg-card border border-border focus:border-border-active focus:outline-none text-foreground placeholder:text-muted-foreground/50"
           />
         </div>
 
@@ -298,7 +295,7 @@ export default function ClipboardTimeline() {
             {groups.map(([day, items]) => (
               <div key={day}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  <span className="text-xs font-semibold text-muted-foreground/70">
                     {day}
                   </span>
                   <span className="text-[10px] text-muted-foreground/40">{items.length}</span>

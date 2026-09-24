@@ -19,7 +19,7 @@ export function AgentTitleBar({ onNewChat, onClose }: AgentTitleBarProps) {
       )}
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
-      <span className="text-[11px] text-muted-foreground font-medium tracking-wide uppercase">
+      <span className="text-xs text-muted-foreground font-medium">
         {t("agentMode.titleBar.label")}
       </span>
 

@@ -95,7 +95,7 @@ export default function UpcomingMeetings({ events, isLoading }: UpcomingMeetings
       {/* Header */}
       <div className="flex items-center gap-1.5 pb-2.5">
         <Calendar size={12} className="text-muted-foreground" />
-        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+        <span className="text-xs font-semibold text-muted-foreground">
           {t("upcoming.title")}
         </span>
       </div>
@@ -152,7 +152,7 @@ export default function UpcomingMeetings({ events, isLoading }: UpcomingMeetings
           {groupedEvents.map((group, groupIndex) => (
             <div key={group.label} className={groupIndex > 0 ? "mt-4" : ""}>
               <div className="pt-2 pb-2">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                <span className="text-xs font-semibold text-muted-foreground">
                   {group.label}
                 </span>
               </div>

@@ -383,10 +383,10 @@ export default function PersonalNotesView({
         className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
         style={{ width: isMeetingMode ? 0 : "13rem" }}
       >
-        <div className="w-[12.5rem] h-[calc(100%-0.5rem)] shrink-0 rounded-xl glass-thick overflow-hidden flex flex-col">
+        <div className="w-[12.5rem] h-[calc(100%-0.5rem)] shrink-0 rounded-[var(--radius-sheet)] glass-thick overflow-hidden flex flex-col">
           {/* Folders */}
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-foreground/50">
+            <span className="text-xs font-medium text-foreground/50">
               {t("notes.folders.title")}
             </span>
             <Button
@@ -553,7 +553,7 @@ export default function PersonalNotesView({
 
           {/* Notes list */}
           <div className="flex items-center justify-between px-3 py-1">
-            <span className="text-xs font-medium uppercase tracking-wider text-foreground/50">
+            <span className="text-xs font-medium text-foreground/50">
               {t("notes.list.title")}
             </span>
             <Button

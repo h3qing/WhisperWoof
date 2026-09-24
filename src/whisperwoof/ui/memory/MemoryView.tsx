@@ -499,12 +499,8 @@ export default function MemoryView({ className }: MemoryViewProps) {
       <div className="px-5 py-4 border-b border-border-subtle shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Brain size={16} className="text-primary/70" />
-              Memory
-            </h2>
             {stats && (
-              <p className="text-xs text-muted-foreground/70 mt-1">
+              <p className="text-sm text-muted-foreground">
                 {stats.total} words learned
                 {stats.autoLearned > 0 && ` (${stats.autoLearned} auto, ${stats.manual} manual)`}
                 {totalPackWords > 0 && ` + ${totalPackWords} from packs`}
