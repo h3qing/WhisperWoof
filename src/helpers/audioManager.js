@@ -11,6 +11,7 @@ import {
   normalizeChineseScript,
   resolveChineseScript,
 } from "../whisperwoof/core/language/normalize-chinese-script";
+import { isHintHijack, nextAutoHintsSuppressed } from "../whisperwoof/core/language/auto-hints";
 import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
   formatSpokenEnumeration,
@@ -93,6 +94,8 @@ class AudioManager {
     });
     this.mediaRecorder = null;
     this.audioChunks = [];
+    // Auto language mode: hints are held back after they hijacked a CJK decode.
+    this.autoHintsSuppressed = false;
     this.isRecording = false;
     this.isProcessing = false;
     this.onStateChange = null;
@@ -878,12 +881,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         options.language = language;
       }
 
-      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words.
-      // ONLY when a specific dictation language is pinned: an initial prompt biases Whisper's language
-      // detection, so an English vocab list ("OpenWhispr", "claude", …) turns auto-detected non-English
-      // speech (e.g. Chinese) into English garbage. In auto mode we don't know the language, so skip it.
+      // Memory, Dictionary and Word Pack words as Whisper's initial prompt. In
+      // Auto mode an English prompt can hijack the decode of Chinese speech
+      // into English; that is caught below and redone without the prompt,
+      // and hints stay off until the next non-CJK dictation (auto-hints.ts).
       const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
-      if (dictionaryPrompt && language) {
+      const sendHints = Boolean(dictionaryPrompt) && (Boolean(language) || !this.autoHintsSuppressed);
+      if (sendHints) {
         options.initialPrompt = dictionaryPrompt;
       }
 
@@ -897,7 +901,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       const transcriptionStart = performance.now();
-      const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
+      let result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
+      if (!language && result.success) {
+        const hijacked = sendHints && isHintHijack(result);
+        this.autoHintsSuppressed = nextAutoHintsSuppressed(this.autoHintsSuppressed, {
+          language: result.language,
+          hijacked,
+        });
+        if (hijacked) {
+          logger.info("Hint prompt hijacked a CJK decode; redoing without hints", {
+            language: result.language,
+          });
+          const { initialPrompt: _dropped, ...withoutHints } = options;
+          result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, withoutHints);
+        }
+      }
       timings.transcriptionProcessingDurationMs = Math.round(
         performance.now() - transcriptionStart
       );

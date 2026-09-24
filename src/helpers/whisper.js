@@ -408,7 +408,10 @@ class WhisperManager {
       if (!text || this.isBlankAudioMarker(text)) {
         return { success: false, message: "No audio detected" };
       }
-      return { success: true, text };
+      // verbose_json (Auto mode) carries the detected language, e.g. "chinese"
+      return typeof result.language === "string"
+        ? { success: true, text, language: result.language }
+        : { success: true, text };
     }
 
     return { success: false, message: "No audio detected" };

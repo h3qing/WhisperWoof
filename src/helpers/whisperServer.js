@@ -487,10 +487,12 @@ class WhisperServerManager extends EventEmitter {
       debugLogger.info("Using custom dictionary prompt", { prompt: initialPrompt });
     }
 
+    // Auto mode asks for verbose_json, which carries the detected language
+    // (used to catch a hint prompt hijacking CJK speech, see auto-hints.ts).
     parts.push(
       `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="response_format"\r\n\r\n` +
-        `json\r\n`
+        `${language ? "json" : "verbose_json"}\r\n`
     );
     parts.push(`--${boundary}--\r\n`);
 
