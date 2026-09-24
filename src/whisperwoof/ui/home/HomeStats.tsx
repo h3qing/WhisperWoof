@@ -1,9 +1,10 @@
 /**
- * HomeStats — "Mando's Journal" with full-width heatmap + AI fun facts
+ * HomeStats: opens Home with one sentence about the last 7 days, a row of
+ * facts, and the activity heatmap.
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { cn } from "../../../components/lib/utils";
+import { homeHeadline, homeFacts } from "./home-summary";
 
 interface Dashboard {
   summary: { totalEntries: number; todayEntries: number; thisWeekEntries: number; thisMonthEntries: number };
@@ -18,73 +19,6 @@ interface Dashboard {
 function getAPI(): Record<string, unknown> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (window as any).electronAPI ?? {};
-}
-
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
-// --- Data-driven fun facts (instant, no LLM needed) ---
-
-function generateFunFacts(d: Dashboard): string[] {
-  const facts: string[] = [];
-
-  // Busiest hour
-  if (d.busiestHours?.some((h) => h > 0)) {
-    const maxH = d.busiestHours.indexOf(Math.max(...d.busiestHours));
-    const t = maxH === 0 ? "midnight" : maxH < 12 ? `${maxH}am` : maxH === 12 ? "noon" : `${maxH - 12}pm`;
-    facts.push(`Your peak hour is ${t}`);
-  }
-
-  // Streak
-  if (d.streaks.longest > 1) facts.push(`Longest streak: ${d.streaks.longest} days`);
-
-  // Polish
-  if (d.polishStats.totalPolished > 0) {
-    const saved = Math.round(d.polishStats.avgCharsSaved * d.polishStats.totalPolished);
-    if (saved > 0) facts.push(`${saved.toLocaleString()} chars of filler removed by AI`);
-    facts.push(`${Math.round(d.polishStats.polishRate)}% of entries get AI polish`);
-  }
-
-  // Duration
-  if (d.averageDuration.avgMs > 0) {
-    facts.push(`Average recording: ${(d.averageDuration.avgMs / 1000).toFixed(1)}s`);
-    const totalMin = Math.round(d.averageDuration.totalMs / 60000);
-    if (totalMin > 1) facts.push(`${totalMin} minutes of voice recorded total`);
-  }
-
-  // Source breakdown
-  const voice = d.sourceBreakdown.find((s) => s.source === "voice");
-  const clip = d.sourceBreakdown.find((s) => s.source === "clipboard");
-  if (voice && voice.count > 0) facts.push(`${voice.count} voice entries captured`);
-  if (clip && clip.count > 0) facts.push(`${clip.count} clipboard items saved`);
-
-  // Month vs week
-  if (d.summary.thisMonthEntries > 0 && d.summary.thisWeekEntries > 0) {
-    const weeklyRate = d.summary.thisWeekEntries;
-    const monthlyAvg = Math.round(d.summary.thisMonthEntries / 4);
-    if (weeklyRate > monthlyAvg * 1.2) facts.push("This week is above your monthly average");
-    else if (weeklyRate < monthlyAvg * 0.8) facts.push("Quieter week than usual");
-  }
-
-  // Total
-  facts.push(`${d.summary.totalEntries.toLocaleString()} entries all time`);
-
-  return facts;
-}
-
-// Pick 2-3 facts that rotate throughout the day
-function pickFacts(facts: string[], count: number = 3): string[] {
-  if (facts.length <= count) return facts;
-  const hourSeed = Math.floor(Date.now() / 3600000); // changes every hour
-  const picked: string[] = [];
-  for (let i = 0; i < count; i++) {
-    picked.push(facts[(hourSeed + i) % facts.length]!);
-  }
-  return picked;
 }
 
 // --- Heatmap ---
@@ -166,11 +100,11 @@ function ActivityHeatmap({ entriesPerDay, onDayClick }: { entriesPerDay: { day: 
         )}
       </div>
       {hovered && (
-        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md glass text-[10px] text-foreground whitespace-nowrap z-10 pointer-events-none">
+        <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full glass-thick text-xs text-foreground whitespace-nowrap z-10 pointer-events-none tabular-nums">
           <span className="font-semibold">{hovered.count}</span> entries · {new Date(hovered.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </div>
       )}
-      <div className="flex justify-between mt-1 text-[9px] text-muted-foreground">
+      <div className="flex justify-between mt-1.5 text-[11px] text-faint">
         <span>26 weeks ago</span>
         <span>today</span>
       </div>
@@ -211,46 +145,35 @@ export default function HomeStats({ onDayClick }: HomeStatsProps) {
     };
   }, [fetchData]);
 
-  const funFacts = useMemo(() => data ? pickFacts(generateFunFacts(data), 3) : [], [data]);
-
   if (!data || data.summary.totalEntries === 0) return null;
 
-  const { summary, streaks, entriesPerDay, sourceBreakdown } = data;
-
-  const voice = sourceBreakdown.find((s) => s.source === "voice");
-  const total = sourceBreakdown.reduce((sum, s) => sum + s.count, 0);
-  const voicePct = total > 0 && voice ? Math.round((voice.count / total) * 100) : 0;
-
-  const parts: string[] = [];
-  parts.push(`${summary.todayEntries} today`);
-  if (streaks.current > 0) parts.push(`${streaks.current}-day streak`);
-  if (voicePct > 0) parts.push(`${voicePct}% voice`);
+  const headline = homeHeadline(data);
+  const facts = homeFacts(data);
 
   return (
-    <div className="rounded-xl bg-card shadow-card px-5 pt-4 pb-4 mb-1">
-      <div className="flex gap-6 items-start">
-        {/* Left: greeting + hero + fun facts */}
-        <div className="shrink-0 w-[220px]">
-          <p className="text-[13px] text-muted-foreground">{getGreeting()}</p>
-          <h2 className="text-[26px] font-extrabold tracking-tight leading-tight mt-0.5">
-            <span className="text-primary">{summary.thisWeekEntries}</span>
-            <span className="text-foreground"> this week</span>
-          </h2>
-          <p className="text-[11px] text-muted-foreground mt-1">{parts.join(" · ")}</p>
-
-          {/* Fun facts */}
-          <div className="mt-3 space-y-1.5">
-            {funFacts.map((fact, i) => (
-              <p key={i} className="text-[10px] text-muted-foreground/80">
-                {fact}
-              </p>
+    <div className="rounded-[var(--radius-sheet)] bg-card shadow-card px-5 pt-5 pb-5 mb-1">
+      <div className="flex gap-8 items-start">
+        <div className="flex-1 min-w-0">
+          <p className="text-[26px] font-extrabold leading-[1.2] tracking-[-0.022em] text-foreground max-w-[30ch] text-balance">
+            {headline.count !== null && (
+              <span className="text-primary tabular-nums">{headline.count.toLocaleString("en-US")} </span>
+            )}
+            {headline.rest}
+          </p>
+          <dl className="flex flex-wrap gap-x-8 gap-y-3 mt-4">
+            {facts.map((fact) => (
+              <div key={fact.label}>
+                <dt className="text-[13px] font-medium text-muted-foreground">{fact.label}</dt>
+                <dd className="text-[19px] font-bold tracking-[-0.01em] text-foreground tabular-nums whitespace-nowrap">
+                  {fact.value}
+                </dd>
+              </div>
             ))}
-          </div>
+          </dl>
         </div>
 
-        {/* Right: heatmap */}
-        <div className="flex-1 min-w-0 pt-1">
-          <ActivityHeatmap entriesPerDay={entriesPerDay || []} onDayClick={onDayClick} />
+        <div className="shrink-0 max-w-[50%] pt-1 hidden md:block">
+          <ActivityHeatmap entriesPerDay={data.entriesPerDay || []} onDayClick={onDayClick} />
         </div>
       </div>
     </div>
