@@ -214,10 +214,16 @@
   "dmg": {
     "title": "WhisperWoof",
     "icon": "src/assets/icon.icns",
+    "background": "resources/mac/dmg-background.png",
+    "iconSize": 96,
     "window": {
       "width": 540,
       "height": 380
-    }
+    },
+    "contents": [
+      { "x": 140, "y": 196, "type": "file" },
+      { "x": 400, "y": 196, "type": "link", "path": "/Applications" }
+    ]
   },
   "publish": {
     "provider": "github",

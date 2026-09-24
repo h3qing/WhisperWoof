@@ -144,7 +144,13 @@ npm install
 npm start
 ```
 
-**Or download the app directly:** [Latest .dmg release (Apple Silicon)](https://github.com/h3qing/whisperwoof/releases/latest)
+**Or install the app** (Apple Silicon). The easiest way is one line in Terminal. It downloads the latest release, checks its SHA-256, installs it to `/Applications` and opens it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/h3qing/WhisperWoof/main/scripts/install.sh | bash
+```
+
+Run the same line again to update. Or grab the [latest .dmg](https://github.com/h3qing/whisperwoof/releases/latest) and drag WhisperWoof into Applications. The app isn't signed by Apple yet, so the first time you open it macOS says it can't verify it. Click **Done**, then go to **System Settings → Privacy & Security** and click **Open Anyway**. ([What signing would change](docs/release-signing.md).)
 
 The app bundles `llama-server` (llama.cpp) for local LLM polish — no extra install required. On first run, open **Settings → Intelligence** and download a model (Qwen 2-3B is a great default for polish on Apple Silicon).
 

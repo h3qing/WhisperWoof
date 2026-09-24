@@ -169,6 +169,7 @@
     .dl .ctas{ justify-content:center; }
     .req{ margin-top:22px; font-size:15px; color:var(--ink-2); }
     .note{ margin:26px auto 0; max-width:60ch; font-size:14px; color:var(--ink-2); }
+    .note code{ overflow-wrap:anywhere; user-select:all; }
     code{ font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.92em; background:var(--sheet); padding:2px 6px; border-radius:5px; }
 
     footer{ border-top:1px solid var(--rule); padding:34px 0 48px; font-size:15px; color:var(--ink-2); }
@@ -348,7 +349,7 @@
         <a class="btn btn-line" href="https://github.com/h3qing/whisperwoof">Build from source</a>
       </div>
       <p class="req">Needs macOS on Apple Silicon, a microphone, and about 3 GB for the models.</p>
-      <p class="note">The app isn't signed yet. On first launch, right-click it and choose Open, or run <code>xattr -dr com.apple.quarantine /Applications/WhisperWoof.app</code></p>
+      <p class="note">Quickest install: paste <code>curl -fsSL https://raw.githubusercontent.com/h3qing/WhisperWoof/main/scripts/install.sh | bash</code> into Terminal. Using the .dmg instead? The app isn't signed by Apple yet: the first time you open it, click Done, then choose Open Anyway in System Settings → Privacy &amp; Security.</p>
     </div>
   </section>
 </main>

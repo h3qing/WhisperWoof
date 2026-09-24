@@ -5,6 +5,17 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-09-24 — Easier install, Mando in the menu bar
+
+### Added
+- **A one-line installer.** Running `curl -fsSL https://raw.githubusercontent.com/h3qing/WhisperWoof/main/scripts/install.sh | bash` downloads the latest release, checks it against GitHub's SHA-256, installs it to `/Applications` (replacing an older copy) and opens it. It needs nothing beyond a stock Mac, and running it again updates. Because `curl` downloads aren't quarantined, macOS doesn't show its "can't verify" prompt.
+- **The DMG window now shows what to do:** Mando-toned background, "Drag WhisperWoof into Applications", and an arrow from the app to the Applications folder.
+- **Developer ID signing is ready.** When five Apple secrets are added to the repo, releases are signed and notarized automatically. They then open like any Mac app, install updates from inside the app, and keep the Accessibility grant across updates. Setup: `docs/release-signing.md`. Until then, releases stay unsigned.
+
+### Changed
+- **The menu bar icon is Mando's head**, replacing the generic waveform. It's a template image, so macOS tints it for light and dark menu bars.
+- **Install instructions** (release notes, README, website) now lead with the one-liner. For the DMG they describe today's macOS flow (Done → System Settings → Privacy & Security → Open Anyway); right-click → Open no longer bypasses the check.
+
 ## [1.21.0] - 2026-09-24 — Notes and projects in one place
 
 ### Changed

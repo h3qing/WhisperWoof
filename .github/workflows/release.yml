@@ -47,6 +47,11 @@ jobs:
     runs-on: macos-14 # Apple Silicon — native modules compile for arm64
     permissions:
       contents: write
+    env:
+      # Developer ID signing + notarization switch on by themselves once these
+      # repo secrets exist (see docs/release-signing.md). Until then the
+      # release is built unsigned, exactly as before.
+      HAS_SIGNING: ${{ secrets.CSC_LINK != '' && secrets.APPLE_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,15 +98,29 @@ jobs:
       - name: Build renderer
         run: cd src && npx vite build
 
-      # whisperwoofUpdateMode=manual: the app still checks for new releases,
-      # but an unsigned build cannot self-install (Squirrel refuses), so the
-      # prompt opens this release page for a manual download instead of a
-      # download that can never finish. Switch to signed builds to drop it.
+      # Signed + notarized: opens like any Mac app, and in-app updates install
+      # themselves (Squirrel requires a signature), so no update-mode override.
       # publish.channel=latest-arm64: the app looks for latest-arm64-mac.yml
       # (src/updater.js sets that channel per arch); without this the file
       # is named latest-mac.yml and every check 404s.
+      - name: Build macOS arm64 (signed + notarized)
+        if: env.HAS_SIGNING == 'true'
+        run: npx electron-builder --mac --arm64 --config.publish.channel=latest-arm64 --publish never
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Unsigned (ad-hoc, see scripts/after-pack-adhoc-sign.js).
+      # whisperwoofUpdateMode=manual: the app still checks for new releases,
+      # but an unsigned build cannot self-install (Squirrel refuses), so the
+      # prompt opens this release page for a manual download instead of a
+      # download that can never finish.
       - name: Build macOS arm64 (unsigned)
-        run: npx electron-builder --mac --arm64 --config.mac.identity=null --config.publish.channel=latest-arm64 --config.extraMetadata.whisperwoofUpdateMode=manual --publish never
+        if: env.HAS_SIGNING != 'true'
+        run: npx electron-builder --mac --arm64 --config.mac.identity=null --config.mac.notarize=false --config.publish.channel=latest-arm64 --config.extraMetadata.whisperwoofUpdateMode=manual --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -118,11 +137,15 @@ jobs:
             ' CHANGELOG.md
             echo ""
             echo "### Install"
-            echo "Download the \`.dmg\`, open it, and drag **WhisperWoof** to Applications."
-            echo "Unsigned build — on first launch, right-click the app → **Open**, or run:"
-            echo '```'
-            echo "xattr -dr com.apple.quarantine /Applications/WhisperWoof.app"
-            echo '```'
+            if [ "$HAS_SIGNING" = "true" ]; then
+              echo "Download the \`.dmg\`, open it, and drag **WhisperWoof** into Applications. Updates install from inside the app."
+            else
+              echo "**Easiest:** paste this into Terminal. It downloads this release, checks it, installs it and opens it:"
+              echo '```'
+              echo "curl -fsSL https://raw.githubusercontent.com/h3qing/WhisperWoof/main/scripts/install.sh | bash"
+              echo '```'
+              echo "**Or with the \`.dmg\`:** open it and drag **WhisperWoof** into Applications. This build isn't signed by Apple yet, so the first time you open it macOS says it can't verify the app: click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway**."
+            fi
             echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
