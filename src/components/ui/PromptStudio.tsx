@@ -261,7 +261,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                   },
                 ].map((item) => (
                   <div key={item.mode} className="flex items-start gap-3">
-                    <span className="shrink-0 mt-0.5 text-xs font-medium uppercase tracking-wider px-1.5 py-px rounded bg-muted text-muted-foreground">
+                    <span className="shrink-0 mt-0.5 text-xs font-medium px-1.5 py-px rounded bg-muted text-muted-foreground">
                       {item.mode}
                     </span>
                     <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
@@ -273,13 +273,13 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
             <div className="px-5 py-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
+                  <p className="text-xs font-medium text-muted-foreground/60">
                     {isCustomPrompt
                       ? t("promptStudio.view.customPrompt")
                       : t("promptStudio.view.defaultPrompt")}
                   </p>
                   {isCustomPrompt && (
-                    <span className="text-xs font-semibold uppercase tracking-wider px-1.5 py-px rounded-full bg-primary/10 text-primary">
+                    <span className="text-xs font-semibold px-1.5 py-px rounded-full bg-primary/10 text-primary">
                       {t("promptStudio.view.modified")}
                     </span>
                   )}
@@ -398,7 +398,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                 <div className="px-5 py-4">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground/60">
                         {t("promptStudio.test.modelLabel")}
                       </p>
                       <p className="text-xs font-medium text-foreground font-mono">
@@ -407,7 +407,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                     </div>
                     <div className="h-3 w-px bg-border/40" />
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground/60">
                         {t("promptStudio.test.providerLabel")}
                       </p>
                       <p className="text-xs font-medium text-foreground">{displayProvider}</p>
@@ -422,7 +422,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
                     </p>
                     {testText && (
                       <span
-                        className={`text-xs font-medium uppercase tracking-wider px-1.5 py-px rounded ${
+                        className={`text-xs font-medium px-1.5 py-px rounded ${
                           isAgentAddressed
                             ? "bg-primary/10 text-primary dark:bg-primary/15"
                             : "bg-muted text-muted-foreground"

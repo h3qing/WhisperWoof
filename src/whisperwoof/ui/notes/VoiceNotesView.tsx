@@ -258,11 +258,11 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search notes"
             aria-label="Search notes"
-            className="w-full h-8 rounded-md bg-card shadow-card pl-8 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="w-full h-8 rounded-full bg-card shadow-card pl-8 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
 
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-card shadow-card divide-y divide-border-subtle">
+        <div className="flex-1 min-h-0 overflow-y-auto rounded-[var(--radius-sheet)] bg-card shadow-card divide-y divide-border-subtle">
           {loaded && visible.length === 0 && (
             <p className="px-4 py-6 text-xs text-muted-foreground text-center">
               {query.trim()
@@ -316,7 +316,7 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
       </div>
 
       {/* Note */}
-      <div className="flex-1 min-w-0 flex flex-col rounded-xl bg-card shadow-card">
+      <div className="flex-1 min-w-0 flex flex-col rounded-[var(--radius-sheet)] bg-card shadow-card">
         {error && <p className="px-5 pt-3 text-xs text-destructive">{error}</p>}
         {current ? (
           <>

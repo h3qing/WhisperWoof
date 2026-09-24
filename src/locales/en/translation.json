@@ -254,7 +254,7 @@
       "failedCtaSettings": "Set up your transcription provider",
       "failedCtaAndRetry": "then click retry",
       "failedCtaSettingsOnly": "Set up your transcription provider in Settings",
-      "rawTranscript": "Raw Transcript",
+      "rawTranscript": "Raw transcript",
       "clearAll": "Clear all",
       "clearAllTitle": "Clear All Transcriptions",
       "clearAllDescription": "All transcriptions and audio files will be permanently removed.",
@@ -567,7 +567,7 @@
     }
   },
   "upcoming": {
-    "title": "Upcoming Meetings",
+    "title": "Upcoming meetings",
     "transcriptions": "Transcriptions",
     "tomorrow": "Tomorrow",
     "noMoreMeetings": "No more meetings today",
@@ -1471,7 +1471,7 @@
         "explainer": {
           "toggle": "What's the difference between the two kinds of models?",
           "streamingTitle": "Streaming models",
-          "streamingBody": "Hear audio in small slices and guess as they go, so words appear right away. The underlined tail can still change once more context arrives. Small and fast, a bit less accurate.",
+          "streamingBody": "Hear audio in small slices and guess as they go, so words appear right away. The tail in glass can still change once more context arrives. Small and fast, a bit less accurate.",
           "batchTitle": "Whole-recording models",
           "batchBody": "Wait for the full recording and read it all at once, so every word sees the whole sentence. More accurate, but nothing shows until you release."
         }

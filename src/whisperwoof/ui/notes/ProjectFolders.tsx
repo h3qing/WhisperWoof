@@ -89,26 +89,26 @@ export function ProjectFolders(props: ProjectFoldersProps) {
       onClick={() => onSelect(target)}
       {...(dropProjectId !== undefined ? dropHandlers(key, dropProjectId) : {})}
       className={cn(
-        "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-        isSame(folder, target) ? "bg-primary/12 text-foreground" : "text-foreground/85 hover:bg-foreground/[0.04]",
-        dropTarget === key && "ring-2 ring-primary/60 bg-primary/10"
+        "press flex w-full min-w-0 items-center gap-2 rounded-full px-3 min-h-8 text-left text-sm text-foreground",
+        isSame(folder, target) ? "bg-select font-semibold" : "font-medium hover:bg-[var(--glass-hover)]",
+        dropTarget === key && "ring-2 ring-primary bg-select"
       )}
     >
-      <span className="shrink-0 text-muted-foreground">{icon}</span>
+      <span className="shrink-0 text-primary">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{count}</span>
     </button>
   );
 
   return (
-    <nav aria-label="Projects" className="w-44 shrink-0 flex flex-col min-h-0">
+    <nav aria-label="Projects" className="w-48 shrink-0 flex flex-col min-h-0 rounded-[var(--radius-sheet)] glass-thick p-2">
       <div className="flex items-center justify-between px-2 pb-2">
-        <span className="text-sm font-semibold text-foreground">Notes</span>
+        <span className="text-sm font-semibold text-foreground">Folders</span>
         <button
           onClick={() => setCreating(true)}
           aria-label="New project"
           title="New project"
-          className="rounded-md p-1 text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-colors"
+          className="press rounded-full p-1 text-primary hover:bg-[var(--glass-hover)]"
         >
           <Plus size={14} />
         </button>
@@ -153,7 +153,7 @@ export function ProjectFolders(props: ProjectFoldersProps) {
                 <MoreHorizontal size={13} />
               </button>
               {menuId === p.id && (
-                <div className="glass absolute inset-x-0 top-full z-20 mt-1 rounded-lg p-1 text-[13px]" onMouseLeave={() => setMenuId(null)}>
+                <div className="glass-thick absolute inset-x-0 top-full z-20 mt-1 rounded-xl p-1 text-[13px]" onMouseLeave={() => setMenuId(null)}>
                   {confirmDeleteId === p.id ? (
                     <div className="p-2">
                       <p className="text-xs text-foreground">Delete “{p.name}”? Its notes are kept.</p>

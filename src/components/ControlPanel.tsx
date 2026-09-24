@@ -480,6 +480,24 @@ export default function ControlPanel() {
     return null;
   };
 
+  // Page titles match the sidebar labels.
+  const viewTitle = (view: ControlPanelView): string => {
+    const titles: Record<ControlPanelView, string> = {
+      home: t("sidebar.home"),
+      "whisperwoof-history": "History",
+      "voice-notes": "Notes",
+      "personal-notes": "Notes",
+      "smart-clipboard": "Clipboard",
+      memory: "Memory",
+      "whisperwoof-plugins": "Plugins",
+      storage: "Storage",
+      dictionary: "Dictionary",
+      upload: "Upload",
+      integrations: t("integrations.title"),
+    };
+    return titles[view];
+  };
+
   const handleMeetingPillJump = useCallback(
     (noteId: number) => {
       setActiveNoteId(noteId);
@@ -598,13 +616,19 @@ export default function ControlPanel() {
           />
         </div>
         <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Toolbar without a bar: the page title, and the window drags from it */}
           <div
-            className="flex items-center justify-between w-full h-10 shrink-0"
+            className="flex items-center justify-between w-full h-[60px] shrink-0"
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
           >
+            {!isMeetingMode && (
+              <h1 className="pl-4 pt-2 text-[26px] leading-none font-extrabold tracking-[-0.02em] text-foreground select-none">
+                {viewTitle(activeView)}
+              </h1>
+            )}
             {isMeetingMode && (
               <div
-                className={platform === "darwin" ? "ml-[84px] mt-[16px]" : "ml-2"}
+                className={platform === "darwin" ? "ml-[84px]" : "ml-2"}
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
               >
                 <Button

@@ -22,6 +22,7 @@ npx vitest                # Run tests in watch mode
 npx vitest run            # Run tests once
 npx vitest run --coverage # Run with coverage report
 node scripts/build-mando-sprites.js [path/to/Mando-assets-v6]  # Rebuild Mando spritesheets from the gitignored source pack (needs ffmpeg, cwebp, img2webp)
+node scripts/build-app-icon.js  # Rebuild the app icon (PNG/ICNS/ICO) from src/assets/logo.svg (macOS; needs Google Chrome, sips, iconutil)
 ```
 
 ## Architecture
@@ -63,6 +64,7 @@ src/whisperwoof/
 - **Tests required** — 80%+ coverage target on new WhisperWoof code
 - **Files < 400 lines** — extract when larger
 - **Functions < 50 lines** — one job per function
+- **Visual changes follow [DESIGN.md](DESIGN.md)** — colors, fonts, glass vs sheets, controls
 
 ## Testing
 

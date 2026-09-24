@@ -8,7 +8,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { formatBytes, relativeTime } from "../shared/format";
 import {
-  HardDrive,
   Trash2,
   Download,
   Image,
@@ -305,11 +304,7 @@ export default function StorageManager() {
 
       {/* Header */}
       <div className="px-5 py-3 border-b border-border-subtle shrink-0">
-        <div className="flex items-center gap-2">
-          <HardDrive size={14} className="text-primary/70" />
-          <h2 className="text-sm font-semibold text-foreground">Storage Manager</h2>
-        </div>
-        <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+        <p className="text-sm text-muted-foreground">
           Manage disk usage, batch delete, export your data
         </p>
       </div>

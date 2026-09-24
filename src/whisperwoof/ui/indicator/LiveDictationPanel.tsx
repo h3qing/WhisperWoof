@@ -6,8 +6,9 @@ import type { DictationRoute } from '../../core/router/dictation-route';
 import { RouteChip } from './RouteChip';
 
 // Live dictation panel: replaces the Mando indicator while a live-mode capture
-// runs. Committed text is solid; the provisional tail (which the streaming
-// model may still rewrite) carries a dotted underline, IME-style. After
+// runs. Committed text is solid ink; the provisional tail (which the streaming
+// model may still rewrite) sits in frosted caramel glass (`live-words`), the
+// design's one signature element: words are glass until they land. After
 // release the whole draft settles while the final pass + polish run, then the
 // pasted text shows for a beat before the panel collapses.
 
@@ -74,7 +75,7 @@ export function LiveDictationPanel({
 
   const surface = native
     ? 'w-[420px] bg-mando/[0.07]'
-    : 'w-[412px] glass rounded-xl';
+    : 'w-[412px] glass glass-rim rounded-[var(--radius-sheet)]';
 
   return (
     <div
@@ -131,24 +132,12 @@ export function LiveDictationPanel({
             ) : (
               <>
                 {committed}
-                {partial && (
-                  <span
-                    className="text-foreground/70 decoration-mando"
-                    style={{
-                      textDecorationLine: 'underline',
-                      textDecorationStyle: 'dotted',
-                      textDecorationThickness: '2px',
-                      textUnderlineOffset: '4px',
-                    }}
-                  >
-                    {partial}
-                  </span>
-                )}
+                {partial && <span className="live-words text-foreground">{partial}</span>}
               </>
             )}
             {recording && (
               <span
-                className="bg-mando"
+                className="bg-live"
                 style={{
                   display: 'inline-block',
                   width: '2px',

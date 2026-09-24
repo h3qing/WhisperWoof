@@ -1,385 +1,277 @@
-/* WhisperWoof site theme: Liquid Glass in Mando's hue.
+/* WhisperWoof site theme: Mando glass (see DESIGN.md), shared by every page.
 
-   The app (src/index.css, docs/design/liquid-glass.md) keeps content on solid
-   cards; the website goes further on purpose. Everything floats on glass over
-   a glowing Mando colour field:
-   - .lg        the glass pane: frosted, a bright refracted rim, soft depth, and
-                a specular highlight that follows the pointer (glass.js).
-   - .lg-tint   amber glass: the one primary action and selected states.
-   - .lg-dark   smoky glass for the inverse panel.
-   - .well      a recess cut into a pane, for text you should read closely.
-   Reduced transparency makes glass solid; reduced motion stops the field,
-   the highlights and the springs. */
+   Glassfolio's roles in Mando's coat:
+   - .lg        glass, only for things that float over the page (the nav):
+                tint + blur, a specular rim, a top sheen, a float shadow.
+   - .sheet     a solid surface for anything people read. Radius 22, no border.
+   - .well      a nested panel inside a sheet (sheet 2, radius 14).
+   - .inverse   the smoky-saddle panel, dark in both themes.
+   - .live      the signature: words still being heard, in frosted caramel glass.
+   One caramel accent (.btn-primary); every control is a capsule.
+   The backdrop is still. Motion only answers the user. Nunito is bundled in
+   ./fonts (SIL OFL); the site makes no third-party requests. */
 
+@font-face {
+  font-family: "Nunito"; font-style: normal; font-weight: 200 1000; font-display: swap;
+  src: url("./fonts/Nunito-normal-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Nunito"; font-style: normal; font-weight: 200 1000; font-display: swap;
+  src: url("./fonts/Nunito-normal-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Nunito"; font-style: italic; font-weight: 200 1000; font-display: swap;
+  src: url("./fonts/Nunito-italic-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Nunito"; font-style: italic; font-weight: 200 1000; font-display: swap;
+  src: url("./fonts/Nunito-italic-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ── Tokens ────────────────────────────────────────────────────────────── */
 :root {
-  --porcelain: #f7efe4;
-  --ink: #1f1712;
-  --ink-2: #66564a;
-  --rule: rgb(120 80 40 / 0.16);
-  --sheet: #fffaf3;
-  --sunk: rgb(255 255 255 / 0.5);
-  --surface: rgb(255 255 255 / 0.62);
-  --primary: #a8662c;
-  --on-primary: #fffaf3;
-  --fur: #c07c3b;
-  --fur-deep: #7e4e1f;
-  --fur-light: #e8a060;
-  --fur-wash: rgb(240 196 150 / 0.24);
-  --success: #2f7a42;
-  --success-wash: rgb(90 170 110 / 0.2);
-  --warning: #8a6414;
-  --warning-wash: rgb(230 180 60 / 0.24);
-  --danger: #a3372f;
-  --danger-wash: rgb(230 110 90 / 0.2);
-  --teal: #245f66;
-  --teal-wash: rgb(80 160 170 / 0.2);
-  --olive: #5d5c2f;
-  --olive-wash: rgb(160 160 80 / 0.22);
-
-  /* The field: a pale cream ground, soft peach light, and a faint dot
-     texture so the glass visibly frosts what is behind it. */
-  --field-base: #fbf8f4;
-  --field-1: #f7d7b6;
-  --field-2: #f3dcc6;
-  --field-3: #fdeedd;
-  --field-4: #f4ddd0;
-  --field-5: #ffffff;
-  --field-strength: 0.75;
-  --field-dots: rgb(120 85 50 / 0.13);
-
-  /* Glass: clear, bright-rimmed, heavily blurred. */
-  --lg-fill: linear-gradient(150deg, rgb(255 255 255 / 0.44), rgb(255 255 255 / 0.16) 60%, rgb(255 255 255 / 0.26));
-  --lg-fill-thin: linear-gradient(150deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.06));
-  --lg-rim: linear-gradient(150deg, rgb(255 255 255 / 1), rgb(255 255 255 / 0.3) 30%, rgb(255 255 255 / 0) 55%, rgb(255 255 255 / 0.75));
-  --lg-edge: rgb(255 255 255 / 0.95);
-  --lg-depth: inset 0 -10px 24px -20px rgb(120 80 40 / 0.18);
-  --lg-shadow: 0 1px 2px rgb(90 60 30 / 0.05), 0 20px 44px -24px rgb(90 60 30 / 0.28);
-  --lg-shine: rgb(255 255 255 / 0.6);
-  --lg-blur: 32px;
-  --lg-saturate: 140%;
-  --well: rgb(255 255 255 / 0.36);
-  --well-edge: inset 0 1px 2px rgb(110 70 30 / 0.1), inset 0 0 0 1px rgb(255 255 255 / 0.55);
-  /* Tinted glass: a light, translucent amber with dark text. */
-  --tint-fill: linear-gradient(180deg, rgb(255 236 214 / 0.8), rgb(240 196 150 / 0.62));
-  --tint-ink: #5a3614;
-  --tint-edge: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 0 0 1px rgb(214 150 90 / 0.25);
-  --tint-glow: 0 8px 22px -12px rgb(190 120 60 / 0.55);
-
-  --inverse-fill: linear-gradient(150deg, rgb(52 34 20 / 0.82), rgb(28 18 11 / 0.9));
-  --inverse-fg: #fbf3ea;
-  --inverse-2: #cdb9a5;
-  --inverse-rule: rgb(255 230 200 / 0.14);
-
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --display: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "PingFang SC", sans-serif;
-  --han: "PingFang SC", "Hiragino Sans GB", "LXGW WenKai Screen", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --ink: #2a211b; --ink-2: #64564b; --ink-3: #8e8074;
+  --accent: #8f5a2a; --on-accent: #fff; --accent-rim: rgba(255, 255, 255, 0.3);
+  --select: color-mix(in srgb, var(--accent) 14%, transparent);
+  --live: #b87a3c; --live-glass: rgba(196, 138, 76, 0.22);
+  --live-sheen: rgba(255, 255, 255, 0.35); --live-rim-mix: 70%; --live-top: rgba(255, 255, 255, 0.55);
+  --sheet: #fdfbf8; --sheet-2: #f5f0ea; --sheet-line: #e8e0d6; --sheet-hover: #f3ede6;
+  --knob: #fdfbf8; --knob-shadow: 0 1px 3px rgba(58, 36, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --pass: #3b7a4c; --warn: #80660f; --fail: #b0382c;
+  --mauve: #7e4a63;   /* Mando's nose: a category colour (Dictionary), never a status */
+  --backdrop-line: color-mix(in srgb, var(--ink) 18%, transparent);   /* lines drawn straight on the backdrop */
+  --glass-tint: rgba(255, 251, 246, 0.36); --glass-tint-strong: rgba(255, 251, 246, 0.6); --glass-hover: rgba(255, 251, 246, 0.86);
+  --glass-rim-hi: rgba(255, 255, 255, 0.95); --glass-rim-lo: rgba(255, 255, 255, 0.18);
+  --glass-inner: rgba(255, 255, 255, 0.3); --glass-shade: rgba(58, 36, 20, 0.16);
+  --glass-blur: blur(22px) saturate(1.7) brightness(1.05);
+  --bg: #ebe4dc;
+  --backdrop:
+    radial-gradient(900px 620px at 6% -4%, #f0c996 0%, transparent 62%),
+    radial-gradient(760px 560px at 102% 104%, #e3c1bc 0%, transparent 58%),
+    radial-gradient(620px 420px at 70% 10%, #f4e7d3 0%, transparent 60%),
+    var(--bg);
+  --sheet-shadow: 0 1px 2px rgba(58, 36, 20, 0.06), 0 8px 24px -16px rgba(58, 36, 20, 0.2);
+  --sheet-shadow-hover: 0 1px 2px rgba(58, 36, 20, 0.08), 0 12px 28px -16px rgba(58, 36, 20, 0.26);
+  /* The "on your Mac" panel stays smoky saddle in both themes. */
+  --panel: #2a211b; --panel-ink: #fdfbf8; --panel-ink-2: #bfb2a6; --panel-rule: #3d332b;
+  --panel-wash: #f3e2cc; --panel-rim: transparent;
+  --r-sheet: 22px; --r-nested: 14px;
+  --press: cubic-bezier(0.3, 0.7, 0.4, 1.4);   /* button press spring */
+  --slide: cubic-bezier(0.3, 0.7, 0.3, 1.15);  /* segmented knob */
+  --sans: "Nunito", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --han: "PingFang SC", -apple-system, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: light;
 }
-
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root {
+    --ink: #f3ede6; --ink-2: #bfb2a6; --ink-3: #8f8276;
+    --accent: #e2a867; --on-accent: #1d130b;
+    --select: color-mix(in srgb, var(--accent) 22%, transparent);
+    --live: #e2a867; --live-glass: rgba(226, 168, 103, 0.22);
+    --live-sheen: rgba(255, 255, 255, 0.08); --live-rim-mix: 60%; --live-top: rgba(255, 255, 255, 0.12);
+    --sheet: #1a1512; --sheet-2: #221c18; --sheet-line: #312822; --sheet-hover: #261f1a;
+    --knob: #2c241e; --knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 236, 214, 0.06);
+    --pass: #72c291; --warn: #dcc15a; --fail: #ef7d72;
+    --mauve: #dcb1c4;
+    --glass-tint: rgba(44, 34, 27, 0.44); --glass-tint-strong: rgba(58, 46, 37, 0.68); --glass-hover: rgba(78, 62, 50, 0.8);
+    --glass-rim-hi: rgba(255, 236, 214, 0.32); --glass-rim-lo: rgba(255, 236, 214, 0.05);
+    --glass-inner: rgba(255, 240, 224, 0.07); --glass-shade: rgba(0, 0, 0, 0.45);
+    --glass-blur: blur(22px) saturate(1.5) brightness(0.96);
+    --bg: #120e0b;
+    --backdrop:
+      radial-gradient(900px 620px at 6% -4%, #6e4521 0%, transparent 62%),
+      radial-gradient(760px 560px at 102% 104%, #57312f 0%, transparent 58%),
+      radial-gradient(620px 420px at 70% 10%, #45372a 0%, transparent 60%),
+      var(--bg);
+    --sheet-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.6);
+    --sheet-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.34), 0 14px 32px -14px rgba(0, 0, 0, 0.7);
+    --panel: #221b16; --panel-rim: rgba(255, 236, 214, 0.08);
     color-scheme: dark;
-    --porcelain: #140e0a;
-    --ink: #f6eee5;
-    --ink-2: #c3b09d;
-    --rule: rgb(255 225 190 / 0.14);
-    --sheet: #2a1f17;
-    --sunk: rgb(0 0 0 / 0.24);
-    --surface: rgb(255 235 210 / 0.06);
-    --primary: #e39a55;
-    --on-primary: #1d120a;
-    --fur: #d99352;
-    --fur-deep: #f1b476;
-    --fur-light: #f1b476;
-    --fur-wash: rgb(230 170 110 / 0.16);
-    --success: #8fd6a0;
-    --success-wash: rgb(90 190 120 / 0.16);
-    --warning: #ebc673;
-    --warning-wash: rgb(230 180 60 / 0.16);
-    --danger: #f19a8f;
-    --danger-wash: rgb(240 110 90 / 0.16);
-    --teal: #8fd0d6;
-    --teal-wash: rgb(90 180 190 / 0.16);
-    --olive: #d4d39b;
-    --olive-wash: rgb(180 180 90 / 0.16);
-    --field-base: #16110d;
-    --field-1: #5e4029;
-    --field-2: #3d2a1c;
-    --field-3: #6f5038;
-    --field-4: #2b1f16;
-    --field-5: #4b3625;
-    --field-strength: 0.7;
-    --field-dots: rgb(255 230 200 / 0.07);
-    --lg-fill: linear-gradient(150deg, rgb(255 240 225 / 0.12), rgb(255 240 225 / 0.04) 60%, rgb(255 240 225 / 0.07));
-    --lg-fill-thin: linear-gradient(150deg, rgb(255 240 225 / 0.06), rgb(255 240 225 / 0.02));
-    --lg-rim: linear-gradient(150deg, rgb(255 244 230 / 0.5), rgb(255 244 230 / 0.08) 30%, rgb(255 244 230 / 0) 55%, rgb(255 244 230 / 0.28));
-    --lg-edge: rgb(255 244 230 / 0.25);
-    --lg-depth: inset 0 -12px 26px -20px rgb(0 0 0 / 0.5);
-    --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 22px 50px -24px rgb(0 0 0 / 0.7);
-    --lg-shine: rgb(255 240 225 / 0.16);
-    --well: rgb(0 0 0 / 0.22);
-    --well-edge: inset 0 1px 2px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(255 240 225 / 0.06);
-    --tint-fill: linear-gradient(180deg, rgb(245 200 150 / 0.42), rgb(210 150 90 / 0.28));
-    --tint-ink: #fff3e6;
-    --tint-edge: inset 0 1px 0 rgb(255 240 225 / 0.45), inset 0 0 0 1px rgb(240 190 130 / 0.2);
-    --tint-glow: 0 8px 22px -12px rgb(0 0 0 / 0.6);
-    --inverse-fill: linear-gradient(150deg, rgb(10 6 3 / 0.55), rgb(10 6 3 / 0.72));
   }
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --porcelain: #140e0a;
-  --ink: #f6eee5;
-  --ink-2: #c3b09d;
-  --rule: rgb(255 225 190 / 0.14);
-  --sheet: #2a1f17;
-  --sunk: rgb(0 0 0 / 0.24);
-  --surface: rgb(255 235 210 / 0.06);
-  --primary: #e39a55;
-  --on-primary: #1d120a;
-  --fur: #d99352;
-  --fur-deep: #f1b476;
-  --fur-light: #f1b476;
-  --fur-wash: rgb(230 170 110 / 0.16);
-  --success: #8fd6a0;
-  --success-wash: rgb(90 190 120 / 0.16);
-  --warning: #ebc673;
-  --warning-wash: rgb(230 180 60 / 0.16);
-  --danger: #f19a8f;
-  --danger-wash: rgb(240 110 90 / 0.16);
-  --teal: #8fd0d6;
-  --teal-wash: rgb(90 180 190 / 0.16);
-  --olive: #d4d39b;
-  --olive-wash: rgb(180 180 90 / 0.16);
-  --field-base: #16110d;
-  --field-1: #5e4029;
-  --field-2: #3d2a1c;
-  --field-3: #6f5038;
-  --field-4: #2b1f16;
-  --field-5: #4b3625;
-  --field-strength: 0.7;
-  --field-dots: rgb(255 230 200 / 0.07);
-  --lg-fill: linear-gradient(150deg, rgb(255 240 225 / 0.12), rgb(255 240 225 / 0.04) 60%, rgb(255 240 225 / 0.07));
-  --lg-fill-thin: linear-gradient(150deg, rgb(255 240 225 / 0.06), rgb(255 240 225 / 0.02));
-  --lg-rim: linear-gradient(150deg, rgb(255 244 230 / 0.5), rgb(255 244 230 / 0.08) 30%, rgb(255 244 230 / 0) 55%, rgb(255 244 230 / 0.28));
-  --lg-edge: rgb(255 244 230 / 0.25);
-  --lg-depth: inset 0 -12px 26px -20px rgb(0 0 0 / 0.5);
-  --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 22px 50px -24px rgb(0 0 0 / 0.7);
-  --lg-shine: rgb(255 240 225 / 0.16);
-  --well: rgb(0 0 0 / 0.22);
-  --well-edge: inset 0 1px 2px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(255 240 225 / 0.06);
-  --tint-fill: linear-gradient(180deg, rgb(245 200 150 / 0.42), rgb(210 150 90 / 0.28));
-  --tint-ink: #fff3e6;
-  --tint-edge: inset 0 1px 0 rgb(255 240 225 / 0.45), inset 0 0 0 1px rgb(240 190 130 / 0.2);
-  --tint-glow: 0 8px 22px -12px rgb(0 0 0 / 0.6);
-  --inverse-fill: linear-gradient(150deg, rgb(10 6 3 / 0.55), rgb(10 6 3 / 0.72));
+@media (prefers-contrast: more) {
+  :root {
+    --sheet-line: #b5a595; --backdrop-line: color-mix(in srgb, var(--ink) 45%, transparent);
+    --glass-tint: rgba(255, 251, 246, 0.84); --glass-tint-strong: rgba(255, 251, 246, 0.94);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root { --sheet-line: #6b5a4c; --glass-tint: rgba(44, 34, 27, 0.88); --glass-tint-strong: rgba(58, 46, 37, 0.95); }
 }
 
+/* ── Base ──────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background: var(--bg); }
 body {
-  margin: 0;
-  background: var(--porcelain);
-  color: var(--ink);
-  font-family: var(--text);
-  font-size: 18px;
-  line-height: 1.55;
-  letter-spacing: -0.005em;
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 18px; line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 :lang(zh), .han { font-family: var(--han); }
 a { color: inherit; }
-:focus-visible { outline: 2.5px solid var(--fur); outline-offset: 3px; border-radius: 10px; }
-code {
-  font-family: var(--mono); font-size: 0.84em;
-  background: var(--well); box-shadow: var(--well-edge); padding: 2px 7px; border-radius: 7px;
-}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--mono); font-size: 0.86em; color: var(--ink); background: var(--sheet-2); padding: 2px 6px; border-radius: 6px; }
 
-/* ── The field: glowing Mando hues the glass bends ─────────────────────── */
-.mando-field {
-  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
-  background: var(--field-base);
-}
-.mando-field::before {
-  content: ""; position: absolute; inset: -30%;
-  filter: blur(48px);
-  opacity: var(--field-strength);
-  background:
-    radial-gradient(30% 36% at 16% 18%, var(--field-1), transparent 70%),
-    radial-gradient(26% 38% at 84% 26%, var(--field-2), transparent 70%),
-    radial-gradient(36% 32% at 50% 88%, var(--field-3), transparent 70%),
-    radial-gradient(22% 26% at 8% 78%, var(--field-4), transparent 70%),
-    radial-gradient(24% 26% at 70% 62%, var(--field-5), transparent 70%);
-  animation: mando-field-drift 30s ease-in-out infinite alternate;
-}
-/* The dot texture sits on top of the light, so every pane frosts it. */
-.mando-field::after {
-  content: ""; position: absolute; inset: 0;
-  background-image: radial-gradient(circle at 1.5px 1.5px, var(--field-dots) 1.3px, transparent 1.9px);
-  background-size: 22px 22px;
-}
-@keyframes mando-field-drift {
-  50% { transform: translate(-4%, 5%) scale(1.06) rotate(8deg); }
-  to { transform: translate(6%, -3%) scale(1.12) rotate(-6deg); }
-}
-.page { position: relative; z-index: 1; overflow-x: clip; } /* the Mando glows may overhang */
+/* The Mando backdrop: three still glows over the base. Fixed, so the glass
+   always has something to frost. */
+.mando-field { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: var(--backdrop); }
+.page { position: relative; z-index: 1; overflow-x: clip; }
 
-/* ── Liquid glass ──────────────────────────────────────────────────────── */
-.lg, .lg-tint, .lg-dark, .btn, .seg {
-  position: relative;
-  isolation: isolate;
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
-  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
-}
+/* ── Surfaces ──────────────────────────────────────────────────────────── */
 .lg {
-  background: var(--lg-fill);
-  border-radius: 28px;
-  box-shadow: inset 0 1px 0 var(--lg-edge), var(--lg-depth), var(--lg-shadow);
+  position: relative; isolation: isolate; border-radius: 26px;
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0.5px var(--glass-inner), inset 0 -8px 16px -12px var(--glass-shade),
+    0 1px 2px var(--glass-shade), 0 12px 36px -8px var(--glass-shade);
 }
-/* The refracted rim: a bright gradient border, brightest top-left. */
-.lg::before, .lg-tint::before, .lg-dark::before, .btn::before, .seg::before {
-  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  border-radius: inherit; padding: 1.25px;
-  background: var(--lg-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+/* The specular rim: a 1px 145° ring, bright top-left and bottom-right. */
+.lg::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(145deg, var(--glass-rim-hi), var(--glass-rim-lo) 38%, var(--glass-rim-lo) 62%, var(--glass-rim-hi));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
 }
-/* The specular highlight, following the pointer (glass.js sets --mx/--my). */
-.lg::after, .lg-tint::after, .lg-dark::after, .btn::after {
-  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  border-radius: inherit;
-  background: radial-gradient(520px circle at var(--mx, 22%) var(--my, -10%), var(--lg-shine), transparent 42%);
-  opacity: 0.9;
-  transition: opacity 0.3s;
+/* The top sheen. */
+.lg::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: radial-gradient(120% 60% at 30% 0%, var(--glass-inner), transparent 70%);
 }
-.lg-tint {
-  background: var(--tint-fill);
-  color: var(--tint-ink);
-  box-shadow: var(--tint-edge), var(--tint-glow);
+.sheet { background: var(--sheet); border-radius: var(--r-sheet); box-shadow: var(--sheet-shadow); }
+.well { background: var(--sheet-2); border-radius: var(--r-nested); }
+.inverse {
+  background: var(--panel); color: var(--panel-ink); border-radius: var(--r-sheet);
+  box-shadow: inset 0 0 0 1px var(--panel-rim), var(--sheet-shadow);
 }
-.lg-dark {
-  background: var(--inverse-fill);
-  color: var(--inverse-fg);
-  border-radius: 36px;
-  box-shadow: inset 0 1px 0 rgb(255 235 210 / 0.25), var(--lg-shadow);
-  --lg-rim: linear-gradient(150deg, rgb(255 235 210 / 0.5), rgb(255 235 210 / 0.05) 35%, rgb(255 235 210 / 0) 60%, rgb(255 235 210 / 0.25));
-  --lg-shine: rgb(255 210 160 / 0.14);
+/* Only for sheets that are links: a small lift answers the pointer. */
+.hoverlift { transition: transform 0.2s var(--press), box-shadow 0.18s ease; }
+.hoverlift:hover { transform: translateY(-2px); box-shadow: var(--sheet-shadow-hover); }
+
+/* The signature: words still being heard sit in frosted caramel glass. */
+.live {
+  padding: 0 0.18em; margin: 0 -0.04em; border-radius: 0.34em; color: var(--ink);
+  background: linear-gradient(var(--live-sheen), transparent 60%), var(--live-glass);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--live) var(--live-rim-mix), transparent), inset 0 1px 0 var(--live-top);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
-.well { background: var(--well); box-shadow: var(--well-edge); border-radius: 16px; }
-.hoverlift { transition: transform 0.45s var(--spring), box-shadow 0.3s; }
-.hoverlift:hover { transform: translateY(-3px); }
 
 /* ── Navigation: a floating glass capsule ──────────────────────────────── */
-.site-nav { position: sticky; top: 14px; z-index: 20; padding-inline: 16px; }
+.site-nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 20; margin-top: 10px; padding-inline: 16px; }
 .site-nav .bar {
-  max-width: 1120px; margin: 0 auto; height: 62px; padding: 0 9px 0 20px;
+  max-width: 1120px; margin: 0 auto; height: 58px; padding: 0 8px 0 20px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   border-radius: 999px;
 }
-.brand { display: flex; align-items: center; gap: 10px; font: 700 18px/1 var(--display); letter-spacing: -0.01em; text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; letter-spacing: -0.01em; text-decoration: none; }
 .brand img { width: 30px; height: 30px; }
-.nav-links { display: flex; gap: 4px; align-items: center; font-size: 15px; font-weight: 500; }
-.nav-links a:not(.btn) { text-decoration: none; color: var(--ink-2); padding: 9px 13px; border-radius: 999px; transition: background 0.2s, color 0.2s; }
-.nav-links a:not(.btn):hover { color: var(--ink); background: var(--sunk); }
+.nav-links { display: flex; gap: 2px; align-items: center; font-size: 15px; font-weight: 600; }
+.nav-links a:not(.btn) { text-decoration: none; color: var(--ink-2); padding: 9px 13px; border-radius: 999px; transition: background-color 0.18s ease, color 0.18s ease; }
+.nav-links a:not(.btn):hover { color: var(--ink); background: var(--glass-hover); }
+.nav-links .btn { margin-left: 6px; }
 @media (max-width: 760px) { .nav-links a:not(.btn) { display: none; } }
 @media (max-width: 360px) {
   .site-nav { padding-inline: 10px; }
   .site-nav .bar { padding-left: 14px; }
-  .brand { font-size: 16px; }
-  .site-nav .btn { padding: 10px 14px; }
+  .brand { font-size: 17px; }
 }
 
-/* ── Buttons: glass capsules that squish ───────────────────────────────── */
+/* ── Buttons: capsules that press with a small spring ──────────────────── */
 .btn {
-  display: inline-flex; align-items: center; gap: 9px; border-radius: 999px;
-  padding: 14px 24px; font: 600 16px/1 var(--text); letter-spacing: -0.01em;
-  text-decoration: none; border: 0; cursor: pointer; color: var(--ink);
-  background: var(--lg-fill);
-  box-shadow: inset 0 1px 0 var(--lg-edge), var(--lg-shadow);
-  transition: transform 0.45s var(--spring), box-shadow 0.3s, filter 0.2s;
+  display: inline-flex; align-items: center; gap: 9px; border: 0; border-radius: 999px; padding: 13px 22px;
+  font: 600 16px/1.2 var(--sans); white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: transform 0.2s var(--press), background-color 0.18s ease, box-shadow 0.18s ease;
 }
-.btn:hover { transform: translateY(-2px) scale(1.02); }
-.btn:active { transform: scale(0.96); transition-duration: 0.12s; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: scale(0.96); }
 .btn svg { width: 16px; height: 16px; }
 .btn-primary {
-  color: var(--tint-ink);
-  background: var(--tint-fill);
-  box-shadow: var(--tint-edge), var(--tint-glow);
+  background: color-mix(in srgb, var(--accent) 88%, transparent); color: var(--on-accent);
+  box-shadow: inset 0 1px 0 var(--accent-rim), 0 2px 8px -2px var(--accent);
 }
-.btn-glass { color: var(--ink); }
-.site-nav .btn { padding: 11px 18px; font-size: 14px; }
+.btn-primary:hover { background: var(--accent); }
+.btn-glass {
+  background: var(--glass-tint-strong); color: var(--ink);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 var(--glass-rim-hi), inset 0 0 0 1px color-mix(in srgb, var(--sheet-line) 70%, transparent), 0 1px 2px var(--glass-shade);
+}
+.btn-glass:hover { background: var(--glass-hover); }
+.btn-glass:active { box-shadow: inset 0 1px 0 var(--glass-rim-hi), 0 0 0 4px var(--select); }
+.site-nav .btn { padding: 9px 18px; font-size: 15px; }
 
-/* ── Segmented control: a glass track with a sliding liquid bubble ─────── */
+/* ── Segmented control: a capsule track with a knob that slides ────────── */
 .seg {
-  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-radius: 999px;
-  background: var(--well);
-  box-shadow: var(--well-edge);
+  position: relative; display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 999px;
+  background: var(--sheet-2); box-shadow: inset 0 0 0 1px var(--sheet-line);
 }
-.seg::before { opacity: 0.6; }
 .seg button {
-  position: relative; z-index: 1;
-  font: 600 14px/1 var(--text); color: var(--ink-2); background: transparent; border: 0;
-  padding: 10px 16px; border-radius: 999px; cursor: pointer; transition: color 0.25s;
+  position: relative; z-index: 1; font: 600 14px/1 var(--sans); color: var(--ink-2);
+  background: transparent; border: 0; padding: 10px 16px; border-radius: 999px; cursor: pointer;
+  transition: color 0.18s ease;
 }
-.seg button:hover { color: var(--ink); }
-.seg button[aria-pressed="true"] { color: var(--tint-ink); }
+.seg button:hover, .seg button[aria-pressed="true"] { color: var(--ink); }
 .seg-bubble {
   position: absolute; z-index: 0; top: 0; left: 0; border-radius: 999px; pointer-events: none;
-  background: var(--tint-fill);
-  box-shadow: var(--tint-edge), var(--tint-glow);
-  transition: transform 0.55s var(--spring), width 0.55s var(--spring), height 0.3s;
+  background: var(--knob); box-shadow: var(--knob-shadow);
+  transition: transform 0.32s var(--slide), width 0.32s var(--slide), height 0.32s var(--slide);
 }
-/* Without glass.js the pressed button carries the fill itself. */
-.seg:not(.has-bubble) button[aria-pressed="true"] { background: var(--tint-fill); }
+/* Without glass.js the pressed button carries the knob itself. */
+.seg:not(.has-bubble) button[aria-pressed="true"] { background: var(--knob); box-shadow: var(--knob-shadow); }
 
 /* ── Tags, utterances and the pipeline demo ────────────────────────────── */
-.tag { display: inline-block; font: 600 12px/1.5 var(--text); padding: 2px 10px; border-radius: 999px; vertical-align: 1px; }
-.tag.memory { color: var(--fur-deep); background: var(--fur-wash); }
-.tag.dictionary { color: var(--teal); background: var(--teal-wash); }
-.tag.pack { color: var(--olive); background: var(--olive-wash); }
-.tag.alt, .tag.bad { color: var(--danger); background: var(--danger-wash); }
-.tag.good { color: var(--success); background: var(--success-wash); }
-.tag.wait { color: var(--warning); background: var(--warning-wash); }
-.tag.no { color: var(--ink-2); background: var(--sunk); }
+.tag { display: inline-block; font: 700 12px/1.5 var(--sans); padding: 2px 10px; border-radius: 999px; vertical-align: 1px; white-space: nowrap; }
+.tag.memory { color: var(--accent); background: var(--select); }
+.tag.dictionary { color: var(--mauve); background: color-mix(in srgb, var(--mauve) 16%, transparent); }
+.tag.pack { color: var(--ink-2); background: var(--sheet-2); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+.tag.alt, .tag.bad { color: var(--fail); background: color-mix(in srgb, var(--fail) 13%, transparent); }
+.tag.good { color: var(--pass); background: color-mix(in srgb, var(--pass) 15%, transparent); }
+.tag.wait { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.tag.no { color: var(--ink-2); background: var(--sheet-2); }
 .utter {
   font-family: var(--mono); font-size: 14px; line-height: 1.55;
-  background: var(--well); box-shadow: var(--well-edge);
-  border-radius: 14px; padding: 11px 14px; overflow-wrap: anywhere;
+  background: var(--sheet-2); border-radius: var(--r-nested); padding: 11px 14px; overflow-wrap: anywhere;
 }
 .utter mark { background: transparent; color: inherit; border-bottom: 2px solid currentColor; padding: 0 1px; }
-.utter mark.bad { color: var(--danger); }
-.utter mark.fix { color: var(--success); }
+.utter mark.bad { color: var(--fail); }
+.utter mark.fix { color: var(--pass); }
 
 .stages { display: grid; }
 .stage { display: grid; grid-template-columns: 34px 1fr; gap: 0 14px; }
 .stage .rail { display: flex; flex-direction: column; align-items: center; }
 .stage .dot {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  font: 700 13px/1 var(--mono); color: var(--tint-ink);
-  background: var(--tint-fill); box-shadow: var(--tint-edge), var(--tint-glow);
+  font: 800 13px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--accent);
+  background: var(--select); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .stage .rail::after {
   content: ""; flex: 1; width: 2px; margin-block: 5px; border-radius: 2px;
-  background: linear-gradient(color-mix(in srgb, var(--fur) 55%, transparent), color-mix(in srgb, var(--fur) 8%, transparent));
+  background: linear-gradient(color-mix(in srgb, var(--accent) 45%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
 }
 .stage:last-child .rail::after { display: none; }
 .stage .body { padding-bottom: 18px; display: grid; gap: 6px; min-width: 0; }
-.stage h3 { margin: 4px 0 0; font: 650 17px/1.3 var(--text); letter-spacing: -0.01em; }
+.stage h3 { margin: 4px 0 0; font: 700 17px/1.3 var(--sans); }
 .stage .note { margin: 0; color: var(--ink-2); font-size: 15px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .mando-field::before { animation: none; }
-  html { scroll-behavior: auto; }
-  .btn, .hoverlift, .seg-bubble { transition: none; }
-  .btn:hover, .hoverlift:hover { transform: none; }
-}
+/* ── System settings ───────────────────────────────────────────────────── */
+/* Reduced transparency: glass and buttons go opaque, no blur, no sheen. */
 @media (prefers-reduced-transparency: reduce) {
-  :root { --lg-blur: 0px; --lg-fill: var(--sheet); --well: var(--sheet); }
-  .mando-field::before { opacity: calc(var(--field-strength) * 0.35); }
+  .lg, .btn-glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .lg { background: var(--sheet); }
+  .lg::after { display: none; }
+  .btn-glass, .btn-glass:hover { background: var(--sheet-2); box-shadow: inset 0 0 0 1px var(--sheet-line); }
+  .btn-primary, .btn-primary:hover { background: var(--accent); box-shadow: none; }
+  .nav-links a:not(.btn):hover { background: var(--sheet-hover); }
+  .live { background: var(--live-glass); box-shadow: inset 0 0 0 1px var(--live); }   /* a flat tint */
 }
-@media (prefers-contrast: more) {
-  :root { --lg-edge: rgb(80 45 15 / 0.6); --ink-2: #4a3a2e; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .btn:hover, .hoverlift:hover { transform: none; }
 }

@@ -80,10 +80,7 @@ export default function IntegrationsView() {
 
   return (
     <div className="max-w-lg mx-auto w-full px-6 py-6 space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t("integrations.title")}</h2>
-        <p className="text-xs text-muted-foreground/70 mt-0.5">{t("integrations.description")}</p>
-      </div>
+      <p className="text-sm text-muted-foreground">{t("integrations.description")}</p>
 
       <SettingsPanel>
         <SettingsPanelRow>

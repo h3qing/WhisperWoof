@@ -109,7 +109,7 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="text-xs font-semibold text-muted-foreground">
               Speech-to-text
             </span>
             {sttLocal ? (
@@ -135,7 +135,7 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="text-xs font-semibold text-muted-foreground">
               Cleanup
             </span>
             {polishOn && (polishLocal ? (

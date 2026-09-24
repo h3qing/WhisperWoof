@@ -118,7 +118,7 @@ function isOAuthBrowserRedirect() {
         body {
           background: var(--bg);
           color: var(--text-primary);
-          font-family: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          font-family: "Nunito", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           transition: background 150ms ease, color 150ms ease;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;

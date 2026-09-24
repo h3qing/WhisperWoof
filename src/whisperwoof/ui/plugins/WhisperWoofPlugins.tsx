@@ -410,10 +410,7 @@ export default function WhisperWoofPlugins({ className }: WhisperWoofPluginsProp
     <div className={cn("flex flex-col h-full max-w-3xl mx-auto w-full px-6 py-4", className)}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-base font-medium text-foreground">Plugins</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Manage MCP server plugins for voice routing</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Manage MCP server plugins for voice routing</p>
         <button
           onClick={() => setIsAdding(true)}
           className="flex items-center gap-1.5 h-7 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"

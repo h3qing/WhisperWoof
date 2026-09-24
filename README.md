@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v1.18.0-C87B3A?style=flat-square" alt="v1.18.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.0.0-C87B3A?style=flat-square" alt="v2.0.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-990%20passing-brightgreen?style=flat-square" alt="990 tests passing">
+  <img src="https://img.shields.io/badge/tests-1182%20passing-brightgreen?style=flat-square" alt="1182 tests passing">
 </p>
 
 <p align="center">
@@ -65,7 +65,7 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 
 Hands-free: **double-tap Fn** to lock recording on, then tap once to stop and paste.
 
-**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid, the tail that may still change is underlined; on release it's re-checked by your transcription model, polished, and pasted.
+**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid ink, the tail that may still change sits in frosted glass; on release it's re-checked by your transcription model, polished, and pasted.
 
 ```
 Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
@@ -126,6 +126,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 ### Privacy & Design
 - **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
 - **MCP plugins** — Route voice to Todoist, Notion, Slack. Any MCP server works as a plugin.
+- **Glass in Mando's colors** *(new in 2.0)* — Liquid glass only for what's still moving (the sidebar, menus, the dictation overlay), solid sheets for what has landed, pill-shaped controls, the rounded Nunito font, and a brown-black dark mode. Design rules live in [DESIGN.md](DESIGN.md).
 - **Animated Mando** — The floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while it's transcribed and polished, and a little hop when it lands. (Default `full` indicator style; the `compact` and `dot` styles stay minimal.)
 
 </td>

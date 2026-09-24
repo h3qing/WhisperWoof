@@ -16,9 +16,9 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   return (
     <div className={`space-y-3 ${className}`}>
       <div>
-        <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
+        <h3 className="text-[15px] font-bold text-foreground tracking-[-0.01em]">{title}</h3>
         {description && (
-          <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+          <p className="text-[13px] text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
         )}
       </div>
       {children}
@@ -39,15 +39,16 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   variant = "default",
   className = "",
 }) => {
-  const baseClasses = "space-y-3 p-3 rounded-lg border";
+  // A nested panel on the settings sheet: sheet radius minus its inset, no shadow.
+  const baseClasses = "space-y-3 p-3.5 rounded-[14px] border";
   const variantClasses = {
-    default: "bg-card border-border-subtle shadow-card",
+    default: "bg-surface-1 border-transparent",
     highlighted: "bg-primary/8 border-primary/25",
   };
 
   return (
     <div className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
-      {title && <h4 className="text-xs font-medium text-foreground">{title}</h4>}
+      {title && <h4 className="text-[13px] font-semibold text-foreground">{title}</h4>}
       {children}
     </div>
   );
@@ -69,9 +70,9 @@ export const SettingsRow: React.FC<SettingsRowProps> = ({
   return (
     <div className={`flex items-center justify-between gap-4 ${className}`}>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-foreground">{label}</p>
+        <p className="text-sm font-semibold text-foreground">{label}</p>
         {description && (
-          <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+          <p className="text-[13px] text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
         )}
       </div>
       <div className="shrink-0">{children}</div>
@@ -88,7 +89,7 @@ export function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg border border-border-subtle bg-card shadow-card divide-y divide-border-subtle ${className}`}
+      className={`rounded-[14px] bg-surface-1 divide-y divide-border ${className}`}
     >
       {children}
     </div>
@@ -108,9 +109,9 @@ export function SettingsPanelRow({
 export function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
+      <h3 className="text-[15px] font-bold text-foreground tracking-[-0.01em]">{title}</h3>
       {description && (
-        <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+        <p className="text-[13px] text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
       )}
     </div>
   );
