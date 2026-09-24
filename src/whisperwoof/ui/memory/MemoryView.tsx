@@ -1,9 +1,10 @@
 /**
  * MemoryView — Context-Aware Vocabulary + Word Packs Dashboard
  *
- * Two sections:
+ * Three sections:
  *   1. Your Words — auto-learned + manually added vocabulary, grouped by app context
- *   2. Word Packs — curated vocabulary packs with enable/disable + per-entry editing
+ *   2. Automatic fixes — approved swaps (SwapsSection)
+ *   3. Word Packs — curated vocabulary packs with enable/disable + per-entry editing
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -23,6 +24,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
+import SwapsSection from "./SwapsSection";
 
 // --- Types ---
 
@@ -619,6 +621,8 @@ export default function MemoryView({ className }: MemoryViewProps) {
             )}
           </>
         )}
+
+        <SwapsSection refreshKey={allWords} />
 
         {/* Word Packs section */}
         {packs.length > 0 && (

@@ -69,6 +69,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("memory-swap-offer", listener);
   },
   confirmMemorySwap: (from, to) => ipcRenderer.invoke("whisperwoof-confirm-memory-swap", from, to),
+  whisperwoofGetMemorySwaps: () => ipcRenderer.invoke("whisperwoof-get-memory-swaps"),
+  onMemorySwapsUpdated: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("memory-swaps-updated", listener);
+    return () => ipcRenderer.removeListener("memory-swaps-updated", listener);
+  },
   declineMemorySwap: (from, to) => ipcRenderer.invoke("whisperwoof-decline-memory-swap", from, to),
   onCorrectionsLearned: (callback) => {
     const listener = (_event, words) => callback?.(words);

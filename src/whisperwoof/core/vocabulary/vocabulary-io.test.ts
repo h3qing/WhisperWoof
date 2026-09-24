@@ -143,3 +143,24 @@ describe("vocabulary recordCorrection, offers and approved swaps", () => {
     expect(vocab.applyMemoryReplacements("deploy to super base").text).toBe("deploy to super base");
   });
 });
+
+describe("vocabulary getMemorySwaps", () => {
+  it("lists approved and typed swaps, not pending or declined ones, sorted by word", () => {
+    const vocab = loadVocabulary();
+    vocab.addWord("Heqing", { alternatives: ["he ching"] });
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    vocab.recordCorrection({ from: "cube cuddle", to: "Kubectl" });
+    expect(vocab.getMemorySwaps()).toEqual([{ from: "he ching", to: "Heqing" }]);
+
+    vocab.confirmSwap({ from: "super base", to: "Supabase" });
+    vocab.confirmSwap({ from: "cube cuddle", to: "Kubectl" });
+    expect(vocab.getMemorySwaps()).toEqual([
+      { from: "he ching", to: "Heqing" },
+      { from: "cube cuddle", to: "Kubectl" },
+      { from: "super base", to: "Supabase" },
+    ]);
+
+    vocab.declineSwap({ from: "cube cuddle", to: "Kubectl" });
+    expect(vocab.getMemorySwaps().map((s: { to: string }) => s.to)).toEqual(["Heqing", "Supabase"]);
+  });
+});

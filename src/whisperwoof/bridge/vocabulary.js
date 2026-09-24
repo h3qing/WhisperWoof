@@ -209,6 +209,13 @@ function recordCorrection({ from, to, bundleId }) {
   return { success: true, offer: offer ? { from, to } : null };
 }
 
+/** Approved and typed swaps, for the Memory view: sorted by word, then mishearing. */
+function getMemorySwaps() {
+  return [...buildReplacementRules(loadVocabulary())].sort(
+    (a, b) => a.to.localeCompare(b.to) || a.from.localeCompare(b.from)
+  );
+}
+
 /** The user approved a swap: from now on `from` is changed to `to`. */
 function confirmSwap({ from, to }) {
   const entries = loadVocabulary();
@@ -408,6 +415,7 @@ module.exports = {
   removeWord,
   forgetLearnedWords,
   recordCorrection,
+  getMemorySwaps,
   confirmSwap,
   declineSwap,
   unlearnCorrection,

@@ -357,6 +357,7 @@ class IPCHandlers {
     const { recordCorrection, unlearnCorrection, declineSwap } = require("../whisperwoof/bridge/vocabulary");
 
     for (const swap of reversals) declineSwap(swap);
+    if (reversals.length > 0) this.broadcastToWindows("memory-swaps-updated");
 
     const plan = planSessionLearning(pairs, this._autoLearnSession.pairs);
     this._autoLearnSession = { ...this._autoLearnSession, pairs: plan.session };
@@ -2710,6 +2711,16 @@ class IPCHandlers {
       }
     });
 
+    // Memory: approved swaps, for the Memory view
+    ipcMain.handle("whisperwoof-get-memory-swaps", async () => {
+      try {
+        return require("../whisperwoof/bridge/vocabulary").getMemorySwaps();
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-memory-swaps failed: ${error.message}`);
+        return [];
+      }
+    });
+
     // Memory: the answer to "Always change X to Y?"
     const swapPair = (from, to) =>
       typeof from === "string" && typeof to === "string" && from.trim() && to.trim() ? { from, to } : null;
@@ -2717,7 +2728,9 @@ class IPCHandlers {
       const pair = swapPair(from, to);
       if (!pair) return { success: false };
       try {
-        return require("../whisperwoof/bridge/vocabulary").confirmSwap(pair);
+        const result = require("../whisperwoof/bridge/vocabulary").confirmSwap(pair);
+        this.broadcastToWindows("memory-swaps-updated");
+        return result;
       } catch (error) {
         debugLogger.log(`[WhisperWoof] confirm-memory-swap failed: ${error.message}`);
         return { success: false };
@@ -2727,7 +2740,9 @@ class IPCHandlers {
       const pair = swapPair(from, to);
       if (!pair) return { success: false };
       try {
-        return require("../whisperwoof/bridge/vocabulary").declineSwap(pair);
+        const result = require("../whisperwoof/bridge/vocabulary").declineSwap(pair);
+        this.broadcastToWindows("memory-swaps-updated");
+        return result;
       } catch (error) {
         debugLogger.log(`[WhisperWoof] decline-memory-swap failed: ${error.message}`);
         return { success: false };

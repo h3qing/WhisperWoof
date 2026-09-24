@@ -395,6 +395,8 @@ declare global {
       onMemorySwapOffer?: (callback: (offer: { from: string; to: string }) => void) => () => void;
       confirmMemorySwap?: (from: string, to: string) => Promise<{ success: boolean }>;
       declineMemorySwap?: (from: string, to: string) => Promise<{ success: boolean }>;
+      whisperwoofGetMemorySwaps?: () => Promise<Array<{ from: string; to: string }>>;
+      onMemorySwapsUpdated?: (callback: () => void) => () => void;
       undoLearnedCorrections?: (words: string[]) => Promise<{ success: boolean }>;
 
       // Note operations
