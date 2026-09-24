@@ -116,6 +116,7 @@ class IPCHandlers {
     this._autoLearnEnabled = true; // Default on, synced from renderer
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
+    this._autoLearnSessionPairs = new Set(); // pairs learned from the current paste
     this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
@@ -258,53 +259,21 @@ class IPCHandlers {
     const { originalText, newFieldValue } = this._autoLearnLatestData;
     this._autoLearnLatestData = null;
 
-    // Detect active app for context-aware Memory tagging
-    let bundleId = null;
-    try {
-      const { detectActiveApp } = require("../whisperwoof/bridge/context-detector");
-      const app = await detectActiveApp();
-      bundleId = app?.bundleId ?? null;
-    } catch {
-      // Context detection is optional, proceed without it
+    // Tag Memory with the app the text was pasted into (captured at hotkey
+    // press); fall back to whatever is frontmost now.
+    let bundleId = this.textEditMonitor?.lastTargetBundleId ?? null;
+    if (!bundleId) {
+      try {
+        const { detectActiveApp } = require("../whisperwoof/bridge/context-detector");
+        const app = await detectActiveApp();
+        bundleId = app?.bundleId ?? null;
+      } catch {
+        // Context detection is optional, proceed without it
+      }
     }
 
     try {
-      const { extractCorrections } = require("../utils/correctionLearner");
-      const currentDict = this._getDictionarySafe();
-      const corrections = extractCorrections(originalText, newFieldValue, currentDict);
-      debugLogger.debug("[AutoLearn] Corrections result", {
-        corrections,
-        dictSize: currentDict.length,
-        bundleId,
-      });
-
-      if (corrections.length > 0) {
-        const updatedDict = [...currentDict, ...corrections];
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
-          return;
-        }
-
-        this.broadcastToWindows("dictionary-updated", updatedDict);
-
-        // WhisperWoof Memory: also save to context-aware vocabulary
-        try {
-          const { addWord } = require("../whisperwoof/bridge/vocabulary");
-          for (const word of corrections) {
-            addWord(word, { source: "auto-learn", category: "general", bundleId });
-          }
-          debugLogger.debug("[AutoLearn] Saved to Memory vocabulary", { count: corrections.length, bundleId });
-        } catch (vocabErr) {
-          debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
-        }
-
-        // Show the overlay so the toast is visible (it may have been hidden after dictation)
-        this.windowManager.showDictationPanel();
-        this.broadcastToWindows("corrections-learned", corrections);
-        debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
-      }
+      this._learnCorrections(originalText, newFieldValue, bundleId);
     } catch (error) {
       debugLogger.debug("[AutoLearn] Error processing corrections", { error: error.message });
     }
@@ -316,6 +285,49 @@ class IPCHandlers {
     } catch (styleError) {
       debugLogger.debug("[WhisperWoof] Style learning failed", { error: styleError.message });
     }
+  }
+
+  /**
+   * Learn from one edit of a pasted transcript: every misheard -> corrected
+   * pair goes to Memory (it can become a replacement rule), and words new to
+   * the Dictionary are added there and announced with the undo toast.
+   */
+  _learnCorrections(originalText, newFieldValue, bundleId) {
+    const { extractCorrections, extractCorrectionPairs } = require("../utils/correctionLearner");
+
+    // Read the Dictionary directly (it throws on failure): treating a failed
+    // read as empty would overwrite the whole Dictionary with these words.
+    const currentDict = this.databaseManager.getDictionary();
+
+    // Once per pasted text, so later keystrokes don't count the same fix again.
+    try {
+      const { recordCorrection } = require("../whisperwoof/bridge/vocabulary");
+      for (const pair of extractCorrectionPairs(originalText, newFieldValue)) {
+        const key = `${pair.from.toLowerCase()}\u0000${pair.to}`;
+        if (this._autoLearnSessionPairs.has(key)) continue;
+        this._autoLearnSessionPairs.add(key);
+        recordCorrection({ ...pair, bundleId });
+      }
+    } catch (vocabErr) {
+      debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
+    }
+
+    const corrections = extractCorrections(originalText, newFieldValue, currentDict);
+    debugLogger.debug("[AutoLearn] Corrections result", { corrections, bundleId });
+    if (corrections.length === 0) return;
+
+    const updatedDict = [...currentDict, ...corrections];
+    const saveResult = this.databaseManager.setDictionary(updatedDict);
+    if (saveResult?.success === false) {
+      debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
+      return;
+    }
+    this.broadcastToWindows("dictionary-updated", updatedDict);
+
+    // Show the overlay so the toast is visible (it may have been hidden after dictation)
+    this.windowManager.showDictationPanel();
+    this.broadcastToWindows("corrections-learned", corrections);
+    debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
   }
 
   _syncStartupEnv(setVars, clearVars = []) {
@@ -909,6 +921,7 @@ class IPCHandlers {
             debugLogger.debug("[AutoLearn] Starting monitoring", {
               textPreview: text.substring(0, 80),
             });
+            this._autoLearnSessionPairs = new Set();
             this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
           } catch (err) {
             debugLogger.debug("[AutoLearn] Failed to start monitoring", { error: err.message });
@@ -2625,10 +2638,23 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (_event, bundleId) => {
       try {
-        return this._getSttHintPrompt(bundleId);
+        // The app being dictated into, captured at hotkey press, boosts its words.
+        return this._getSttHintPrompt(bundleId || this.textEditMonitor?.lastTargetBundleId);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-pack-enhanced-prompt failed: ${error.message}`);
         return "";
+      }
+    });
+
+    // Memory: swap learned mishearings into a transcript before polish
+    ipcMain.handle("whisperwoof-apply-memory-replacements", async (_event, text) => {
+      if (typeof text !== "string" || !text) return { text: text || "", applied: [] };
+      try {
+        const { applyMemoryReplacements } = require("../whisperwoof/bridge/vocabulary");
+        return applyMemoryReplacements(text);
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] apply-memory-replacements failed: ${error.message}`);
+        return { text, applied: [] };
       }
     });
 

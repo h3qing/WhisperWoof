@@ -1,6 +1,7 @@
 /**
  * Extracts transcription corrections by diffing original text against
- * the edited field value. Returns corrected words to add to the custom dictionary.
+ * the edited field value: the corrected words (for the custom dictionary)
+ * and misheard -> corrected pairs (for Memory replacements).
  */
 
 /** Levenshtein edit distance between two strings */
@@ -79,7 +80,11 @@ function findEditedRegion(originalText, fieldValue) {
   return fieldWords.slice(bestStart, bestStart + windowSize).join(" ");
 }
 
-/** Word-level LCS to find [originalWord, editedWord] substitution pairs. */
+/**
+ * Word-level LCS; each maximal block of changed words becomes one
+ * [originalPhrase, editedPhrase] pair, so a split word stays whole
+ * ("super base" -> "Supabase").
+ */
 function findSubstitutions(origWords, editedWords) {
   const m = origWords.length;
   const n = editedWords.length;
@@ -112,18 +117,71 @@ function findSubstitutions(origWords, editedWords) {
     }
   }
 
-  // Consecutive [origWord, null] + [null, editedWord] = substitution
   const subs = [];
-  for (let k = 0; k < aligned.length - 1; k++) {
-    const [origW, editW] = aligned[k];
-    const [nextOrigW, nextEditW] = aligned[k + 1];
-
-    if (origW !== null && editW === null && nextOrigW === null && nextEditW !== null) {
-      subs.push([origW, nextEditW]);
+  let from = [];
+  let to = [];
+  const flush = () => {
+    if (from.length > 0 && to.length > 0) subs.push([from.join(" "), to.join(" ")]);
+    from = [];
+    to = [];
+  };
+  for (const [origW, editW] of aligned) {
+    if (origW !== null && editW !== null) {
+      flush();
+      continue;
     }
+    if (origW !== null) from = [...from, origW];
+    if (editW !== null) to = [...to, editW];
   }
+  flush();
 
   return subs;
+}
+
+/**
+ * Misheard -> corrected pairs from a user's edits to pasted transcription
+ * text. Not filtered by the dictionary, so a repeated fix still counts.
+ *
+ * @param {string} originalText - The text that was originally pasted
+ * @param {string} fieldValue - The current value of the text field
+ * @returns {{from: string, to: string}[]}
+ */
+function extractCorrectionPairs(originalText, fieldValue) {
+  if (!originalText || !fieldValue) return [];
+  if (originalText === fieldValue) return [];
+
+  const editedRegion = findEditedRegion(originalText, fieldValue);
+  if (editedRegion === originalText) return [];
+
+  const origWords = tokenize(originalText);
+  const editedWords = tokenize(editedRegion);
+  if (origWords.length === 0 || editedWords.length === 0) return [];
+
+  // If more than 50% of words changed, this is a rewrite, not corrections
+  const subs = findSubstitutions(origWords, editedWords);
+  const changedWords = subs.reduce((n, [from]) => n + from.split(" ").length, 0);
+  if (changedWords > origWords.length * 0.5) return [];
+
+  const seen = new Set();
+  const pairs = [];
+  for (const [from, to] of subs) {
+    const fromKey = from.replace(/\s+/g, "").toLowerCase();
+    const toKey = to.replace(/\s+/g, "").toLowerCase();
+    if (fromKey === toKey) continue;
+    if (toKey.length < 3) continue;
+
+    // 0.65 threshold allows phonetic corrections like "Shunade" -> "Sinead" (dist 4/7 = 0.57)
+    // while filtering out unrelated word replacements.
+    const dist = editDistance(fromKey, toKey);
+    if (dist / Math.max(fromKey.length, toKey.length) > 0.65) continue;
+
+    const pairKey = `${from.toLowerCase()}\u0000${to}`;
+    if (seen.has(pairKey)) continue;
+    seen.add(pairKey);
+    pairs.push({ from, to });
+  }
+
+  return pairs;
 }
 
 /**
@@ -135,45 +193,19 @@ function findSubstitutions(origWords, editedWords) {
  * @returns {string[]} Array of corrected words to add to the dictionary
  */
 function extractCorrections(originalText, fieldValue, existingDictionary) {
-  if (!originalText || !fieldValue) return [];
-  if (originalText === fieldValue) return [];
-
-  const editedRegion = findEditedRegion(originalText, fieldValue);
-  if (editedRegion === originalText) return [];
-
-  const origWords = tokenize(originalText);
-  const editedWords = tokenize(editedRegion);
-
-  if (origWords.length === 0 || editedWords.length === 0) return [];
-
-  // If more than 50% of words changed, this is a rewrite, not corrections
-  const subs = findSubstitutions(origWords, editedWords);
-  if (subs.length > origWords.length * 0.5) return [];
-
   const safeDict = Array.isArray(existingDictionary) ? existingDictionary : [];
   const dictSet = new Set(safeDict.map((w) => w.toLowerCase()));
-  const seenCorrections = new Set();
+  const seen = new Set();
   const results = [];
 
-  for (const [origWord, correctedWord] of subs) {
-    const normalizedCorrected = correctedWord.toLowerCase();
-
-    if (dictSet.has(normalizedCorrected)) continue;
-    if (seenCorrections.has(normalizedCorrected)) continue;
-    if (origWord.toLowerCase() === normalizedCorrected) continue;
-    if (correctedWord.length < 3) continue;
-
-    // 0.65 threshold allows phonetic corrections like "Shunade" → "Sinead" (dist 4/7 = 0.57)
-    // while filtering out unrelated word replacements.
-    const dist = editDistance(origWord.toLowerCase(), correctedWord.toLowerCase());
-    const maxLen = Math.max(origWord.length, correctedWord.length);
-    if (dist / maxLen > 0.65) continue;
-
-    results.push(correctedWord);
-    seenCorrections.add(normalizedCorrected);
+  for (const { to } of extractCorrectionPairs(originalText, fieldValue)) {
+    const key = to.toLowerCase();
+    if (dictSet.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    results.push(to);
   }
 
   return results;
 }
 
-module.exports = { extractCorrections };
+module.exports = { extractCorrections, extractCorrectionPairs };

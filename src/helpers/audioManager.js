@@ -1306,7 +1306,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
-    const result = await this._cleanupTranscription(text, source);
+    const remembered = await this.applyMemoryReplacements(text);
+    const result = await this._cleanupTranscription(remembered, source);
     // Deterministic punctuation pass: Chinese output gets real full-width
     // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
     // untouched. Costs the model nothing (pure string transform on the output).
@@ -1314,6 +1315,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return typeof result === "string"
       ? formatSpokenEnumeration(normalizeCjkPunctuation(result))
       : result;
+  }
+
+  /**
+   * Swap mishearings Memory learned from your corrections ("super base" ->
+   * Supabase) into the transcript before polish. Works for every engine,
+   * including those that take no STT hints (Parakeet, X-ASR, SenseVoice).
+   */
+  async applyMemoryReplacements(text) {
+    if (typeof text !== "string" || !text || !window.electronAPI?.whisperwoofApplyMemoryReplacements) {
+      return text;
+    }
+    try {
+      const { text: replaced, applied } =
+        await window.electronAPI.whisperwoofApplyMemoryReplacements(text);
+      if (applied.length > 0) logger.debug("Memory replacements applied", { applied }, "transcription");
+      return replaced;
+    } catch {
+      return text;
+    }
   }
 
   async _cleanupTranscription(text, source) {

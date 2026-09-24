@@ -82,3 +82,38 @@ describe("vocabulary forgetLearnedWords", () => {
     expect(vocab.getSttHints()).toEqual([]);
   });
 });
+
+describe("vocabulary recordCorrection + applyMemoryReplacements", () => {
+  it("replaces a learned multi-word mishearing from the first fix", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supabase", bundleId: "com.microsoft.VSCode" });
+    expect(vocab.applyMemoryReplacements("deploy to super base")).toEqual({
+      text: "deploy to Supabase",
+      applied: [{ from: "super base", to: "Supabase" }],
+    });
+    expect(vocab.getVocabularyForApp("com.microsoft.VSCode").map((e: { word: string }) => e.word)).toEqual([
+      "Supabase",
+    ]);
+  });
+
+  it("replaces a single misheard word only after the second fix", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "Superbase", to: "Supabase" });
+    expect(vocab.applyMemoryReplacements("to Superbase").text).toBe("to Superbase");
+    vocab.recordCorrection({ from: "Superbase", to: "Supabase" });
+    expect(vocab.applyMemoryReplacements("to Superbase").text).toBe("to Supabase");
+  });
+
+  it("keeps learned mishearings out of STT hints", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    expect(vocab.getSttHints()).toEqual(["Supabase"]);
+  });
+
+  it("stops replacing once the learned word is undone", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    vocab.forgetLearnedWords(["Supabase"]);
+    expect(vocab.applyMemoryReplacements("deploy to super base").text).toBe("deploy to super base");
+  });
+});

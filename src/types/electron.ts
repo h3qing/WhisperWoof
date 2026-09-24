@@ -1442,6 +1442,9 @@ declare global {
       whisperwoofImportWords: (words: Array<string | { word: string; category?: string; alternatives?: string[] }>, category?: string) => Promise<{ success: boolean; added?: number; total?: number; error?: string }>;
       whisperwoofGetVocabularyStats: () => Promise<{ total: number; max: number; categories: Record<string, number>; topUsed: Array<{ word: string; usageCount: number }> }>;
       whisperwoofGetSttHints: () => Promise<string[]>;
+      whisperwoofApplyMemoryReplacements?: (
+        text: string
+      ) => Promise<{ text: string; applied: Array<{ from: string; to: string }> }>;
 
       // WhisperWoof — Backtrack correction
 

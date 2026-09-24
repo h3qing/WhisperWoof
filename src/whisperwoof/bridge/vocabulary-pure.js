@@ -179,6 +179,55 @@ function removeLearnedWords(entries, words) {
 }
 
 /**
+ * Record one learned correction (misheard `from` -> corrected `to`) in
+ * Memory. A new word becomes an auto-learn entry; an existing entry (any
+ * source) gains `from` as an alternative. `learnedCounts` counts how often
+ * each mishearing was fixed, which decides when it becomes a replacement
+ * rule (see core/vocabulary/memory-replacements.js). Returns a new array.
+ */
+function applyLearnedCorrection(entries, { from, to, bundleId, now, id }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const fromKey = from.toLowerCase();
+  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
+  const appContext = (prev) =>
+    prev
+      ? { ...prev, count: prev.count + 1, lastSeen: now }
+      : { count: 1, firstSeen: now, lastSeen: now };
+
+  if (idx === -1) {
+    if (list.length >= MAX_ENTRIES) return list;
+    return [
+      ...list,
+      {
+        id,
+        word: to,
+        category: "general",
+        alternatives: [from],
+        createdAt: now,
+        source: "auto-learn",
+        usageCount: 0,
+        appContexts: bundleId ? { [bundleId]: appContext(null) } : {},
+        learnedCounts: { [fromKey]: 1 },
+      },
+    ];
+  }
+
+  const entry = list[idx];
+  const alternatives = entry.alternatives || [];
+  const counts = entry.learnedCounts || {};
+  const contexts = entry.appContexts || {};
+  const updated = {
+    ...entry,
+    alternatives: alternatives.some((a) => a.toLowerCase() === fromKey)
+      ? alternatives
+      : [...alternatives, from],
+    learnedCounts: { ...counts, [fromKey]: (counts[fromKey] || 0) + 1 },
+    appContexts: bundleId ? { ...contexts, [bundleId]: appContext(contexts[bundleId]) } : contexts,
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
  * Drop `words` from the custom Dictionary (case-insensitive). Returns a new
  * array; used when a learned word is undone or deleted from Memory.
  */
@@ -196,6 +245,7 @@ module.exports = {
   flattenSttHints,
   removeLearnedWords,
   removeFromDictionary,
+  applyLearnedCorrection,
   computeVocabularyStats,
   planVocabularyImport,
 };

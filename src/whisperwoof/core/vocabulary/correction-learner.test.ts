@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { extractCorrections } from "../../../utils/correctionLearner";
+import { extractCorrections, extractCorrectionPairs } from "../../../utils/correctionLearner";
 
 describe("extractCorrections", () => {
   it("learns a single misheard word the user fixed", () => {
@@ -68,5 +68,49 @@ describe("extractCorrections", () => {
   it("returns [] for empty inputs", () => {
     expect(extractCorrections("", "x", [])).toEqual([]);
     expect(extractCorrections("x", "", [])).toEqual([]);
+  });
+});
+
+describe("extractCorrectionPairs", () => {
+  it("pairs a split word with its fix as one phrase", () => {
+    expect(extractCorrectionPairs("deploy to super base now", "deploy to Supabase now")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+  });
+
+  it("pairs a single misheard word", () => {
+    expect(extractCorrectionPairs("deploy to Superbase now", "deploy to Supabase now")).toEqual([
+      { from: "Superbase", to: "Supabase" },
+    ]);
+  });
+
+  it("keeps separate fixes in one edit apart", () => {
+    expect(
+      extractCorrectionPairs(
+        "ask shunade to ping cuberniz today",
+        "ask Sinead to ping Kubernetes today",
+      ),
+    ).toEqual([
+      { from: "shunade", to: "Sinead" },
+      { from: "cuberniz", to: "Kubernetes" },
+    ]);
+  });
+
+  it("does not filter by the dictionary (repeat fixes still count)", () => {
+    expect(extractCorrectionPairs("to Superbase now", "to Supabase now")).toHaveLength(1);
+  });
+
+  it("returns [] for rewrites, unrelated swaps, case-only and short fixes", () => {
+    expect(extractCorrectionPairs("send the report today", "ship quarterly numbers tomorrow")).toEqual([]);
+    expect(extractCorrectionPairs("meet at the cafe", "meet at the library")).toEqual([]);
+    expect(extractCorrectionPairs("ask bob today", "ask Bob today")).toEqual([]);
+    expect(extractCorrectionPairs("call el now", "call Al now")).toEqual([]);
+    expect(extractCorrectionPairs("", "x")).toEqual([]);
+  });
+
+  it("reports each pair once per edit", () => {
+    expect(
+      extractCorrectionPairs("use Superbase and Superbase auth", "use Supabase and Supabase auth"),
+    ).toEqual([{ from: "Superbase", to: "Supabase" }]);
   });
 });

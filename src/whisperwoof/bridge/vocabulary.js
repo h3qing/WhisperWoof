@@ -21,9 +21,12 @@ const {
   isDuplicateWord,
   flattenSttHints,
   removeLearnedWords,
+  applyLearnedCorrection,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
+
+const { buildReplacementRules, applyReplacements } = require("../core/vocabulary/memory-replacements");
 
 const VOCAB_FILE = path.join(app.getPath("userData"), "whisperwoof-vocabulary.json");
 const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
@@ -173,6 +176,25 @@ function removeWord(id) {
   return { success: true, entry: removed };
 }
 
+/** Remember one misheard -> corrected pair from a fixed transcript. */
+function recordCorrection({ from, to, bundleId }) {
+  const entries = loadVocabulary();
+  const updated = applyLearnedCorrection(entries, {
+    from,
+    to,
+    bundleId,
+    now: new Date().toISOString(),
+    id: `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  });
+  if (updated !== entries) saveVocabulary(updated);
+  return { success: updated !== entries };
+}
+
+/** Swap learned mishearings in a transcript for the words Memory knows. */
+function applyMemoryReplacements(text) {
+  return applyReplacements(text, buildReplacementRules(loadVocabulary()));
+}
+
 /** Undo auto-learned corrections (the "Learned X — undo" toast). */
 function forgetLearnedWords(words) {
   const entries = loadVocabulary();
@@ -306,6 +328,8 @@ module.exports = {
   updateWord,
   removeWord,
   forgetLearnedWords,
+  recordCorrection,
+  applyMemoryReplacements,
   removeAllWords,
   importWords,
   exportWords,

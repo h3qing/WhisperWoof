@@ -53,6 +53,7 @@ class TextEditMonitor extends EventEmitter {
     this._lastValue = null;
     this._stdoutBuffer = "";
     this.lastTargetPid = null;
+    this.lastTargetBundleId = null;
   }
 
   /**
@@ -63,16 +64,24 @@ class TextEditMonitor extends EventEmitter {
    */
   captureTargetPid() {
     if (process.platform !== "darwin") return;
+    // Also the bundle id: Memory boosts and tags words per app.
     const script =
-      'ObjC.import("AppKit"); $.NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier';
+      'ObjC.import("AppKit"); var a = $.NSWorkspace.sharedWorkspace.frontmostApplication; ' +
+      'a.processIdentifier + "|" + ObjC.unwrap(a.bundleIdentifier)';
     execFile("osascript", ["-l", "JavaScript", "-e", script], { timeout: 2000 }, (err, stdout) => {
       if (err) {
         this.lastTargetPid = null;
+        this.lastTargetBundleId = null;
       } else {
-        const pid = parseInt(stdout.trim(), 10);
+        const [pidText, bundleId] = stdout.trim().split("|");
+        const pid = parseInt(pidText, 10);
         this.lastTargetPid = isNaN(pid) ? null : pid;
+        this.lastTargetBundleId = bundleId && bundleId !== "undefined" ? bundleId : null;
       }
-      debugLogger.debug("[TextEditMonitor] Captured target PID", { pid: this.lastTargetPid });
+      debugLogger.debug("[TextEditMonitor] Captured target app", {
+        pid: this.lastTargetPid,
+        bundleId: this.lastTargetBundleId,
+      });
     });
   }
 

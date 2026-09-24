@@ -819,6 +819,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetSttHints: (bundleId) => ipcRenderer.invoke("whisperwoof-get-stt-hints", bundleId),
   whisperwoofGetVocabularyForApp: (bundleId) => ipcRenderer.invoke("whisperwoof-get-vocabulary-for-app", bundleId),
   whisperwoofGetTrackedApps: () => ipcRenderer.invoke("whisperwoof-get-tracked-apps"),
+  whisperwoofApplyMemoryReplacements: (text) =>
+    ipcRenderer.invoke("whisperwoof-apply-memory-replacements", text),
 
   // WhisperWoof: Vocabulary packs
   whisperwoofGetAvailablePacks: () => ipcRenderer.invoke("whisperwoof-get-available-packs"),
