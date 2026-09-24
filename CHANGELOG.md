@@ -5,7 +5,15 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
-## [1.20.1] - 2026-09-24 — Memory and Word Packs actually reach speech-to-text
+## [1.21.0] - 2026-09-24 — Memory learns what it misheard, and reaches every engine
+
+### Added
+- **Memory fixes the words it has misheard before.** Correct a transcript once ("super base" → Supabase) and Memory remembers the mishearing, not just the word. Next time, it is swapped in before polish, with every speech engine, including Parakeet, X-ASR and SenseVoice, which take no word hints. To keep ordinary words safe, a learned fix only applies when the corrected word looks like a name or term (a capital letter, digit or accent; never "their" → "there"). A multi-word mishearing applies after one fix, a single word after two identical fixes. Mishearings you type into Memory yourself apply straight away. Undo on "Learned X" or deleting the word removes them.
+- **Word hints in Auto language mode.** Local Whisper now uses your Memory, Dictionary and Word Pack words when the dictation language is Auto, not only when it is pinned. If the hints ever turn Chinese, Japanese or Korean speech into English (Whisper still detects the language correctly), that dictation is transcribed again without hints, and hints stay off until you next dictate in another language. Mixed Chinese and English keeps its hints.
+- **Words from the app you're dictating into come first.** Memory tags learned words with the app the text was pasted into and puts that app's words first in the hints.
+
+### Changed
+- **Word Packs are off by default.** Generic pack words pull Whisper toward them: with Brands & Products on, "Vercel" came out as "Versacell". Earlier versions didn't record whether you chose a pack yourself, so this update switches every pack off once; turn back on the ones you want in Memory → Word Packs, and from then on your choice sticks.
 
 ### Fixed
 - **Whisper was nudged toward the wrong spellings.** Every Memory word and Word Pack entry keeps "alternatives": how speech gets misheard ("air mez", "keen wah", "hero" for gyro). All of them went into the Whisper prompt, which Whisper reads as prior context, so they pushed it toward writing exactly those mishearings. Only correct spellings are sent now.
@@ -14,6 +22,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Dictionary words disappeared from the prompt** as soon as Memory or any Word Pack had words. Memory, the Dictionary and Word Packs are now merged.
 - **Undo on "Learned X" didn't stick.** It cleared the Dictionary but left the word in Memory, and the next keystroke in the same field learned it again. Undo now clears both and stops watching that field.
 - **Deleting a learned word only deleted it in one place.** Deleting it in Memory now clears the Dictionary copy, and deleting it in the Dictionary tab clears the Memory copy.
+- **Learning a word could wipe the Dictionary** if the Dictionary couldn't be read at that moment. Learning now skips that edit instead.
 
 ## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
 
