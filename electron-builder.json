@@ -221,8 +221,8 @@
       "height": 380
     },
     "contents": [
-      { "x": 140, "y": 196, "type": "file" },
-      { "x": 400, "y": 196, "type": "link", "path": "/Applications" }
+      { "x": 140, "y": 178, "type": "file" },
+      { "x": 400, "y": 178, "type": "link", "path": "/Applications" }
     ]
   },
   "publish": {
