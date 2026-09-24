@@ -1803,6 +1803,9 @@
       },
       "addedToDict": "{{words}} を辞書に追加しました",
       "undo": "元に戻す",
+      "swapOffer": "{{from}} を常に {{to}} に変更しますか？",
+      "swapAlways": "常に変更",
+      "swapNotNow": "今はしない",
       "accessibilityMissing": {
         "title": "アクセシビリティの許可が必要です",
         "description": "WhisperWoof がホットキーの検出とテキストの貼り付けを行うには、アクセシビリティの許可が必要です。コントロールパネルで有効にしてください。"

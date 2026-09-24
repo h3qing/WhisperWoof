@@ -9,6 +9,8 @@
  * math the runtime uses.
  */
 
+const { normalizePhrase } = require("../core/vocabulary/memory-replacements");
+
 const DEFAULT_CATEGORIES = Object.freeze(["names", "technical", "abbreviation", "general"]);
 const MAX_ENTRIES = 1000;
 
@@ -213,6 +215,8 @@ function applyLearnedCorrection(entries, { from, to, bundleId, now, id }) {
   }
 
   const entry = list[idx];
+  // The user said no to this swap (or reverted it): don't learn it again.
+  if ((entry.declinedAlternatives || []).includes(normalizePhrase(from))) return list;
   const alternatives = entry.alternatives || [];
   const counts = entry.learnedCounts || {};
   const contexts = entry.appContexts || {};
@@ -259,23 +263,55 @@ function unlearnCorrection(entries, { from, to }) {
   return list.map((e, i) => (i === idx ? updated : e));
 }
 
-/**
- * Forget a learned mishearing entirely (the user undid a swap it caused):
- * the alternative and its count go, the word stays. Alternatives the user
- * typed are kept. Returns the same array when nothing changes.
- */
-function dropAlternative(entries, { from, to }) {
-  const list = Array.isArray(entries) ? entries : [];
-  const fromKey = from.toLowerCase();
-  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
-  const entry = idx === -1 ? null : list[idx];
-  if (entry?.learnedCounts?.[fromKey] === undefined) return list;
+/** Index of the entry whose word is `to` (case-insensitive), or -1. */
+function findWord(list, to) {
+  return list.findIndex((e) => typeof e?.word === "string" && e.word.toLowerCase() === to.toLowerCase());
+}
 
-  const { [fromKey]: _dropped, ...learnedCounts } = entry.learnedCounts;
+/** learnedCounts without any key that normalizes to `key`. */
+function withoutCount(counts, key) {
+  return Object.fromEntries(Object.entries(counts || {}).filter(([k]) => normalizePhrase(k) !== key));
+}
+
+/**
+ * The user approved "Always change `from` to `to`": the mishearing becomes a
+ * swap rule (an alternative with no pending count). Returns a new array, or
+ * the same one when `to` isn't in Memory.
+ */
+function confirmAlternative(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = findWord(list, to);
+  if (idx === -1) return list;
+  const entry = list[idx];
+  const key = normalizePhrase(from);
+  const alternatives = entry.alternatives || [];
   const updated = {
     ...entry,
-    learnedCounts,
-    alternatives: (entry.alternatives || []).filter((a) => a.toLowerCase() !== fromKey),
+    alternatives: alternatives.some((a) => normalizePhrase(a) === key) ? alternatives : [...alternatives, from],
+    learnedCounts: withoutCount(entry.learnedCounts, key),
+    declinedAlternatives: (entry.declinedAlternatives || []).filter((d) => d !== key),
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
+ * The user said "Not now", or changed a swapped word back in the pasted text:
+ * forget the mishearing (learned, approved or typed) and never offer it
+ * again. The word itself stays. Returns a new array, or the same one when
+ * `to` isn't in Memory.
+ */
+function declineAlternative(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = findWord(list, to);
+  if (idx === -1) return list;
+  const entry = list[idx];
+  const key = normalizePhrase(from);
+  const declined = entry.declinedAlternatives || [];
+  const updated = {
+    ...entry,
+    alternatives: (entry.alternatives || []).filter((a) => normalizePhrase(a) !== key),
+    learnedCounts: withoutCount(entry.learnedCounts, key),
+    declinedAlternatives: declined.includes(key) ? declined : [...declined, key],
   };
   return list.map((e, i) => (i === idx ? updated : e));
 }
@@ -300,7 +336,8 @@ module.exports = {
   removeFromDictionary,
   applyLearnedCorrection,
   unlearnCorrection,
-  dropAlternative,
+  confirmAlternative,
+  declineAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 };

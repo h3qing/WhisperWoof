@@ -362,11 +362,55 @@ export default function App() {
       }
     });
 
+    // Memory asks before it ever swaps a word by itself.
+    const unsubscribeSwapOffer = window.electronAPI?.onMemorySwapOffer?.((offer) => {
+      if (!offer?.from || !offer?.to) return;
+      let toastId;
+      const answer = async (approve) => {
+        try {
+          await (approve
+            ? window.electronAPI?.confirmMemorySwap?.(offer.from, offer.to)
+            : window.electronAPI?.declineMemorySwap?.(offer.from, offer.to));
+        } catch {
+          // No answer recorded; Memory asks again the next time you make this fix.
+        }
+        dismiss(toastId);
+      };
+      toastId = toast({
+        title: t("app.toasts.swapOffer", { from: `\u201c${offer.from}\u201d`, to: `\u201c${offer.to}\u201d` }),
+        duration: 12000,
+        action: (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => answer(false)}
+              className="text-[10px] font-medium px-2.5 py-1 rounded-sm whitespace-nowrap
+                text-muted-foreground hover:text-foreground
+                bg-foreground/5 hover:bg-foreground/10
+                border border-border hover:border-border-hover
+                transition-all duration-150"
+            >
+              {t("app.toasts.swapNotNow")}
+            </button>
+            <button
+              onClick={() => answer(true)}
+              className="text-[10px] font-medium px-2.5 py-1 rounded-sm whitespace-nowrap
+                text-primary-foreground bg-primary hover:bg-primary/90
+                border border-primary/40
+                transition-all duration-150"
+            >
+              {t("app.toasts.swapAlways")}
+            </button>
+          </div>
+        ),
+      });
+    });
+
     return () => {
       unsubscribeFallback?.();
       unsubscribeFailed?.();
       unsubscribeAccessibility?.();
       unsubscribeCorrections?.();
+      unsubscribeSwapOffer?.();
     };
   }, [toast, dismiss, t]);
 

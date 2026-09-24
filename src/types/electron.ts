@@ -392,6 +392,9 @@ declare global {
       onDictionaryUpdated?: (callback: (words: string[]) => void) => () => void;
       setAutoLearnEnabled?: (enabled: boolean) => void;
       onCorrectionsLearned?: (callback: (words: string[]) => void) => () => void;
+      onMemorySwapOffer?: (callback: (offer: { from: string; to: string }) => void) => () => void;
+      confirmMemorySwap?: (from: string, to: string) => Promise<{ success: boolean }>;
+      declineMemorySwap?: (from: string, to: string) => Promise<{ success: boolean }>;
       undoLearnedCorrections?: (words: string[]) => Promise<{ success: boolean }>;
 
       // Note operations

@@ -8,16 +8,18 @@
  * (Parakeet, X-ASR, SenseVoice); it runs before polish for every local
  * engine and the batch cloud providers.
  *
- * A swap edits every future transcript, so which alternatives become rules
- * is deliberately strict:
- *   - typed by the user (not in `learnedCounts`): always;
- *   - learned from corrections: only after the same fix twice, and only when
- *     the misheard text can't be something the user really said —
- *       one word: not a real word (checked against a word list; with no
- *         list available, never), and not a number;
- *       several words: no everyday function words ("and I", "a team"), and
- *         the target looks like a name or term (a capital, digit or accent);
- *       never a fix that only extends or trims the text ("10" -> "10am").
+ * A swap edits every future transcript, so Memory never switches one on by
+ * itself. Rules are only alternatives the user typed or approved. A learned
+ * fix becomes an *offer* ("Always change super base to Supabase?") after the
+ * same fix twice, and only when the misheard text can't be something the
+ * user really said:
+ *   one word: not a real word, a plural or past tense of one, or a number
+ *     (checked against a word list; with no list available, never offered);
+ *   several words: no everyday function words ("and I", "a team"), and the
+ *     target looks like a name or term (a capital, digit or accent);
+ *   never a fix that only extends or trims the text ("10" -> "10am"), and
+ *   never the inverse of a rule that already exists.
+ * Declining (or reverting a swap in the pasted text) forgets it for good.
  */
 
 const MIN_LEARNED_FIXES = 2;
@@ -33,24 +35,32 @@ const STOPWORDS = new Set(
   ).split(" ")
 );
 
-// A letter or digit that is not CJK: Chinese/Japanese/Korean text has no
-// spaces, so a CJK character next to "super base" is still a word boundary.
+// A letter, digit or combining mark that is not CJK: Chinese/Japanese/Korean
+// text has no spaces, so a CJK character next to "super base" is a boundary.
 const WORD_CHAR =
-  "(?![\\p{sc=Han}\\p{sc=Hiragana}\\p{sc=Katakana}\\p{sc=Hangul}])[\\p{L}\\p{N}]";
-// Also part of a word: apostrophes and underscores ("don't", "my_base"), and a
-// dot between letters ("base.py"). A sentence-ending dot is not.
-const BEFORE = `(?<!${WORD_CHAR}|['’_]|[\\p{L}\\p{N}]\\.)`;
-const AFTER = `(?!${WORD_CHAR}|['’_]|\\.[\\p{L}\\p{N}])`;
+  "(?![\\p{sc=Han}\\p{sc=Hiragana}\\p{sc=Katakana}\\p{sc=Hangul}])[\\p{L}\\p{N}\\p{M}]";
+// Also part of a word: an apostrophe between letters ("don't"; a possessive
+// "'s" still counts as the end), underscores ("my_base") and a dot between
+// letters ("base.py"). A sentence-ending dot or a quote mark is not.
+const BEFORE = `(?<!${WORD_CHAR}|[\\p{L}\\p{N}]['’]|_|[\\p{L}\\p{N}]\\.)`;
+const AFTER = `(?!${WORD_CHAR}|_|\\.[\\p{L}\\p{N}]|['’](?!s(?![\\p{L}\\p{N}\\p{M}]))[\\p{L}\\p{N}])`;
 
 function normalizePhrase(text) {
-  return text.toLowerCase().split(/[\s-]+/).filter(Boolean).join(" ");
+  return String(text).toLowerCase().split(/[\s-]+/).filter(Boolean).join(" ");
 }
 
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function isLearnedRuleSafe(from, to, isKnownWord) {
+/** A word, or a plural / past tense / -ing form of one, in the word list. */
+function isRealWord(word, isKnownWord) {
+  const w = word.replace(/['’]s$/, "");
+  const stems = [w, w.replace(/s$/, ""), w.replace(/es$/, ""), w.replace(/ed$/, ""), w.replace(/d$/, ""), w.replace(/ing$/, "")];
+  return stems.some((stem) => stem.length >= 2 && isKnownWord(stem));
+}
+
+function isOfferSafe(from, to, isKnownWord) {
   const fromKey = normalizePhrase(from);
   const fromCompact = fromKey.replace(/ /g, "");
   const toCompact = normalizePhrase(to).replace(/ /g, "");
@@ -59,50 +69,59 @@ function isLearnedRuleSafe(from, to, isKnownWord) {
   const words = fromKey.split(" ");
   if (words.length === 1) {
     if (/^\p{N}+$/u.test(fromKey)) return false;
-    return typeof isKnownWord === "function" && !isKnownWord(fromKey);
+    return typeof isKnownWord === "function" && !isRealWord(fromKey, isKnownWord);
   }
   if (words.some((w) => STOPWORDS.has(w))) return false;
   return TERM_RE.test(to);
 }
 
-/** Candidate rules of one entry, each with its priority (typed beats learned). */
-function entryCandidates(entry, isKnownWord) {
+/** Alternatives of one entry that are rules: typed or approved, never pending. */
+function entryRules(entry) {
   if (!entry || typeof entry.word !== "string" || !Array.isArray(entry.alternatives)) return [];
-  const counts = entry.learnedCounts || {};
+  const pending = new Set(Object.keys(entry.learnedCounts || {}).map(normalizePhrase));
   const out = [];
   for (const alt of entry.alternatives.slice(0, MAX_ALTERNATIVES_PER_WORD)) {
     if (typeof alt !== "string") continue;
     const from = alt.trim();
     const key = normalizePhrase(from);
-    if (!key || key === normalizePhrase(entry.word)) continue;
-    const learned = counts[from.toLowerCase()];
-    if (learned === undefined) {
-      out.push({ from, to: entry.word, key, priority: Infinity });
-    } else if (learned >= MIN_LEARNED_FIXES && isLearnedRuleSafe(from, entry.word, isKnownWord)) {
-      out.push({ from, to: entry.word, key, priority: learned });
-    }
+    if (!key || key === normalizePhrase(entry.word) || pending.has(key)) continue;
+    out.push({ from, to: entry.word, key });
   }
   return out;
 }
 
 /**
  * @param {Array<{word: string, alternatives?: string[], learnedCounts?: Object<string, number>}>} entries
- * @param {{isKnownWord?: (word: string) => boolean}} [options] - Word-list lookup for single-word rules
  * @returns {{from: string, to: string}[]} Longest `from` first, one rule per mishearing
  */
-function buildReplacementRules(entries, { isKnownWord } = {}) {
-  const candidates = (Array.isArray(entries) ? entries : [])
-    .flatMap((entry) => entryCandidates(entry, isKnownWord))
-    .sort((a, b) => b.priority - a.priority); // stable: earlier entries win ties
-
+function buildReplacementRules(entries) {
   const seen = new Set();
   const rules = [];
-  for (const { from, to, key } of candidates) {
+  for (const { from, to, key } of (Array.isArray(entries) ? entries : []).flatMap(entryRules)) {
     if (seen.has(key)) continue;
     seen.add(key);
     rules.push({ from, to });
+    if (rules.length >= MAX_RULES) break;
   }
-  return rules.sort((a, b) => b.from.length - a.from.length).slice(0, MAX_RULES);
+  return rules.sort((a, b) => b.from.length - a.from.length);
+}
+
+/**
+ * Should Memory ask "Always change `from` to `to`?" now: the same fix learned
+ * at least twice, not yet approved or declined, and safe to swap everywhere.
+ *
+ * @param {{isKnownWord?: (word: string) => boolean}} [options] - Word-list lookup for single words
+ */
+function swapOffer(entries, { from, to }, { isKnownWord } = {}) {
+  const list = Array.isArray(entries) ? entries : [];
+  const entry = list.find((e) => typeof e?.word === "string" && e.word.toLowerCase() === to.toLowerCase());
+  const count = entry?.learnedCounts?.[from.toLowerCase()];
+  if (!entry || count === undefined || count < MIN_LEARNED_FIXES) return false;
+  if ((entry.declinedAlternatives || []).includes(normalizePhrase(from))) return false;
+  const inverse = buildReplacementRules(list).some(
+    (r) => normalizePhrase(r.from) === normalizePhrase(to) && normalizePhrase(r.to) === normalizePhrase(from)
+  );
+  return !inverse && isOfferSafe(from, to, isKnownWord);
 }
 
 /** Build the matcher once per rule set (see applyCompiledReplacements). */
@@ -199,7 +218,9 @@ function planSessionLearning(pairs, session) {
 module.exports = {
   MIN_LEARNED_FIXES,
   MAX_ALTERNATIVES_PER_WORD,
+  normalizePhrase,
   buildReplacementRules,
+  swapOffer,
   compileReplacements,
   applyCompiledReplacements,
   applyReplacements,

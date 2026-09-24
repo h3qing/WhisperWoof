@@ -63,6 +63,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("dictionary-updated", listener);
   },
   setAutoLearnEnabled: (enabled) => ipcRenderer.send("auto-learn-changed", enabled),
+  onMemorySwapOffer: (callback) => {
+    const listener = (_event, offer) => callback(offer);
+    ipcRenderer.on("memory-swap-offer", listener);
+    return () => ipcRenderer.removeListener("memory-swap-offer", listener);
+  },
+  confirmMemorySwap: (from, to) => ipcRenderer.invoke("whisperwoof-confirm-memory-swap", from, to),
+  declineMemorySwap: (from, to) => ipcRenderer.invoke("whisperwoof-decline-memory-swap", from, to),
   onCorrectionsLearned: (callback) => {
     const listener = (_event, words) => callback?.(words);
     ipcRenderer.on("corrections-learned", listener);

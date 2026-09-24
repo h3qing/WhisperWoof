@@ -23,20 +23,22 @@ const {
   removeLearnedWords,
   applyLearnedCorrection,
   unlearnCorrection: unlearnCorrectionPure,
-  dropAlternative,
+  confirmAlternative,
+  declineAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
 
 const {
   buildReplacementRules,
+  swapOffer,
   compileReplacements,
   applyCompiledReplacements,
   makeKnownWordChecker,
 } = require("../core/vocabulary/memory-replacements");
 
-// System word lists (macOS): a single misheard word only becomes a swap rule
-// when it isn't a real word or common name. Read per rule rebuild, not kept.
+// System word lists (macOS): Memory only offers to swap a single misheard
+// word when it isn't a real word or common name.
 const WORD_LIST_FILES = ["/usr/share/dict/words", "/usr/share/dict/propernames"];
 
 const VOCAB_FILE = path.join(app.getPath("userData"), "whisperwoof-vocabulary.json");
@@ -188,7 +190,10 @@ function removeWord(id) {
   return { success: true, entry: removed };
 }
 
-/** Remember one misheard -> corrected pair from a fixed transcript. */
+/**
+ * Remember one misheard -> corrected pair from a fixed transcript. Returns
+ * an `offer` when Memory should now ask "Always change `from` to `to`?".
+ */
 function recordCorrection({ from, to, bundleId }) {
   const entries = loadVocabulary();
   const updated = applyLearnedCorrection(entries, {
@@ -198,37 +203,43 @@ function recordCorrection({ from, to, bundleId }) {
     now: new Date().toISOString(),
     id: `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   });
-  if (updated === entries) return { success: false, activated: false };
-  // Did this fix switch a swap rule on? The caller announces it.
-  const wasRule = hasRule(entries, from);
+  if (updated === entries) return { success: false, offer: null };
   saveVocabulary(updated);
-  return { success: true, activated: !wasRule && hasRule(updated, from) };
+  const offer = swapOffer(updated, { from, to }, { isKnownWord: knownWordChecker() });
+  return { success: true, offer: offer ? { from, to } : null };
 }
 
-/** Forget a learned mishearing the user reverted; the word itself stays. */
-function forgetAlternative({ from, to }) {
+/** The user approved a swap: from now on `from` is changed to `to`. */
+function confirmSwap({ from, to }) {
   const entries = loadVocabulary();
-  const updated = dropAlternative(entries, { from, to });
+  const updated = confirmAlternative(entries, { from, to });
   if (updated !== entries) saveVocabulary(updated);
   return { success: updated !== entries };
 }
 
-function knownWordChecker() {
-  const text = WORD_LIST_FILES.map((file) => {
-    try {
-      return fs.readFileSync(file, "utf-8");
-    } catch {
-      return "";
-    }
-  }).join("\n");
-  return makeKnownWordChecker(text);
+/** The user declined a swap, or reverted one: forget it, never offer it again. */
+function declineSwap({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = declineAlternative(entries, { from, to });
+  if (updated !== entries) saveVocabulary(updated);
+  return { success: updated !== entries };
 }
 
-function hasRule(entries, from) {
-  const key = from.toLowerCase();
-  return buildReplacementRules(entries, { isKnownWord: knownWordChecker() }).some(
-    (r) => r.from.toLowerCase() === key
-  );
+// Only consulted when deciding whether to offer a single-word swap; loaded
+// once, on first need.
+let _isKnownWord;
+function knownWordChecker() {
+  if (_isKnownWord === undefined) {
+    const text = WORD_LIST_FILES.map((file) => {
+      try {
+        return fs.readFileSync(file, "utf-8");
+      } catch {
+        return "";
+      }
+    }).join("\n");
+    _isKnownWord = makeKnownWordChecker(text);
+  }
+  return _isKnownWord;
 }
 
 // Compiled once per Memory change: loadVocabulary() returns the same array
@@ -239,9 +250,7 @@ let _compiledRules = null;
 function getCompiledRules() {
   const entries = loadVocabulary();
   if (_rulesFor !== entries) {
-    _compiledRules = compileReplacements(
-      buildReplacementRules(entries, { isKnownWord: knownWordChecker() })
-    );
+    _compiledRules = compileReplacements(buildReplacementRules(entries));
     _rulesFor = entries;
   }
   return _compiledRules;
@@ -399,7 +408,8 @@ module.exports = {
   removeWord,
   forgetLearnedWords,
   recordCorrection,
-  forgetAlternative,
+  confirmSwap,
+  declineSwap,
   unlearnCorrection,
   applyMemoryReplacements,
   removeAllWords,
