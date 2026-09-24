@@ -5,6 +5,24 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-24 — A new look: glass in Mando's colors
+
+### Changed
+- **WhisperWoof has a new look, in Mando's colors.** The app and website use Apple-style liquid glass the way it's meant to be used: glass only for things still in motion (the sidebar, menus, the dictation overlay), solid sheets for everything that has landed, and a pill shape for every control. The palette comes from photos of Mando: a caramel accent, smoky-saddle text, white-chest sheets and a mauve glow. Dark mode has its own brown-black palette.
+  - **Words still being heard sit in frosted glass.** In live typing, the part the recognizer may still rewrite is a caramel glass capsule instead of a dotted underline, and it turns to plain text once it settles. The Settings demo and the website hero show the same thing.
+  - **A friendlier font.** Nunito, with rounded letters, everywhere in the app and on the site. Chinese uses PingFang.
+  - **Floating sidebar and page titles.** The sidebar floats just inside the window edge with the traffic lights inside it, and every page has its title at the top.
+  - **Home opens with a sentence.** "93 entries in the last 7 days, 24 of them today." followed by your streak, average recording, voice time, cleanup rate and all-time total, next to the activity heatmap.
+  - **History and Notes sit on sheets**, and hovered or selected rows are easy to pick out. The Notes folder column is glass.
+  - **Settings is a glass window** with a pill-shaped menu. Its groups sit flat inside the page instead of cards on cards.
+  - **No more all-caps labels.** Everything is in sentence case.
+  - **The background stays still.** The Mando color field no longer drifts; things move only when you do something.
+- **New app icon background.** The same Mando head, now on a smoky-brown squircle with caramel and mauve glows, a sticker edge and a glass rim, sized so macOS 26 shows it without a gray tile.
+- **The website matches the app.** Both pages (home and How it works) use the new look, follow your system's dark mode, and load everything from the site itself: no Google Fonts or other third-party requests, fitting "nothing leaves your Mac".
+
+### Fixed
+- **Website:** the How it works step dots on the home page no longer squeeze into a narrow column, and the guide's progress meter no longer restyles the navigation bar.
+
 ## [1.22.0] - 2026-09-24 — Memory learns what it misheard, and reaches every engine
 
 ### Added
