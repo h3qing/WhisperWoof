@@ -130,7 +130,7 @@ function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg bg-card shadow-card divide-y divide-border/60 ${className}`}
+      className={`rounded-[14px] bg-surface-1 divide-y divide-border ${className}`}
     >
       {children}
     </div>
@@ -150,9 +150,9 @@ function SettingsPanelRow({
 function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
+      <h3 className="text-[15px] font-bold text-foreground tracking-[-0.01em]">{title}</h3>
       {description && (
-        <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+        <p className="text-[13px] text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
       )}
     </div>
   );
@@ -1443,7 +1443,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         feature.startsWith("## ") ? (
                           <li
                             key={i}
-                            className={`text-[8px] font-semibold uppercase tracking-wide text-muted-foreground/60 ${i > 0 ? "pt-1.5" : ""}`}
+                            className={`text-xs font-semibold text-muted-foreground/60 ${i > 0 ? "pt-1.5" : ""}`}
                           >
                             {feature.slice(3)}
                           </li>
@@ -3009,7 +3009,7 @@ EOF`,
                     ].map((example, i) => (
                       <div key={i} className="flex items-start gap-3">
                         <span
-                          className={`shrink-0 mt-0.5 text-[10px] font-medium uppercase tracking-wider px-1.5 py-px rounded ${
+                          className={`shrink-0 mt-0.5 text-xs font-medium px-1.5 py-px rounded ${
                             example.mode === t("settingsPage.agentConfig.instructionMode")
                               ? "bg-primary/10 text-primary dark:bg-primary/15"
                               : "bg-muted text-muted-foreground"
@@ -3152,7 +3152,7 @@ EOF`,
                         ].map((example, i) => (
                           <div key={i} className="flex items-start gap-3">
                             <span
-                              className={`shrink-0 mt-0.5 text-xs font-medium uppercase tracking-wider px-1.5 py-px rounded ${
+                              className={`shrink-0 mt-0.5 text-xs font-medium px-1.5 py-px rounded ${
                                 example.mode === t("settingsPage.agentConfig.instructionMode")
                                   ? "bg-primary/10 text-primary dark:bg-primary/15"
                                   : "bg-muted text-muted-foreground"
@@ -3599,7 +3599,7 @@ EOF`,
 
                   {updateInfo?.releaseNotes && (
                     <div className="mt-4 pt-4 border-t border-border/30">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">
                         {t("settingsPage.general.updates.whatsNew", {
                           version: updateInfo.version,
                         })}

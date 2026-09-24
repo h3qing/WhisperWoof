@@ -7,8 +7,8 @@ import { cn } from "../lib/utils";
 const buttonVariants = cva(
   [
     "inline-flex items-center justify-center gap-2 whitespace-nowrap",
-    "rounded-md text-sm font-medium cursor-pointer select-none",
-    "transition-[background-color,border-color,color,transform] duration-200 ease-out",
+    // Every control is a capsule; a press answers with a small spring.
+    "press rounded-full text-sm font-medium cursor-pointer select-none",
     "outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 shrink-0",
@@ -16,14 +16,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Primary CTA — the one amber (glass-tint) action in a view
+        // Primary CTA: the one caramel action in a view, with a soft glow under it
         default: [
           "relative text-primary-foreground font-semibold tracking-[0.005em]",
-          "bg-primary",
-          "border border-primary/60",
-          "shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]",
-          "hover:bg-primary/92",
-          "active:bg-primary/85 active:scale-[0.985]",
+          "bg-primary/88",
+          "shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_-2px_var(--color-primary)]",
+          "hover:bg-primary/95",
         ].join(" "),
 
         // Success — uses design tokens
@@ -33,7 +31,6 @@ const buttonVariants = cva(
           "border border-success/70",
           "shadow-sm",
           "hover:bg-success/90",
-          "active:bg-success/80 active:scale-[0.98]",
         ].join(" "),
 
         // Destructive — uses design tokens
@@ -43,16 +40,16 @@ const buttonVariants = cva(
           "border border-destructive/70",
           "shadow-sm",
           "hover:bg-destructive/90",
-          "active:bg-destructive/80 active:scale-[0.98]",
         ].join(" "),
 
-        // Outline — neutral control. Lives on content cards, so solid and light
-        // (glass is for the functional layer, and a shadow per button is noise).
+        // Outline: the neutral capsule. A strong tint with a lit top edge and a
+        // hairline border, so it reads on a sheet and on glass alike (no blur of
+        // its own: no glass on glass).
         outline: [
           "relative font-medium",
-          "text-foreground bg-surface-2/80 border border-border",
-          "hover:bg-accent/60 hover:border-border-hover",
-          "active:scale-[0.985]",
+          "text-foreground bg-[var(--glass-strong)] border border-border",
+          "shadow-[inset_0_1px_0_var(--glass-rim-hi),0_1px_2px_var(--glass-shade)]",
+          "hover:bg-accent",
         ].join(" "),
 
         // Outline flat — transparent with thin border, no fill or shadow
@@ -61,7 +58,6 @@ const buttonVariants = cva(
           "text-muted-foreground bg-transparent",
           "border border-border/60",
           "hover:text-foreground hover:border-border-hover hover:bg-accent/40",
-          "active:scale-[0.98]",
         ].join(" "),
 
         // Secondary — neutral solid, never amber
@@ -70,7 +66,6 @@ const buttonVariants = cva(
           "text-secondary-foreground bg-secondary",
           "border border-border/50",
           "hover:bg-accent",
-          "active:scale-[0.98]",
         ].join(" "),
 
         // Ghost — transparent until hovered
@@ -78,7 +73,6 @@ const buttonVariants = cva(
           "font-medium",
           "text-foreground",
           "hover:bg-accent/70",
-          "active:scale-[0.98]",
         ].join(" "),
 
         // Link — uses design tokens
@@ -94,7 +88,6 @@ const buttonVariants = cva(
           "relative font-medium",
           "text-foreground glass gap-2",
           "hover:bg-accent/60",
-          "active:scale-[0.985]",
         ].join(" "),
       },
       size: {

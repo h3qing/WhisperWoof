@@ -73,11 +73,11 @@ export function ProviderTabs({
   return (
     <div
       ref={containerRef}
-      className={`relative flex p-0.5 rounded-md bg-surface-raised dark:bg-surface-1 ${scrollable ? "overflow-x-auto" : ""}`}
+      className={`relative flex p-[3px] rounded-full bg-surface-1 shadow-[inset_0_0_0_1px_var(--color-border)] ${scrollable ? "overflow-x-auto" : ""}`}
     >
-      {/* Sliding indicator - frosted glass treatment */}
+      {/* Sliding knob: a white capsule under the chosen segment */}
       <div
-        className="absolute top-0.5 left-0 rounded-md bg-card border border-border dark:border-border-subtle shadow-sm dark:shadow-(--shadow-card) transition-[width,height,transform,opacity] duration-200 ease-out pointer-events-none"
+        className="absolute top-[3px] left-0 rounded-full bg-card shadow-[0_1px_3px_rgb(58_36_20/0.18),inset_0_1px_0_rgb(255_255_255/0.6)] dark:bg-surface-raised dark:shadow-[0_1px_3px_rgb(0_0_0/0.4)] transition-[width,height,transform,opacity] duration-[320ms] ease-[cubic-bezier(.3,.7,.3,1.15)] pointer-events-none"
         style={indicatorStyle}
       />
 
@@ -89,7 +89,7 @@ export function ProviderTabs({
             key={provider.id}
             data-tab-button
             onClick={() => onSelect(provider.id)}
-            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-colors duration-150 ${
+            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold text-xs transition-colors duration-150 ${
               scrollable ? "whitespace-nowrap" : ""
             } ${isSelected ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >

@@ -250,7 +250,7 @@ export default function TranscriptionItem({
           )}
         >
           <div className="mt-2">
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+            <span className="text-xs font-medium text-muted-foreground">
               {t("controlPanel.history.rawTranscript")}
             </span>
             <p className="text-xs text-muted-foreground/80 leading-relaxed mt-1">{item.raw_text}</p>
