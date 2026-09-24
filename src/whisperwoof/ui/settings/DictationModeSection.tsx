@@ -87,10 +87,8 @@ function LiveDemo() {
   return (
     <span className="text-foreground">
       今天下午三点
-      <span className="underline decoration-dotted decoration-2 decoration-mando underline-offset-4 text-muted-foreground">
-        开个会
-      </span>
-      <span className="inline-block w-0.5 h-3.5 bg-mando align-[-2px] ml-px animate-pulse" />
+      <span className="live-words">开个会</span>
+      <span className="inline-block w-0.5 h-3.5 bg-live align-[-2px] ml-px animate-pulse" />
     </span>
   );
 }
@@ -201,7 +199,7 @@ export default function DictationModeSection() {
       )}
 
       {dictationMode === "live" && (
-        <div className="mt-3 rounded-lg bg-card shadow-card divide-y divide-border/30 dark:divide-border-subtle/50">
+        <div className="mt-3 rounded-[14px] bg-surface-1 divide-y divide-border">
           <div className="py-2">
             <p className="px-3 pb-1 text-xs font-semibold text-foreground">
               {t(`${k}.preview.title`, { defaultValue: "Live preview model" })}
@@ -312,7 +310,7 @@ export default function DictationModeSection() {
             </p>
             {t(`${k}.explainer.streamingBody`, {
               defaultValue:
-                "Hear audio in small slices and guess as they go, so words appear right away. The underlined tail can still change once more context arrives. Small and fast, a bit less accurate.",
+                "Hear audio in small slices and guess as they go, so words appear right away. The tail in glass can still change once more context arrives. Small and fast, a bit less accurate.",
             })}
           </div>
           <div className="rounded-md bg-muted/40 dark:bg-surface-2 p-2.5">

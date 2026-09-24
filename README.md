@@ -65,7 +65,7 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 
 Hands-free: **double-tap Fn** to lock recording on, then tap once to stop and paste.
 
-**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid, the tail that may still change is underlined; on release it's re-checked by your transcription model, polished, and pasted.
+**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid ink, the tail that may still change sits in frosted glass; on release it's re-checked by your transcription model, polished, and pasted.
 
 ```
 Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
