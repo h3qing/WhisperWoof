@@ -19,29 +19,33 @@
     .prose p, .prose ul{ margin:0; }
     .note{ margin:0; color:var(--ink-2); font-size:15px; }
     h1, h2, h3{ font-family:var(--display); text-wrap:balance; margin:0; }
-    h1{ font-weight:650; font-variation-settings:"wdth" 88, "opsz" 96; letter-spacing:-0.025em; font-size:clamp(46px, 7.4vw, 88px); line-height:0.98; }
-    h2{ font-weight:650; font-variation-settings:"wdth" 88, "opsz" 72; letter-spacing:-0.02em; font-size:clamp(30px, 4vw, 46px); line-height:1.05; max-width:20ch; }
+    h1{ font-weight:700; font-variation-settings:"wdth" 88, "opsz" 96; letter-spacing:-0.035em; font-size:clamp(48px, 7.8vw, 96px); line-height:0.96; }
+    h2{ font-weight:700; font-variation-settings:"wdth" 88, "opsz" 72; letter-spacing:-0.03em; font-size:clamp(32px, 4.4vw, 52px); line-height:1.02; max-width:20ch; }
     h3{ font-weight:650; font-size:20px; font-variation-settings:"wdth" 92; }
     .kicker{ font:600 13px/1 var(--text); letter-spacing:0.1em; text-transform:uppercase; color:var(--fur-deep); }
 
     .hero{ padding-block:64px 8px; display:grid; grid-template-columns:1fr auto; gap:28px; align-items:end; }
     .hero .copy{ display:grid; gap:20px; }
     .hero .lede{ margin:0; font-size:21px; color:var(--ink-2); max-width:58ch; }
-    .hero img{ width:190px; height:206px; object-fit:contain; }
+    .hero img{ width:190px; height:206px; object-fit:contain; filter:drop-shadow(0 18px 24px rgb(110 60 20 / .28)); }
+    .hero{ position:relative; }
+    .hero::after{ content:""; position:absolute; right:-60px; bottom:-40px; width:340px; height:340px; z-index:-1; pointer-events:none;
+      background:radial-gradient(closest-side, color-mix(in srgb, var(--fur-light) 32%, transparent), transparent); filter:blur(24px); }
     .toc{ display:flex; flex-wrap:wrap; gap:8px; }
-    .toc a{ text-decoration:none; font-size:14px; padding:8px 14px; border-radius:999px; color:var(--ink); }
+    .toc a{ text-decoration:none; font-size:14px; font-weight:500; padding:9px 15px; border-radius:999px; color:var(--ink); transition:transform .4s var(--spring); }
+    .toc a:hover{ transform:translateY(-2px); }
     .toc a:hover{ color:var(--fur-deep); }
     @media(max-width:720px){ .hero{ grid-template-columns:1fr; } .hero img{ order:-1; width:110px; height:120px; } }
 
     section{ padding-block:84px 0; display:grid; gap:24px; scroll-margin-top:84px; }
-    .panel{ background:var(--sheet); border-radius:22px; box-shadow:var(--shadow-card); padding:26px; display:grid; gap:18px; }
+    .panel{ padding:28px; display:grid; gap:18px; border-radius:32px; }
     .panel > h3{ font-size:19px; }
     .controls{ display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; }
     .ctl-label{ font-size:14px; color:var(--ink-2); margin-right:8px; }
     .line{ margin:0; font-size:20px; font-weight:600; font-variation-settings:"wdth" 92; }
 
     .models{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
-    .model{ background:var(--sheet); border-radius:22px; box-shadow:var(--shadow-card); padding:24px; display:grid; gap:12px; align-content:start; }
+    .model{ padding:26px; display:grid; gap:12px; align-content:start; }
     .model p{ margin:0; font-size:16px; }
     .model .arch{ font:500 13px/1.3 var(--mono); color:var(--ink-2); }
     .facts{ display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:15px; margin:4px 0 0; padding-top:12px; border-top:1px solid var(--rule); }
@@ -58,11 +62,12 @@
     .tok.out{ color:var(--success); background:var(--success-wash); }
     .arrow{ color:var(--ink-2); }
 
-    .scroll{ overflow-x:auto; background:var(--sheet); border-radius:22px; box-shadow:var(--shadow-card); }
+    .table-pane{ overflow:hidden; }
+    .scroll{ overflow-x:auto; }
     table{ border-collapse:collapse; width:100%; min-width:640px; font-size:15px; }
     th, td{ text-align:left; padding:14px 18px; border-bottom:1px solid var(--rule); vertical-align:top; }
     tr:last-child td{ border-bottom:0; }
-    th{ font:600 12px/1.3 var(--text); letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-2); background:var(--surface); }
+    th{ font:600 12px/1.3 var(--text); letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-2); background:var(--sunk); }
     td .sub{ display:block; color:var(--ink-2); font-size:13px; margin-top:3px; font-weight:400; }
 
     .window{ display:flex; flex-wrap:wrap; gap:5px; }
@@ -83,28 +88,29 @@
 
     .fields{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
     label.field{ display:grid; gap:6px; font-size:14px; color:var(--ink-2); }
-    textarea, input[type="text"]{ font:14px/1.5 var(--mono); color:var(--ink); background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:10px 12px; width:100%; resize:vertical; }
+    textarea, input[type="text"]{ font:14px/1.5 var(--mono); color:var(--ink); background:var(--well); box-shadow:var(--well-edge); border:0; border-radius:14px; padding:11px 13px; width:100%; resize:vertical; }
     textarea:focus, input[type="text"]:focus{ outline:2px solid var(--fur); outline-offset:1px; }
     .row{ display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; }
-    .chip-btn{ font:500 14px/1 var(--text); color:var(--ink); background:var(--sunk); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; }
+    .chip-btn{ font:500 14px/1 var(--text); color:var(--ink); background:var(--well); box-shadow:var(--well-edge); border:0; border-radius:999px; padding:10px 15px; cursor:pointer; transition:transform .35s var(--spring); }
+    .chip-btn:active{ transform:scale(.95); }
     .chip-btn:hover{ background:var(--fur-wash); color:var(--fur-deep); }
     .rules{ display:grid; gap:8px; }
-    .rule{ display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; background:var(--surface); border-radius:12px; padding:11px 14px; box-shadow:inset 0 0 0 1px var(--rule); }
+    .rule{ display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; background:var(--well); box-shadow:var(--well-edge); border-radius:16px; padding:12px 15px; }
     .rule .pair{ font:14px/1.5 var(--mono); overflow-wrap:anywhere; }
     .rule .why{ grid-column:1 / -1; color:var(--ink-2); font-size:14px; }
     .empty{ margin:0; color:var(--ink-2); font-size:15px; font-style:italic; }
 
     .flow{ display:grid; gap:10px; }
-    .step{ border-radius:14px; padding:13px 16px; background:var(--surface); box-shadow:inset 0 0 0 1px var(--rule); display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline; transition:background .2s, box-shadow .2s, opacity .2s; }
+    .step{ border-radius:18px; padding:14px 17px; background:var(--well); box-shadow:var(--well-edge); display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline; transition:background .2s, box-shadow .2s, opacity .2s; }
     .step .q{ font:600 12px/1 var(--mono); color:var(--ink-2); }
     .step .res{ grid-column:2; color:var(--ink-2); font-size:15px; }
-    .step.on{ background:var(--fur-wash); box-shadow:inset 0 0 0 1.5px var(--fur); }
+    .step.on{ background:var(--fur-wash); box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--fur) 45%, transparent), 0 8px 20px -14px color-mix(in srgb, var(--primary) 50%, transparent); }
     .step.off{ opacity:0.45; }
 
     ul.clean{ margin:0; padding-left:1.1em; display:grid; gap:8px; }
-    .callout{ margin:0; max-width:700px; padding:16px 20px; border-radius:18px; font-size:16px; }
+    .callout{ margin:0; max-width:760px; padding:20px 24px; border-radius:26px; font-size:16px; }
     .callout strong{ font-family:var(--display); }
-    footer.notes{ margin-top:72px; padding:26px; border-radius:22px; display:grid; gap:10px; font-size:14px; color:var(--ink-2); }
+    footer.notes{ margin-top:72px; padding:28px; border-radius:28px; display:grid; gap:10px; font-size:14px; color:var(--ink-2); }
     footer.notes strong{ color:var(--ink); }
     .site-foot{ padding-block:40px 56px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:15px; color:var(--ink-2); }
     .site-foot a{ text-decoration:none; }
@@ -118,7 +124,7 @@
 <div class="page">
 
 <nav class="site-nav" aria-label="Main">
-  <div class="bar glass-thick">
+  <div class="bar lg">
     <a class="brand" href="index.html"><img src="mando-head.svg" alt=""> WhisperWoof</a>
     <div class="nav-links">
       <a href="index.html#how">How it works</a>
@@ -135,13 +141,13 @@
       <h1>How Mando listens</h1>
       <p class="lede">What happens between you speaking and text landing in your app: what each speech model actually does, where your own words get in, and how Memory learns from the fixes you make.</p>
       <nav class="toc" aria-label="Contents">
-        <a class="glass" href="#pipeline">The pipeline</a>
-        <a class="glass" href="#models">The models</a>
-        <a class="glass" href="#libraries">Your two libraries</a>
-        <a class="glass" href="#levers">Three ways in</a>
-        <a class="glass" href="#window">The 224-token window</a>
-        <a class="glass" href="#learning">How Memory learns</a>
-        <a class="glass" href="#auto">Auto language mode</a>
+        <a class="lg" href="#pipeline">The pipeline</a>
+        <a class="lg" href="#models">The models</a>
+        <a class="lg" href="#libraries">Your two libraries</a>
+        <a class="lg" href="#levers">Three ways in</a>
+        <a class="lg" href="#window">The 224-token window</a>
+        <a class="lg" href="#learning">How Memory learns</a>
+        <a class="lg" href="#auto">Auto language mode</a>
       </nav>
     </div>
     <img src="mando/hd/think.webp" alt="Mando thinking" width="190" height="206">
@@ -153,17 +159,17 @@
       <h2 id="h-pipeline">The pipeline, one sentence at a time</h2>
       <p>Pick an engine, and whether Memory already knows your words. The transcripts are real outputs from the local engines, fed synthetic speech from macOS <code>say</code>.</p>
     </div>
-    <div class="panel" data-pipeline>
+    <div class="panel lg" data-pipeline>
       <p class="line">“Please deploy the dashboard to Supabase and ping Kubernetes on Vercel.”</p>
       <div class="controls">
         <div><span class="ctl-label">Engine</span>
-          <div class="seg on-card" data-seg="engine" role="group" aria-label="Speech engine">
+          <div class="seg" data-seg="engine" role="group" aria-label="Speech engine">
             <button type="button" data-v="whisper" aria-pressed="true">Whisper (base)</button>
             <button type="button" data-v="parakeet" aria-pressed="false">Parakeet TDT</button>
           </div>
         </div>
         <div><span class="ctl-label">Memory</span>
-          <div class="seg on-card" data-seg="mem" role="group" aria-label="Memory">
+          <div class="seg" data-seg="mem" role="group" aria-label="Memory">
             <button type="button" data-v="new" aria-pressed="true">First time</button>
             <button type="button" data-v="learned" aria-pressed="false">After your fixes</button>
           </div>
@@ -181,7 +187,7 @@
       <p>Every engine turns sound into text, but they're built very differently, and that difference decides whether your words can be “suggested” to it before it listens.</p>
     </div>
     <div class="models">
-      <article class="model">
+      <article class="model lg hoverlift">
         <h3>Whisper</h3>
         <span class="arch">encoder → decoder that writes text</span>
         <p>Chops audio into 30-second windows, turns each into a spectrogram, and an <strong>encoder</strong> summarises it. A <strong>decoder</strong>, a small language model, then writes the transcript one token at a time, each guess conditioned on the text before it.</p>
@@ -192,7 +198,7 @@
           <dt>Streaming?</dt><dd>No: waits for the whole recording</dd>
         </dl>
       </article>
-      <article class="model">
+      <article class="model lg hoverlift">
         <h3>Transducers: Parakeet, X-ASR</h3>
         <span class="arch">encoder → frame-by-frame token predictor</span>
         <p>Walks through the audio frame by frame and, at each step, emits a token or moves on. Parakeet's <em>TDT</em> also predicts how many frames to skip, which is why it's fast. There is no “previous text” input, so there's nowhere to put a prompt.</p>
@@ -203,7 +209,7 @@
           <dt>Streaming?</dt><dd>X-ASR yes (160 / 480 ms chunks) · Parakeet whole recording</dd>
         </dl>
       </article>
-      <article class="model">
+      <article class="model lg hoverlift">
         <h3>SenseVoice</h3>
         <span class="arch">encoder → all tokens at once (non-autoregressive)</span>
         <p>Predicts the whole transcript in one pass rather than word by word, with language set to <code>auto</code> and number formatting (“twenty” → 20) built in. Very fast; like the transducers, it has no text context to steer.</p>
@@ -215,7 +221,7 @@
         </dl>
       </article>
     </div>
-    <div class="panel">
+    <div class="panel lg">
       <h3>Why a prompt works on Whisper: it's just “text that came before”</h3>
       <div class="strip" aria-label="Whisper decoder input">
         <span class="tok special">&lt;|startofprev|&gt;</span>
@@ -237,7 +243,7 @@
       <h2 id="h-libraries">Your two libraries</h2>
       <p><strong>The model library</strong> is the set of downloaded model files: Whisper's <code>ggml-*.bin</code> in <code>~/.cache/openwhispr/whisper-models/</code>, and Parakeet, X-ASR and SenseVoice under <code>parakeet-models/</code>. They never change as you use the app. Everything personal lives in the <strong>word library</strong>, which has three shelves:</p>
     </div>
-    <div class="scroll">
+    <div class="lg table-pane"><div class="scroll">
       <table>
         <thead><tr><th>Shelf</th><th>Who fills it</th><th>Stored in</th><th>What it holds</th></tr></thead>
         <tbody>
@@ -261,8 +267,8 @@
           </tr>
         </tbody>
       </table>
-    </div>
-    <p class="callout glass"><strong>Why packs are off now.</strong> Generic words in every prompt pull Whisper toward them. With Brands &amp; Products on, “Vercel” came out as <em>“Versacell”</em> (from “Versace”). Turn on the packs you actually talk about.</p>
+    </div></div>
+    <p class="callout lg"><strong>Why packs are off now.</strong> Generic words in every prompt pull Whisper toward them. With Brands &amp; Products on, “Vercel” came out as <em>“Versacell”</em> (from “Versace”). Turn on the packs you actually talk about.</p>
   </section>
 
   <!-- 4. Levers -->
@@ -276,7 +282,7 @@
         <li><strong>Polish</strong> is the local LLM clean-up pass; it sees your Dictionary words as a list and can fix obvious near-misses.</li>
       </ul>
     </div>
-    <div class="scroll">
+    <div class="lg table-pane"><div class="scroll">
       <table>
         <thead><tr><th>Engine</th><th>Hints</th><th>Swaps</th><th>Polish</th></tr></thead>
         <tbody>
@@ -287,7 +293,7 @@
           <tr><td>OpenWhispr Cloud, streaming providers</td><td class="part">Partly<span class="sub">streaming gets the Dictionary only</span></td><td class="noo">Not yet</td><td class="yes">Yes</td></tr>
         </tbody>
       </table>
-    </div>
+    </div></div>
   </section>
 
   <!-- 5. Token window -->
@@ -297,9 +303,9 @@
       <h2 id="h-window">The 224-token window</h2>
       <p>Whisper reads at most <strong>224 tokens</strong> of prompt and keeps the <strong>last</strong> 224, silently dropping the start. A token is a word-piece; for these word lists it's about 3 characters. Token counts below come from whisper.cpp's own tokenizer run on the real word lists.</p>
     </div>
-    <div class="panel">
+    <div class="panel lg">
       <div class="controls">
-        <div class="seg on-card" role="group" aria-label="Prompt version" id="seg-window">
+        <div class="seg" role="group" aria-label="Prompt version" id="seg-window">
           <button type="button" data-v="old" aria-pressed="true">Before (≤ 1.20.0)</button>
           <button type="button" data-v="now" aria-pressed="false">Now (1.21.0)</button>
         </div>
@@ -329,7 +335,7 @@
         <li><strong>Swap.</strong> Once you've made the same fix twice, and the misheard text couldn't be something you really said, Memory swaps it by itself and the “Learned” toast tells you. Change a swapped word back and Memory forgets that swap.</li>
       </ul>
     </div>
-    <div class="panel">
+    <div class="panel lg">
       <div class="row">
         <span class="ctl-label">Examples</span>
         <button type="button" class="chip-btn" data-ex="0">super base → Supabase</button>
@@ -357,7 +363,7 @@
       </label>
       <div class="utter" id="pg-out" aria-live="polite"></div>
     </div>
-    <p class="callout glass"><strong>Why so careful?</strong> A swap edits every future transcript, so one wrong rule does damage everywhere. Memory asks two questions. <em>Is it a pattern?</em> The same fix twice, not a one-off edit. <em>Could the misheard text be something you really said?</em> “Superbase” and “shunade” aren't words, so swapping them is safe. “their”, “10” and “a team” are, so they're never swapped, even though the fixed word still goes into your Dictionary and hints. The app checks single words against the Mac's 235,000-word dictionary; this demo uses a small built-in list.</p>
+    <p class="callout lg"><strong>Why so careful?</strong> A swap edits every future transcript, so one wrong rule does damage everywhere. Memory asks two questions. <em>Is it a pattern?</em> The same fix twice, not a one-off edit. <em>Could the misheard text be something you really said?</em> “Superbase” and “shunade” aren't words, so swapping them is safe. “their”, “10” and “a team” are, so they're never swapped, even though the fixed word still goes into your Dictionary and hints. The app checks single words against the Mac's 235,000-word dictionary; this demo uses a small built-in list.</p>
   </section>
 
   <!-- 7. Auto -->
@@ -367,8 +373,8 @@
       <h2 id="h-auto">Hints in Auto language mode</h2>
       <p>With the dictation language on Auto, an English word list once turned Chinese speech into an English <em>translation</em>: a clip of “现在天气很好” came out as “Now the time is good”. So hints used to be switched off entirely in Auto mode. Now they're on, with a guard that uses the one thing hints can't sway: Whisper's language detection.</p>
     </div>
-    <div class="panel">
-      <div class="seg on-card" role="group" aria-label="Scenario" id="seg-auto">
+    <div class="panel lg">
+      <div class="seg" role="group" aria-label="Scenario" id="seg-auto">
         <button type="button" data-v="en" aria-pressed="true">English dictation</button>
         <button type="button" data-v="mixed" aria-pressed="false">把项目 deploy 到 Supabase</button>
         <button type="button" data-v="hijack" aria-pressed="false">现在天气很好 → English</button>
@@ -383,7 +389,7 @@
       <span class="kicker">08 · for developers</span>
       <h2 id="h-code">Where it lives in the code</h2>
     </div>
-    <div class="scroll">
+    <div class="lg table-pane"><div class="scroll">
       <table>
         <thead><tr><th>Piece</th><th>File</th></tr></thead>
         <tbody>
@@ -397,10 +403,10 @@
           <tr><td>Learning glue, undo, delete sync</td><td><code>src/helpers/ipcHandlers.js</code> · <code>_learnCorrections</code>, <code>_getSttHintPrompt</code></td></tr>
         </tbody>
       </table>
-    </div>
+    </div></div>
   </section>
 
-  <footer class="notes glass">
+  <footer class="notes lg">
     <strong>How these numbers were measured</strong>
     <ul class="clean">
       <li>Whisper prompt tokens counted with whisper.cpp's tokenizer on the ggml-base vocabulary: about 2.97 characters per token for these word lists.</li>
@@ -417,6 +423,7 @@
 </div>
 
 <script src="pipeline.js" defer></script>
+<script src="glass.js" defer></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);

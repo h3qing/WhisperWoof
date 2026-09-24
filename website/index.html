@@ -25,6 +25,7 @@
       --side:400px;          /* Mando and the CTAs share this column, centered */
     }
     .wrap{ max-width:var(--maxw); margin:0 auto; padding:0 28px; }
+    @media(max-width:520px){ .wrap{ padding:0 16px; } }
     .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
     .site-nav .brand img{ width:30px; height:30px; }
 
@@ -51,14 +52,20 @@
     .status{ display:flex; align-items:center; gap:12px; margin:0 0 18px; font-size:15px; color:var(--ink-2); min-height:28px; }
     .status b{ font-weight:600; color:var(--ink); }
     .keycap{
-      display:inline-flex; align-items:center; justify-content:center; min-width:34px; height:30px; padding:0 9px;
-      font-family:var(--text); font-size:14px; font-weight:600; color:var(--ink);
-      background:var(--sheet); border:1px solid var(--rule); border-bottom-width:3px; border-radius:7px;
+      position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:36px; height:32px; padding:0 10px;
+      font:600 14px/1 var(--text); color:var(--ink); border-radius:10px;
+      background:var(--lg-fill); -webkit-backdrop-filter:blur(12px) saturate(180%); backdrop-filter:blur(12px) saturate(180%);
+      box-shadow:inset 0 1px 0 var(--lg-edge), inset 0 -2px 4px -2px rgb(120 60 20 / .25), 0 4px 10px -4px rgb(110 60 20 / .35);
+      transition:transform .35s var(--spring), background .2s, color .2s;
     }
-    .keycap.down{ border-bottom-width:1px; transform:translateY(2px); background:var(--fur-wash); border-color:var(--fur); }
+    .keycap.down{ transform:scale(.92); color:var(--tint-ink);
+      background:var(--tint-fill); }
     /* Mando is centered on the headline block, above the CTA column. */
-    .mando{ width:240px; height:260px; object-fit:contain; align-self:center; justify-self:center; }
-    .pitch{ display:grid; grid-template-columns:minmax(0, 620px) var(--side); gap:40px; align-items:end; justify-content:space-between; margin-top:56px; padding-top:28px; border-top:1.5px solid color-mix(in srgb, var(--ink) 70%, transparent); }
+    .mando{ width:240px; height:260px; object-fit:contain; align-self:center; justify-self:center; position:relative;
+      filter:drop-shadow(0 18px 24px rgb(110 60 20 / .28)); }
+    .stage::after{ content:""; position:absolute; right:calc(var(--side) / 2 - 170px); top:10%; width:340px; height:340px; z-index:-1; pointer-events:none;
+      background:radial-gradient(closest-side, color-mix(in srgb, var(--fur-light) 32%, transparent), transparent); filter:blur(24px); }
+    .pitch{ display:grid; grid-template-columns:minmax(0, 620px) var(--side); gap:40px; align-items:center; justify-content:space-between; margin-top:48px; padding:30px 34px; border-radius:32px; }
     .pitch p{ margin:0; font-size:21px; line-height:1.5; }
     .ctas{ display:flex; gap:12px; flex-wrap:wrap; }
     .pitch .ctas{ justify-content:center; flex-wrap:nowrap; }
@@ -67,20 +74,21 @@
       .stage{ grid-template-columns:1fr; }
       .mando{ width:120px; height:130px; order:-1; margin-bottom:0; justify-self:start; }
       .pitch .ctas{ justify-content:flex-start; }
-      .pitch{ grid-template-columns:1fr; gap:22px; }
+      .pitch{ grid-template-columns:1fr; gap:22px; padding:24px 22px; border-radius:26px; }
+      .pitch .ctas{ flex-wrap:wrap; }
     }
 
     /* SECTIONS */
     section.block{ padding:96px 0; }
-    .h2{ font-family:var(--display); font-weight:650; font-variation-settings:"wdth" 88, "opsz" 72; letter-spacing:-0.02em; font-size:clamp(32px, 4.2vw, 54px); line-height:1.05; margin:0 0 18px; max-width:18ch; }
+    .h2{ font-family:var(--display); font-weight:700; font-variation-settings:"wdth" 88, "opsz" 72; letter-spacing:-0.03em; font-size:clamp(34px, 4.6vw, 60px); line-height:1.02; margin:0 0 18px; max-width:18ch; text-wrap:balance; }
     .lede{ font-size:20px; color:var(--ink-2); max-width:58ch; margin:0 0 48px; }
 
     /* TWO MODES */
     .modes{ display:grid; grid-template-columns:1fr 1fr; gap:28px; }
-    .mode{ background:var(--sheet); border-radius:22px; padding:30px 30px 34px; box-shadow:var(--shadow-card); }
+    .mode{ padding:32px 32px 34px; }
     .mode h3{ font-size:24px; margin:0 0 6px; font-weight:650; font-variation-settings:"wdth" 92; }
     .mode p{ margin:0 0 22px; color:var(--ink-2); }
-    .mode-demo{ font-family:var(--han); font-size:26px; line-height:1.4; min-height:76px; padding:18px 20px; border-radius:14px; background:var(--sunk); }
+    .mode-demo{ font-family:var(--han); font-size:26px; line-height:1.4; min-height:76px; padding:18px 20px; border-radius:18px; background:var(--well); box-shadow:var(--well-edge); }
     .mode-demo .live{ color:var(--fur-deep); text-decoration:underline dotted var(--fur); text-decoration-thickness:2px; text-underline-offset:5px; }
     .wave{ display:flex; gap:4px; align-items:center; height:40px; }
     .wave i{ display:block; width:5px; border-radius:3px; background:var(--ink-2); opacity:.55; animation:wave 1.1s ease-in-out infinite; }
@@ -89,7 +97,7 @@
     @media(max-width:820px){ .modes{ grid-template-columns:1fr; } }
 
     /* KEYS */
-    .keys{ display:grid; gap:0; background:var(--sheet); border-radius:22px; box-shadow:var(--shadow-card); padding:6px 30px; }
+    .keys{ display:grid; gap:0; padding:6px 32px; }
     .key-row{ display:grid; grid-template-columns:230px 1fr auto; gap:28px; align-items:center; padding:24px 0; border-bottom:1px solid var(--rule); }
     .key-row:last-child{ border-bottom:0; }
     .combo{ display:flex; align-items:center; gap:8px; font-size:18px; color:var(--ink-2); }
@@ -97,23 +105,23 @@
     .key-row h3{ margin:0; font-size:22px; font-weight:600; }
     .key-row p{ margin:2px 0 0; color:var(--ink-2); font-size:16px; }
     .key-row .dest{ font-size:15px; color:var(--ink-2); text-align:right; }
-    .key-row:hover .keycap, .key-row:focus-within .keycap{ border-bottom-width:1px; transform:translateY(2px); background:var(--fur-wash); border-color:var(--fur); }
-    .key-row .keycap{ transition:transform .08s, background .08s; }
+    .key-row:hover .keycap, .key-row:focus-within .keycap{ transform:scale(.92); color:var(--tint-ink);
+      background:var(--tint-fill); }
     @media(max-width:760px){ .keys{ padding:4px 20px; } .key-row{ grid-template-columns:1fr; gap:10px; } .key-row .dest{ text-align:left; } }
 
     /* BILINGUAL */
     .pairs{ display:grid; gap:22px; }
     .pair{ display:grid; grid-template-columns:1fr 56px 1fr; gap:16px; align-items:stretch; }
-    .pair .raw, .pair .done{ border-radius:18px; padding:22px 24px; font-size:21px; line-height:1.5; white-space:pre-line; }
-    .pair .raw{ background:color-mix(in srgb, var(--sheet) 35%, transparent); border:1.5px dashed color-mix(in srgb, var(--ink-2) 45%, transparent); color:var(--ink-2); }
+    .pair .raw, .pair .done{ border-radius:24px; padding:22px 24px; font-size:21px; line-height:1.5; white-space:pre-line; }
+    .pair .raw{ color:var(--ink-2); background:var(--lg-fill-thin); }
     .pair .raw del{ text-decoration:line-through var(--fur); color:var(--ink-2); opacity:.6; }
-    .pair .done{ background:var(--sheet); color:var(--ink); box-shadow:var(--shadow-card); }
+    .pair .done{ color:var(--ink); }
     .pair .arrow{ align-self:center; justify-self:center; color:var(--fur); }
     .pair small{ display:block; margin-bottom:8px; font-family:var(--text); font-size:13px; color:var(--ink-2); }
     @media(max-width:820px){ .pair{ grid-template-columns:1fr; } .pair .arrow{ transform:rotate(90deg); } }
 
     /* LOCAL: the manifest */
-    .local{ background:var(--inverse); color:var(--inverse-fg); border-radius:32px; padding:72px 64px; display:grid; grid-template-columns:1fr 1.1fr; gap:56px; align-items:center; box-shadow:var(--shadow-card); }
+    .local{ padding:72px 64px; display:grid; grid-template-columns:1fr 1.1fr; gap:56px; align-items:center; }
     .local .h2{ color:var(--inverse-fg); }
     .local .lede{ color:var(--inverse-2); margin-bottom:0; }
     .manifest{ font-size:17px; }
@@ -126,6 +134,7 @@
 
     /* DOWNLOAD */
     .dl{ text-align:center; padding:110px 0 90px; }
+    .dl .pane{ padding:56px 28px 44px; border-radius:40px; }
     .dl img{ width:192px; height:auto; }
     .dl .h2{ margin:18px auto 14px; }
     .dl .lede{ margin:0 auto 32px; }
@@ -133,7 +142,7 @@
     .req{ margin-top:22px; font-size:15px; color:var(--ink-2); }
     .note{ margin:26px auto 0; max-width:60ch; font-size:14px; color:var(--ink-2); }
 
-    footer{ border-top:1px solid color-mix(in srgb, var(--rule) 70%, transparent); padding:34px 0 48px; font-size:15px; color:var(--ink-2); }
+    footer{ padding:10px 0 48px; font-size:15px; color:var(--ink-2); }
     .foot{ display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; }
     .foot nav{ display:flex; gap:22px; flex-wrap:wrap; }
     .foot a{ text-decoration:none; }
@@ -142,16 +151,17 @@
     /* HOW IT WORKS */
     .how{ display:grid; grid-template-columns:minmax(0, 0.85fr) minmax(0, 1.15fr); gap:28px; align-items:start; }
     .levers{ display:grid; gap:14px; }
-    .lever{ background:var(--sheet); border-radius:20px; box-shadow:var(--shadow-card); padding:22px 24px; display:grid; gap:6px; }
+    .lever{ padding:22px 24px; display:grid; gap:6px; border-radius:26px; }
     .lever h3{ margin:0; font-size:21px; font-weight:650; font-variation-settings:"wdth" 92; }
     .lever p{ margin:0; color:var(--ink-2); font-size:16px; }
-    .guide-link{ display:grid; grid-template-columns:72px 1fr auto; gap:14px; align-items:center; text-decoration:none; padding:14px 20px 14px 12px; border-radius:20px; }
+    .guide-link{ display:grid; grid-template-columns:72px 1fr auto; gap:14px; align-items:center; text-decoration:none; padding:14px 22px 14px 12px; border-radius:26px; }
     .guide-link img{ width:72px; height:78px; object-fit:contain; }
     .guide-link b{ display:block; font-size:18px; }
     .guide-link span{ color:var(--ink-2); font-size:15px; }
     .guide-link svg{ width:22px; height:22px; color:var(--fur-deep); }
-    .guide-link:hover svg{ transform:translateX(3px); }
-    .demo{ background:var(--sheet); border-radius:22px; box-shadow:var(--shadow-card); padding:26px 26px 12px; display:grid; gap:18px; }
+    .guide-link svg{ transition:transform .4s var(--spring); }
+    .guide-link:hover svg{ transform:translateX(4px); }
+    .demo{ padding:28px 28px 12px; display:grid; gap:18px; border-radius:32px; }
     .demo .kicker{ margin:0; font:600 13px/1 var(--text); letter-spacing:.1em; text-transform:uppercase; color:var(--fur-deep); }
     .demo .line{ margin:0; font-size:20px; font-weight:600; font-variation-settings:"wdth" 92; }
     .demo .controls{ display:flex; flex-wrap:wrap; gap:10px 14px; }
@@ -179,7 +189,7 @@
 <div class="page">
 
 <nav class="site-nav" aria-label="Main">
-  <div class="bar glass-thick">
+  <div class="bar lg">
     <a class="brand" href="#top"><img src="mando-head.svg" alt=""> WhisperWoof</a>
     <div class="nav-links">
       <a href="#modes">Live typing</a>
@@ -204,7 +214,7 @@
         </div>
         <img class="mando" id="mando" src="mando/hd/wait.webp" alt="Mando, the WhisperWoof dog, listening">
       </div>
-      <div class="pitch">
+      <div class="pitch lg">
         <div>
           <p>WhisperWoof listens on your Mac and types while you speak — Chinese, English, or both in one sentence. Let go of the key and it tidies the words up and pastes them where your cursor is.</p>
           <p class="fine">Free and open source. Nothing you say leaves your computer.</p>
@@ -226,13 +236,13 @@
       <h2 class="h2">See it as you say it, or all at once</h2>
       <p class="lede">Pick how dictation behaves in Settings. Both run on your Mac; the difference is when the words show up.</p>
       <div class="modes">
-        <div class="mode">
+        <div class="mode lg hoverlift">
           <h3>Live typing</h3>
           <p>Words appear while you talk, like a phone keyboard's voice input. The underlined part may still change as it hears more.</p>
           <div class="mode-demo" aria-hidden="true">Let's meet at three <span class="live">tomorrow</span></div>
           <p class="when">When you let go, the whole recording is checked again, cleaned up and pasted.</p>
         </div>
-        <div class="mode">
+        <div class="mode lg hoverlift">
           <h3>After you finish</h3>
           <p>Mando shows a waveform while you speak, then transcribes everything in one pass. The lightest on your Mac.</p>
           <div class="mode-demo" aria-hidden="true"><div class="wave"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.25s"></i><i style="animation-delay:.05s"></i><i style="animation-delay:.35s"></i></div></div>
@@ -249,22 +259,22 @@
       <p class="lede">Switch languages mid-sentence, trail off, correct yourself. The cleanup keeps your words and your language, drops the filler, and adds the punctuation.</p>
       <div class="pairs">
         <div class="pair">
-          <div class="raw"><small>You said</small><del>um so</del> the demo is on friday <del>no wait</del> thursday at three</div>
+          <div class="raw lg"><small>You said</small><del>um so</del> the demo is on friday <del>no wait</del> thursday at three</div>
           <svg class="arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="done"><small>Pasted</small>The demo is on Thursday at 3.</div>
+          <div class="done lg"><small>Pasted</small>The demo is on Thursday at 3.</div>
         </div>
         <div class="pair">
-          <div class="raw"><small>You said</small>three things for tomorrow first reply to the investors second review the pull request third book the flight</div>
+          <div class="raw lg"><small>You said</small>three things for tomorrow first reply to the investors second review the pull request third book the flight</div>
           <svg class="arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="done"><small>Pasted</small>Three things for tomorrow:
+          <div class="done lg"><small>Pasted</small>Three things for tomorrow:
 1. Reply to the investors
 2. Review the pull request
 3. Book the flight</div>
         </div>
         <div class="pair">
-          <div class="raw han" lang="zh"><small>You said</small><del>那个</del>帮我把这个 pull request 的 description 写一下 <del>嗯</del> 重点说我们改了 pipeline</div>
+          <div class="raw lg han" lang="zh"><small>You said</small><del>那个</del>帮我把这个 pull request 的 description 写一下 <del>嗯</del> 重点说我们改了 pipeline</div>
           <svg class="arrow" width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <div class="done han" lang="zh"><small>Pasted</small>帮我把这个 pull request 的 description 写一下，重点说我们改了 pipeline。</div>
+          <div class="done lg han" lang="zh"><small>Pasted</small>帮我把这个 pull request 的 description 写一下，重点说我们改了 pipeline。</div>
         </div>
       </div>
     </div>
@@ -275,7 +285,7 @@
     <div class="wrap">
       <h2 class="h2">The key you press decides where it goes</h2>
       <p class="lede">No commands to remember and no guessing: each combination has one destination.</p>
-      <div class="keys">
+      <div class="keys lg">
         <div class="key-row">
           <div class="combo"><span class="keycap">fn</span></div>
           <div><h3>Hold to talk, let go to paste</h3><p>Text lands at your cursor in whatever app you're in. Double-tap fn to keep recording hands-free, then tap once to finish.</p></div>
@@ -307,36 +317,36 @@
       <p class="lede">Every dictation takes the same short trip. Your own words (names, jargon, product names) can join it in three places, and Memory learns them from the fixes you already make.</p>
       <div class="how">
         <div class="levers">
-          <div class="lever">
+          <div class="lever lg hoverlift">
             <span><span class="tag memory">Hints</span></span>
             <h3>Before it listens</h3>
             <p>Whisper reads your words first, like notes before a call, so “super base” comes out as Supabase.</p>
           </div>
-          <div class="lever">
+          <div class="lever lg hoverlift">
             <span><span class="tag good">Swaps</span></span>
             <h3>Right after</h3>
             <p>Fix the same mishearing twice and Memory swaps it in by itself, with every engine, even the ones that can't take hints. It never touches words you might really say.</p>
           </div>
-          <div class="lever">
+          <div class="lever lg hoverlift">
             <span><span class="tag dictionary">Polish</span></span>
             <h3>The last pass</h3>
             <p>The on-device language model sees your Dictionary while it tidies punctuation and filler words.</p>
           </div>
-          <a class="guide-link glass" href="how-it-works.html">
+          <a class="guide-link lg hoverlift" href="how-it-works.html">
             <img src="mando/hd/think.webp" alt="" width="72" height="78" loading="lazy">
             <span><b>Read the full guide</b>How the speech models differ, the 224-token window, and a Memory playground to try.</span>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m0 0l-6-6m6 6l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
         </div>
-        <div class="demo" data-pipeline>
+        <div class="demo lg" data-pipeline>
           <p class="kicker">Follow one sentence through</p>
           <p class="line">“Please deploy the dashboard to Supabase and ping Kubernetes on Vercel.”</p>
           <div class="controls">
-            <div class="seg on-card" data-seg="engine" role="group" aria-label="Speech engine">
+            <div class="seg" data-seg="engine" role="group" aria-label="Speech engine">
               <button type="button" data-v="whisper" aria-pressed="true">Whisper</button>
               <button type="button" data-v="parakeet" aria-pressed="false">Parakeet</button>
             </div>
-            <div class="seg on-card" data-seg="mem" role="group" aria-label="Memory">
+            <div class="seg" data-seg="mem" role="group" aria-label="Memory">
               <button type="button" data-v="new" aria-pressed="true">First time</button>
               <button type="button" data-v="learned" aria-pressed="false">After your fixes</button>
             </div>
@@ -351,7 +361,7 @@
   <!-- LOCAL -->
   <section class="block" id="local" style="padding-top:24px;">
     <div class="wrap">
-      <div class="local">
+      <div class="local lg-dark">
         <div>
           <h2 class="h2">Everything happens on your Mac</h2>
           <p class="lede">WhisperWoof ships its own speech and language models and runs them on your laptop. No account, no upload, no subscription. Cloud models are there if you bring your own key — off unless you turn them on.</p>
@@ -369,7 +379,7 @@
 
   <!-- DOWNLOAD -->
   <section class="dl" id="download">
-    <div class="wrap">
+    <div class="wrap"><div class="pane lg">
       <img src="mando/hd/wave.webp" alt="Mando waving" width="192" height="208" loading="lazy">
       <h2 class="h2">Give Mando your voice</h2>
       <p class="lede">Free and open source, built for Apple Silicon Macs.</p>
@@ -382,7 +392,7 @@
       </div>
       <p class="req">Needs macOS on Apple Silicon, a microphone, and about 3 GB for the models.</p>
       <p class="note">The app isn't signed yet. On first launch, right-click it and choose Open, or run <code>xattr -dr com.apple.quarantine /Applications/WhisperWoof.app</code></p>
-    </div>
+    </div></div>
   </section>
 </main>
 
@@ -401,6 +411,7 @@
 <div class="buddy" id="buddy" aria-hidden="true"><img src="mando/hd/wait.webp" alt=""></div>
 
 <script src="pipeline.js" defer></script>
+<script src="glass.js" defer></script>
 <script>
 (() => {
   // The hero headline is a dictation: streamed with a live underline, then

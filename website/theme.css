@@ -1,61 +1,79 @@
-/* WhisperWoof site theme: the app's "liquid glass in Mando's hue"
-   (src/index.css, docs/design/liquid-glass.md), shared by every page.
+/* WhisperWoof site theme: Liquid Glass in Mando's hue.
 
-   Layers, as in the app:
-   1. The Mando colour field: slow blurred coat hues behind everything.
-   2. Content on solid cards (.card). Never glass: text over a moving field
-      is hard to read.
-   3. The functional layer is glass: the navigation (.glass-thick), controls
-      (.glass), and the one primary action or selected state (.glass-tint). */
+   The app (src/index.css, docs/design/liquid-glass.md) keeps content on solid
+   cards; the website goes further on purpose. Everything floats on glass over
+   a glowing Mando colour field:
+   - .lg        the glass pane: frosted, a bright refracted rim, soft depth, and
+                a specular highlight that follows the pointer (glass.js).
+   - .lg-tint   amber glass: the one primary action and selected states.
+   - .lg-dark   smoky glass for the inverse panel.
+   - .well      a recess cut into a pane, for text you should read closely.
+   Reduced transparency makes glass solid; reduced motion stops the field,
+   the highlights and the springs. */
 
 :root {
-  --porcelain: #f6f0e8;   /* page ground under the field */
-  --sheet: #fffbf6;       /* cards: where text lands */
-  --surface: #fbf6ef;
-  --sunk: #efe6da;        /* inset wells inside cards */
-  --ink: #2a2019;
-  --ink-2: #6e6055;
-  --rule: #e4d8c9;
-  --primary: #9c602b;     /* Mando amber, >=4.5:1 on light */
-  --on-primary: #fff8f0;
-  --fur: #b8793c;         /* coat: live / provisional */
+  --porcelain: #f7efe4;
+  --ink: #1f1712;
+  --ink-2: #66564a;
+  --rule: rgb(120 80 40 / 0.16);
+  --sheet: #fffaf3;
+  --sunk: rgb(255 255 255 / 0.5);
+  --surface: rgb(255 255 255 / 0.62);
+  --primary: #a8662c;
+  --on-primary: #fffaf3;
+  --fur: #c07c3b;
   --fur-deep: #7e4e1f;
   --fur-light: #e8a060;
-  --fur-wash: #f3e2cc;
-  --success: #3f7f4a;
-  --success-wash: #dfeedd;
+  --fur-wash: rgb(240 196 150 / 0.24);
+  --success: #2f7a42;
+  --success-wash: rgb(90 170 110 / 0.2);
   --warning: #8a6414;
-  --warning-wash: #f5e8c8;
-  --danger: #a8403b;
-  --danger-wash: #f6dcd8;
-  --teal: #2f6a70;
-  --teal-wash: #dcecec;
-  --olive: #6b6a3f;
-  --olive-wash: #e9e7d3;
-  /* The one inverse panel ("Everything happens on your Mac") stays dark. */
-  --inverse: #231d18;
-  --inverse-fg: #fbf8f4;
-  --inverse-2: #bdb2a6;
-  --inverse-rule: #3d342d;
+  --warning-wash: rgb(230 180 60 / 0.24);
+  --danger: #a3372f;
+  --danger-wash: rgb(230 110 90 / 0.2);
+  --teal: #245f66;
+  --teal-wash: rgb(80 160 170 / 0.2);
+  --olive: #5d5c2f;
+  --olive-wash: rgb(160 160 80 / 0.22);
 
-  --shadow-card: 0 0 0 0.5px rgb(90 60 30 / 0.1), 0 1px 2px rgb(80 45 15 / 0.05),
-    0 10px 28px -18px rgb(80 45 15 / 0.35);
-  --glass-regular: rgb(255 250 244 / 0.55);
-  --glass-thick: rgb(255 250 244 / 0.72);
-  --glass-edge: rgb(255 255 255 / 0.75);
-  --glass-hairline: rgb(90 60 30 / 0.12);
-  --glass-shadow: 0 10px 30px -8px rgb(80 45 15 / 0.22);
-  --glass-blur: 26px;
-  --glass-saturate: 170%;
-  --field-a: #e9b67a;
-  --field-b: #c98a4b;
-  --field-c: #f4dfc4;
-  --field-d: #d9a066;
-  --field-strength: 0.55;
+  /* The field: a pale cream ground, soft peach light, and a faint dot
+     texture so the glass visibly frosts what is behind it. */
+  --field-base: #fbf8f4;
+  --field-1: #f7d7b6;
+  --field-2: #f3dcc6;
+  --field-3: #fdeedd;
+  --field-4: #f4ddd0;
+  --field-5: #ffffff;
+  --field-strength: 0.75;
+  --field-dots: rgb(120 85 50 / 0.13);
 
-  --display: "Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
-  --text: "Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
-  --han: "LXGW WenKai Screen", "PingFang SC", serif;
+  /* Glass: clear, bright-rimmed, heavily blurred. */
+  --lg-fill: linear-gradient(150deg, rgb(255 255 255 / 0.44), rgb(255 255 255 / 0.16) 60%, rgb(255 255 255 / 0.26));
+  --lg-fill-thin: linear-gradient(150deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.06));
+  --lg-rim: linear-gradient(150deg, rgb(255 255 255 / 1), rgb(255 255 255 / 0.3) 30%, rgb(255 255 255 / 0) 55%, rgb(255 255 255 / 0.75));
+  --lg-edge: rgb(255 255 255 / 0.95);
+  --lg-depth: inset 0 -10px 24px -20px rgb(120 80 40 / 0.18);
+  --lg-shadow: 0 1px 2px rgb(90 60 30 / 0.05), 0 20px 44px -24px rgb(90 60 30 / 0.28);
+  --lg-shine: rgb(255 255 255 / 0.6);
+  --lg-blur: 32px;
+  --lg-saturate: 140%;
+  --well: rgb(255 255 255 / 0.36);
+  --well-edge: inset 0 1px 2px rgb(110 70 30 / 0.1), inset 0 0 0 1px rgb(255 255 255 / 0.55);
+  /* Tinted glass: a light, translucent amber with dark text. */
+  --tint-fill: linear-gradient(180deg, rgb(255 236 214 / 0.8), rgb(240 196 150 / 0.62));
+  --tint-ink: #5a3614;
+  --tint-edge: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 0 0 1px rgb(214 150 90 / 0.25);
+  --tint-glow: 0 8px 22px -12px rgb(190 120 60 / 0.55);
+
+  --inverse-fill: linear-gradient(150deg, rgb(52 34 20 / 0.82), rgb(28 18 11 / 0.9));
+  --inverse-fg: #fbf3ea;
+  --inverse-2: #cdb9a5;
+  --inverse-rule: rgb(255 230 200 / 0.14);
+
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --display: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "PingFang SC", sans-serif;
+  --han: "PingFang SC", "Hiragino Sans GB", "LXGW WenKai Screen", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
@@ -63,86 +81,100 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --porcelain: oklch(0.18 0.01 67);
-    --sheet: oklch(0.22 0.012 67);
-    --surface: oklch(0.21 0.012 67);
-    --sunk: oklch(0.26 0.013 67);
-    --ink: oklch(0.93 0.012 75);
-    --ink-2: oklch(0.7 0.02 65);
-    --rule: oklch(0.31 0.016 60);
-    --primary: oklch(0.7 0.11 62);
-    --on-primary: oklch(0.17 0.02 60);
-    --fur: #c8894b;
-    --fur-deep: #e8a060;
-    --fur-light: #e8a060;
-    --fur-wash: #3a2a1d;
-    --success: oklch(0.75 0.11 145);
-    --success-wash: oklch(0.27 0.04 145);
-    --warning: oklch(0.8 0.11 80);
-    --warning-wash: oklch(0.28 0.04 80);
-    --danger: oklch(0.72 0.13 28);
-    --danger-wash: oklch(0.27 0.04 28);
-    --teal: oklch(0.78 0.06 200);
-    --teal-wash: oklch(0.27 0.03 200);
-    --olive: oklch(0.8 0.06 105);
-    --olive-wash: oklch(0.28 0.03 105);
-    --inverse: oklch(0.25 0.014 67);
-    --inverse-fg: oklch(0.95 0.01 75);
-    --inverse-2: oklch(0.72 0.02 65);
-    --inverse-rule: oklch(0.34 0.016 60);
-    --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.045), inset 0 1px 0 oklch(1 0 0 / 0.06),
-      0 12px 32px -16px oklch(0 0 0 / 0.6);
-    --glass-regular: rgb(38 27 19 / 0.52);
-    --glass-thick: rgb(33 23 16 / 0.72);
-    --glass-edge: rgb(255 228 196 / 0.14);
-    --glass-hairline: rgb(255 220 180 / 0.1);
-    --glass-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.5);
-    --field-a: #6b3f1c;
-    --field-b: #3a2415;
-    --field-c: #8a5427;
-    --field-d: #23160e;
+    --porcelain: #140e0a;
+    --ink: #f6eee5;
+    --ink-2: #c3b09d;
+    --rule: rgb(255 225 190 / 0.14);
+    --sheet: #2a1f17;
+    --sunk: rgb(0 0 0 / 0.24);
+    --surface: rgb(255 235 210 / 0.06);
+    --primary: #e39a55;
+    --on-primary: #1d120a;
+    --fur: #d99352;
+    --fur-deep: #f1b476;
+    --fur-light: #f1b476;
+    --fur-wash: rgb(230 170 110 / 0.16);
+    --success: #8fd6a0;
+    --success-wash: rgb(90 190 120 / 0.16);
+    --warning: #ebc673;
+    --warning-wash: rgb(230 180 60 / 0.16);
+    --danger: #f19a8f;
+    --danger-wash: rgb(240 110 90 / 0.16);
+    --teal: #8fd0d6;
+    --teal-wash: rgb(90 180 190 / 0.16);
+    --olive: #d4d39b;
+    --olive-wash: rgb(180 180 90 / 0.16);
+    --field-base: #16110d;
+    --field-1: #5e4029;
+    --field-2: #3d2a1c;
+    --field-3: #6f5038;
+    --field-4: #2b1f16;
+    --field-5: #4b3625;
+    --field-strength: 0.7;
+    --field-dots: rgb(255 230 200 / 0.07);
+    --lg-fill: linear-gradient(150deg, rgb(255 240 225 / 0.12), rgb(255 240 225 / 0.04) 60%, rgb(255 240 225 / 0.07));
+    --lg-fill-thin: linear-gradient(150deg, rgb(255 240 225 / 0.06), rgb(255 240 225 / 0.02));
+    --lg-rim: linear-gradient(150deg, rgb(255 244 230 / 0.5), rgb(255 244 230 / 0.08) 30%, rgb(255 244 230 / 0) 55%, rgb(255 244 230 / 0.28));
+    --lg-edge: rgb(255 244 230 / 0.25);
+    --lg-depth: inset 0 -12px 26px -20px rgb(0 0 0 / 0.5);
+    --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 22px 50px -24px rgb(0 0 0 / 0.7);
+    --lg-shine: rgb(255 240 225 / 0.16);
+    --well: rgb(0 0 0 / 0.22);
+    --well-edge: inset 0 1px 2px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(255 240 225 / 0.06);
+    --tint-fill: linear-gradient(180deg, rgb(245 200 150 / 0.42), rgb(210 150 90 / 0.28));
+    --tint-ink: #fff3e6;
+    --tint-edge: inset 0 1px 0 rgb(255 240 225 / 0.45), inset 0 0 0 1px rgb(240 190 130 / 0.2);
+    --tint-glow: 0 8px 22px -12px rgb(0 0 0 / 0.6);
+    --inverse-fill: linear-gradient(150deg, rgb(10 6 3 / 0.55), rgb(10 6 3 / 0.72));
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --porcelain: oklch(0.18 0.01 67);
-  --sheet: oklch(0.22 0.012 67);
-  --surface: oklch(0.21 0.012 67);
-  --sunk: oklch(0.26 0.013 67);
-  --ink: oklch(0.93 0.012 75);
-  --ink-2: oklch(0.7 0.02 65);
-  --rule: oklch(0.31 0.016 60);
-  --primary: oklch(0.7 0.11 62);
-  --on-primary: oklch(0.17 0.02 60);
-  --fur: #c8894b;
-  --fur-deep: #e8a060;
-  --fur-light: #e8a060;
-  --fur-wash: #3a2a1d;
-  --success: oklch(0.75 0.11 145);
-  --success-wash: oklch(0.27 0.04 145);
-  --warning: oklch(0.8 0.11 80);
-  --warning-wash: oklch(0.28 0.04 80);
-  --danger: oklch(0.72 0.13 28);
-  --danger-wash: oklch(0.27 0.04 28);
-  --teal: oklch(0.78 0.06 200);
-  --teal-wash: oklch(0.27 0.03 200);
-  --olive: oklch(0.8 0.06 105);
-  --olive-wash: oklch(0.28 0.03 105);
-  --inverse: oklch(0.25 0.014 67);
-  --inverse-fg: oklch(0.95 0.01 75);
-  --inverse-2: oklch(0.72 0.02 65);
-  --inverse-rule: oklch(0.34 0.016 60);
-  --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.045), inset 0 1px 0 oklch(1 0 0 / 0.06),
-    0 12px 32px -16px oklch(0 0 0 / 0.6);
-  --glass-regular: rgb(38 27 19 / 0.52);
-  --glass-thick: rgb(33 23 16 / 0.72);
-  --glass-edge: rgb(255 228 196 / 0.14);
-  --glass-hairline: rgb(255 220 180 / 0.1);
-  --glass-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.5);
-  --field-a: #6b3f1c;
-  --field-b: #3a2415;
-  --field-c: #8a5427;
-  --field-d: #23160e;
+  --porcelain: #140e0a;
+  --ink: #f6eee5;
+  --ink-2: #c3b09d;
+  --rule: rgb(255 225 190 / 0.14);
+  --sheet: #2a1f17;
+  --sunk: rgb(0 0 0 / 0.24);
+  --surface: rgb(255 235 210 / 0.06);
+  --primary: #e39a55;
+  --on-primary: #1d120a;
+  --fur: #d99352;
+  --fur-deep: #f1b476;
+  --fur-light: #f1b476;
+  --fur-wash: rgb(230 170 110 / 0.16);
+  --success: #8fd6a0;
+  --success-wash: rgb(90 190 120 / 0.16);
+  --warning: #ebc673;
+  --warning-wash: rgb(230 180 60 / 0.16);
+  --danger: #f19a8f;
+  --danger-wash: rgb(240 110 90 / 0.16);
+  --teal: #8fd0d6;
+  --teal-wash: rgb(90 180 190 / 0.16);
+  --olive: #d4d39b;
+  --olive-wash: rgb(180 180 90 / 0.16);
+  --field-base: #16110d;
+  --field-1: #5e4029;
+  --field-2: #3d2a1c;
+  --field-3: #6f5038;
+  --field-4: #2b1f16;
+  --field-5: #4b3625;
+  --field-strength: 0.7;
+  --field-dots: rgb(255 230 200 / 0.07);
+  --lg-fill: linear-gradient(150deg, rgb(255 240 225 / 0.12), rgb(255 240 225 / 0.04) 60%, rgb(255 240 225 / 0.07));
+  --lg-fill-thin: linear-gradient(150deg, rgb(255 240 225 / 0.06), rgb(255 240 225 / 0.02));
+  --lg-rim: linear-gradient(150deg, rgb(255 244 230 / 0.5), rgb(255 244 230 / 0.08) 30%, rgb(255 244 230 / 0) 55%, rgb(255 244 230 / 0.28));
+  --lg-edge: rgb(255 244 230 / 0.25);
+  --lg-depth: inset 0 -12px 26px -20px rgb(0 0 0 / 0.5);
+  --lg-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 22px 50px -24px rgb(0 0 0 / 0.7);
+  --lg-shine: rgb(255 240 225 / 0.16);
+  --well: rgb(0 0 0 / 0.22);
+  --well-edge: inset 0 1px 2px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(255 240 225 / 0.06);
+  --tint-fill: linear-gradient(180deg, rgb(245 200 150 / 0.42), rgb(210 150 90 / 0.28));
+  --tint-ink: #fff3e6;
+  --tint-edge: inset 0 1px 0 rgb(255 240 225 / 0.45), inset 0 0 0 1px rgb(240 190 130 / 0.2);
+  --tint-glow: 0 8px 22px -12px rgb(0 0 0 / 0.6);
+  --inverse-fill: linear-gradient(150deg, rgb(10 6 3 / 0.55), rgb(10 6 3 / 0.72));
 }
 
 * { box-sizing: border-box; }
@@ -154,130 +186,157 @@ body {
   font-family: var(--text);
   font-size: 18px;
   line-height: 1.55;
-  font-variation-settings: "wdth" 100, "opsz" 16;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
 }
 :lang(zh), .han { font-family: var(--han); }
 a { color: inherit; }
-:focus-visible { outline: 3px solid var(--fur); outline-offset: 3px; border-radius: 6px; }
+:focus-visible { outline: 2.5px solid var(--fur); outline-offset: 3px; border-radius: 10px; }
 code {
-  font-family: var(--mono); font-size: 0.86em;
-  background: var(--sunk); padding: 2px 6px; border-radius: 5px;
+  font-family: var(--mono); font-size: 0.84em;
+  background: var(--well); box-shadow: var(--well-edge); padding: 2px 7px; border-radius: 7px;
 }
 
-/* 1. The Mando colour field, fixed behind the whole page. */
+/* ── The field: glowing Mando hues the glass bends ─────────────────────── */
 .mando-field {
   position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
-  background: var(--porcelain);
+  background: var(--field-base);
 }
-.mando-field::before,
-.mando-field::after {
-  content: ""; position: absolute; inset: -25%;
-  filter: blur(64px);
+.mando-field::before {
+  content: ""; position: absolute; inset: -30%;
+  filter: blur(48px);
   opacity: var(--field-strength);
   background:
-    radial-gradient(40% 45% at 18% 20%, var(--field-a), transparent 70%),
-    radial-gradient(38% 50% at 82% 35%, var(--field-b), transparent 70%),
-    radial-gradient(45% 40% at 45% 85%, var(--field-c), transparent 70%),
-    radial-gradient(30% 35% at 10% 80%, var(--field-d), transparent 70%);
-  animation: mando-field-drift 28s ease-in-out infinite alternate;
+    radial-gradient(30% 36% at 16% 18%, var(--field-1), transparent 70%),
+    radial-gradient(26% 38% at 84% 26%, var(--field-2), transparent 70%),
+    radial-gradient(36% 32% at 50% 88%, var(--field-3), transparent 70%),
+    radial-gradient(22% 26% at 8% 78%, var(--field-4), transparent 70%),
+    radial-gradient(24% 26% at 70% 62%, var(--field-5), transparent 70%);
+  animation: mando-field-drift 30s ease-in-out infinite alternate;
 }
+/* The dot texture sits on top of the light, so every pane frosts it. */
 .mando-field::after {
-  opacity: calc(var(--field-strength) * 0.6);
-  animation-duration: 36s;
-  animation-direction: alternate-reverse;
-  transform: rotate(180deg);
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 1.5px 1.5px, var(--field-dots) 1.3px, transparent 1.9px);
+  background-size: 22px 22px;
 }
-@keyframes mando-field-drift { to { transform: translate(6%, 4%) scale(1.1); } }
-.page { position: relative; z-index: 1; }
+@keyframes mando-field-drift {
+  50% { transform: translate(-4%, 5%) scale(1.06) rotate(8deg); }
+  to { transform: translate(6%, -3%) scale(1.12) rotate(-6deg); }
+}
+.page { position: relative; z-index: 1; overflow-x: clip; } /* the Mando glows may overhang */
 
-/* 2. Content. */
-.card { background: var(--sheet); border-radius: 20px; box-shadow: var(--shadow-card); }
-.well { background: var(--sunk); border-radius: 12px; }
+/* ── Liquid glass ──────────────────────────────────────────────────────── */
+.lg, .lg-tint, .lg-dark, .btn, .seg {
+  position: relative;
+  isolation: isolate;
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate));
+}
+.lg {
+  background: var(--lg-fill);
+  border-radius: 28px;
+  box-shadow: inset 0 1px 0 var(--lg-edge), var(--lg-depth), var(--lg-shadow);
+}
+/* The refracted rim: a bright gradient border, brightest top-left. */
+.lg::before, .lg-tint::before, .lg-dark::before, .btn::before, .seg::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit; padding: 1.25px;
+  background: var(--lg-rim);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* The specular highlight, following the pointer (glass.js sets --mx/--my). */
+.lg::after, .lg-tint::after, .lg-dark::after, .btn::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(520px circle at var(--mx, 22%) var(--my, -10%), var(--lg-shine), transparent 42%);
+  opacity: 0.9;
+  transition: opacity 0.3s;
+}
+.lg-tint {
+  background: var(--tint-fill);
+  color: var(--tint-ink);
+  box-shadow: var(--tint-edge), var(--tint-glow);
+}
+.lg-dark {
+  background: var(--inverse-fill);
+  color: var(--inverse-fg);
+  border-radius: 36px;
+  box-shadow: inset 0 1px 0 rgb(255 235 210 / 0.25), var(--lg-shadow);
+  --lg-rim: linear-gradient(150deg, rgb(255 235 210 / 0.5), rgb(255 235 210 / 0.05) 35%, rgb(255 235 210 / 0) 60%, rgb(255 235 210 / 0.25));
+  --lg-shine: rgb(255 210 160 / 0.14);
+}
+.well { background: var(--well); box-shadow: var(--well-edge); border-radius: 16px; }
+.hoverlift { transition: transform 0.45s var(--spring), box-shadow 0.3s; }
+.hoverlift:hover { transform: translateY(-3px); }
 
-/* 3. Glass: the functional layer only. */
-.glass, .glass-thick, .glass-tint {
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-}
-.glass {
-  background-color: var(--glass-regular);
-  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
-}
-.glass-thick {
-  background-color: var(--glass-thick);
-  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
-}
-.glass-tint {
-  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
-  color: var(--on-primary);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
-    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
-}
-
-/* Floating glass navigation. */
-.site-nav { position: sticky; top: 12px; z-index: 20; padding-inline: 16px; }
+/* ── Navigation: a floating glass capsule ──────────────────────────────── */
+.site-nav { position: sticky; top: 14px; z-index: 20; padding-inline: 16px; }
 .site-nav .bar {
-  max-width: 1160px; margin: 0 auto; height: 60px; padding: 0 10px 0 18px;
+  max-width: 1120px; margin: 0 auto; height: 62px; padding: 0 9px 0 20px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   border-radius: 999px;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; font-variation-settings: "wdth" 90, "opsz" 24; }
-.brand img { width: 28px; height: 28px; }
-.nav-links { display: flex; gap: 22px; align-items: center; font-size: 15px; }
-.nav-links a { text-decoration: none; color: var(--ink-2); }
-.nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--ink); }
-.nav-links a.btn-primary, .nav-links a.btn-primary:hover { color: var(--on-primary); }
+.brand { display: flex; align-items: center; gap: 10px; font: 700 18px/1 var(--display); letter-spacing: -0.01em; text-decoration: none; }
+.brand img { width: 30px; height: 30px; }
+.nav-links { display: flex; gap: 4px; align-items: center; font-size: 15px; font-weight: 500; }
+.nav-links a:not(.btn) { text-decoration: none; color: var(--ink-2); padding: 9px 13px; border-radius: 999px; transition: background 0.2s, color 0.2s; }
+.nav-links a:not(.btn):hover { color: var(--ink); background: var(--sunk); }
 @media (max-width: 760px) { .nav-links a:not(.btn) { display: none; } }
+@media (max-width: 360px) {
+  .site-nav { padding-inline: 10px; }
+  .site-nav .bar { padding-left: 14px; }
+  .brand { font-size: 16px; }
+  .site-nav .btn { padding: 10px 14px; }
+}
 
-/* Buttons: amber tinted glass for the primary action, clear glass otherwise. */
+/* ── Buttons: glass capsules that squish ───────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; gap: 9px; border-radius: 999px;
-  padding: 13px 22px; font: 600 16px/1 var(--text); text-decoration: none; border: 0; cursor: pointer;
-  color: var(--ink); transition: transform 0.12s, filter 0.12s;
+  padding: 14px 24px; font: 600 16px/1 var(--text); letter-spacing: -0.01em;
+  text-decoration: none; border: 0; cursor: pointer; color: var(--ink);
+  background: var(--lg-fill);
+  box-shadow: inset 0 1px 0 var(--lg-edge), var(--lg-shadow);
+  transition: transform 0.45s var(--spring), box-shadow 0.3s, filter 0.2s;
 }
-.btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
-.btn:active { transform: translateY(0); }
+.btn:hover { transform: translateY(-2px) scale(1.02); }
+.btn:active { transform: scale(0.96); transition-duration: 0.12s; }
 .btn svg { width: 16px; height: 16px; }
 .btn-primary {
-  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
-  color: var(--on-primary);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
-    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
+  color: var(--tint-ink);
+  background: var(--tint-fill);
+  box-shadow: var(--tint-edge), var(--tint-glow);
 }
-.btn-glass {
-  background-color: var(--glass-regular);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
-}
-.site-nav .btn { padding: 10px 16px; font-size: 14px; }
+.btn-glass { color: var(--ink); }
+.site-nav .btn { padding: 11px 18px; font-size: 14px; }
 
-/* Segmented control: a glass capsule, the chosen option in tinted glass. */
+/* ── Segmented control: a glass track with a sliding liquid bubble ─────── */
 .seg {
   display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-radius: 999px;
-  background-color: var(--glass-regular);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline);
+  background: var(--well);
+  box-shadow: var(--well-edge);
 }
+.seg::before { opacity: 0.6; }
 .seg button {
+  position: relative; z-index: 1;
   font: 600 14px/1 var(--text); color: var(--ink-2); background: transparent; border: 0;
-  padding: 9px 15px; border-radius: 999px; cursor: pointer;
+  padding: 10px 16px; border-radius: 999px; cursor: pointer; transition: color 0.25s;
 }
 .seg button:hover { color: var(--ink); }
-.seg button[aria-pressed="true"] {
-  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
-  color: var(--on-primary);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
-    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
+.seg button[aria-pressed="true"] { color: var(--tint-ink); }
+.seg-bubble {
+  position: absolute; z-index: 0; top: 0; left: 0; border-radius: 999px; pointer-events: none;
+  background: var(--tint-fill);
+  box-shadow: var(--tint-edge), var(--tint-glow);
+  transition: transform 0.55s var(--spring), width 0.55s var(--spring), height 0.3s;
 }
-.seg.on-card { background-color: var(--sunk); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* Without glass.js the pressed button carries the fill itself. */
+.seg:not(.has-bubble) button[aria-pressed="true"] { background: var(--tint-fill); }
 
-/* Tags and marks shared by the demos. */
-.tag { display: inline-block; font: 600 12px/1.5 var(--text); padding: 1px 9px; border-radius: 999px; vertical-align: 1px; }
+/* ── Tags, utterances and the pipeline demo ────────────────────────────── */
+.tag { display: inline-block; font: 600 12px/1.5 var(--text); padding: 2px 10px; border-radius: 999px; vertical-align: 1px; }
 .tag.memory { color: var(--fur-deep); background: var(--fur-wash); }
 .tag.dictionary { color: var(--teal); background: var(--teal-wash); }
 .tag.pack { color: var(--olive); background: var(--olive-wash); }
@@ -286,42 +345,41 @@ code {
 .tag.wait { color: var(--warning); background: var(--warning-wash); }
 .tag.no { color: var(--ink-2); background: var(--sunk); }
 .utter {
-  font-family: var(--mono); font-size: 14px; line-height: 1.55; background: var(--sunk);
-  border-radius: 10px; padding: 10px 13px; overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: 14px; line-height: 1.55;
+  background: var(--well); box-shadow: var(--well-edge);
+  border-radius: 14px; padding: 11px 14px; overflow-wrap: anywhere;
 }
 .utter mark { background: transparent; color: inherit; border-bottom: 2px solid currentColor; padding: 0 1px; }
 .utter mark.bad { color: var(--danger); }
 .utter mark.fix { color: var(--success); }
 
-/* The pipeline demo (pipeline.js). */
 .stages { display: grid; }
 .stage { display: grid; grid-template-columns: 34px 1fr; gap: 0 14px; }
 .stage .rail { display: flex; flex-direction: column; align-items: center; }
 .stage .dot {
-  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-  font: 700 13px/1 var(--mono); color: var(--fur-deep); background: var(--fur-wash);
-  box-shadow: inset 0 0 0 1.5px var(--fur);
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 13px/1 var(--mono); color: var(--tint-ink);
+  background: var(--tint-fill); box-shadow: var(--tint-edge), var(--tint-glow);
 }
-.stage .rail::after { content: ""; flex: 1; width: 2px; background: var(--rule); margin-block: 4px; }
+.stage .rail::after {
+  content: ""; flex: 1; width: 2px; margin-block: 5px; border-radius: 2px;
+  background: linear-gradient(color-mix(in srgb, var(--fur) 55%, transparent), color-mix(in srgb, var(--fur) 8%, transparent));
+}
 .stage:last-child .rail::after { display: none; }
 .stage .body { padding-bottom: 18px; display: grid; gap: 6px; min-width: 0; }
-.stage h3 { margin: 3px 0 0; font-size: 17px; font-weight: 650; }
+.stage h3 { margin: 4px 0 0; font: 650 17px/1.3 var(--text); letter-spacing: -0.01em; }
 .stage .note { margin: 0; color: var(--ink-2); font-size: 15px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mando-field::before, .mando-field::after { animation: none; }
+  .mando-field::before { animation: none; }
   html { scroll-behavior: auto; }
-  .btn { transition: none; }
+  .btn, .hoverlift, .seg-bubble { transition: none; }
+  .btn:hover, .hoverlift:hover { transform: none; }
 }
-/* Reduce Transparency: glass turns solid, the field flattens. */
 @media (prefers-reduced-transparency: reduce) {
-  :root {
-    --glass-regular: var(--sheet);
-    --glass-thick: var(--surface);
-    --glass-blur: 0px;
-  }
-  .mando-field::before, .mando-field::after { opacity: calc(var(--field-strength) * 0.35); }
+  :root { --lg-blur: 0px; --lg-fill: var(--sheet); --well: var(--sheet); }
+  .mando-field::before { opacity: calc(var(--field-strength) * 0.35); }
 }
 @media (prefers-contrast: more) {
-  :root { --glass-hairline: rgb(60 35 15 / 0.45); }
+  :root { --lg-edge: rgb(80 45 15 / 0.6); --ink-2: #4a3a2e; }
 }
