@@ -13,7 +13,6 @@ import {
   Search,
   Clock,
   FileText,
-  FolderOpen,
   Puzzle,
   Copy,
   HardDrive,
@@ -26,7 +25,7 @@ import { getCachedPlatform } from "../utils/platform";
 
 const platform = getCachedPlatform();
 
-export type ControlPanelView = "home" | "voice-notes" | "personal-notes" | "dictionary" | "memory" | "upload" | "integrations" | "whisperwoof-history" | "whisperwoof-projects" | "whisperwoof-plugins" | "smart-clipboard" | "storage";
+export type ControlPanelView = "home" | "voice-notes" | "personal-notes" | "dictionary" | "memory" | "upload" | "integrations" | "whisperwoof-history" | "whisperwoof-plugins" | "smart-clipboard" | "storage";
 
 interface ControlPanelSidebarProps {
   activeView: ControlPanelView;
@@ -84,7 +83,6 @@ export default function ControlPanelSidebar({
       label: "Tools",
       items: [
         { id: "memory", label: "Memory", icon: BookOpen },
-        { id: "whisperwoof-projects", label: "Projects", icon: FolderOpen },
         { id: "whisperwoof-plugins", label: "Plugins", icon: Puzzle },
       ],
     },

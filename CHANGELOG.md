@@ -5,7 +5,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
-## [1.21.0] - 2026-09-24 — Memory learns what it misheard, and reaches every engine
+## [1.22.0] - 2026-09-24 — Memory learns what it misheard, and reaches every engine
 
 ### Added
 - **Memory fixes the words it keeps mishearing, once you say so.** Correct the same mishearing twice ("super base" → Supabase) and Memory asks: *Always change "super base" to "Supabase"?* Say **Always** and it is swapped in before polish from then on, with every local engine (including Parakeet, X-ASR and SenseVoice, which take no word hints) and the batch cloud providers. Say **Not now**, or change a swapped word back, and Memory never asks again. It only asks when the misheard text couldn't be something you really said: never for a real word or one of its forms ("their", "bills", "going"), a number ("10" → "10am"), or a phrase with everyday words ("a team" → Adam). Words you type next to a fix ("Supabase today") aren't learned as part of it. Mishearings you type into Memory yourself apply straight away.
@@ -24,6 +24,32 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Undo on "Learned X" didn't stick.** It cleared the Dictionary but left the word in Memory, and the next keystroke in the same field learned it again. Undo now clears both and stops watching that field.
 - **Deleting a learned word only deleted it in one place.** Deleting it in Memory now clears the Dictionary copy, and deleting it in the Dictionary tab clears the Memory copy.
 - **Learning a word could wipe the Dictionary** if the Dictionary couldn't be read at that moment. Learning now skips that edit instead.
+
+## [1.21.1] - 2026-09-24 — Easier install, Mando in the menu bar
+
+### Added
+- **A one-line installer.** Running `curl -fsSL https://raw.githubusercontent.com/h3qing/WhisperWoof/main/scripts/install.sh | bash` downloads the latest release, checks it against GitHub's SHA-256, installs it to `/Applications` (replacing an older copy) and opens it. It needs nothing beyond a stock Mac, and running it again updates. Because `curl` downloads aren't quarantined, macOS doesn't show its "can't verify" prompt.
+- **The DMG window now shows what to do:** Mando-toned background, "Drag WhisperWoof into Applications", and an arrow from the app to the Applications folder.
+- **Developer ID signing is ready.** When five Apple secrets are added to the repo, releases are signed and notarized automatically. They then open like any Mac app, install updates from inside the app, and keep the Accessibility grant across updates. Setup: `docs/release-signing.md`. Until then, releases stay unsigned.
+
+### Changed
+- **The menu bar icon is Mando's head**, replacing the generic waveform. It's a template image, so macOS tints it for light and dark menu bars.
+- **Install instructions** (release notes, README, website) now lead with the one-liner. For the DMG they describe today's macOS flow (Done → System Settings → Privacy & Security → Open Anyway); right-click → Open no longer bypasses the check.
+
+## [1.21.0] - 2026-09-24 — Notes and projects in one place
+
+### Changed
+- **Notes and Projects are one view now, like Apple Notes.**
+  - **Folder column:** All notes, one folder per project with its note count, and No project.
+  - **Drag and drop:** drag a note onto a project to file it, or onto No project to take it out. Its recording moves with it.
+  - **Project on every note:** in All notes, each note shows its project. The note's own project picker does the same move from the keyboard.
+  - **Managing projects:** **+** creates a project. Each project's **⋯** menu has Rename (also updates the name inside its notes), Make fn+P save here, and Delete (its notes are kept and simply leave the project).
+  - **Sidebar:** the separate Projects page is gone, along with its per-project plugin selector, which pointed at plugin packages that were never published.
+
+### Added
+- **Each voice note links to its recording.** A note saved with fn+N or fn+P records its dictation (`entry:` in the frontmatter). The note shows **Play recording**, so you can hear what you actually said.
+- **fn+P saves a note into your default project** (★ in the folder column). An "Inbox" is created the first time, and you choose a different default from the ⋯ menu. The "Saved to …" message has an **Open** button. Before this, fn+P only tagged the dictation and filed it nowhere.
+- **Project names are checked:** not empty, at most 80 characters, and not a duplicate (ignoring case). Values written into frontmatter can't add extra lines to it.
 
 ## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
 

@@ -46,8 +46,8 @@ function listNotes() {
     .slice(0, MAX_NOTES);
   const notes = newest.flatMap(({ name, mtimeMs }) => {
     try {
-      const { title, body, date } = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
-      return [{ name, title: title || name.replace(/\.md$/, ""), body, date, mtimeMs }];
+      const note = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
+      return [{ ...note, name, title: note.title || name.replace(/\.md$/, ""), mtimeMs }];
     } catch {
       return [];
     }
@@ -63,6 +63,14 @@ function readNote(name) {
 function updateNoteBody(name, body) {
   const file = notePath(name);
   const next = pure.withBody(fs.readFileSync(file, "utf-8"), body);
+  fs.writeFileSync(file, next, "utf-8");
+  return pure.parseNote(next);
+}
+
+/** Set (string) or remove (null) frontmatter fields; returns the parsed note. */
+function setNoteFields(name, fields) {
+  const file = notePath(name);
+  const next = pure.withFields(fs.readFileSync(file, "utf-8"), fields);
   fs.writeFileSync(file, next, "utf-8");
   return pure.parseNote(next);
 }
@@ -98,4 +106,4 @@ function watchNotesFolder(onChange) {
   };
 }
 
-module.exports = { listNotes, readNote, updateNoteBody, trashNote, revealNote, openNotesFolder, watchNotesFolder };
+module.exports = { listNotes, readNote, updateNoteBody, setNoteFields, trashNote, revealNote, openNotesFolder, watchNotesFolder };

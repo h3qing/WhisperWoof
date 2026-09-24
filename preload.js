@@ -855,6 +855,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofNotesWatch: () => ipcRenderer.invoke("whisperwoof-notes-watch"),
   onWhisperwoofNotesChanged: registerListener("whisperwoof-notes-changed", (callback) => () => callback()),
   whisperwoofOpenVoiceNote: (name) => ipcRenderer.invoke("whisperwoof-open-voice-note", name),
+  whisperwoofSaveProjectNote: (text) => ipcRenderer.invoke("whisperwoof-save-project-note", text),
+  whisperwoofNotesLinkEntry: (name, entryId) => ipcRenderer.invoke("whisperwoof-notes-link-entry", name, entryId),
+  whisperwoofNotesSetProject: (name, projectId) =>
+    ipcRenderer.invoke("whisperwoof-notes-set-project", name, projectId),
+  whisperwoofGetDefaultProject: () => ipcRenderer.invoke("whisperwoof-get-default-project"),
+  whisperwoofSetDefaultProject: (projectId) => ipcRenderer.invoke("whisperwoof-set-default-project", projectId),
+  whisperwoofEntryRecordingId: (entryId) => ipcRenderer.invoke("whisperwoof-entry-recording-id", entryId),
   onWhisperwoofNavigateVoiceNote: registerListener(
     "whisperwoof-navigate-voice-note",
     (callback) => (_event, name) => callback(name)
@@ -879,6 +886,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofCreateProject: (name) => ipcRenderer.invoke("whisperwoof-create-project", name),
   whisperwoofGetProjects: () => ipcRenderer.invoke("whisperwoof-get-projects"),
   whisperwoofDeleteProject: (id) => ipcRenderer.invoke("whisperwoof-delete-project", id),
+  whisperwoofRenameProject: (id, name) => ipcRenderer.invoke("whisperwoof-rename-project", id, name),
   whisperwoofGetProjectEntries: (projectId, limit) => ipcRenderer.invoke("whisperwoof-get-project-entries", projectId, limit),
 
   // WhisperWoof: Model advisor — recommend model based on system memory

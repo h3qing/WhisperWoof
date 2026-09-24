@@ -120,7 +120,7 @@ function loadInstallState() {
     states = [];
   }
 
-  // Packs the user never chose follow the current defaults (off since 1.21.0)
+  // Packs the user never chose follow the current defaults (off since 1.22.0)
   const packs = loadBuiltinPacks();
   const migration = migratePackDefaults(states, packs);
   states = migration.states;

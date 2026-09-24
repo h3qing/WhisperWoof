@@ -50,7 +50,7 @@ export function nextAutoHintsSuppressed(
 ): boolean {
   if (hijacked) return true;
   // No detected language (an older whisper-server): a hijack can't be
-  // caught, so after sending hints once, hold them (the pre-1.21 behaviour).
+  // caught, so after sending hints once, hold them (the pre-1.22 behaviour).
   if (!language) return suppressed || hintsSent;
   return isCjkLanguage(language) ? suppressed : false;
 }
