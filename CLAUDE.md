@@ -23,7 +23,7 @@ Core pipeline: Voice → STT (Whisper/Parakeet, local) → LLM Polish (OpenWhisp
 - **Polish** — All production polish surfaces (dictation, CommandBar Cmd+K, file-import, meeting-end) go through OpenWhispr's reasoning stack with the same `cleanupPrompt` from `src/locales/en/prompts.json`. Dictation: `audioManager.processTranscription` (`src/helpers/audioManager.js:648`) calls `ReasoningService.processText`. CommandBar: `polishViaReasoning` in `CommandBar.tsx` mirrors that flow. File-import and meeting-end IPC handlers (`whisperwoof-import-audio`, `whisperwoof-meeting-end`) now return raw transcripts — polish is a renderer-layer concern, gated on `useReasoningModel` and the selected model. Local mode uses bundled `llama-server` (llama.cpp); cloud providers (OpenAI / Anthropic / Gemini / Custom) flow through the same `ReasoningService`. Prompt overridable in Prompt Studio. The cleanup prompt is tuned/measured via `eval/run-polish-eval.js` + `eval/polish-cases.json` (tests the real `cleanupPrompt` against local Ollama models as a proxy for the bundled GGUF). The legacy WhisperWoof Ollama polish stack and the "Voice Style" tuning bench were deleted (see CHANGELOG Unreleased).
 - **Local-first** — No mandatory cloud dependency. Local reasoning runs via bundled `llama-server`; downloaded models live under `~/.cache/openwhispr/`. Cleanup gracefully degrades to raw transcript if `useReasoningModel` is off or no model is selected.
 - **Pre-warm** — `sync-startup-preferences` (`ipcHandlers.js`) calls `modelManager.prewarmServer(reasoningModel)` on app boot when local reasoning is enabled, so the first dictation doesn't pay the model-load cost. Idempotent.
-- **Live dictation** — `dictationMode: "live"` streams the mic into a second, online sherpa-onnx server (`ParakeetServerManager.streamServer`) running the preview model (default X-ASR zh/en); partials arrive as `{text, committed, partial}` and render in `ui/indicator/LiveDictationPanel.tsx`. On release the final is either the streamed text or a full-capture decode with the transcription model (`liveFinalPass`), falling back to the draft. Routing matrix: `core/live/live-dictation.ts` (`resolveLiveDictationPlan`). Settings UI: `ui/settings/DictationModeSection.tsx`. Bench: `eval/dictation-bench/run_streaming.py`.
+- **Live dictation** — `dictationMode: "live"` streams the mic into a second, online sherpa-onnx server (`ParakeetServerManager.streamServer`) running the preview model (default X-ASR zh/en); partials arrive as `{text, committed, partial}` and render in `ui/indicator/LiveDictationPanel.tsx` (the provisional tail in `live-words` glass). On release the final is either the streamed text or a full-capture decode with the transcription model (`liveFinalPass`), falling back to the draft. Routing matrix: `core/live/live-dictation.ts` (`resolveLiveDictationPlan`). Settings UI: `ui/settings/DictationModeSection.tsx`. Bench: `eval/dictation-bench/run_streaming.py`.
 - **Bridge pattern** — `src/whisperwoof/bridge/` is the ONLY place that imports OpenWhispr code. All other WhisperWoof code is isolated.
 
 ## Key Files (after fork setup)
@@ -135,6 +135,14 @@ See `task_plan.md` for full details. Summary:
 - **Phase 1b:** Features (clipboard, history UI, indicator, projects, meetings, file import)
 - **Phase 2:** MCP Plugin System
 - **Phase 3:** Polish & Ship
+
+## Design System
+
+Always read `DESIGN.md` before making any visual or UI decisions.
+All font choices, colors, spacing, and aesthetic direction are defined there
+(implementation notes: `docs/design/liquid-glass.md`).
+Do not deviate without explicit user approval.
+In QA mode, flag any code that doesn't match `DESIGN.md`.
 
 ## Skill routing
 
