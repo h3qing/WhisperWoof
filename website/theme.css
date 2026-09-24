@@ -1,0 +1,327 @@
+/* WhisperWoof site theme: the app's "liquid glass in Mando's hue"
+   (src/index.css, docs/design/liquid-glass.md), shared by every page.
+
+   Layers, as in the app:
+   1. The Mando colour field: slow blurred coat hues behind everything.
+   2. Content on solid cards (.card). Never glass: text over a moving field
+      is hard to read.
+   3. The functional layer is glass: the navigation (.glass-thick), controls
+      (.glass), and the one primary action or selected state (.glass-tint). */
+
+:root {
+  --porcelain: #f6f0e8;   /* page ground under the field */
+  --sheet: #fffbf6;       /* cards: where text lands */
+  --surface: #fbf6ef;
+  --sunk: #efe6da;        /* inset wells inside cards */
+  --ink: #2a2019;
+  --ink-2: #6e6055;
+  --rule: #e4d8c9;
+  --primary: #9c602b;     /* Mando amber, >=4.5:1 on light */
+  --on-primary: #fff8f0;
+  --fur: #b8793c;         /* coat: live / provisional */
+  --fur-deep: #7e4e1f;
+  --fur-light: #e8a060;
+  --fur-wash: #f3e2cc;
+  --success: #3f7f4a;
+  --success-wash: #dfeedd;
+  --warning: #8a6414;
+  --warning-wash: #f5e8c8;
+  --danger: #a8403b;
+  --danger-wash: #f6dcd8;
+  --teal: #2f6a70;
+  --teal-wash: #dcecec;
+  --olive: #6b6a3f;
+  --olive-wash: #e9e7d3;
+  /* The one inverse panel ("Everything happens on your Mac") stays dark. */
+  --inverse: #231d18;
+  --inverse-fg: #fbf8f4;
+  --inverse-2: #bdb2a6;
+  --inverse-rule: #3d342d;
+
+  --shadow-card: 0 0 0 0.5px rgb(90 60 30 / 0.1), 0 1px 2px rgb(80 45 15 / 0.05),
+    0 10px 28px -18px rgb(80 45 15 / 0.35);
+  --glass-regular: rgb(255 250 244 / 0.55);
+  --glass-thick: rgb(255 250 244 / 0.72);
+  --glass-edge: rgb(255 255 255 / 0.75);
+  --glass-hairline: rgb(90 60 30 / 0.12);
+  --glass-shadow: 0 10px 30px -8px rgb(80 45 15 / 0.22);
+  --glass-blur: 26px;
+  --glass-saturate: 170%;
+  --field-a: #e9b67a;
+  --field-b: #c98a4b;
+  --field-c: #f4dfc4;
+  --field-d: #d9a066;
+  --field-strength: 0.55;
+
+  --display: "Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
+  --text: "Bricolage Grotesque", "LXGW WenKai Screen", system-ui, sans-serif;
+  --han: "LXGW WenKai Screen", "PingFang SC", serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --porcelain: oklch(0.18 0.01 67);
+    --sheet: oklch(0.22 0.012 67);
+    --surface: oklch(0.21 0.012 67);
+    --sunk: oklch(0.26 0.013 67);
+    --ink: oklch(0.93 0.012 75);
+    --ink-2: oklch(0.7 0.02 65);
+    --rule: oklch(0.31 0.016 60);
+    --primary: oklch(0.7 0.11 62);
+    --on-primary: oklch(0.17 0.02 60);
+    --fur: #c8894b;
+    --fur-deep: #e8a060;
+    --fur-light: #e8a060;
+    --fur-wash: #3a2a1d;
+    --success: oklch(0.75 0.11 145);
+    --success-wash: oklch(0.27 0.04 145);
+    --warning: oklch(0.8 0.11 80);
+    --warning-wash: oklch(0.28 0.04 80);
+    --danger: oklch(0.72 0.13 28);
+    --danger-wash: oklch(0.27 0.04 28);
+    --teal: oklch(0.78 0.06 200);
+    --teal-wash: oklch(0.27 0.03 200);
+    --olive: oklch(0.8 0.06 105);
+    --olive-wash: oklch(0.28 0.03 105);
+    --inverse: oklch(0.25 0.014 67);
+    --inverse-fg: oklch(0.95 0.01 75);
+    --inverse-2: oklch(0.72 0.02 65);
+    --inverse-rule: oklch(0.34 0.016 60);
+    --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.045), inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 12px 32px -16px oklch(0 0 0 / 0.6);
+    --glass-regular: rgb(38 27 19 / 0.52);
+    --glass-thick: rgb(33 23 16 / 0.72);
+    --glass-edge: rgb(255 228 196 / 0.14);
+    --glass-hairline: rgb(255 220 180 / 0.1);
+    --glass-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.5);
+    --field-a: #6b3f1c;
+    --field-b: #3a2415;
+    --field-c: #8a5427;
+    --field-d: #23160e;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --porcelain: oklch(0.18 0.01 67);
+  --sheet: oklch(0.22 0.012 67);
+  --surface: oklch(0.21 0.012 67);
+  --sunk: oklch(0.26 0.013 67);
+  --ink: oklch(0.93 0.012 75);
+  --ink-2: oklch(0.7 0.02 65);
+  --rule: oklch(0.31 0.016 60);
+  --primary: oklch(0.7 0.11 62);
+  --on-primary: oklch(0.17 0.02 60);
+  --fur: #c8894b;
+  --fur-deep: #e8a060;
+  --fur-light: #e8a060;
+  --fur-wash: #3a2a1d;
+  --success: oklch(0.75 0.11 145);
+  --success-wash: oklch(0.27 0.04 145);
+  --warning: oklch(0.8 0.11 80);
+  --warning-wash: oklch(0.28 0.04 80);
+  --danger: oklch(0.72 0.13 28);
+  --danger-wash: oklch(0.27 0.04 28);
+  --teal: oklch(0.78 0.06 200);
+  --teal-wash: oklch(0.27 0.03 200);
+  --olive: oklch(0.8 0.06 105);
+  --olive-wash: oklch(0.28 0.03 105);
+  --inverse: oklch(0.25 0.014 67);
+  --inverse-fg: oklch(0.95 0.01 75);
+  --inverse-2: oklch(0.72 0.02 65);
+  --inverse-rule: oklch(0.34 0.016 60);
+  --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.045), inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 12px 32px -16px oklch(0 0 0 / 0.6);
+  --glass-regular: rgb(38 27 19 / 0.52);
+  --glass-thick: rgb(33 23 16 / 0.72);
+  --glass-edge: rgb(255 228 196 / 0.14);
+  --glass-hairline: rgb(255 220 180 / 0.1);
+  --glass-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.5);
+  --field-a: #6b3f1c;
+  --field-b: #3a2415;
+  --field-c: #8a5427;
+  --field-d: #23160e;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--porcelain);
+  color: var(--ink);
+  font-family: var(--text);
+  font-size: 18px;
+  line-height: 1.55;
+  font-variation-settings: "wdth" 100, "opsz" 16;
+  -webkit-font-smoothing: antialiased;
+}
+:lang(zh), .han { font-family: var(--han); }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--fur); outline-offset: 3px; border-radius: 6px; }
+code {
+  font-family: var(--mono); font-size: 0.86em;
+  background: var(--sunk); padding: 2px 6px; border-radius: 5px;
+}
+
+/* 1. The Mando colour field, fixed behind the whole page. */
+.mando-field {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  background: var(--porcelain);
+}
+.mando-field::before,
+.mando-field::after {
+  content: ""; position: absolute; inset: -25%;
+  filter: blur(64px);
+  opacity: var(--field-strength);
+  background:
+    radial-gradient(40% 45% at 18% 20%, var(--field-a), transparent 70%),
+    radial-gradient(38% 50% at 82% 35%, var(--field-b), transparent 70%),
+    radial-gradient(45% 40% at 45% 85%, var(--field-c), transparent 70%),
+    radial-gradient(30% 35% at 10% 80%, var(--field-d), transparent 70%);
+  animation: mando-field-drift 28s ease-in-out infinite alternate;
+}
+.mando-field::after {
+  opacity: calc(var(--field-strength) * 0.6);
+  animation-duration: 36s;
+  animation-direction: alternate-reverse;
+  transform: rotate(180deg);
+}
+@keyframes mando-field-drift { to { transform: translate(6%, 4%) scale(1.1); } }
+.page { position: relative; z-index: 1; }
+
+/* 2. Content. */
+.card { background: var(--sheet); border-radius: 20px; box-shadow: var(--shadow-card); }
+.well { background: var(--sunk); border-radius: 12px; }
+
+/* 3. Glass: the functional layer only. */
+.glass, .glass-thick, .glass-tint {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+.glass {
+  background-color: var(--glass-regular);
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
+}
+.glass-thick {
+  background-color: var(--glass-thick);
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
+}
+.glass-tint {
+  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
+  color: var(--on-primary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+/* Floating glass navigation. */
+.site-nav { position: sticky; top: 12px; z-index: 20; padding-inline: 16px; }
+.site-nav .bar {
+  max-width: 1160px; margin: 0 auto; height: 60px; padding: 0 10px 0 18px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-radius: 999px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; font-variation-settings: "wdth" 90, "opsz" 24; }
+.brand img { width: 28px; height: 28px; }
+.nav-links { display: flex; gap: 22px; align-items: center; font-size: 15px; }
+.nav-links a { text-decoration: none; color: var(--ink-2); }
+.nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--ink); }
+.nav-links a.btn-primary, .nav-links a.btn-primary:hover { color: var(--on-primary); }
+@media (max-width: 760px) { .nav-links a:not(.btn) { display: none; } }
+
+/* Buttons: amber tinted glass for the primary action, clear glass otherwise. */
+.btn {
+  display: inline-flex; align-items: center; gap: 9px; border-radius: 999px;
+  padding: 13px 22px; font: 600 16px/1 var(--text); text-decoration: none; border: 0; cursor: pointer;
+  color: var(--ink); transition: transform 0.12s, filter 0.12s;
+}
+.btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.btn:active { transform: translateY(0); }
+.btn svg { width: 16px; height: 16px; }
+.btn-primary {
+  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
+  color: var(--on-primary);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.btn-glass {
+  background-color: var(--glass-regular);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline), var(--glass-shadow);
+}
+.site-nav .btn { padding: 10px 16px; font-size: 14px; }
+
+/* Segmented control: a glass capsule, the chosen option in tinted glass. */
+.seg {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-radius: 999px;
+  background-color: var(--glass-regular);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 0 0 0 0.5px var(--glass-hairline);
+}
+.seg button {
+  font: 600 14px/1 var(--text); color: var(--ink-2); background: transparent; border: 0;
+  padding: 9px 15px; border-radius: 999px; cursor: pointer;
+}
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] {
+  background-color: color-mix(in srgb, var(--primary) 82%, transparent);
+  color: var(--on-primary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 6px 16px -6px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.seg.on-card { background-color: var(--sunk); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* Tags and marks shared by the demos. */
+.tag { display: inline-block; font: 600 12px/1.5 var(--text); padding: 1px 9px; border-radius: 999px; vertical-align: 1px; }
+.tag.memory { color: var(--fur-deep); background: var(--fur-wash); }
+.tag.dictionary { color: var(--teal); background: var(--teal-wash); }
+.tag.pack { color: var(--olive); background: var(--olive-wash); }
+.tag.alt, .tag.bad { color: var(--danger); background: var(--danger-wash); }
+.tag.good { color: var(--success); background: var(--success-wash); }
+.tag.wait { color: var(--warning); background: var(--warning-wash); }
+.tag.no { color: var(--ink-2); background: var(--sunk); }
+.utter {
+  font-family: var(--mono); font-size: 14px; line-height: 1.55; background: var(--sunk);
+  border-radius: 10px; padding: 10px 13px; overflow-wrap: anywhere;
+}
+.utter mark { background: transparent; color: inherit; border-bottom: 2px solid currentColor; padding: 0 1px; }
+.utter mark.bad { color: var(--danger); }
+.utter mark.fix { color: var(--success); }
+
+/* The pipeline demo (pipeline.js). */
+.stages { display: grid; }
+.stage { display: grid; grid-template-columns: 34px 1fr; gap: 0 14px; }
+.stage .rail { display: flex; flex-direction: column; align-items: center; }
+.stage .dot {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 13px/1 var(--mono); color: var(--fur-deep); background: var(--fur-wash);
+  box-shadow: inset 0 0 0 1.5px var(--fur);
+}
+.stage .rail::after { content: ""; flex: 1; width: 2px; background: var(--rule); margin-block: 4px; }
+.stage:last-child .rail::after { display: none; }
+.stage .body { padding-bottom: 18px; display: grid; gap: 6px; min-width: 0; }
+.stage h3 { margin: 3px 0 0; font-size: 17px; font-weight: 650; }
+.stage .note { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mando-field::before, .mando-field::after { animation: none; }
+  html { scroll-behavior: auto; }
+  .btn { transition: none; }
+}
+/* Reduce Transparency: glass turns solid, the field flattens. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-regular: var(--sheet);
+    --glass-thick: var(--surface);
+    --glass-blur: 0px;
+  }
+  .mando-field::before, .mando-field::after { opacity: calc(var(--field-strength) * 0.35); }
+}
+@media (prefers-contrast: more) {
+  :root { --glass-hairline: rgb(60 35 15 / 0.45); }
+}
