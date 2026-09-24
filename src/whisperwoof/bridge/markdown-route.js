@@ -12,6 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const { withFields } = require("./notes-folder-pure");
 
 const DEFAULT_NOTES_DIR = path.join(
   app.getPath("documents"),
@@ -36,18 +37,27 @@ function getNotesDir() {
   return DEFAULT_NOTES_DIR;
 }
 
-function setNotesDir(dir) {
-  const settingsPath = path.join(app.getPath("userData"), "whisperwoof-settings.json");
-  let settings = {};
+function settingsPath() {
+  return path.join(app.getPath("userData"), "whisperwoof-settings.json");
+}
+
+function readSettings() {
   try {
-    if (fs.existsSync(settingsPath)) {
-      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-    }
+    if (fs.existsSync(settingsPath())) return JSON.parse(fs.readFileSync(settingsPath(), "utf-8"));
   } catch {
     // Start fresh
   }
-  settings = { ...settings, notesDirectory: dir };
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+  return {};
+}
+
+function updateSettings(patch) {
+  const next = { ...readSettings(), ...patch };
+  fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2), "utf-8");
+  return next;
+}
+
+function setNotesDir(dir) {
+  updateSettings({ notesDirectory: dir });
   return dir;
 }
 
@@ -66,9 +76,10 @@ function ensureDir(dir) {
 /**
  * Save text as a Markdown file.
  * @param {string} text - The polished (or raw) text to save
- * @returns {{ success: boolean, filePath?: string, error?: string }}
+ * @param {Record<string,string>} [fields] - extra frontmatter (e.g. project)
+ * @returns {{ success: boolean, filePath?: string, name?: string, error?: string }}
  */
-function saveAsMarkdown(text) {
+function saveAsMarkdown(text, fields = {}) {
   if (!text || !text.trim()) {
     return { success: false, error: "No text to save" };
   }
@@ -92,7 +103,8 @@ function saveAsMarkdown(text) {
       "",
     ].join("\n");
 
-    fs.writeFileSync(filePath, frontmatter + text.trim() + "\n", "utf-8");
+    const content = withFields(frontmatter + text.trim() + "\n", fields);
+    fs.writeFileSync(filePath, content, "utf-8");
 
     debugLogger.info("[WhisperWoof] Saved markdown note", {
       filePath,
@@ -116,4 +128,4 @@ function getNotesDirectory() {
   return getNotesDir();
 }
 
-module.exports = { saveAsMarkdown, getNotesDirectory, setNotesDir, DEFAULT_NOTES_DIR };
+module.exports = { saveAsMarkdown, getNotesDirectory, setNotesDir, readSettings, updateSettings, DEFAULT_NOTES_DIR };

@@ -88,3 +88,44 @@ describe("matchesQuery / sortNewestFirst", () => {
     expect(input.map((n) => n.name)).toEqual(["a.md", "b.md"]);
   });
 });
+
+describe("note links (recording + project) in frontmatter", () => {
+  it("reads the linked entry and project", () => {
+    const linked = fnNote.replace("app: WhisperWoof\n", 'app: WhisperWoof\nentry: e-123\nproject: "Kitchen reno"\nproject_id: p-9\n');
+    expect(notes.parseNote(linked)).toMatchObject({ entryId: "e-123", project: "Kitchen reno", projectId: "p-9" });
+    expect(notes.parseNote(fnNote)).toMatchObject({ entryId: "", project: "", projectId: "" });
+  });
+
+  it("sets fields, replacing existing ones and keeping the rest", () => {
+    const once = notes.withFields(fnNote, { entry: "e-1", project: "Inbox", project_id: "p-1" });
+    const twice = notes.withFields(once, { project: 'Kitchen "reno"', project_id: "p-2" });
+    const parsed = notes.parseNote(twice);
+    expect(parsed).toMatchObject({ entryId: "e-1", project: 'Kitchen "reno"', projectId: "p-2", title: "Call the landlord about the heater" });
+    expect(parsed.body).toBe("Call the landlord about the heater. It's been broken since Monday.");
+    expect(twice.match(/^project_id:/gm)).toHaveLength(1);
+  });
+
+  it("removes a field when set to null (note leaves its project)", () => {
+    const inProject = notes.withFields(fnNote, { project: "Inbox", project_id: "p-1" });
+    const out = notes.withFields(inProject, { project: null, project_id: null });
+    expect(notes.parseNote(out)).toMatchObject({ project: "", projectId: "" });
+    expect(out).not.toMatch(/^project/m);
+  });
+
+  it("adds frontmatter to a note that had none", () => {
+    const out = notes.withFields("# Trip ideas\nKyoto\n", { project: "Travel", project_id: "p-7" });
+    expect(notes.parseNote(out)).toMatchObject({ title: "Trip ideas", project: "Travel", projectId: "p-7" });
+  });
+
+  it("can't smuggle new frontmatter lines through a value", () => {
+    const out = notes.withFields(fnNote, { project: "evil\nentry: hijack" });
+    expect(notes.parseNote(out).entryId).toBe("");
+  });
+});
+
+describe("frontmatter value round-trip", () => {
+  it("keeps quotes and backslashes intact", () => {
+    const value = 'C:\\notes "draft"';
+    expect(notes.parseNote(notes.withFields("x", { project: value })).project).toBe(value);
+  });
+});

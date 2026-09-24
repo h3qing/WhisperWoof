@@ -5,6 +5,21 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-24 — Notes and projects in one place
+
+### Changed
+- **Notes and Projects are one view now, like Apple Notes.**
+  - **Folder column:** All notes, one folder per project with its note count, and No project.
+  - **Drag and drop:** drag a note onto a project to file it, or onto No project to take it out. Its recording moves with it.
+  - **Project on every note:** in All notes, each note shows its project. The note's own project picker does the same move from the keyboard.
+  - **Managing projects:** **+** creates a project. Each project's **⋯** menu has Rename (also updates the name inside its notes), Make fn+P save here, and Delete (its notes are kept and simply leave the project).
+  - **Sidebar:** the separate Projects page is gone, along with its per-project plugin selector, which pointed at plugin packages that were never published.
+
+### Added
+- **Each voice note links to its recording.** A note saved with fn+N or fn+P records its dictation (`entry:` in the frontmatter). The note shows **Play recording**, so you can hear what you actually said.
+- **fn+P saves a note into your default project** (★ in the folder column). An "Inbox" is created the first time, and you choose a different default from the ⋯ menu. The "Saved to …" message has an **Open** button. Before this, fn+P only tagged the dictation and filed it nowhere.
+- **Project names are checked:** not empty, at most 80 characters, and not a duplicate (ignoring case). Values written into frontmatter can't add extra lines to it.
+
 ## [1.20.0] - 2026-09-24 — Notes: every fn+N note in the app
 
 ### Added
