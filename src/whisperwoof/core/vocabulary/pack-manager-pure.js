@@ -68,7 +68,30 @@ function createDefaultInstallState(pack) {
     enabled: pack.defaultEnabled === true,
     installedVersion: pack.version,
     disabledEntries: [],
+    userSet: false,
   };
+}
+
+/**
+ * Move install states the user never chose (no `userSet: true`) onto each
+ * pack's current `defaultEnabled`. States written before `userSet` existed
+ * were all created from the old defaults, so they are treated the same way.
+ * Keeps disabledEntries and states for packs that no longer ship.
+ *
+ * @returns {{states: import('./pack-types').PackInstallState[], changed: boolean}}
+ */
+function migratePackDefaults(states, packs) {
+  const byId = new Map((packs || []).map((p) => [p.id, p]));
+  let changed = false;
+  const migrated = (states || []).map((state) => {
+    if (state.userSet === true) return state;
+    const pack = byId.get(state.packId);
+    const enabled = pack ? pack.defaultEnabled === true : state.enabled;
+    if (state.userSet === false && state.enabled === enabled) return state;
+    changed = true;
+    return { ...state, enabled, userSet: false };
+  });
+  return { states: migrated, changed };
 }
 
 /**
@@ -80,9 +103,9 @@ function createDefaultInstallState(pack) {
  */
 function enablePack(currentState, pack) {
   if (currentState) {
-    return { ...currentState, enabled: true, installedVersion: pack.version };
+    return { ...currentState, enabled: true, installedVersion: pack.version, userSet: true };
   }
-  return { ...createDefaultInstallState(pack), enabled: true };
+  return { ...createDefaultInstallState(pack), enabled: true, userSet: true };
 }
 
 /**
@@ -95,9 +118,9 @@ function enablePack(currentState, pack) {
  */
 function disablePack(currentState, pack) {
   if (currentState) {
-    return { ...currentState, enabled: false };
+    return { ...currentState, enabled: false, userSet: true };
   }
-  return { ...createDefaultInstallState(pack), enabled: false };
+  return { ...createDefaultInstallState(pack), enabled: false, userSet: true };
 }
 
 /**
@@ -271,6 +294,7 @@ module.exports = {
   MAX_HINT_CHARS,
   listPacksWithState,
   createDefaultInstallState,
+  migratePackDefaults,
   enablePack,
   disablePack,
   togglePackEntry,

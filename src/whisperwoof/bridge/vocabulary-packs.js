@@ -18,6 +18,7 @@ const { validatePack } = require("../core/vocabulary/pack-types");
 const {
   listPacksWithState,
   createDefaultInstallState,
+  migratePackDefaults,
   enablePack,
   disablePack,
   togglePackEntry,
@@ -119,10 +120,14 @@ function loadInstallState() {
     states = [];
   }
 
-  // Ensure every built-in pack has a state entry
+  // Packs the user never chose follow the current defaults (off since 1.21.0)
   const packs = loadBuiltinPacks();
+  const migration = migratePackDefaults(states, packs);
+  states = migration.states;
+  let changed = migration.changed;
+
+  // Ensure every built-in pack has a state entry
   const stateMap = new Map(states.map((s) => [s.packId, s]));
-  let changed = false;
 
   for (const pack of packs) {
     if (!stateMap.has(pack.id)) {

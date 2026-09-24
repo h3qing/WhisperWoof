@@ -6,7 +6,7 @@
   "author": "WhisperWoof",
   "category": "brands",
   "tags": ["brands", "companies", "products", "shopping"],
-  "defaultEnabled": true,
+  "defaultEnabled": false,
   "entries": [
     { "word": "Hermès", "alternatives": ["air mez", "her meez", "hermes"], "category": "brand" },
     { "word": "Louis Vuitton", "alternatives": ["loo ee vwee tahn", "loo ee vuh ton"], "category": "brand" },

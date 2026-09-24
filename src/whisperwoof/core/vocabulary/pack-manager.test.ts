@@ -19,6 +19,7 @@ import {
   mergePackHints,
   truncateHintsToPrompt,
   buildSttPrompt,
+  migratePackDefaults,
   packHasUpdate,
   validatePacks,
 } from "./pack-manager-pure";
@@ -50,6 +51,7 @@ interface PackInstallState {
   enabled: boolean;
   installedVersion: string;
   disabledEntries?: string[];
+  userSet?: boolean;
 }
 
 const FOOD_PACK: VocabularyPack = {
@@ -206,12 +208,55 @@ describe("createDefaultInstallState", () => {
     const state = createDefaultInstallState(TECH_PACK);
     expect(state.enabled).toBe(false);
   });
+
+  it("marks the state as not chosen by the user", () => {
+    expect(createDefaultInstallState(FOOD_PACK).userSet).toBe(false);
+  });
+});
+
+describe("migratePackDefaults", () => {
+  const legacy = (packId: string, enabled: boolean): PackInstallState => ({
+    packId,
+    enabled,
+    installedVersion: "1.0.0",
+    disabledEntries: ["pho"],
+  });
+
+  it("moves states the user never chose onto the pack's current default", () => {
+    const { states, changed } = migratePackDefaults(
+      [legacy("food-and-drink", true), legacy("tech-dev", true)],
+      [{ ...FOOD_PACK, defaultEnabled: false }, TECH_PACK],
+    );
+    expect(changed).toBe(true);
+    expect(states).toEqual([
+      { ...legacy("food-and-drink", true), enabled: false, userSet: false },
+      { ...legacy("tech-dev", true), enabled: false, userSet: false },
+    ]);
+  });
+
+  it("keeps states the user chose", () => {
+    const chosen = { ...legacy("food-and-drink", true), userSet: true };
+    const { states, changed } = migratePackDefaults([chosen], [{ ...FOOD_PACK, defaultEnabled: false }]);
+    expect(changed).toBe(false);
+    expect(states).toEqual([chosen]);
+  });
+
+  it("is a no-op once migrated", () => {
+    const once = migratePackDefaults([legacy("food-and-drink", true)], [FOOD_PACK]).states;
+    expect(migratePackDefaults(once, [FOOD_PACK]).changed).toBe(false);
+  });
+
+  it("keeps states for packs that no longer ship", () => {
+    const { states } = migratePackDefaults([legacy("gone", true)], [FOOD_PACK]);
+    expect(states).toEqual([{ ...legacy("gone", true), userSet: false }]);
+  });
 });
 
 describe("enablePack", () => {
   it("enables a pack with no prior state", () => {
     const state = enablePack(null, TECH_PACK);
     expect(state.enabled).toBe(true);
+    expect(state.userSet).toBe(true);
     expect(state.packId).toBe("tech-dev");
     expect(state.installedVersion).toBe("2.0.0");
   });
@@ -240,6 +285,7 @@ describe("disablePack", () => {
     };
     const state = disablePack(prior, FOOD_PACK);
     expect(state.enabled).toBe(false);
+    expect(state.userSet).toBe(true);
   });
 
   it("creates disabled state from scratch", () => {

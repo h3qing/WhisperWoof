@@ -6,7 +6,7 @@
   "author": "WhisperWoof",
   "category": "essentials",
   "tags": ["loanwords", "homophones", "common", "default"],
-  "defaultEnabled": true,
+  "defaultEnabled": false,
   "entries": [
     { "word": "résumé", "alternatives": ["resume", "rez oo may"] },
     { "word": "fiancé", "alternatives": ["fee on say", "fiance"] },

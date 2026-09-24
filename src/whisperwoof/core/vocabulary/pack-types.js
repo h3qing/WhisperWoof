@@ -27,6 +27,7 @@
  * @property {boolean} enabled - Whether this pack contributes to STT hints
  * @property {string} installedVersion - Version when user last enabled/updated
  * @property {string[]} [disabledEntries] - Words the user explicitly removed from this pack
+ * @property {boolean} [userSet] - True once the user turned the pack on or off; otherwise it follows defaultEnabled
  */
 
 const PACK_CATEGORIES = Object.freeze([

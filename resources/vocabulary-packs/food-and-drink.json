@@ -6,7 +6,7 @@
   "author": "WhisperWoof",
   "category": "food",
   "tags": ["cuisine", "restaurant", "cooking", "international"],
-  "defaultEnabled": true,
+  "defaultEnabled": false,
   "entries": [
     { "word": "pho", "alternatives": ["fuh", "foe"] },
     { "word": "bánh mì", "alternatives": ["bon me", "bahn mee", "banh mi"] },
