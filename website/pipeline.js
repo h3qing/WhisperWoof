@@ -32,7 +32,7 @@
         hints: { text: "Parakeet has no prompt input, so there's nothing to send.", tag: ["no", "not possible"] },
         stt: { text: "Please deploy the dashboard to Superbase and ping Kubernetes on Versailles.", bad: ["Superbase", "Versailles"] },
         swap: { text: "Nothing to swap yet.", tag: ["no", "no rules"] },
-        fix: "You fix “Superbase” → Supabase. After you've made the same fix twice, Memory swaps it by itself.",
+        fix: "You fix “Superbase” → Supabase. Make the same fix twice and Memory asks: “Always change Superbase to Supabase?”",
       },
       learned: {
         hints: { text: "Still nothing: Parakeet can't take hints, even though Memory knows your words.", tag: ["no", "not possible"] },
@@ -41,7 +41,7 @@
           text: "Please deploy the dashboard to Supabase and ping Kubernetes on Versailles.",
           good: ["Supabase"], bad: ["Versailles"], tag: ["good", "Memory swap"],
         },
-        fix: "Measured: after the second “Superbase” → Supabase fix, the “Learned” toast appears and Parakeet's next transcript comes out as “Supabase”.",
+        fix: "Measured: you said “Always” when Memory asked, and Parakeet's next transcript comes out as “Supabase”.",
       },
     },
   };
@@ -63,7 +63,7 @@
       ["Record", "The mic captures your voice. No words yet, just sound.", ""],
       ["Word hints", "Your Memory, Dictionary and Word Pack words are packed into a prompt, if the engine accepts one." + tag(d.hints.tag), note(d.hints.text)],
       ["Transcribe", "The speech model turns sound into text.", utter(d.stt)],
-      ["Memory swaps", "Mishearings you've taught Memory are replaced with your spelling." + tag(d.swap.tag), d.swap.good ? utter(d.swap) : note(d.swap.text)],
+      ["Memory swaps", "Mishearings you've approved are replaced with your spelling." + tag(d.swap.tag), d.swap.good ? utter(d.swap) : note(d.swap.text)],
       ["Polish", "A small local language model tidies punctuation and filler words. It sees your Dictionary, and never translates.", ""],
       ["Paste", "The text lands at your cursor, in the app you were using.", utter(pasted)],
       ["Learn from your fix", "Edit the pasted text and Memory compares, then learns.", note(d.fix)],

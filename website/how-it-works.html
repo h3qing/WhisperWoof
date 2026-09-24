@@ -98,6 +98,7 @@
     .rule{ display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; background:var(--well); box-shadow:var(--well-edge); border-radius:16px; padding:12px 15px; }
     .rule .pair{ font:14px/1.5 var(--mono); overflow-wrap:anywhere; }
     .rule .why{ grid-column:1 / -1; color:var(--ink-2); font-size:14px; }
+    .rule .always{ padding:8px 14px; font-size:13px; }
     .empty{ margin:0; color:var(--ink-2); font-size:15px; font-style:italic; }
 
     .flow{ display:grid; gap:10px; }
@@ -278,7 +279,7 @@
       <h2 id="h-levers">Three ways your words reach the text</h2>
       <ul class="clean">
         <li><strong>Hints</strong> go <em>into</em> the model before it listens (Whisper's prompt). Best result, but only Whisper accepts them.</li>
-        <li><strong>Swaps</strong> happen <em>after</em> the model: Memory replaces a mishearing it has seen you fix (“super base” → Supabase). Works with every engine.</li>
+        <li><strong>Swaps</strong> happen <em>after</em> the model: Memory replaces a mishearing you've approved (“super base” → Supabase). Works with every engine.</li>
         <li><strong>Polish</strong> is the local LLM clean-up pass; it sees your Dictionary words as a list and can fix obvious near-misses.</li>
       </ul>
     </div>
@@ -332,7 +333,7 @@
         <li><strong>Compare.</strong> Each time you pause typing (1.5 s), the field is compared word by word with what was pasted. Each changed stretch is trimmed to the part that sounds alike, giving a pair: <em>misheard → corrected</em>. Words you typed next to the fix (“Supabase <u>today</u>”) aren't part of it.</li>
         <li><strong>Filter.</strong> Rewrites (more than half the words changed), unrelated swaps (the words don't sound alike) and fixes under 3 letters are ignored.</li>
         <li><strong>Remember.</strong> The pair is saved on the Memory word, tagged with the app you were in. A half-typed fix is replaced by the finished one, and new words also go into the Dictionary (so Whisper gets them as hints).</li>
-        <li><strong>Swap.</strong> Once you've made the same fix twice, and the misheard text couldn't be something you really said, Memory swaps it by itself and the “Learned” toast tells you. Change a swapped word back and Memory forgets that swap.</li>
+        <li><strong>Ask.</strong> Once you've made the same fix twice, and the misheard text couldn't be something you really said, Memory asks: “Always change super base to Supabase?” Say <em>Always</em> and every engine gets it right from then on. Say <em>Not now</em>, or change a swapped word back, and Memory never asks again.</li>
       </ul>
     </div>
     <div class="panel lg">
@@ -363,7 +364,7 @@
       </label>
       <div class="utter" id="pg-out" aria-live="polite"></div>
     </div>
-    <p class="callout lg"><strong>Why so careful?</strong> A swap edits every future transcript, so one wrong rule does damage everywhere. Memory asks two questions. <em>Is it a pattern?</em> The same fix twice, not a one-off edit. <em>Could the misheard text be something you really said?</em> “Superbase” and “shunade” aren't words, so swapping them is safe. “their”, “10” and “a team” are, so they're never swapped, even though the fixed word still goes into your Dictionary and hints. The app checks single words against the Mac's 235,000-word dictionary; this demo uses a small built-in list.</p>
+    <p class="callout lg"><strong>Why ask?</strong> A swap edits every future transcript, so one wrong rule does damage everywhere. Memory only offers a swap when it's a pattern (the same fix twice) and the misheard text couldn't be something you really said: “Superbase” and “shunade” aren't words, while “their”, “bills”, “10” and “a team” are, so those are never offered, though the fixed word still goes into your Dictionary and hints. And even then, nothing is swapped until you say so. The app checks single words against the Mac's 235,000-word dictionary; this demo uses a small built-in list.</p>
   </section>
 
   <!-- 7. Auto -->
@@ -535,6 +536,7 @@
   // Stand-in for the Mac's word list: the real app checks ~235,000 words.
   const KNOWN = new Set("their there ill well monday tuesday team adam andy ana super base every day deploy please ask about today put over by the door sent thanks check before lunch logs down again is are what cafe".split(" "));
   let learned = new Map(); // "from\u0000to" -> count
+  let approved = new Set(); // "from\u0000to" the reader said Always to
   let lastSkipped = [];
 
   function ruleStatus(from, to, count) {
@@ -548,7 +550,8 @@
       if (words.some((w) => STOP.has(w))) return ["no", "never swapped", `“${from}” contains everyday words, so it can appear in normal speech. “${to}” still goes into your Dictionary and hints.`];
       if (!TERM_RE.test(to)) return ["no", "never swapped", `“${to}” is a plain lowercase word, so this looks like an edit, not a name or term.`];
     }
-    if (count >= 2) return ["good", "swaps now", `Fixed ${count} times, and “${from}” isn't something you'd really say.`];
+    if (approved.has(`${from}\u0000${to}`)) return ["good", "swaps now", "You said Always, so every engine gets this right from now on."];
+    if (count >= 2) return ["ask", "Memory asks", `Fixed ${count} times, and “${from}” isn't something you'd really say. Memory asks before it swaps anything.`];
     return ["wait", "needs 1 more fix", "Memory waits for the same fix twice: one fix could be a one-off edit."];
   }
   const activeRules = () =>
@@ -580,10 +583,18 @@
     const rows = [...learned.entries()].map(([k, c]) => {
       const [from, to] = k.split("\u0000");
       const [cls, label, why] = ruleStatus(from, to, c);
-      return `<div class="rule"><span class="pair">${esc(from)} → <strong>${esc(to)}</strong> <span class="stage-note">· learned ${c}×</span></span><span class="tag ${cls}">${label}</span><span class="why">${esc(why)}</span></div>`;
+      const badge = cls === "ask"
+        ? `<button type="button" class="btn btn-primary always" data-key="${encodeURIComponent(k)}">Always change</button>`
+        : `<span class="tag ${cls}">${label}</span>`;
+      return `<div class="rule"><span class="pair">${esc(from)} → <strong>${esc(to)}</strong> <span class="note">· learned ${c}×</span></span>${badge}<span class="why">${esc(why)}</span></div>`;
     });
     const skipped = lastSkipped.map(([what, why]) => `<div class="rule"><span class="pair">${esc(what)}</span><span class="tag no">ignored</span><span class="why">${esc(why)}</span></div>`);
     $("pg-rules").innerHTML = rows.length || skipped.length ? [...rows, ...skipped].join("") : `<p class="empty">Memory hasn't learned anything yet. Press “Teach Memory this fix”.</p>`;
+    $("pg-rules").querySelectorAll("button.always").forEach((b) => b.addEventListener("click", () => {
+      approved = new Set([...approved, decodeURIComponent(b.dataset.key)]);
+      $("pg-status").textContent = "Approved: Memory now swaps this with every engine.";
+      renderRules();
+    }));
     $("pg-out").innerHTML = applyRules($("pg-next").value) || "&nbsp;";
   }
 
@@ -592,14 +603,14 @@
     lastSkipped = skipped;
     const next = new Map(learned);
     for (const p of pairs) { const k = `${p.from}\u0000${p.to}`; next.set(k, (next.get(k) || 0) + 1); }
-    const on = pairs.filter((p) => { const k = `${p.from}\u0000${p.to}`; return ruleStatus(p.from, p.to, next.get(k))[0] === "good" && learned.get(k) !== undefined && next.get(k) === 2; });
     learned = next;
-    $("pg-status").textContent = on.length
-      ? `Learned ${on.map((p) => p.to).join(", ")}: Memory will now fix this by itself.`
+    const asks = pairs.filter((p) => ruleStatus(p.from, p.to, next.get(`${p.from}\u0000${p.to}`))[0] === "ask");
+    $("pg-status").textContent = asks.length
+      ? `Memory asks: always change “${asks[0].from}” to “${asks[0].to}”?`
       : pairs.length ? `Learned ${pairs.length} pair${pairs.length > 1 ? "s" : ""}.` : "Nothing learned from that edit.";
     renderRules();
   });
-  $("pg-reset").addEventListener("click", () => { learned = new Map(); lastSkipped = []; $("pg-status").textContent = "Memory is empty."; renderRules(); });
+  $("pg-reset").addEventListener("click", () => { learned = new Map(); approved = new Set(); lastSkipped = []; $("pg-status").textContent = "Memory is empty."; renderRules(); });
   $("pg-next").addEventListener("input", renderRules);
   const EXAMPLES = [
     ["please deploy to super base and ask shunade", "please deploy to Supabase and ask Sinead", "super base is down again, ask shunade about Superbase logs"],
