@@ -267,6 +267,10 @@ class WhisperServerManager extends EventEmitter {
     // whisper.cpp defaults to English when --language is omitted;
     // explicitly pass "auto" to enable language auto-detection
     args.push("--language", options.language || "auto");
+    // Auto mode asks for verbose_json to read the detected language; without
+    // this, verbose_json also computes every language's probability (~45%
+    // slower per dictation, measured). The language itself is still returned.
+    args.push("--no-language-probabilities");
 
     debugLogger.debug("Starting whisper-server", {
       port: this.port,

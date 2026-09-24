@@ -84,9 +84,16 @@ describe("vocabulary forgetLearnedWords", () => {
 });
 
 describe("vocabulary recordCorrection + applyMemoryReplacements", () => {
-  it("replaces a learned multi-word mishearing from the first fix", () => {
+  // Multi-word rules only here: single-word rules consult the system word
+  // list, which CI machines don't have (covered in memory-replacements.test).
+  it("swaps a learned mishearing from the second identical fix, and says so", () => {
     const vocab = loadVocabulary();
-    vocab.recordCorrection({ from: "super base", to: "Supabase", bundleId: "com.microsoft.VSCode" });
+    const first = vocab.recordCorrection({ from: "super base", to: "Supabase", bundleId: "com.microsoft.VSCode" });
+    expect(first).toEqual({ success: true, activated: false });
+    expect(vocab.applyMemoryReplacements("deploy to super base").text).toBe("deploy to super base");
+
+    const second = vocab.recordCorrection({ from: "super base", to: "Supabase", bundleId: "com.microsoft.VSCode" });
+    expect(second).toEqual({ success: true, activated: true });
     expect(vocab.applyMemoryReplacements("deploy to super base")).toEqual({
       text: "deploy to Supabase",
       applied: [{ from: "super base", to: "Supabase" }],
@@ -96,17 +103,18 @@ describe("vocabulary recordCorrection + applyMemoryReplacements", () => {
     ]);
   });
 
-  it("replaces a single misheard word only after the second fix", () => {
-    const vocab = loadVocabulary();
-    vocab.recordCorrection({ from: "Superbase", to: "Supabase" });
-    expect(vocab.applyMemoryReplacements("to Superbase").text).toBe("to Superbase");
-    vocab.recordCorrection({ from: "Superbase", to: "Supabase" });
-    expect(vocab.applyMemoryReplacements("to Superbase").text).toBe("to Supabase");
-  });
-
   it("keeps learned mishearings out of STT hints", () => {
     const vocab = loadVocabulary();
     vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    expect(vocab.getSttHints()).toEqual(["Supabase"]);
+  });
+
+  it("forgets a rule the user reverted", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    vocab.forgetAlternative({ from: "super base", to: "Supabase" });
+    expect(vocab.applyMemoryReplacements("deploy to super base").text).toBe("deploy to super base");
     expect(vocab.getSttHints()).toEqual(["Supabase"]);
   });
 
@@ -115,12 +123,14 @@ describe("vocabulary recordCorrection + applyMemoryReplacements", () => {
     vocab.recordCorrection({ from: "super base", to: "Supa" });
     expect(vocab.unlearnCorrection({ from: "super base", to: "Supa" })).toEqual({ removedWord: "Supa" });
     vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
     expect(vocab.applyMemoryReplacements("use super base").text).toBe("use Supabase");
     expect(vocab.unlearnCorrection({ from: "nope", to: "Nope" })).toEqual({ removedWord: null });
   });
 
   it("stops replacing once the learned word is undone", () => {
     const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
     vocab.recordCorrection({ from: "super base", to: "Supabase" });
     vocab.forgetLearnedWords(["Supabase"]);
     expect(vocab.applyMemoryReplacements("deploy to super base").text).toBe("deploy to super base");

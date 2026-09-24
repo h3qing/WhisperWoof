@@ -58,16 +58,21 @@ describe("isHintHijack", () => {
 
 describe("nextAutoHintsSuppressed", () => {
   it("suppresses hints after a hijack", () => {
-    expect(nextAutoHintsSuppressed(false, { language: "chinese", hijacked: true })).toBe(true);
+    expect(nextAutoHintsSuppressed(false, { language: "chinese", hijacked: true, hintsSent: true })).toBe(true);
   });
 
   it("re-enables hints after an English (or other non-CJK) dictation", () => {
-    expect(nextAutoHintsSuppressed(true, { language: "english", hijacked: false })).toBe(false);
+    expect(nextAutoHintsSuppressed(true, { language: "english", hijacked: false, hintsSent: false })).toBe(false);
   });
 
-  it("keeps the current state for clean CJK dictations or an unknown language", () => {
-    expect(nextAutoHintsSuppressed(true, { language: "chinese", hijacked: false })).toBe(true);
-    expect(nextAutoHintsSuppressed(false, { language: "chinese", hijacked: false })).toBe(false);
-    expect(nextAutoHintsSuppressed(true, { language: undefined, hijacked: false })).toBe(true);
+  it("keeps the current state for clean CJK dictations", () => {
+    expect(nextAutoHintsSuppressed(true, { language: "chinese", hijacked: false, hintsSent: false })).toBe(true);
+    expect(nextAutoHintsSuppressed(false, { language: "chinese", hijacked: false, hintsSent: true })).toBe(false);
+  });
+
+  it("holds hints when the server reports no language, since a hijack can't be checked", () => {
+    expect(nextAutoHintsSuppressed(false, { language: undefined, hijacked: false, hintsSent: true })).toBe(true);
+    expect(nextAutoHintsSuppressed(true, { language: undefined, hijacked: false, hintsSent: false })).toBe(true);
+    expect(nextAutoHintsSuppressed(false, { language: undefined, hijacked: false, hintsSent: false })).toBe(false);
   });
 });

@@ -5,12 +5,20 @@
  * (Parakeet, X-ASR, SenseVoice).
  */
 import { describe, it, expect } from "vitest";
-import { MAX_ENTRIES, applyLearnedCorrection, unlearnCorrection } from "../../bridge/vocabulary-pure";
 import {
-  MIN_SINGLE_WORD_FIXES,
+  MAX_ENTRIES,
+  applyLearnedCorrection,
+  unlearnCorrection,
+  dropAlternative,
+} from "../../bridge/vocabulary-pure";
+import {
+  MIN_LEARNED_FIXES,
+  MAX_ALTERNATIVES_PER_WORD,
   buildReplacementRules,
   applyReplacements,
   planSessionLearning,
+  makeKnownWordChecker,
+  splitReversals,
 } from "./memory-replacements";
 
 const NOW = "2026-09-24T00:00:00.000Z";
@@ -142,50 +150,75 @@ describe("planSessionLearning", () => {
 });
 
 describe("buildReplacementRules", () => {
-  it("applies a learned multi-word mishearing right away", () => {
-    expect(buildReplacementRules(learn([], "super base", "Supabase"))).toEqual([
-      { from: "super base", to: "Supabase" },
-    ]);
+  // A stand-in for the system word list (/usr/share/dict/words on macOS).
+  const KNOWN = new Set(["their", "there", "ill", "well", "monday", "adam", "andy", "team", "super", "base"]);
+  const isKnownWord = (w: string) => KNOWN.has(w.toLowerCase());
+  const twice = (entries: Entry[], from: string, to: string) => learn(learn(entries, from, to), from, to);
+  const rules = (entries: Entry[]) => buildReplacementRules(entries, { isKnownWord });
+
+  it("needs the same fix twice before any learned rule applies", () => {
+    expect(MIN_LEARNED_FIXES).toBe(2);
+    expect(rules(learn([], "super base", "Supabase"))).toEqual([]);
+    expect(rules(twice([], "super base", "Supabase"))).toEqual([{ from: "super base", to: "Supabase" }]);
   });
 
-  it("waits for a second identical fix before replacing a single word", () => {
-    expect(MIN_SINGLE_WORD_FIXES).toBe(2);
-    const once = learn([], "Superbase", "Supabase");
-    expect(buildReplacementRules(once)).toEqual([]);
-    expect(buildReplacementRules(learn(once, "Superbase", "Supabase"))).toEqual([
-      { from: "Superbase", to: "Supabase" },
+  it("swaps a single misheard word only when it isn't a real word", () => {
+    expect(rules(twice([], "Superbase", "Supabase"))).toEqual([{ from: "Superbase", to: "Supabase" }]);
+    expect(rules(twice([], "Beyonce", "Beyoncé"))).toEqual([{ from: "Beyonce", to: "Beyoncé" }]);
+    for (const [from, to] of [["Their", "There"], ["ill", "I'll"], ["Well", "We'll"], ["Monday", "Tuesday"]]) {
+      expect(rules(twice([], from!, to!))).toEqual([]);
+    }
+  });
+
+  it("never swaps numbers or fixes that only extend or trim the text", () => {
+    expect(rules(twice([], "10", "10am"))).toEqual([]);
+    expect(rules(twice([], "super base", "super base team"))).toEqual([]);
+  });
+
+  it("never swaps a phrase that contains everyday function words", () => {
+    for (const [from, to] of [["and I", "Andy"], ["a team", "Adam"], ["and a", "Ana"], ["hose a", "José"]]) {
+      expect(rules(twice([], from!, to!))).toEqual([]);
+    }
+  });
+
+  it("never swaps a multi-word phrase into a plain lowercase word", () => {
+    expect(rules(twice([], "every day", "everyday"))).toEqual([]);
+    expect(rules(twice([], "gpt four", "GPT4"))).toEqual([{ from: "gpt four", to: "GPT4" }]);
+  });
+
+  it("skips single-word rules when no word list is available", () => {
+    expect(buildReplacementRules(twice([], "Superbase", "Supabase"))).toEqual([]);
+    expect(buildReplacementRules(twice([], "super base", "Supabase"))).toEqual([
+      { from: "super base", to: "Supabase" },
     ]);
   });
 
   it("keeps an alternative the user typed as a rule after the same fix is learned", () => {
     const manual: Entry[] = [{ id: "m", word: "kubectl", alternatives: ["cube cuddle"], source: "manual" }];
-    expect(buildReplacementRules(learn(manual, "cube cuddle", "kubectl"))).toEqual([
-      { from: "cube cuddle", to: "kubectl" },
-    ]);
-  });
-
-  it("emits one rule per mishearing across entries", () => {
-    const entries: Entry[] = [
-      { id: "a", word: "Supabase", alternatives: ["super base"], source: "manual" },
-      { id: "b", word: "Superbase", alternatives: ["Super Base"], source: "manual" },
-    ];
-    expect(buildReplacementRules(entries)).toEqual([{ from: "super base", to: "Supabase" }]);
-  });
-
-  it("never auto-replaces with a plain lowercase word (their -> there)", () => {
-    const twice = learn(learn([], "their", "there"), "their", "there");
-    const split = learn([], "every day", "everyday");
-    expect(buildReplacementRules([...twice, ...split])).toEqual([]);
-  });
-
-  it("treats accented and digit words as terms", () => {
-    const entries = [...learn([], "resume a", "résumé"), ...learn([], "gpt four", "GPT4")];
-    expect(buildReplacementRules(entries).map((r: { to: string }) => r.to)).toEqual(["résumé", "GPT4"]);
+    expect(rules(learn(manual, "cube cuddle", "kubectl"))).toEqual([{ from: "cube cuddle", to: "kubectl" }]);
   });
 
   it("applies alternatives the user typed without waiting", () => {
     const manual: Entry[] = [{ id: "m", word: "Heqing", alternatives: ["he ching"], source: "manual" }];
-    expect(buildReplacementRules(manual)).toEqual([{ from: "he ching", to: "Heqing" }]);
+    expect(rules(manual)).toEqual([{ from: "he ching", to: "Heqing" }]);
+  });
+
+  it("resolves a mishearing claimed twice: typed first, then the most-fixed", () => {
+    const typed: Entry[] = [{ id: "t", word: "Supabase", alternatives: ["super base"], source: "manual" }];
+    const learnedHalf = learn(learn([], "super base", "Supa"), "super base", "Supa");
+    expect(rules([...learnedHalf, ...typed])).toEqual([{ from: "super base", to: "Supabase" }]);
+    const three = learn(twice([], "super base", "Supabase"), "super base", "Supabase");
+    expect(rules([...learnedHalf, ...three])).toEqual([{ from: "super base", to: "Supabase" }]);
+  });
+
+  it("ignores malformed entries instead of failing all rules", () => {
+    const bad = [
+      { id: "a", word: "Kubernetes", alternatives: "cube a", source: "import" },
+      { id: "b", word: "X", alternatives: [42, null], source: "import" },
+      { id: "c", alternatives: ["no word"], source: "import" },
+      { id: "d", word: "Heqing", alternatives: ["he ching"], source: "manual" },
+    ] as unknown as Entry[];
+    expect(rules(bad)).toEqual([{ from: "he ching", to: "Heqing" }]);
   });
 
   it("orders longer phrases first and skips self-matches", () => {
@@ -193,15 +226,68 @@ describe("buildReplacementRules", () => {
       { id: "a", word: "Claude", alternatives: ["clod", "claude"], source: "manual" },
       { id: "b", word: "Claude Code", alternatives: ["clod code"], source: "manual" },
     ];
-    expect(buildReplacementRules(entries)).toEqual([
+    expect(rules(entries)).toEqual([
       { from: "clod code", to: "Claude Code" },
       { from: "clod", to: "Claude" },
     ]);
   });
 
+  it("caps alternatives per word and rules overall", () => {
+    const many: Entry[] = [
+      { id: "m", word: "Heqing", alternatives: Array.from({ length: 50 }, (_, i) => `he ching ${i}`), source: "manual" },
+    ];
+    expect(rules(many)).toHaveLength(MAX_ALTERNATIVES_PER_WORD);
+  });
+
   it("handles empty input", () => {
     expect(buildReplacementRules([])).toEqual([]);
     expect(buildReplacementRules(null)).toEqual([]);
+  });
+});
+
+describe("makeKnownWordChecker", () => {
+  it("answers from a newline word list, case-insensitively", () => {
+    const isKnown = makeKnownWordChecker("Adam\nbase\ntheir\n");
+    expect(isKnown!("adam")).toBe(true);
+    expect(isKnown!("Their")).toBe(true);
+    expect(isKnown!("superbase")).toBe(false);
+    expect(isKnown!("ba")).toBe(false);
+  });
+
+  it("returns null without a word list", () => {
+    expect(makeKnownWordChecker("")).toBeNull();
+    expect(makeKnownWordChecker(null)).toBeNull();
+  });
+});
+
+describe("splitReversals", () => {
+  it("spots a fix that undoes a swap Memory just made", () => {
+    const swaps = [{ from: "super base", to: "Supabase" }];
+    const pairs = [
+      { from: "Supabase", to: "super base" },
+      { from: "cuberniz", to: "Kubernetes" },
+    ];
+    expect(splitReversals(pairs, swaps)).toEqual({
+      reversals: [{ from: "super base", to: "Supabase" }],
+      rest: [{ from: "cuberniz", to: "Kubernetes" }],
+    });
+  });
+
+  it("passes everything through with no swaps", () => {
+    const pairs = [{ from: "a b", to: "Ab" }];
+    expect(splitReversals(pairs, [])).toEqual({ reversals: [], rest: pairs });
+  });
+});
+
+describe("dropAlternative", () => {
+  it("forgets a learned alternative and its count", () => {
+    const [entry] = dropAlternative(learn([], "super base", "Supabase"), { from: "super base", to: "Supabase" });
+    expect(entry).toMatchObject({ word: "Supabase", alternatives: [], learnedCounts: {} });
+  });
+
+  it("keeps alternatives the user typed", () => {
+    const typed: Entry[] = [{ id: "t", word: "Supabase", alternatives: ["super base"], source: "manual" }];
+    expect(dropAlternative(typed, { from: "super base", to: "Supabase" })).toBe(typed);
   });
 });
 
@@ -232,6 +318,13 @@ describe("applyReplacements", () => {
 
   it("leaves words that merely contain a match alone", () => {
     expect(applyReplacements("clodhopper and superbases", rules).text).toBe("clodhopper and superbases");
+  });
+
+  it("treats apostrophes, underscores and dotted names as part of a word", () => {
+    const r = [{ from: "don", to: "Dawn" }, { from: "base", to: "Supabase" }];
+    expect(applyReplacements("I don't know", r).text).toBe("I don't know");
+    expect(applyReplacements("my_base and base.py", r).text).toBe("my_base and base.py");
+    expect(applyReplacements("ask don. then base, then done", r).text).toBe("ask Dawn. then Supabase, then done");
   });
 
   it("works next to Chinese text", () => {

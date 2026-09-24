@@ -260,6 +260,27 @@ function unlearnCorrection(entries, { from, to }) {
 }
 
 /**
+ * Forget a learned mishearing entirely (the user undid a swap it caused):
+ * the alternative and its count go, the word stays. Alternatives the user
+ * typed are kept. Returns the same array when nothing changes.
+ */
+function dropAlternative(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const fromKey = from.toLowerCase();
+  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
+  const entry = idx === -1 ? null : list[idx];
+  if (entry?.learnedCounts?.[fromKey] === undefined) return list;
+
+  const { [fromKey]: _dropped, ...learnedCounts } = entry.learnedCounts;
+  const updated = {
+    ...entry,
+    learnedCounts,
+    alternatives: (entry.alternatives || []).filter((a) => a.toLowerCase() !== fromKey),
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
  * Drop `words` from the custom Dictionary (case-insensitive). Returns a new
  * array; used when a learned word is undone or deleted from Memory.
  */
@@ -279,6 +300,7 @@ module.exports = {
   removeFromDictionary,
   applyLearnedCorrection,
   unlearnCorrection,
+  dropAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 };

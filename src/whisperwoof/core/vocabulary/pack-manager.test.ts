@@ -234,6 +234,14 @@ describe("migratePackDefaults", () => {
     ]);
   });
 
+  it("treats a pack that is off as the user's choice (every old default was on)", () => {
+    const { states } = migratePackDefaults(
+      [legacy("food-and-drink", false)],
+      [{ ...FOOD_PACK, defaultEnabled: true }],
+    );
+    expect(states).toEqual([{ ...legacy("food-and-drink", false), userSet: true }]);
+  });
+
   it("keeps states the user chose", () => {
     const chosen = { ...legacy("food-and-drink", true), userSet: true };
     const { states, changed } = migratePackDefaults([chosen], [{ ...FOOD_PACK, defaultEnabled: false }]);

@@ -38,6 +38,9 @@ import {
 } from "../stores/settingsStore";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
+// Auto language mode: hints are held back after they hijacked a CJK decode.
+// Module-level so it survives the AudioManager being recreated.
+let autoHintsSuppressed = false;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
 
@@ -98,8 +101,6 @@ class AudioManager {
     });
     this.mediaRecorder = null;
     this.audioChunks = [];
-    // Auto language mode: hints are held back after they hijacked a CJK decode.
-    this.autoHintsSuppressed = false;
     this.isRecording = false;
     this.isProcessing = false;
     this.onStateChange = null;
@@ -893,7 +894,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const sendHints = shouldSendHints({
         hasPrompt: Boolean(dictionaryPrompt),
         language,
-        suppressed: this.autoHintsSuppressed,
+        suppressed: autoHintsSuppressed,
       });
       if (sendHints) {
         options.initialPrompt = dictionaryPrompt;
@@ -912,9 +913,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       let result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
       if (!language && result.success) {
         const hijacked = sendHints && isHintHijack(result);
-        this.autoHintsSuppressed = nextAutoHintsSuppressed(this.autoHintsSuppressed, {
+        autoHintsSuppressed = nextAutoHintsSuppressed(autoHintsSuppressed, {
           language: result.language,
           hijacked,
+          hintsSent: sendHints,
         });
         if (hijacked) {
           logger.info("Hint prompt hijacked a CJK decode; redoing without hints", {
@@ -1349,8 +1351,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   /**
    * Swap mishearings Memory learned from your corrections ("super base" ->
-   * Supabase) into the transcript before polish. Works for every engine,
-   * including those that take no STT hints (Parakeet, X-ASR, SenseVoice).
+   * Supabase) into the transcript before polish. Runs for every local engine
+   * (including Parakeet, X-ASR and SenseVoice, which take no STT hints) and
+   * the batch cloud providers; not yet for OpenWhispr Cloud or streaming.
    */
   async applyMemoryReplacements(text) {
     if (typeof text !== "string" || !text || !window.electronAPI?.whisperwoofApplyMemoryReplacements) {

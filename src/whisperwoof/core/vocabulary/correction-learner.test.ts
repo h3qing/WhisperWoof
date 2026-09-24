@@ -66,10 +66,10 @@ describe("extractCorrections", () => {
     ).toEqual(["Supabase"]);
   });
 
-  it("treats two adjacent fixed words as one phrase", () => {
+  it("splits two adjacent fixed words into separate words", () => {
     expect(
       extractCorrections("ask shunade cuberniz today please", "ask Sinead Kubernetes today please", []),
-    ).toEqual(["Sinead Kubernetes"]);
+    ).toEqual(["Sinead", "Kubernetes"]);
   });
 
   it("returns [] for empty inputs", () => {
@@ -114,6 +114,24 @@ describe("extractCorrectionPairs", () => {
 
   it("rejects a rewrite even when each changed word is close", () => {
     expect(extractCorrectionPairs("the cat sat mat", "the Cats Sad Mats")).toEqual([]);
+  });
+
+  it("keeps words typed next to a fix out of the pair", () => {
+    expect(extractCorrectionPairs("we should use super base", "we should use Supabase today")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+    expect(extractCorrectionPairs("deploy to super base now", "deploy to the Supabase now")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+    expect(extractCorrectionPairs("um super base is down", "Supabase is down")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+  });
+
+  it("keeps accented letters at word edges", () => {
+    expect(extractCorrectionPairs("ask Beyonce about it", "ask Beyoncé about it")).toEqual([
+      { from: "Beyonce", to: "Beyoncé" },
+    ]);
   });
 
   it("does not filter by the dictionary (repeat fixes still count)", () => {

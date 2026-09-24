@@ -25,12 +25,59 @@ function editDistance(a, b) {
   return dp[m][n];
 }
 
-/** Tokenize text into words, stripping punctuation from edges */
+/** Tokenize text into words, stripping punctuation (not accented letters) from edges */
 function tokenize(text) {
   return text
     .split(/\s+/)
-    .map((w) => w.replace(/^[^\w]+|[^\w]+$/g, ""))
+    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
     .filter((w) => w.length > 0);
+}
+
+// 0.65 allows phonetic corrections like "Shunade" -> "Sinead" (dist 4/7 = 0.57)
+// while filtering out unrelated word replacements.
+const MAX_DISTANCE = 0.65;
+const MAX_BLOCK_WORDS = 6;
+
+/** Edit distance between two phrases relative to the longer one, spaces ignored. */
+function phraseDistance(a, b) {
+  const x = a.replace(/\s+/g, "").toLowerCase();
+  const y = b.replace(/\s+/g, "").toLowerCase();
+  return editDistance(x, y) / Math.max(x.length, y.length, 1);
+}
+
+/** Every contiguous run of words, as phrases. */
+function spans(words) {
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    for (let j = i + 1; j <= words.length; j++) out.push(words.slice(i, j).join(" "));
+  }
+  return out;
+}
+
+/**
+ * Turn one block of changed words into misheard -> corrected pairs.
+ * Same-size blocks pair word by word when every pair sounds alike ("shunade
+ * cuberniz" -> "Sinead Kubernetes"); otherwise the closest-sounding pair of
+ * sub-spans wins, so words typed next to a fix ("Supabase today") or a
+ * dropped filler ("um") stay out of the pair.
+ */
+function resolveBlock(from, to) {
+  const fromWords = from.split(" ");
+  const toWords = to.split(" ");
+  if (fromWords.length === toWords.length && fromWords.length > 1) {
+    const pairs = fromWords.map((f, i) => [f, toWords[i]]);
+    if (pairs.every(([f, t]) => phraseDistance(f, t) <= MAX_DISTANCE)) return pairs;
+  }
+  if (fromWords.length > MAX_BLOCK_WORDS || toWords.length > MAX_BLOCK_WORDS) return [];
+
+  let best = null;
+  for (const f of spans(fromWords)) {
+    for (const t of spans(toWords)) {
+      const d = phraseDistance(f, t);
+      if (!best || d < best.d) best = { f, t, d };
+    }
+  }
+  return best ? [[best.f, best.t]] : [];
 }
 
 /**
@@ -169,16 +216,12 @@ function extractCorrectionPairs(originalText, fieldValue) {
 
   const seen = new Set();
   const pairs = [];
-  for (const [from, to] of subs) {
+  for (const [from, to] of subs.flatMap(([f, t]) => resolveBlock(f, t))) {
     const fromKey = from.replace(/\s+/g, "").toLowerCase();
     const toKey = to.replace(/\s+/g, "").toLowerCase();
     if (fromKey === toKey) continue;
     if (toKey.length < 3) continue;
-
-    // 0.65 threshold allows phonetic corrections like "Shunade" -> "Sinead" (dist 4/7 = 0.57)
-    // while filtering out unrelated word replacements.
-    const dist = editDistance(fromKey, toKey);
-    if (dist / Math.max(fromKey.length, toKey.length) > 0.65) continue;
+    if (phraseDistance(from, to) > MAX_DISTANCE) continue;
 
     const pairKey = `${from.toLowerCase()}\u0000${to}`;
     if (seen.has(pairKey)) continue;
@@ -190,28 +233,36 @@ function extractCorrectionPairs(originalText, fieldValue) {
 }
 
 /**
- * Extract corrected words from a user's edits to pasted transcription text.
+ * The corrected words of `pairs` that the dictionary doesn't have yet.
  *
- * @param {string} originalText - The text that was originally pasted (from transcription)
- * @param {string} fieldValue - The current value of the text field (after user edits)
- * @param {string[]} existingDictionary - Words already in the custom dictionary
- * @returns {string[]} Corrected words or phrases to add to the dictionary (adjacent
- *   fixed words form one phrase)
+ * @param {{from: string, to: string}[]} pairs
+ * @param {string[]} existingDictionary
+ * @returns {string[]}
  */
-function extractCorrections(originalText, fieldValue, existingDictionary) {
+function newDictionaryWords(pairs, existingDictionary) {
   const safeDict = Array.isArray(existingDictionary) ? existingDictionary : [];
   const dictSet = new Set(safeDict.map((w) => w.toLowerCase()));
   const seen = new Set();
   const results = [];
-
-  for (const { to } of extractCorrectionPairs(originalText, fieldValue)) {
+  for (const { to } of pairs) {
     const key = to.toLowerCase();
     if (dictSet.has(key) || seen.has(key)) continue;
     seen.add(key);
     results.push(to);
   }
-
   return results;
 }
 
-module.exports = { extractCorrections, extractCorrectionPairs };
+/**
+ * Extract corrected words from a user's edits to pasted transcription text.
+ *
+ * @param {string} originalText - The text that was originally pasted (from transcription)
+ * @param {string} fieldValue - The current value of the text field (after user edits)
+ * @param {string[]} existingDictionary - Words already in the custom dictionary
+ * @returns {string[]} Corrected words or phrases to add to the dictionary
+ */
+function extractCorrections(originalText, fieldValue, existingDictionary) {
+  return newDictionaryWords(extractCorrectionPairs(originalText, fieldValue), existingDictionary);
+}
+
+module.exports = { extractCorrections, extractCorrectionPairs, newDictionaryWords };

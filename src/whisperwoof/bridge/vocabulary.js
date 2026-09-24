@@ -23,11 +23,21 @@ const {
   removeLearnedWords,
   applyLearnedCorrection,
   unlearnCorrection: unlearnCorrectionPure,
+  dropAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
 
-const { buildReplacementRules, applyReplacements } = require("../core/vocabulary/memory-replacements");
+const {
+  buildReplacementRules,
+  compileReplacements,
+  applyCompiledReplacements,
+  makeKnownWordChecker,
+} = require("../core/vocabulary/memory-replacements");
+
+// System word lists (macOS): a single misheard word only becomes a swap rule
+// when it isn't a real word or common name. Read per rule rebuild, not kept.
+const WORD_LIST_FILES = ["/usr/share/dict/words", "/usr/share/dict/propernames"];
 
 const VOCAB_FILE = path.join(app.getPath("userData"), "whisperwoof-vocabulary.json");
 const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
@@ -188,8 +198,53 @@ function recordCorrection({ from, to, bundleId }) {
     now: new Date().toISOString(),
     id: `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   });
+  if (updated === entries) return { success: false, activated: false };
+  // Did this fix switch a swap rule on? The caller announces it.
+  const wasRule = hasRule(entries, from);
+  saveVocabulary(updated);
+  return { success: true, activated: !wasRule && hasRule(updated, from) };
+}
+
+/** Forget a learned mishearing the user reverted; the word itself stays. */
+function forgetAlternative({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = dropAlternative(entries, { from, to });
   if (updated !== entries) saveVocabulary(updated);
   return { success: updated !== entries };
+}
+
+function knownWordChecker() {
+  const text = WORD_LIST_FILES.map((file) => {
+    try {
+      return fs.readFileSync(file, "utf-8");
+    } catch {
+      return "";
+    }
+  }).join("\n");
+  return makeKnownWordChecker(text);
+}
+
+function hasRule(entries, from) {
+  const key = from.toLowerCase();
+  return buildReplacementRules(entries, { isKnownWord: knownWordChecker() }).some(
+    (r) => r.from.toLowerCase() === key
+  );
+}
+
+// Compiled once per Memory change: loadVocabulary() returns the same array
+// until saveVocabulary() replaces it.
+let _rulesFor = null;
+let _compiledRules = null;
+
+function getCompiledRules() {
+  const entries = loadVocabulary();
+  if (_rulesFor !== entries) {
+    _compiledRules = compileReplacements(
+      buildReplacementRules(entries, { isKnownWord: knownWordChecker() })
+    );
+    _rulesFor = entries;
+  }
+  return _compiledRules;
 }
 
 /**
@@ -207,7 +262,7 @@ function unlearnCorrection({ from, to }) {
 
 /** Swap learned mishearings in a transcript for the words Memory knows. */
 function applyMemoryReplacements(text) {
-  return applyReplacements(text, buildReplacementRules(loadVocabulary()));
+  return applyCompiledReplacements(text, getCompiledRules());
 }
 
 /** Undo auto-learned corrections (the "Learned X — undo" toast). */
@@ -344,6 +399,7 @@ module.exports = {
   removeWord,
   forgetLearnedWords,
   recordCorrection,
+  forgetAlternative,
   unlearnCorrection,
   applyMemoryReplacements,
   removeAllWords,

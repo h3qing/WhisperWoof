@@ -73,10 +73,11 @@ function createDefaultInstallState(pack) {
 }
 
 /**
- * Move install states the user never chose (no `userSet: true`) onto each
- * pack's current `defaultEnabled`. States written before `userSet` existed
- * were all created from the old defaults, so they are treated the same way.
- * Keeps disabledEntries and states for packs that no longer ship.
+ * Move install states the user never chose onto each pack's current
+ * `defaultEnabled`. States written before `userSet` existed can't say whether
+ * the user chose them; every old default was "on", so an "off" one was the
+ * user's choice and is kept (marked userSet), while an "on" one follows the
+ * new default. Keeps disabledEntries and states for packs that no longer ship.
  *
  * @returns {{states: import('./pack-types').PackInstallState[], changed: boolean}}
  */
@@ -85,6 +86,10 @@ function migratePackDefaults(states, packs) {
   let changed = false;
   const migrated = (states || []).map((state) => {
     if (state.userSet === true) return state;
+    if (state.userSet === undefined && state.enabled === false) {
+      changed = true;
+      return { ...state, userSet: true };
+    }
     const pack = byId.get(state.packId);
     const enabled = pack ? pack.defaultEnabled === true : state.enabled;
     if (state.userSet === false && state.enabled === enabled) return state;

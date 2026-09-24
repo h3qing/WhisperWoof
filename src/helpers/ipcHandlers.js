@@ -116,7 +116,10 @@ class IPCHandlers {
     this._autoLearnEnabled = true; // Default on, synced from renderer
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
-    this._autoLearnSession = { pairs: new Map(), dictWords: new Set() }; // learned from the current paste
+    // What Memory learned from the current paste, the swaps it made in that
+    // text, and the app it went into (captured at paste time).
+    this._autoLearnSession = { pairs: new Map(), dictWords: new Set(), swaps: [], bundleId: null };
+    this._lastMemorySwaps = []; // replacements applied to the latest transcript
     this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
@@ -259,9 +262,9 @@ class IPCHandlers {
     const { originalText, newFieldValue } = this._autoLearnLatestData;
     this._autoLearnLatestData = null;
 
-    // Tag Memory with the app the text was pasted into (captured at hotkey
-    // press); fall back to whatever is frontmost now.
-    let bundleId = this.textEditMonitor?.lastTargetBundleId ?? null;
+    // Tag Memory with the app the text was pasted into (captured at paste
+    // time); fall back to whatever is frontmost now.
+    let bundleId = this._autoLearnSession.bundleId;
     if (!bundleId) {
       try {
         const { detectActiveApp } = require("../whisperwoof/bridge/context-detector");
@@ -293,10 +296,19 @@ class IPCHandlers {
    * the Dictionary are added there and announced with the undo toast.
    */
   _learnCorrections(originalText, newFieldValue, bundleId) {
-    const { extractCorrections, extractCorrectionPairs } = require("../utils/correctionLearner");
+    const { extractCorrectionPairs, newDictionaryWords } = require("../utils/correctionLearner");
+    const { splitReversals } = require("../whisperwoof/core/vocabulary/memory-replacements");
 
+    // A fix that undoes a swap Memory made in this text forgets that rule and
+    // is not learned the other way round.
+    const { reversals, rest: pairs } = splitReversals(
+      extractCorrectionPairs(originalText, newFieldValue),
+      this._autoLearnSession.swaps
+    );
+
+    let activated = [];
     try {
-      this._learnMemoryPairs(extractCorrectionPairs(originalText, newFieldValue), bundleId);
+      activated = this._learnMemoryPairs(pairs, reversals, bundleId);
     } catch (vocabErr) {
       debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
     }
@@ -304,26 +316,30 @@ class IPCHandlers {
     // Read the Dictionary directly (it throws on failure): treating a failed
     // read as empty would overwrite the whole Dictionary with these words.
     const currentDict = this.databaseManager.getDictionary();
-    const corrections = extractCorrections(originalText, newFieldValue, currentDict);
-    debugLogger.debug("[AutoLearn] Corrections result", { corrections, bundleId });
-    if (corrections.length === 0) return;
+    const corrections = newDictionaryWords(pairs, currentDict);
+    debugLogger.debug("[AutoLearn] Corrections result", { corrections, activated, bundleId });
 
-    const updatedDict = [...currentDict, ...corrections];
-    const saveResult = this.databaseManager.setDictionary(updatedDict);
-    if (saveResult?.success === false) {
-      debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
-      return;
+    if (corrections.length > 0) {
+      const updatedDict = [...currentDict, ...corrections];
+      const saveResult = this.databaseManager.setDictionary(updatedDict);
+      if (saveResult?.success === false) {
+        debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
+        return;
+      }
+      this.broadcastToWindows("dictionary-updated", updatedDict);
+      this._autoLearnSession = {
+        ...this._autoLearnSession,
+        dictWords: new Set([...this._autoLearnSession.dictWords, ...corrections]),
+      };
     }
-    this.broadcastToWindows("dictionary-updated", updatedDict);
-    this._autoLearnSession = {
-      ...this._autoLearnSession,
-      dictWords: new Set([...this._autoLearnSession.dictWords, ...corrections]),
-    };
 
+    // New words, and words whose mishearing Memory will now fix by itself.
+    const announced = [...new Set([...corrections, ...activated])];
+    if (announced.length === 0) return;
     // Show the overlay so the toast is visible (it may have been hidden after dictation)
     this.windowManager.showDictationPanel();
-    this.broadcastToWindows("corrections-learned", corrections);
-    debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
+    this.broadcastToWindows("corrections-learned", announced);
+    debugLogger.debug("[AutoLearn] Saved corrections", { announced });
   }
 
   /**
@@ -332,21 +348,23 @@ class IPCHandlers {
    * same paste (a pause mid-word, "Supa" then "Supabase") is taken back,
    * along with its Dictionary word if this paste added it.
    */
-  _learnMemoryPairs(pairs, bundleId) {
+  _learnMemoryPairs(pairs, reversals, bundleId) {
     const { planSessionLearning } = require("../whisperwoof/core/vocabulary/memory-replacements");
-    const { recordCorrection, unlearnCorrection } = require("../whisperwoof/bridge/vocabulary");
+    const { recordCorrection, unlearnCorrection, forgetAlternative } = require("../whisperwoof/bridge/vocabulary");
+
+    for (const swap of reversals) forgetAlternative(swap);
+
     const plan = planSessionLearning(pairs, this._autoLearnSession.pairs);
     this._autoLearnSession = { ...this._autoLearnSession, pairs: plan.session };
-
     for (const pair of plan.revert) {
       const { removedWord } = unlearnCorrection(pair);
       if (removedWord && this._autoLearnSession.dictWords.has(removedWord)) {
         this._removeFromDictionary([removedWord]);
       }
     }
-    for (const pair of plan.record) {
-      recordCorrection({ ...pair, bundleId });
-    }
+    return plan.record
+      .filter((pair) => recordCorrection({ ...pair, bundleId }).activated)
+      .map((pair) => pair.to);
   }
 
   _syncStartupEnv(setVars, clearVars = []) {
@@ -929,6 +947,7 @@ class IPCHandlers {
         webContents: event.sender,
       });
       const targetPid = this.textEditMonitor?.lastTargetPid || null;
+      const targetBundleId = this.textEditMonitor?.lastTargetBundleId || null;
       debugLogger.debug("[AutoLearn] Paste completed", {
         autoLearnEnabled: this._autoLearnEnabled,
         hasMonitor: !!this.textEditMonitor,
@@ -940,7 +959,13 @@ class IPCHandlers {
             debugLogger.debug("[AutoLearn] Starting monitoring", {
               textPreview: text.substring(0, 80),
             });
-            this._autoLearnSession = { pairs: new Map(), dictWords: new Set() };
+            this._autoLearnSession = {
+              pairs: new Map(),
+              dictWords: new Set(),
+              swaps: this._lastMemorySwaps,
+              bundleId: targetBundleId,
+            };
+            this._lastMemorySwaps = [];
             this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
           } catch (err) {
             debugLogger.debug("[AutoLearn] Failed to start monitoring", { error: err.message });
@@ -2670,7 +2695,9 @@ class IPCHandlers {
       if (typeof text !== "string" || !text) return { text: text || "", applied: [] };
       try {
         const { applyMemoryReplacements } = require("../whisperwoof/bridge/vocabulary");
-        return applyMemoryReplacements(text);
+        const result = applyMemoryReplacements(text);
+        this._lastMemorySwaps = result.applied; // so undoing a swap can be recognised
+        return result;
       } catch (error) {
         debugLogger.log(`[WhisperWoof] apply-memory-replacements failed: ${error.message}`);
         return { text, applied: [] };
