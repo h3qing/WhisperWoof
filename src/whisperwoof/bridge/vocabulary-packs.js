@@ -18,12 +18,12 @@ const { validatePack } = require("../core/vocabulary/pack-types");
 const {
   listPacksWithState,
   createDefaultInstallState,
+  migratePackDefaults,
   enablePack,
   disablePack,
   togglePackEntry,
   getActivePackEntries,
-  mergePackHints,
-  truncateHintsToPrompt,
+  buildSttPrompt,
   packHasUpdate,
   validatePacks,
 } = require("../core/vocabulary/pack-manager-pure");
@@ -120,10 +120,14 @@ function loadInstallState() {
     states = [];
   }
 
-  // Ensure every built-in pack has a state entry
+  // Packs the user never chose follow the current defaults (off since 1.22.0)
   const packs = loadBuiltinPacks();
+  const migration = migratePackDefaults(states, packs);
+  states = migration.states;
+  let changed = migration.changed;
+
+  // Ensure every built-in pack has a state entry
   const stateMap = new Map(states.map((s) => [s.packId, s]));
-  let changed = false;
 
   for (const pack of packs) {
     if (!stateMap.has(pack.id)) {
@@ -244,14 +248,15 @@ function getEnabledPackIds() {
 }
 
 /**
- * Get the merged STT hints from all enabled packs + user vocabulary.
- * Returns a comma-separated string ready for Whisper's initial_prompt.
+ * Get the merged STT hints: Memory, then the manual Dictionary, then all
+ * enabled packs. Returns a comma-separated string ready for Whisper's
+ * initial_prompt.
  *
- * @param {string[]} userHints - From vocabulary.getSttHints()
- * @param {string} [bundleId] - Current app context
+ * @param {string[]} memoryHints - From vocabulary.getSttHints()
+ * @param {string[]} [dictionaryWords] - The custom Dictionary
  * @returns {string} Prompt string
  */
-function getPackEnhancedSttPrompt(userHints, bundleId) {
+function getPackEnhancedSttPrompt(memoryHints, dictionaryWords = []) {
   const packs = loadBuiltinPacks();
   const states = loadInstallState();
 
@@ -262,8 +267,7 @@ function getPackEnhancedSttPrompt(userHints, bundleId) {
     }))
     .filter(({ state }) => state && state.enabled);
 
-  const merged = mergePackHints(userHints, packStates, bundleId);
-  return truncateHintsToPrompt(merged);
+  return buildSttPrompt(memoryHints, dictionaryWords, packStates);
 }
 
 /**

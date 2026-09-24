@@ -13,14 +13,21 @@
 
 const { validatePack, packSummary } = require("./pack-types");
 
-/** Maximum tokens Whisper reads from initial_prompt */
+/**
+ * Maximum tokens Whisper reads from initial_prompt. whisper.cpp and the
+ * OpenAI API both keep the LAST 224 and silently drop anything before.
+ */
 const WHISPER_PROMPT_TOKEN_LIMIT = 224;
 
-/** Rough chars-per-token estimate for comma-separated word lists */
-const CHARS_PER_TOKEN = 4;
+/**
+ * Conservative chars-per-token for comma-separated word lists. The built-in
+ * packs measure ~2.97 with whisper.cpp's tokenizer (ggml-base vocab); 2.5
+ * leaves headroom for accented and non-Latin words.
+ */
+const CHARS_PER_TOKEN = 2.5;
 
-/** Max characters to stay safely under the 224-token limit */
-const MAX_HINT_CHARS = WHISPER_PROMPT_TOKEN_LIMIT * CHARS_PER_TOKEN; // ~896
+/** Max characters to stay under the 224-token limit */
+const MAX_HINT_CHARS = WHISPER_PROMPT_TOKEN_LIMIT * CHARS_PER_TOKEN; // 560
 
 /**
  * List all available packs with summary metadata (no full entries).
@@ -61,7 +68,35 @@ function createDefaultInstallState(pack) {
     enabled: pack.defaultEnabled === true,
     installedVersion: pack.version,
     disabledEntries: [],
+    userSet: false,
   };
+}
+
+/**
+ * Move install states the user never chose onto each pack's current
+ * `defaultEnabled`. States written before `userSet` existed can't say whether
+ * the user chose them; every old default was "on", so an "off" one was the
+ * user's choice and is kept (marked userSet), while an "on" one follows the
+ * new default. Keeps disabledEntries and states for packs that no longer ship.
+ *
+ * @returns {{states: import('./pack-types').PackInstallState[], changed: boolean}}
+ */
+function migratePackDefaults(states, packs) {
+  const byId = new Map((packs || []).map((p) => [p.id, p]));
+  let changed = false;
+  const migrated = (states || []).map((state) => {
+    if (state.userSet === true) return state;
+    if (state.userSet === undefined && state.enabled === false) {
+      changed = true;
+      return { ...state, userSet: true };
+    }
+    const pack = byId.get(state.packId);
+    const enabled = pack ? pack.defaultEnabled === true : state.enabled;
+    if (state.userSet === false && state.enabled === enabled) return state;
+    changed = true;
+    return { ...state, enabled, userSet: false };
+  });
+  return { states: migrated, changed };
 }
 
 /**
@@ -73,9 +108,9 @@ function createDefaultInstallState(pack) {
  */
 function enablePack(currentState, pack) {
   if (currentState) {
-    return { ...currentState, enabled: true, installedVersion: pack.version };
+    return { ...currentState, enabled: true, installedVersion: pack.version, userSet: true };
   }
-  return { ...createDefaultInstallState(pack), enabled: true };
+  return { ...createDefaultInstallState(pack), enabled: true, userSet: true };
 }
 
 /**
@@ -88,9 +123,9 @@ function enablePack(currentState, pack) {
  */
 function disablePack(currentState, pack) {
   if (currentState) {
-    return { ...currentState, enabled: false };
+    return { ...currentState, enabled: false, userSet: true };
   }
-  return { ...createDefaultInstallState(pack), enabled: false };
+  return { ...createDefaultInstallState(pack), enabled: false, userSet: true };
 }
 
 /**
@@ -136,7 +171,8 @@ function getActivePackEntries(pack, state) {
  *   1. User vocabulary hints (always first — these are personalized)
  *   2. Pack entries from enabled packs (alphabetical by pack, then by entry order)
  *
- * @param {string[]} userHints - From flattenSttHints() in vocabulary-pure.js
+ * @param {string[]} userHints - Memory hints (flattenSttHints) followed by
+ *   manual Dictionary words; earlier entries win dedup and truncation
  * @param {Array<{pack: import('./pack-types').VocabularyPack, state: import('./pack-types').PackInstallState}>} packStates
  * @param {string} [bundleId] - Current app context for priority boosting
  * @returns {string[]} Merged hint list, truncated to fit Whisper's limit
@@ -160,11 +196,10 @@ function mergePackHints(userHints, packStates, bundleId) {
   // Phase 2: collect all active pack entries
   for (const { pack, state } of packStates || []) {
     const entries = getActivePackEntries(pack, state);
+    // Correct spellings only: alternatives are phonetic mishearings
+    // ("keen wah"), which would steer the STT toward them.
     for (const entry of entries) {
       add(entry.word);
-      for (const alt of entry.alternatives || []) {
-        add(alt);
-      }
     }
   }
 
@@ -201,6 +236,26 @@ function truncateHintsToPrompt(hints, maxChars = MAX_HINT_CHARS) {
   }
 
   return lo > 0 ? hints.slice(0, lo).join(", ") : "";
+}
+
+/**
+ * Build the STT hint prompt for the engines that take one (local
+ * whisper-server initial prompt, cloud `prompt`). Priority: Memory words,
+ * then the custom Dictionary (newest first), then enabled pack words;
+ * deduped case-insensitively and cut to the budget lowest-priority first.
+ * The result is written highest priority LAST, because Whisper keeps only
+ * the tail of an over-long prompt.
+ *
+ * @param {string[]} memoryHints - From flattenSttHints(), newest first (app-boosted when a bundleId was given)
+ * @param {string[]} dictionaryWords - The custom Dictionary as stored, oldest first
+ * @param {Array<{pack: import('./pack-types').VocabularyPack, state: import('./pack-types').PackInstallState}>} packStates
+ * @param {number} [maxChars] - Override for testing
+ * @returns {string} Comma-separated prompt, "" when there is nothing to hint
+ */
+function buildSttPrompt(memoryHints, dictionaryWords, packStates, maxChars = MAX_HINT_CHARS) {
+  const userHints = [...(memoryHints || []), ...[...(dictionaryWords || [])].reverse()];
+  const kept = truncateHintsToPrompt(mergePackHints(userHints, packStates), maxChars);
+  return kept ? kept.split(", ").reverse().join(", ") : "";
 }
 
 /**
@@ -244,12 +299,14 @@ module.exports = {
   MAX_HINT_CHARS,
   listPacksWithState,
   createDefaultInstallState,
+  migratePackDefaults,
   enablePack,
   disablePack,
   togglePackEntry,
   getActivePackEntries,
   mergePackHints,
   truncateHintsToPrompt,
+  buildSttPrompt,
   packHasUpdate,
   validatePacks,
 };

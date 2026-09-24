@@ -5,6 +5,26 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-09-24 — Memory learns what it misheard, and reaches every engine
+
+### Added
+- **Memory fixes the words it keeps mishearing, once you say so.** Correct the same mishearing twice ("super base" → Supabase) and Memory asks: *Always change "super base" to "Supabase"?* Say **Always** and it is swapped in before polish from then on, with every local engine (including Parakeet, X-ASR and SenseVoice, which take no word hints) and the batch cloud providers. Say **Not now**, or change a swapped word back, and Memory never asks again. It only asks when the misheard text couldn't be something you really said: never for a real word or one of its forms ("their", "bills", "going"), a number ("10" → "10am"), or a phrase with everyday words ("a team" → Adam). Words you type next to a fix ("Supabase today") aren't learned as part of it. Mishearings you type into Memory yourself apply straight away. Memory → **Automatic fixes** lists every swap it makes for you; stop one there and Memory won't offer it again.
+- **Word hints in Auto language mode.** Local Whisper now uses your Memory, Dictionary and Word Pack words when the dictation language is Auto, not only when it is pinned. If the hints ever turn Chinese, Japanese or Korean speech into English (Whisper still detects the language correctly), that dictation is transcribed again without hints, and hints stay off until you next dictate in another language. Mixed Chinese and English keeps its hints.
+- **The website explains how it all works.** A new "How it works" section on the home page and a full guide (the speech models, the 224-token window, a Memory playground), in the app's liquid glass.
+- **Words from the app you're dictating into come first.** Memory tags learned words with the app the text was pasted into and puts that app's words first in the hints.
+
+### Changed
+- **Word Packs are off by default.** Generic pack words pull Whisper toward them: with Brands & Products on, "Vercel" came out as "Versacell". Earlier versions didn't record whether you chose a pack yourself, so this update switches every pack off once; turn back on the ones you want in Memory → Word Packs, and from then on your choice sticks.
+
+### Fixed
+- **Whisper was nudged toward the wrong spellings.** Every Memory word and Word Pack entry keeps "alternatives": how speech gets misheard ("air mez", "keen wah", "hero" for gyro). All of them went into the Whisper prompt, which Whisper reads as prior context, so they pushed it toward writing exactly those mishearings. Only correct spellings are sent now.
+- **Your own words were cut from the prompt.** The prompt budget assumed 4 characters per token; whisper.cpp's tokenizer measures about 3, so the default Word Packs alone came to 296 tokens. Whisper keeps only the last 224, and the dropped start was exactly where Memory and Dictionary words sat. The prompt now fits (about 203 tokens), your words go last where Whisper keeps them, and pack words are the first to go when space runs out.
+- **New corrections stopped reaching STT after about 80 learned words.** Memory was ordered oldest first, so once it filled the prompt, fresh corrections never made it in. Newest words now come first, for both Memory and the Dictionary.
+- **Dictionary words disappeared from the prompt** as soon as Memory or any Word Pack had words. Memory, the Dictionary and Word Packs are now merged.
+- **Undo on "Learned X" didn't stick.** It cleared the Dictionary but left the word in Memory, and the next keystroke in the same field learned it again. Undo now clears both and stops watching that field.
+- **Deleting a learned word only deleted it in one place.** Deleting it in Memory now clears the Dictionary copy, and deleting it in the Dictionary tab clears the Memory copy.
+- **Learning a word could wipe the Dictionary** if the Dictionary couldn't be read at that moment. Learning now skips that edit instead.
+
 ## [1.21.1] - 2026-09-24 — Easier install, Mando in the menu bar
 
 ### Added

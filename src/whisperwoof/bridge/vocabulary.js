@@ -20,9 +20,26 @@ const {
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
+  applyLearnedCorrection,
+  unlearnCorrection: unlearnCorrectionPure,
+  confirmAlternative,
+  declineAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
+
+const {
+  buildReplacementRules,
+  swapOffer,
+  compileReplacements,
+  applyCompiledReplacements,
+  makeKnownWordChecker,
+} = require("../core/vocabulary/memory-replacements");
+
+// System word lists (macOS): Memory only offers to swap a single misheard
+// word when it isn't a real word or common name.
+const WORD_LIST_FILES = ["/usr/share/dict/words", "/usr/share/dict/propernames"];
 
 const VOCAB_FILE = path.join(app.getPath("userData"), "whisperwoof-vocabulary.json");
 const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
@@ -37,6 +54,7 @@ const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
  * @property {string} source - manual | auto-learn | import
  * @property {number} usageCount
  * @property {Object<string, {count: number, firstSeen: string, lastSeen: string}>} [appContexts] - Per-app usage tracking
+ * @property {Object<string, number>} [learnedCounts] - Times each (lowercased) alternative was learned from a fix; decides replacement rules
  */
 
 // In-memory cache to avoid disk I/O on every incrementUsage call
@@ -164,12 +182,111 @@ function updateWord(id, updates) {
 
 function removeWord(id) {
   const entries = loadVocabulary();
-  const filtered = entries.filter((e) => e.id !== id);
-  if (filtered.length === entries.length) {
+  const removed = entries.find((e) => e.id === id);
+  if (!removed) {
     return { success: false, error: "Word not found" };
   }
-  saveVocabulary(filtered);
-  return { success: true };
+  saveVocabulary(entries.filter((e) => e.id !== id));
+  return { success: true, entry: removed };
+}
+
+/**
+ * Remember one misheard -> corrected pair from a fixed transcript. Returns
+ * an `offer` when Memory should now ask "Always change `from` to `to`?".
+ */
+function recordCorrection({ from, to, bundleId }) {
+  const entries = loadVocabulary();
+  const updated = applyLearnedCorrection(entries, {
+    from,
+    to,
+    bundleId,
+    now: new Date().toISOString(),
+    id: `vocab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  });
+  if (updated === entries) return { success: false, offer: null };
+  saveVocabulary(updated);
+  const offer = swapOffer(updated, { from, to }, { isKnownWord: knownWordChecker() });
+  return { success: true, offer: offer ? { from, to } : null };
+}
+
+/** Approved and typed swaps, for the Memory view: sorted by word, then mishearing. */
+function getMemorySwaps() {
+  return [...buildReplacementRules(loadVocabulary())].sort(
+    (a, b) => a.to.localeCompare(b.to) || a.from.localeCompare(b.from)
+  );
+}
+
+/** The user approved a swap: from now on `from` is changed to `to`. */
+function confirmSwap({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = confirmAlternative(entries, { from, to });
+  if (updated !== entries) saveVocabulary(updated);
+  return { success: updated !== entries };
+}
+
+/** The user declined a swap, or reverted one: forget it, never offer it again. */
+function declineSwap({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = declineAlternative(entries, { from, to });
+  if (updated !== entries) saveVocabulary(updated);
+  return { success: updated !== entries };
+}
+
+// Only consulted when deciding whether to offer a single-word swap; loaded
+// once, on first need.
+let _isKnownWord;
+function knownWordChecker() {
+  if (_isKnownWord === undefined) {
+    const text = WORD_LIST_FILES.map((file) => {
+      try {
+        return fs.readFileSync(file, "utf-8");
+      } catch {
+        return "";
+      }
+    }).join("\n");
+    _isKnownWord = makeKnownWordChecker(text);
+  }
+  return _isKnownWord;
+}
+
+// Compiled once per Memory change: loadVocabulary() returns the same array
+// until saveVocabulary() replaces it.
+let _rulesFor = null;
+let _compiledRules = null;
+
+function getCompiledRules() {
+  const entries = loadVocabulary();
+  if (_rulesFor !== entries) {
+    _compiledRules = compileReplacements(buildReplacementRules(entries));
+    _rulesFor = entries;
+  }
+  return _compiledRules;
+}
+
+/**
+ * Take back one recorded correction (a half-typed fix superseded in the same
+ * paste). Returns the word when its whole entry was removed.
+ */
+function unlearnCorrection({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = unlearnCorrectionPure(entries, { from, to });
+  if (updated === entries) return { removedWord: null };
+  saveVocabulary(updated);
+  const removed = updated.length < entries.length;
+  return { removedWord: removed ? to : null };
+}
+
+/** Swap learned mishearings in a transcript for the words Memory knows. */
+function applyMemoryReplacements(text) {
+  return applyCompiledReplacements(text, getCompiledRules());
+}
+
+/** Undo auto-learned corrections (the "Learned X — undo" toast). */
+function forgetLearnedWords(words) {
+  const entries = loadVocabulary();
+  const kept = removeLearnedWords(entries, words);
+  if (kept.length !== entries.length) saveVocabulary(kept);
+  return { success: true, removed: entries.length - kept.length };
 }
 
 function removeAllWords() {
@@ -268,8 +385,9 @@ function getTrackedApps() {
 }
 
 /**
- * Get a flat list of all words + alternatives for STT hint injection.
- * When bundleId is provided, boost app-specific words to the front.
+ * Get a flat list of correctly spelled words (no misheard alternatives) for
+ * STT hint injection. When bundleId is provided, boost app-specific words to
+ * the front.
  */
 function getSttHints(bundleId) {
   return flattenSttHints(loadVocabulary(), bundleId);
@@ -295,6 +413,13 @@ module.exports = {
   addWord,
   updateWord,
   removeWord,
+  forgetLearnedWords,
+  recordCorrection,
+  getMemorySwaps,
+  confirmSwap,
+  declineSwap,
+  unlearnCorrection,
+  applyMemoryReplacements,
   removeAllWords,
   importWords,
   exportWords,

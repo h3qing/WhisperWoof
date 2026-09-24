@@ -18,6 +18,8 @@ import {
   getActivePackEntries,
   mergePackHints,
   truncateHintsToPrompt,
+  buildSttPrompt,
+  migratePackDefaults,
   packHasUpdate,
   validatePacks,
 } from "./pack-manager-pure";
@@ -49,6 +51,7 @@ interface PackInstallState {
   enabled: boolean;
   installedVersion: string;
   disabledEntries?: string[];
+  userSet?: boolean;
 }
 
 const FOOD_PACK: VocabularyPack = {
@@ -205,12 +208,63 @@ describe("createDefaultInstallState", () => {
     const state = createDefaultInstallState(TECH_PACK);
     expect(state.enabled).toBe(false);
   });
+
+  it("marks the state as not chosen by the user", () => {
+    expect(createDefaultInstallState(FOOD_PACK).userSet).toBe(false);
+  });
+});
+
+describe("migratePackDefaults", () => {
+  const legacy = (packId: string, enabled: boolean): PackInstallState => ({
+    packId,
+    enabled,
+    installedVersion: "1.0.0",
+    disabledEntries: ["pho"],
+  });
+
+  it("moves states the user never chose onto the pack's current default", () => {
+    const { states, changed } = migratePackDefaults(
+      [legacy("food-and-drink", true), legacy("tech-dev", true)],
+      [{ ...FOOD_PACK, defaultEnabled: false }, TECH_PACK],
+    );
+    expect(changed).toBe(true);
+    expect(states).toEqual([
+      { ...legacy("food-and-drink", true), enabled: false, userSet: false },
+      { ...legacy("tech-dev", true), enabled: false, userSet: false },
+    ]);
+  });
+
+  it("treats a pack that is off as the user's choice (every old default was on)", () => {
+    const { states } = migratePackDefaults(
+      [legacy("food-and-drink", false)],
+      [{ ...FOOD_PACK, defaultEnabled: true }],
+    );
+    expect(states).toEqual([{ ...legacy("food-and-drink", false), userSet: true }]);
+  });
+
+  it("keeps states the user chose", () => {
+    const chosen = { ...legacy("food-and-drink", true), userSet: true };
+    const { states, changed } = migratePackDefaults([chosen], [{ ...FOOD_PACK, defaultEnabled: false }]);
+    expect(changed).toBe(false);
+    expect(states).toEqual([chosen]);
+  });
+
+  it("is a no-op once migrated", () => {
+    const once = migratePackDefaults([legacy("food-and-drink", true)], [FOOD_PACK]).states;
+    expect(migratePackDefaults(once, [FOOD_PACK]).changed).toBe(false);
+  });
+
+  it("keeps states for packs that no longer ship", () => {
+    const { states } = migratePackDefaults([legacy("gone", true)], [FOOD_PACK]);
+    expect(states).toEqual([{ ...legacy("gone", true), userSet: false }]);
+  });
 });
 
 describe("enablePack", () => {
   it("enables a pack with no prior state", () => {
     const state = enablePack(null, TECH_PACK);
     expect(state.enabled).toBe(true);
+    expect(state.userSet).toBe(true);
     expect(state.packId).toBe("tech-dev");
     expect(state.installedVersion).toBe("2.0.0");
   });
@@ -239,6 +293,7 @@ describe("disablePack", () => {
     };
     const state = disablePack(prior, FOOD_PACK);
     expect(state.enabled).toBe(false);
+    expect(state.userSet).toBe(true);
   });
 
   it("creates disabled state from scratch", () => {
@@ -348,12 +403,14 @@ describe("mergePackHints", () => {
     expect(phoOccurrences).toHaveLength(1);
   });
 
-  it("includes alternatives from pack entries", () => {
+  it("uses only the correct spelling of pack entries, never phonetic alternatives", () => {
     const packStates = [{ pack: FOOD_PACK, state: enabledState("food-and-drink") }];
     const merged = mergePackHints([], packStates);
 
-    expect(merged).toContain("fuh"); // pho alternative
-    expect(merged).toContain("keen wah"); // quinoa alternative
+    expect(merged).toContain("quinoa");
+    expect(merged).not.toContain("fuh"); // pho alternative
+    expect(merged).not.toContain("keen wah"); // quinoa alternative
+    expect(merged).toHaveLength(FOOD_PACK.entries.length);
   });
 
   it("merges multiple packs", () => {
@@ -382,6 +439,55 @@ describe("mergePackHints", () => {
   it("handles empty inputs", () => {
     expect(mergePackHints([], [])).toHaveLength(0);
     expect(mergePackHints(null, null)).toHaveLength(0);
+  });
+});
+
+// --- Full STT prompt: Memory -> Dictionary -> packs ---
+
+describe("buildSttPrompt", () => {
+  const enabled: PackInstallState = {
+    packId: "food-and-drink",
+    enabled: true,
+    installedVersion: "1.0.0",
+    disabledEntries: [],
+  };
+  const food = [{ pack: FOOD_PACK, state: enabled }];
+
+  // Whisper (whisper.cpp and the OpenAI API) keeps only the LAST 224 prompt
+  // tokens, so the highest-priority words go at the end.
+  it("ends with Memory words, after Dictionary words, after pack words", () => {
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food)).toBe(
+      "açaí, quinoa, bruschetta, gnocchi, pho, Heqing, Supabase",
+    );
+  });
+
+  it("prefers the newest Dictionary words (stored oldest first)", () => {
+    expect(buildSttPrompt([], ["Oldest", "Newest"], [], 6)).toBe("Newest");
+    expect(buildSttPrompt([], ["Oldest", "Newest"], [])).toBe("Oldest, Newest");
+  });
+
+  it("keeps a word in both Memory and the Dictionary once, with Memory's spelling", () => {
+    expect(buildSttPrompt(["Supabase", "WhisperWoof"], ["supabase", "Vitest"], [])).toBe(
+      "Vitest, WhisperWoof, Supabase",
+    );
+  });
+
+  it("includes Dictionary words when there are no Memory words or packs", () => {
+    expect(buildSttPrompt([], ["Heqing", "LGTM"], [])).toBe("Heqing, LGTM");
+  });
+
+  it("drops pack words first, then Dictionary words, when over the limit", () => {
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food, 16)).toBe("Heqing, Supabase");
+    expect(buildSttPrompt(["Supabase"], ["Heqing"], food, 10)).toBe("Supabase");
+  });
+
+  it("default budget fits Whisper's 224-token window (measured ~2.97 chars/token)", () => {
+    expect(MAX_HINT_CHARS / 2.97).toBeLessThan(224);
+  });
+
+  it("returns an empty string when there is nothing to hint", () => {
+    expect(buildSttPrompt([], [], [])).toBe("");
+    expect(buildSttPrompt(null, null, null)).toBe("");
   });
 });
 
@@ -491,8 +597,8 @@ describe("packHasUpdate", () => {
 describe("constants", () => {
   it("has sensible Whisper prompt limits", () => {
     expect(WHISPER_PROMPT_TOKEN_LIMIT).toBe(224);
-    expect(CHARS_PER_TOKEN).toBe(4);
-    expect(MAX_HINT_CHARS).toBe(896);
+    expect(CHARS_PER_TOKEN).toBe(2.5);
+    expect(MAX_HINT_CHARS).toBe(560);
   });
 
   it("PACK_CATEGORIES contains expected categories", () => {

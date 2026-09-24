@@ -3,6 +3,7 @@ const path = require("path");
 const EventEmitter = require("events");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");
+const { FRONTMOST_APP_JXA, parseFrontmostApp } = require("../whisperwoof/core/context/frontmost-app");
 
 const POLL_INTERVAL_MS = 500;
 const INITIAL_QUERY_DELAY_MS = 500; // Wait for paste to settle in target app
@@ -53,26 +54,27 @@ class TextEditMonitor extends EventEmitter {
     this._lastValue = null;
     this._stdoutBuffer = "";
     this.lastTargetPid = null;
+    this.lastTargetBundleId = null;
   }
 
   /**
-   * macOS: capture the active app's PID via NSWorkspace before the overlay steals focus.
+   * macOS: capture the active app's PID and bundle id via NSWorkspace before the overlay
+   * steals focus (the bundle id tags and boosts Memory words per app).
    * Must be called at hotkey press time, BEFORE showDictationPanel()/mainWindow.show().
    * NSWorkspace.frontmostApplication correctly identifies the key window owner,
    * ignoring panel-type windows like the OpenWhispr overlay.
    */
   captureTargetPid() {
     if (process.platform !== "darwin") return;
-    const script =
-      'ObjC.import("AppKit"); $.NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier';
-    execFile("osascript", ["-l", "JavaScript", "-e", script], { timeout: 2000 }, (err, stdout) => {
-      if (err) {
-        this.lastTargetPid = null;
-      } else {
-        const pid = parseInt(stdout.trim(), 10);
-        this.lastTargetPid = isNaN(pid) ? null : pid;
-      }
-      debugLogger.debug("[TextEditMonitor] Captured target PID", { pid: this.lastTargetPid });
+    const args = ["-l", "JavaScript", "-e", FRONTMOST_APP_JXA];
+    execFile("osascript", args, { timeout: 2000 }, (err, stdout) => {
+      const { pid, bundleId } = err ? { pid: null, bundleId: null } : parseFrontmostApp(stdout);
+      this.lastTargetPid = pid;
+      this.lastTargetBundleId = bundleId;
+      debugLogger.debug("[TextEditMonitor] Captured target app", {
+        pid: this.lastTargetPid,
+        bundleId: this.lastTargetBundleId,
+      });
     });
   }
 

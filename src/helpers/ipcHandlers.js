@@ -116,6 +116,11 @@ class IPCHandlers {
     this._autoLearnEnabled = true; // Default on, synced from renderer
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
+    // What Memory learned from the current paste, the swaps it made in that
+    // text, and the app it went into (captured at paste time).
+    this._autoLearnSession = { pairs: new Map(), dictWords: new Set(), swaps: [], bundleId: null };
+    // Replacements applied to the latest transcript, and when (see paste-text).
+    this._lastMemorySwaps = { swaps: [], at: 0 };
     this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
@@ -143,6 +148,36 @@ class IPCHandlers {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * STT hint prompt for local whisper-server (initial prompt) and the batch
+   * cloud providers (`prompt`): Memory words, the Dictionary and enabled Word
+   * Packs, deduped, budgeted and ordered by buildSttPrompt. Streaming
+   * providers still use the renderer's Dictionary (audioManager getKeyterms).
+   */
+  _getSttHintPrompt(bundleId) {
+    const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
+    const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
+    return getPackEnhancedSttPrompt(getSttHints(bundleId || undefined), this._getDictionarySafe());
+  }
+
+  /**
+   * Remove words from the custom Dictionary (case-insensitive) and tell the
+   * renderers. Saves only when something changed; false means the save failed.
+   */
+  _removeFromDictionary(words) {
+    const { removeFromDictionary } = require("../whisperwoof/bridge/vocabulary-pure");
+    const currentDict = this._getDictionarySafe();
+    const updatedDict = removeFromDictionary(currentDict, words);
+    if (updatedDict.length === currentDict.length) return true;
+    const saveResult = this.databaseManager.setDictionary(updatedDict);
+    if (saveResult?.success === false) {
+      debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
+      return false;
+    }
+    this.broadcastToWindows("dictionary-updated", updatedDict);
+    return true;
   }
 
   _cleanupTextEditMonitor() {
@@ -228,53 +263,21 @@ class IPCHandlers {
     const { originalText, newFieldValue } = this._autoLearnLatestData;
     this._autoLearnLatestData = null;
 
-    // Detect active app for context-aware Memory tagging
-    let bundleId = null;
-    try {
-      const { detectActiveApp } = require("../whisperwoof/bridge/context-detector");
-      const app = await detectActiveApp();
-      bundleId = app?.bundleId ?? null;
-    } catch {
-      // Context detection is optional, proceed without it
+    // Tag Memory with the app the text was pasted into (captured at paste
+    // time); fall back to whatever is frontmost now.
+    let bundleId = this._autoLearnSession.bundleId;
+    if (!bundleId) {
+      try {
+        const { detectActiveApp } = require("../whisperwoof/bridge/context-detector");
+        const app = await detectActiveApp();
+        bundleId = app?.bundleId ?? null;
+      } catch {
+        // Context detection is optional, proceed without it
+      }
     }
 
     try {
-      const { extractCorrections } = require("../utils/correctionLearner");
-      const currentDict = this._getDictionarySafe();
-      const corrections = extractCorrections(originalText, newFieldValue, currentDict);
-      debugLogger.debug("[AutoLearn] Corrections result", {
-        corrections,
-        dictSize: currentDict.length,
-        bundleId,
-      });
-
-      if (corrections.length > 0) {
-        const updatedDict = [...currentDict, ...corrections];
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
-          return;
-        }
-
-        this.broadcastToWindows("dictionary-updated", updatedDict);
-
-        // WhisperWoof Memory: also save to context-aware vocabulary
-        try {
-          const { addWord } = require("../whisperwoof/bridge/vocabulary");
-          for (const word of corrections) {
-            addWord(word, { source: "auto-learn", category: "general", bundleId });
-          }
-          debugLogger.debug("[AutoLearn] Saved to Memory vocabulary", { count: corrections.length, bundleId });
-        } catch (vocabErr) {
-          debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
-        }
-
-        // Show the overlay so the toast is visible (it may have been hidden after dictation)
-        this.windowManager.showDictationPanel();
-        this.broadcastToWindows("corrections-learned", corrections);
-        debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
-      }
+      this._learnCorrections(originalText, newFieldValue, bundleId);
     } catch (error) {
       debugLogger.debug("[AutoLearn] Error processing corrections", { error: error.message });
     }
@@ -286,6 +289,85 @@ class IPCHandlers {
     } catch (styleError) {
       debugLogger.debug("[WhisperWoof] Style learning failed", { error: styleError.message });
     }
+  }
+
+  /**
+   * Learn from one edit of a pasted transcript: every misheard -> corrected
+   * pair goes to Memory (it can become a replacement rule), and words new to
+   * the Dictionary are added there and announced with the undo toast.
+   */
+  _learnCorrections(originalText, newFieldValue, bundleId) {
+    const { extractCorrectionPairs, newDictionaryWords } = require("../utils/correctionLearner");
+    const { splitReversals } = require("../whisperwoof/core/vocabulary/memory-replacements");
+
+    // A fix that undoes a swap Memory made in this text declines that swap
+    // for good and is not learned the other way round.
+    const { reversals, rest: pairs } = splitReversals(
+      extractCorrectionPairs(originalText, newFieldValue),
+      this._autoLearnSession.swaps
+    );
+
+    let offers = [];
+    try {
+      offers = this._learnMemoryPairs(pairs, reversals, bundleId);
+    } catch (vocabErr) {
+      debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
+    }
+
+    // Read the Dictionary directly (it throws on failure): treating a failed
+    // read as empty would overwrite the whole Dictionary with these words.
+    const currentDict = this.databaseManager.getDictionary();
+    const corrections = newDictionaryWords(pairs, currentDict);
+    debugLogger.debug("[AutoLearn] Corrections result", { corrections, offers, bundleId });
+
+    if (corrections.length > 0) {
+      const updatedDict = [...currentDict, ...corrections];
+      const saveResult = this.databaseManager.setDictionary(updatedDict);
+      if (saveResult?.success === false) {
+        debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
+        return;
+      }
+      this.broadcastToWindows("dictionary-updated", updatedDict);
+      this._autoLearnSession = {
+        ...this._autoLearnSession,
+        dictWords: new Set([...this._autoLearnSession.dictWords, ...corrections]),
+      };
+    }
+
+    if (corrections.length === 0 && offers.length === 0) return;
+    // Show the overlay so the toasts are visible (it may have been hidden after dictation)
+    this.windowManager.showDictationPanel();
+    if (corrections.length > 0) {
+      this.broadcastToWindows("corrections-learned", corrections);
+      debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
+    }
+    // Memory never swaps by itself: it asks "Always change X to Y?".
+    if (offers.length > 0) this.broadcastToWindows("memory-swap-offer", offers[0]);
+  }
+
+  /**
+   * Record misheard -> corrected pairs in Memory, once per pasted text and
+   * with each mishearing mapped to its latest fix: a fix superseded in the
+   * same paste (a pause mid-word, "Supa" then "Supabase") is taken back,
+   * along with its Dictionary word if this paste added it. Returns the
+   * swaps Memory should now offer.
+   */
+  _learnMemoryPairs(pairs, reversals, bundleId) {
+    const { planSessionLearning } = require("../whisperwoof/core/vocabulary/memory-replacements");
+    const { recordCorrection, unlearnCorrection, declineSwap } = require("../whisperwoof/bridge/vocabulary");
+
+    for (const swap of reversals) declineSwap(swap);
+    if (reversals.length > 0) this.broadcastToWindows("memory-swaps-updated");
+
+    const plan = planSessionLearning(pairs, this._autoLearnSession.pairs);
+    this._autoLearnSession = { ...this._autoLearnSession, pairs: plan.session };
+    for (const pair of plan.revert) {
+      const { removedWord } = unlearnCorrection(pair);
+      if (removedWord && this._autoLearnSession.dictWords.has(removedWord)) {
+        this._removeFromDictionary([removedWord]);
+      }
+    }
+    return plan.record.map((pair) => recordCorrection({ ...pair, bundleId }).offer).filter(Boolean);
   }
 
   _syncStartupEnv(setVars, clearVars = []) {
@@ -531,7 +613,22 @@ class IPCHandlers {
       if (!Array.isArray(words)) {
         throw new Error("words must be an array");
       }
-      return this.databaseManager.setDictionary(words);
+      const { removeFromDictionary } = require("../whisperwoof/bridge/vocabulary-pure");
+      const removed = removeFromDictionary(this._getDictionarySafe(), words);
+      const result = this.databaseManager.setDictionary(words);
+      // A learned word deleted in the Dictionary tab should leave Memory too,
+      // or it keeps steering STT from there.
+      if (removed.length > 0 && result?.success !== false) {
+        try {
+          const { forgetLearnedWords } = require("../whisperwoof/bridge/vocabulary");
+          forgetLearnedWords(removed);
+        } catch (vocabErr) {
+          debugLogger.debug("[AutoLearn] Dictionary delete: Memory update failed", {
+            error: vocabErr.message,
+          });
+        }
+      }
+      return result;
     });
 
     ipcMain.handle("undo-learned-corrections", async (_event, words) => {
@@ -543,17 +640,25 @@ class IPCHandlers {
         if (validWords.length === 0) {
           return { success: false };
         }
-        const currentDict = this._getDictionarySafe();
-        const removeSet = new Set(validWords.map((w) => w.toLowerCase()));
-        const updatedDict = currentDict.filter((w) => !removeSet.has(w.toLowerCase()));
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Undo failed to save dictionary", {
-            error: saveResult.error,
-          });
+        if (!this._removeFromDictionary(validWords)) {
           return { success: false };
         }
-        this.broadcastToWindows("dictionary-updated", updatedDict);
+        // Stop watching the pasted field: the word has left the Dictionary, so
+        // the next keystroke there would learn it straight back.
+        this.textEditMonitor?.stopMonitoring();
+        if (this._autoLearnDebounceTimer) {
+          clearTimeout(this._autoLearnDebounceTimer);
+          this._autoLearnDebounceTimer = null;
+        }
+        this._autoLearnLatestData = null;
+        try {
+          const { forgetLearnedWords } = require("../whisperwoof/bridge/vocabulary");
+          forgetLearnedWords(validWords);
+        } catch (vocabErr) {
+          debugLogger.debug("[AutoLearn] Undo: Memory vocabulary update failed", {
+            error: vocabErr.message,
+          });
+        }
         debugLogger.debug("[AutoLearn] Undo: removed words", { words: validWords });
         return { success: true };
       } catch (err) {
@@ -845,6 +950,10 @@ class IPCHandlers {
         webContents: event.sender,
       });
       const targetPid = this.textEditMonitor?.lastTargetPid || null;
+      const targetBundleId = this.textEditMonitor?.lastTargetBundleId || null;
+      // Swaps Memory made in this text, if it came from the latest transcript.
+      const swaps = Date.now() - this._lastMemorySwaps.at < 120000 ? this._lastMemorySwaps.swaps : [];
+      this._lastMemorySwaps = { swaps: [], at: 0 };
       debugLogger.debug("[AutoLearn] Paste completed", {
         autoLearnEnabled: this._autoLearnEnabled,
         hasMonitor: !!this.textEditMonitor,
@@ -856,6 +965,12 @@ class IPCHandlers {
             debugLogger.debug("[AutoLearn] Starting monitoring", {
               textPreview: text.substring(0, 80),
             });
+            this._autoLearnSession = {
+              pairs: new Map(),
+              dictWords: new Set(),
+              swaps,
+              bundleId: targetBundleId,
+            };
             this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
           } catch (err) {
             debugLogger.debug("[AutoLearn] Failed to start monitoring", { error: err.message });
@@ -2458,7 +2573,21 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-remove-word", async (_event, id) => {
       try {
         const { removeWord } = require("../whisperwoof/bridge/vocabulary");
-        return removeWord(id);
+        const result = removeWord(id);
+        // A Memory word can also sit in the Dictionary (auto-learn writes both,
+        // even when Memory already had it); forgetting it in Memory should stop
+        // it steering STT and polish as well. The Memory delete is already
+        // saved, so a Dictionary failure is logged, not reported as a failed delete.
+        if (result.success && result.entry) {
+          try {
+            this._removeFromDictionary([result.entry.word]);
+          } catch (dictErr) {
+            debugLogger.debug("[AutoLearn] Memory delete: Dictionary update failed", {
+              error: dictErr.message,
+            });
+          }
+        }
+        return result;
       } catch (error) {
         debugLogger.log(`[WhisperWoof] remove-word failed: ${error.message}`);
         return { success: false, error: error.message };
@@ -2487,12 +2616,8 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-get-stt-hints", async (_event, bundleId) => {
       try {
-        const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
-        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
-        const userHints = getSttHints(bundleId || undefined);
-        // Return pack-enhanced prompt string (merged user + pack hints, truncated to fit Whisper limit)
-        const prompt = getPackEnhancedSttPrompt(userHints, bundleId || undefined);
-        return prompt ? prompt.split(", ") : userHints;
+        const prompt = this._getSttHintPrompt(bundleId);
+        return prompt ? prompt.split(", ") : [];
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-stt-hints failed: ${error.message}`);
         return [];
@@ -2562,13 +2687,65 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (_event, bundleId) => {
       try {
-        const { getSttHints } = require("../whisperwoof/bridge/vocabulary");
-        const { getPackEnhancedSttPrompt } = require("../whisperwoof/bridge/vocabulary-packs");
-        const userHints = getSttHints(bundleId || undefined);
-        return getPackEnhancedSttPrompt(userHints, bundleId || undefined);
+        // The app being dictated into, captured at hotkey press, boosts its words.
+        return this._getSttHintPrompt(bundleId || this.textEditMonitor?.lastTargetBundleId);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-pack-enhanced-prompt failed: ${error.message}`);
         return "";
+      }
+    });
+
+    // Memory: swap approved mishearings into a transcript before polish
+    ipcMain.handle("whisperwoof-apply-memory-replacements", async (_event, text) => {
+      this._lastMemorySwaps = { swaps: [], at: 0 };
+      if (typeof text !== "string" || !text) return { text: text || "", applied: [] };
+      try {
+        const { applyMemoryReplacements } = require("../whisperwoof/bridge/vocabulary");
+        const result = applyMemoryReplacements(text);
+        // Remembered so that changing a swapped word back can be recognised.
+        this._lastMemorySwaps = { swaps: result.applied, at: Date.now() };
+        return result;
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] apply-memory-replacements failed: ${error.message}`);
+        return { text, applied: [] };
+      }
+    });
+
+    // Memory: approved swaps, for the Memory view
+    ipcMain.handle("whisperwoof-get-memory-swaps", async () => {
+      try {
+        return require("../whisperwoof/bridge/vocabulary").getMemorySwaps();
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] get-memory-swaps failed: ${error.message}`);
+        return [];
+      }
+    });
+
+    // Memory: the answer to "Always change X to Y?"
+    const swapPair = (from, to) =>
+      typeof from === "string" && typeof to === "string" && from.trim() && to.trim() ? { from, to } : null;
+    ipcMain.handle("whisperwoof-confirm-memory-swap", async (_event, from, to) => {
+      const pair = swapPair(from, to);
+      if (!pair) return { success: false };
+      try {
+        const result = require("../whisperwoof/bridge/vocabulary").confirmSwap(pair);
+        this.broadcastToWindows("memory-swaps-updated");
+        return result;
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] confirm-memory-swap failed: ${error.message}`);
+        return { success: false };
+      }
+    });
+    ipcMain.handle("whisperwoof-decline-memory-swap", async (_event, from, to) => {
+      const pair = swapPair(from, to);
+      if (!pair) return { success: false };
+      try {
+        const result = require("../whisperwoof/bridge/vocabulary").declineSwap(pair);
+        this.broadcastToWindows("memory-swaps-updated");
+        return result;
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] decline-memory-swap failed: ${error.message}`);
+        return { success: false };
       }
     });
 

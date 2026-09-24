@@ -1803,6 +1803,9 @@
       },
       "addedToDict": "{{words}} aggiunto al tuo dizionario",
       "undo": "Annulla",
+      "swapOffer": "Cambiare sempre {{from}} in {{to}}?",
+      "swapAlways": "Sempre",
+      "swapNotNow": "Non ora",
       "accessibilityMissing": {
         "title": "Autorizzazioni di accessibilità richieste",
         "description": "WhisperWoof necessita delle autorizzazioni di accessibilità per rilevare il tasto di scelta rapida e incollare il testo. Abilitale nel Pannello di controllo."

@@ -1803,6 +1803,9 @@
       },
       "addedToDict": "{{words}} zu deinem Wörterbuch hinzugefügt",
       "undo": "Rückgängig",
+      "swapOffer": "{{from}} immer in {{to}} ändern?",
+      "swapAlways": "Immer",
+      "swapNotNow": "Nicht jetzt",
       "accessibilityMissing": {
         "title": "Bedienungshilfen-Berechtigungen erforderlich",
         "description": "WhisperWoof benötigt Bedienungshilfen-Berechtigungen, um Ihren Hotkey zu erkennen und Text einzufügen. Bitte aktivieren Sie diese in der Systemsteuerung."

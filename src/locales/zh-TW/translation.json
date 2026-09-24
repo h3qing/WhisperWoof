@@ -1846,6 +1846,9 @@
       },
       "addedToDict": "已將 {{words}} 加入到你的詞典",
       "undo": "復原",
+      "swapOffer": "以後總是把 {{from}} 改成 {{to}}？",
+      "swapAlways": "總是修改",
+      "swapNotNow": "暫不",
       "accessibilityMissing": {
         "title": "需要輔助使用權限",
         "description": "WhisperWoof 需要輔助使用權限來偵測快捷鍵和貼上文字。請在控制面板中啟用。"
