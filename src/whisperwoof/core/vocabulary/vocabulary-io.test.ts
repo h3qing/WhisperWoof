@@ -110,6 +110,15 @@ describe("vocabulary recordCorrection + applyMemoryReplacements", () => {
     expect(vocab.getSttHints()).toEqual(["Supabase"]);
   });
 
+  it("takes back a half-typed fix so the finished one wins", () => {
+    const vocab = loadVocabulary();
+    vocab.recordCorrection({ from: "super base", to: "Supa" });
+    expect(vocab.unlearnCorrection({ from: "super base", to: "Supa" })).toEqual({ removedWord: "Supa" });
+    vocab.recordCorrection({ from: "super base", to: "Supabase" });
+    expect(vocab.applyMemoryReplacements("use super base").text).toBe("use Supabase");
+    expect(vocab.unlearnCorrection({ from: "nope", to: "Nope" })).toEqual({ removedWord: null });
+  });
+
   it("stops replacing once the learned word is undone", () => {
     const vocab = loadVocabulary();
     vocab.recordCorrection({ from: "super base", to: "Supabase" });

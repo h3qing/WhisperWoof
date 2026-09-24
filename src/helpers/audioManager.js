@@ -11,7 +11,11 @@ import {
   normalizeChineseScript,
   resolveChineseScript,
 } from "../whisperwoof/core/language/normalize-chinese-script";
-import { isHintHijack, nextAutoHintsSuppressed } from "../whisperwoof/core/language/auto-hints";
+import {
+  isHintHijack,
+  nextAutoHintsSuppressed,
+  shouldSendHints,
+} from "../whisperwoof/core/language/auto-hints";
 import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
   formatSpokenEnumeration,
@@ -886,7 +890,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // into English; that is caught below and redone without the prompt,
       // and hints stay off until the next non-CJK dictation (auto-hints.ts).
       const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
-      const sendHints = Boolean(dictionaryPrompt) && (Boolean(language) || !this.autoHintsSuppressed);
+      const sendHints = shouldSendHints({
+        hasPrompt: Boolean(dictionaryPrompt),
+        language,
+        suppressed: this.autoHintsSuppressed,
+      });
       if (sendHints) {
         options.initialPrompt = dictionaryPrompt;
       }
@@ -913,7 +921,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             language: result.language,
           });
           const { initialPrompt: _dropped, ...withoutHints } = options;
-          result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, withoutHints);
+          const retry = await window.electronAPI
+            .transcribeLocalWhisper(arrayBuffer, withoutHints)
+            .catch(() => null);
+          // Keep the hinted text if the retry fails: a questionable result beats none.
+          if (retry?.success) result = retry;
         }
       }
       timings.transcriptionProcessingDurationMs = Math.round(

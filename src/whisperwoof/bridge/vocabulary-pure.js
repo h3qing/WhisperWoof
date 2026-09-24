@@ -216,13 +216,45 @@ function applyLearnedCorrection(entries, { from, to, bundleId, now, id }) {
   const alternatives = entry.alternatives || [];
   const counts = entry.learnedCounts || {};
   const contexts = entry.appContexts || {};
+  const known = alternatives.some((a) => a.toLowerCase() === fromKey);
+  // An alternative the user typed (known, never counted) stays typed.
+  const typed = known && counts[fromKey] === undefined;
   const updated = {
     ...entry,
-    alternatives: alternatives.some((a) => a.toLowerCase() === fromKey)
-      ? alternatives
-      : [...alternatives, from],
-    learnedCounts: { ...counts, [fromKey]: (counts[fromKey] || 0) + 1 },
+    alternatives: known ? alternatives : [...alternatives, from],
+    learnedCounts: typed ? counts : { ...counts, [fromKey]: (counts[fromKey] || 0) + 1 },
     appContexts: bundleId ? { ...contexts, [bundleId]: appContext(contexts[bundleId]) } : contexts,
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
+ * Take back one learned correction (see applyLearnedCorrection), e.g. a
+ * half-typed fix superseded by the finished one. An auto-learn entry that
+ * existed only for this fix is removed; otherwise one count goes, and the
+ * alternative with it when none is left. Typed alternatives are untouched.
+ * Returns the same array when there is nothing to take back.
+ */
+function unlearnCorrection(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const fromKey = from.toLowerCase();
+  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
+  const entry = idx === -1 ? null : list[idx];
+  const count = entry?.learnedCounts?.[fromKey];
+  if (count === undefined) return list;
+
+  const { [fromKey]: _removed, ...others } = entry.learnedCounts;
+  if (count > 1) {
+    const updated = { ...entry, learnedCounts: { ...others, [fromKey]: count - 1 } };
+    return list.map((e, i) => (i === idx ? updated : e));
+  }
+  if (entry.source === "auto-learn" && Object.keys(others).length === 0) {
+    return list.filter((_, i) => i !== idx);
+  }
+  const updated = {
+    ...entry,
+    learnedCounts: others,
+    alternatives: (entry.alternatives || []).filter((a) => a.toLowerCase() !== fromKey),
   };
   return list.map((e, i) => (i === idx ? updated : e));
 }
@@ -246,6 +278,7 @@ module.exports = {
   removeLearnedWords,
   removeFromDictionary,
   applyLearnedCorrection,
+  unlearnCorrection,
   computeVocabularyStats,
   planVocabularyImport,
 };

@@ -28,6 +28,18 @@ export function isCjkLanguage(language: string | null | undefined): boolean {
   return typeof language === "string" && CJK_LANGUAGES.has(language.toLowerCase());
 }
 
+export function shouldSendHints({
+  hasPrompt,
+  language,
+  suppressed,
+}: {
+  hasPrompt: boolean;
+  language?: string | null;
+  suppressed: boolean;
+}): boolean {
+  return hasPrompt && (Boolean(language) || !suppressed);
+}
+
 export function isHintHijack(result: { language?: string | null; text?: string | null }): boolean {
   return isCjkLanguage(result.language) && !CJK_TEXT_RE.test(result.text ?? "");
 }

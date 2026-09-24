@@ -82,4 +82,34 @@ function applyReplacements(text, rules) {
   return { text: replaced, applied };
 }
 
-module.exports = { MIN_SINGLE_WORD_FIXES, buildReplacementRules, applyReplacements };
+/**
+ * One pasted text produces a debounced edit event per pause in typing.
+ * Within it, each mishearing is recorded once and maps to its latest fix,
+ * so a pause mid-word can't leave "super base" -> "Supa" behind once the
+ * user finishes typing "Supabase".
+ *
+ * @param {{from: string, to: string}[]} pairs - Pairs from the latest edit
+ * @param {Map<string, string>} session - Lowercased `from` -> `to` recorded for this paste
+ * @returns {{record: {from: string, to: string}[], revert: {from: string, to: string}[], session: Map<string, string>}}
+ */
+function planSessionLearning(pairs, session) {
+  const next = new Map(session);
+  const record = [];
+  const revert = [];
+  for (const pair of pairs) {
+    const key = pair.from.toLowerCase();
+    const previous = next.get(key);
+    if (previous === pair.to) continue;
+    if (previous !== undefined) revert.push({ from: pair.from, to: previous });
+    record.push(pair);
+    next.set(key, pair.to);
+  }
+  return { record, revert, session: next };
+}
+
+module.exports = {
+  MIN_SINGLE_WORD_FIXES,
+  buildReplacementRules,
+  applyReplacements,
+  planSessionLearning,
+};

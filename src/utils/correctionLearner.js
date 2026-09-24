@@ -157,9 +157,14 @@ function extractCorrectionPairs(originalText, fieldValue) {
   const editedWords = tokenize(editedRegion);
   if (origWords.length === 0 || editedWords.length === 0) return [];
 
-  // If more than 50% of words changed, this is a rewrite, not corrections
+  // If more than 50% of words changed, this is a rewrite, not corrections.
+  // A block counts its smaller side, so one split word fixed ("super base"
+  // -> "Supabase") is one change, even in a two-word dictation.
   const subs = findSubstitutions(origWords, editedWords);
-  const changedWords = subs.reduce((n, [from]) => n + from.split(" ").length, 0);
+  const changedWords = subs.reduce(
+    (n, [from, to]) => n + Math.min(from.split(" ").length, to.split(" ").length),
+    0
+  );
   if (changedWords > origWords.length * 0.5) return [];
 
   const seen = new Set();
@@ -190,7 +195,8 @@ function extractCorrectionPairs(originalText, fieldValue) {
  * @param {string} originalText - The text that was originally pasted (from transcription)
  * @param {string} fieldValue - The current value of the text field (after user edits)
  * @param {string[]} existingDictionary - Words already in the custom dictionary
- * @returns {string[]} Array of corrected words to add to the dictionary
+ * @returns {string[]} Corrected words or phrases to add to the dictionary (adjacent
+ *   fixed words form one phrase)
  */
 function extractCorrections(originalText, fieldValue, existingDictionary) {
   const safeDict = Array.isArray(existingDictionary) ? existingDictionary : [];

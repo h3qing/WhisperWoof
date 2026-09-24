@@ -7,7 +7,22 @@
  * off until an English dictation.
  */
 import { describe, it, expect } from "vitest";
-import { isCjkLanguage, isHintHijack, nextAutoHintsSuppressed } from "./auto-hints";
+import { isCjkLanguage, isHintHijack, nextAutoHintsSuppressed, shouldSendHints } from "./auto-hints";
+
+describe("shouldSendHints", () => {
+  it("always sends with a pinned language", () => {
+    expect(shouldSendHints({ hasPrompt: true, language: "zh", suppressed: true })).toBe(true);
+  });
+
+  it("sends in Auto mode unless hints were suppressed", () => {
+    expect(shouldSendHints({ hasPrompt: true, language: null, suppressed: false })).toBe(true);
+    expect(shouldSendHints({ hasPrompt: true, language: null, suppressed: true })).toBe(false);
+  });
+
+  it("never sends an empty prompt", () => {
+    expect(shouldSendHints({ hasPrompt: false, language: "en", suppressed: false })).toBe(false);
+  });
+});
 
 describe("isCjkLanguage", () => {
   it("recognises whisper-server names and ISO codes", () => {

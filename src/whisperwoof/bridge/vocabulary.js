@@ -22,6 +22,7 @@ const {
   flattenSttHints,
   removeLearnedWords,
   applyLearnedCorrection,
+  unlearnCorrection: unlearnCorrectionPure,
   computeVocabularyStats,
   planVocabularyImport,
 } = require("./vocabulary-pure");
@@ -41,6 +42,7 @@ const FLUSH_INTERVAL_MS = 30_000; // Flush cache to disk every 30 seconds
  * @property {string} source - manual | auto-learn | import
  * @property {number} usageCount
  * @property {Object<string, {count: number, firstSeen: string, lastSeen: string}>} [appContexts] - Per-app usage tracking
+ * @property {Object<string, number>} [learnedCounts] - Times each (lowercased) alternative was learned from a fix; decides replacement rules
  */
 
 // In-memory cache to avoid disk I/O on every incrementUsage call
@@ -190,6 +192,19 @@ function recordCorrection({ from, to, bundleId }) {
   return { success: updated !== entries };
 }
 
+/**
+ * Take back one recorded correction (a half-typed fix superseded in the same
+ * paste). Returns the word when its whole entry was removed.
+ */
+function unlearnCorrection({ from, to }) {
+  const entries = loadVocabulary();
+  const updated = unlearnCorrectionPure(entries, { from, to });
+  if (updated === entries) return { removedWord: null };
+  saveVocabulary(updated);
+  const removed = updated.length < entries.length;
+  return { removedWord: removed ? to : null };
+}
+
 /** Swap learned mishearings in a transcript for the words Memory knows. */
 function applyMemoryReplacements(text) {
   return applyReplacements(text, buildReplacementRules(loadVocabulary()));
@@ -329,6 +344,7 @@ module.exports = {
   removeWord,
   forgetLearnedWords,
   recordCorrection,
+  unlearnCorrection,
   applyMemoryReplacements,
   removeAllWords,
   importWords,

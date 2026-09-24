@@ -116,7 +116,7 @@ class IPCHandlers {
     this._autoLearnEnabled = true; // Default on, synced from renderer
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
-    this._autoLearnSessionPairs = new Set(); // pairs learned from the current paste
+    this._autoLearnSession = { pairs: new Map(), dictWords: new Set() }; // learned from the current paste
     this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
@@ -295,23 +295,15 @@ class IPCHandlers {
   _learnCorrections(originalText, newFieldValue, bundleId) {
     const { extractCorrections, extractCorrectionPairs } = require("../utils/correctionLearner");
 
-    // Read the Dictionary directly (it throws on failure): treating a failed
-    // read as empty would overwrite the whole Dictionary with these words.
-    const currentDict = this.databaseManager.getDictionary();
-
-    // Once per pasted text, so later keystrokes don't count the same fix again.
     try {
-      const { recordCorrection } = require("../whisperwoof/bridge/vocabulary");
-      for (const pair of extractCorrectionPairs(originalText, newFieldValue)) {
-        const key = `${pair.from.toLowerCase()}\u0000${pair.to}`;
-        if (this._autoLearnSessionPairs.has(key)) continue;
-        this._autoLearnSessionPairs.add(key);
-        recordCorrection({ ...pair, bundleId });
-      }
+      this._learnMemoryPairs(extractCorrectionPairs(originalText, newFieldValue), bundleId);
     } catch (vocabErr) {
       debugLogger.debug("[AutoLearn] Memory vocabulary save failed", { error: vocabErr.message });
     }
 
+    // Read the Dictionary directly (it throws on failure): treating a failed
+    // read as empty would overwrite the whole Dictionary with these words.
+    const currentDict = this.databaseManager.getDictionary();
     const corrections = extractCorrections(originalText, newFieldValue, currentDict);
     debugLogger.debug("[AutoLearn] Corrections result", { corrections, bundleId });
     if (corrections.length === 0) return;
@@ -323,11 +315,38 @@ class IPCHandlers {
       return;
     }
     this.broadcastToWindows("dictionary-updated", updatedDict);
+    this._autoLearnSession = {
+      ...this._autoLearnSession,
+      dictWords: new Set([...this._autoLearnSession.dictWords, ...corrections]),
+    };
 
     // Show the overlay so the toast is visible (it may have been hidden after dictation)
     this.windowManager.showDictationPanel();
     this.broadcastToWindows("corrections-learned", corrections);
     debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
+  }
+
+  /**
+   * Record misheard -> corrected pairs in Memory, once per pasted text and
+   * with each mishearing mapped to its latest fix: a fix superseded in the
+   * same paste (a pause mid-word, "Supa" then "Supabase") is taken back,
+   * along with its Dictionary word if this paste added it.
+   */
+  _learnMemoryPairs(pairs, bundleId) {
+    const { planSessionLearning } = require("../whisperwoof/core/vocabulary/memory-replacements");
+    const { recordCorrection, unlearnCorrection } = require("../whisperwoof/bridge/vocabulary");
+    const plan = planSessionLearning(pairs, this._autoLearnSession.pairs);
+    this._autoLearnSession = { ...this._autoLearnSession, pairs: plan.session };
+
+    for (const pair of plan.revert) {
+      const { removedWord } = unlearnCorrection(pair);
+      if (removedWord && this._autoLearnSession.dictWords.has(removedWord)) {
+        this._removeFromDictionary([removedWord]);
+      }
+    }
+    for (const pair of plan.record) {
+      recordCorrection({ ...pair, bundleId });
+    }
   }
 
   _syncStartupEnv(setVars, clearVars = []) {
@@ -921,7 +940,7 @@ class IPCHandlers {
             debugLogger.debug("[AutoLearn] Starting monitoring", {
               textPreview: text.substring(0, 80),
             });
-            this._autoLearnSessionPairs = new Set();
+            this._autoLearnSession = { pairs: new Map(), dictWords: new Set() };
             this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
           } catch (err) {
             debugLogger.debug("[AutoLearn] Failed to start monitoring", { error: err.message });

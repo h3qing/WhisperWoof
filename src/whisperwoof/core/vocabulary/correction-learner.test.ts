@@ -1,8 +1,9 @@
 /**
  * Memory auto-learn: the pure diff that turns "the user fixed a pasted
  * transcript" into "words to remember". Imports the production
- * `extractCorrections` from `src/utils/correctionLearner.js`, which
- * ipcHandlers `_processCorrections` calls on every text-edited event.
+ * `extractCorrections` / `extractCorrectionPairs` from
+ * `src/utils/correctionLearner.js`, which ipcHandlers `_learnCorrections`
+ * calls after each debounced text-edited event.
  */
 
 import { describe, it, expect } from "vitest";
@@ -65,6 +66,12 @@ describe("extractCorrections", () => {
     ).toEqual(["Supabase"]);
   });
 
+  it("treats two adjacent fixed words as one phrase", () => {
+    expect(
+      extractCorrections("ask shunade cuberniz today please", "ask Sinead Kubernetes today please", []),
+    ).toEqual(["Sinead Kubernetes"]);
+  });
+
   it("returns [] for empty inputs", () => {
     expect(extractCorrections("", "x", [])).toEqual([]);
     expect(extractCorrections("x", "", [])).toEqual([]);
@@ -94,6 +101,19 @@ describe("extractCorrectionPairs", () => {
       { from: "shunade", to: "Sinead" },
       { from: "cuberniz", to: "Kubernetes" },
     ]);
+  });
+
+  it("learns a split word in short dictations too", () => {
+    expect(extractCorrectionPairs("super base rocks", "Supabase rocks")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+    expect(extractCorrectionPairs("super base", "Supabase")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+  });
+
+  it("rejects a rewrite even when each changed word is close", () => {
+    expect(extractCorrectionPairs("the cat sat mat", "the Cats Sad Mats")).toEqual([]);
   });
 
   it("does not filter by the dictionary (repeat fixes still count)", () => {
