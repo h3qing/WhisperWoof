@@ -1803,6 +1803,9 @@
       },
       "addedToDict": "{{words}} añadido a tu diccionario",
       "undo": "Deshacer",
+      "swapOffer": "¿Cambiar siempre {{from}} por {{to}}?",
+      "swapAlways": "Siempre",
+      "swapNotNow": "Ahora no",
       "accessibilityMissing": {
         "title": "Se requieren permisos de accesibilidad",
         "description": "WhisperWoof necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."

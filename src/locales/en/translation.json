@@ -1895,6 +1895,9 @@
       },
       "addedToDict": "Added {{words}} to your dictionary",
       "undo": "Undo",
+      "swapOffer": "Always change {{from}} to {{to}}?",
+      "swapAlways": "Always",
+      "swapNotNow": "Not now",
       "accessibilityMissing": {
         "title": "Accessibility permissions required",
         "description": "WhisperWoof needs accessibility permissions to detect your hotkey and paste text. Please enable them in the Control Panel."

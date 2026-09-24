@@ -9,6 +9,8 @@
  * math the runtime uses.
  */
 
+const { normalizePhrase } = require("../core/vocabulary/memory-replacements");
+
 const DEFAULT_CATEGORIES = Object.freeze(["names", "technical", "abbreviation", "general"]);
 const MAX_ENTRIES = 1000;
 
@@ -53,8 +55,11 @@ function isDuplicateWord(entries, word) {
 }
 
 /**
- * Return a flat, deduped list of STT hint strings (every word + every
- * alternative). When `bundleId` is provided, app-specific entries are
+ * Return a flat, deduped list of STT hint strings (every correctly spelled
+ * word), newest first so fresh corrections survive prompt truncation.
+ * Alternatives are how the STT *mis*hears a word, so they are left out: a
+ * Whisper prompt is read as prior context and would bias the model toward
+ * the wrong spelling. When `bundleId` is provided, app-specific entries are
  * boosted to the front, ordered by usage count in that app.
  */
 function flattenSttHints(entries, bundleId) {
@@ -74,16 +79,10 @@ function flattenSttHints(entries, bundleId) {
       .sort(
         (a, b) => (b.appContexts[bundleId]?.count || 0) - (a.appContexts[bundleId]?.count || 0),
       );
-    for (const entry of appEntries) {
-      push(entry.word);
-      for (const alt of entry.alternatives || []) push(alt);
-    }
+    for (const entry of appEntries) push(entry.word);
   }
 
-  for (const entry of list) {
-    push(entry.word);
-    for (const alt of entry.alternatives || []) push(alt);
-  }
+  for (const entry of [...list].reverse()) push(entry.word);
 
   return hints;
 }
@@ -170,12 +169,175 @@ function planVocabularyImport(
   return { additions, skipped };
 }
 
+/**
+ * Drop auto-learned entries whose word matches one of `words`
+ * (case-insensitive). Used when the user undoes a learned correction.
+ * Manual and imported entries are kept.
+ */
+function removeLearnedWords(entries, words) {
+  const list = Array.isArray(entries) ? entries : [];
+  const remove = new Set((words || []).map((w) => String(w).toLowerCase()));
+  return list.filter((e) => !(e.source === "auto-learn" && remove.has(e.word.toLowerCase())));
+}
+
+/**
+ * Record one learned correction (misheard `from` -> corrected `to`) in
+ * Memory. A new word becomes an auto-learn entry; an existing entry (any
+ * source) gains `from` as an alternative. `learnedCounts` counts how often
+ * each mishearing was fixed, which decides when it becomes a replacement
+ * rule (see core/vocabulary/memory-replacements.js). Returns a new array.
+ */
+function applyLearnedCorrection(entries, { from, to, bundleId, now, id }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const fromKey = from.toLowerCase();
+  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
+  const appContext = (prev) =>
+    prev
+      ? { ...prev, count: prev.count + 1, lastSeen: now }
+      : { count: 1, firstSeen: now, lastSeen: now };
+
+  if (idx === -1) {
+    if (list.length >= MAX_ENTRIES) return list;
+    return [
+      ...list,
+      {
+        id,
+        word: to,
+        category: "general",
+        alternatives: [from],
+        createdAt: now,
+        source: "auto-learn",
+        usageCount: 0,
+        appContexts: bundleId ? { [bundleId]: appContext(null) } : {},
+        learnedCounts: { [fromKey]: 1 },
+      },
+    ];
+  }
+
+  const entry = list[idx];
+  // The user said no to this swap (or reverted it): don't learn it again.
+  if ((entry.declinedAlternatives || []).includes(normalizePhrase(from))) return list;
+  const alternatives = entry.alternatives || [];
+  const counts = entry.learnedCounts || {};
+  const contexts = entry.appContexts || {};
+  const known = alternatives.some((a) => a.toLowerCase() === fromKey);
+  // An alternative the user typed (known, never counted) stays typed.
+  const typed = known && counts[fromKey] === undefined;
+  const updated = {
+    ...entry,
+    alternatives: known ? alternatives : [...alternatives, from],
+    learnedCounts: typed ? counts : { ...counts, [fromKey]: (counts[fromKey] || 0) + 1 },
+    appContexts: bundleId ? { ...contexts, [bundleId]: appContext(contexts[bundleId]) } : contexts,
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
+ * Take back one learned correction (see applyLearnedCorrection), e.g. a
+ * half-typed fix superseded by the finished one. An auto-learn entry that
+ * existed only for this fix is removed; otherwise one count goes, and the
+ * alternative with it when none is left. Typed alternatives are untouched.
+ * Returns the same array when there is nothing to take back.
+ */
+function unlearnCorrection(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const fromKey = from.toLowerCase();
+  const idx = list.findIndex((e) => e.word.toLowerCase() === to.toLowerCase());
+  const entry = idx === -1 ? null : list[idx];
+  const count = entry?.learnedCounts?.[fromKey];
+  if (count === undefined) return list;
+
+  const { [fromKey]: _removed, ...others } = entry.learnedCounts;
+  if (count > 1) {
+    const updated = { ...entry, learnedCounts: { ...others, [fromKey]: count - 1 } };
+    return list.map((e, i) => (i === idx ? updated : e));
+  }
+  if (entry.source === "auto-learn" && Object.keys(others).length === 0) {
+    return list.filter((_, i) => i !== idx);
+  }
+  const updated = {
+    ...entry,
+    learnedCounts: others,
+    alternatives: (entry.alternatives || []).filter((a) => a.toLowerCase() !== fromKey),
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/** Index of the entry whose word is `to` (case-insensitive), or -1. */
+function findWord(list, to) {
+  return list.findIndex((e) => typeof e?.word === "string" && e.word.toLowerCase() === to.toLowerCase());
+}
+
+/** learnedCounts without any key that normalizes to `key`. */
+function withoutCount(counts, key) {
+  return Object.fromEntries(Object.entries(counts || {}).filter(([k]) => normalizePhrase(k) !== key));
+}
+
+/**
+ * The user approved "Always change `from` to `to`": the mishearing becomes a
+ * swap rule (an alternative with no pending count). Returns a new array, or
+ * the same one when `to` isn't in Memory.
+ */
+function confirmAlternative(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = findWord(list, to);
+  if (idx === -1) return list;
+  const entry = list[idx];
+  const key = normalizePhrase(from);
+  const alternatives = entry.alternatives || [];
+  const updated = {
+    ...entry,
+    alternatives: alternatives.some((a) => normalizePhrase(a) === key) ? alternatives : [...alternatives, from],
+    learnedCounts: withoutCount(entry.learnedCounts, key),
+    declinedAlternatives: (entry.declinedAlternatives || []).filter((d) => d !== key),
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
+ * The user said "Not now", or changed a swapped word back in the pasted text:
+ * forget the mishearing (learned, approved or typed) and never offer it
+ * again. The word itself stays. Returns a new array, or the same one when
+ * `to` isn't in Memory.
+ */
+function declineAlternative(entries, { from, to }) {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = findWord(list, to);
+  if (idx === -1) return list;
+  const entry = list[idx];
+  const key = normalizePhrase(from);
+  const declined = entry.declinedAlternatives || [];
+  const updated = {
+    ...entry,
+    alternatives: (entry.alternatives || []).filter((a) => normalizePhrase(a) !== key),
+    learnedCounts: withoutCount(entry.learnedCounts, key),
+    declinedAlternatives: declined.includes(key) ? declined : [...declined, key],
+  };
+  return list.map((e, i) => (i === idx ? updated : e));
+}
+
+/**
+ * Drop `words` from the custom Dictionary (case-insensitive). Returns a new
+ * array; used when a learned word is undone or deleted from Memory.
+ */
+function removeFromDictionary(dictionary, words) {
+  const list = Array.isArray(dictionary) ? dictionary : [];
+  const remove = new Set((words || []).map((w) => String(w).toLowerCase()));
+  return list.filter((w) => !remove.has(String(w).toLowerCase()));
+}
+
 module.exports = {
   DEFAULT_CATEGORIES,
   MAX_ENTRIES,
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
+  removeFromDictionary,
+  applyLearnedCorrection,
+  unlearnCorrection,
+  confirmAlternative,
+  declineAlternative,
   computeVocabularyStats,
   planVocabularyImport,
 };

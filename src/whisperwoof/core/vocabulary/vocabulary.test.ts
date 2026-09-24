@@ -18,6 +18,8 @@ import {
   filterVocabulary,
   isDuplicateWord,
   flattenSttHints,
+  removeLearnedWords,
+  removeFromDictionary,
   computeVocabularyStats,
   planVocabularyImport,
 } from "../../bridge/vocabulary-pure";
@@ -108,21 +110,25 @@ describe("isDuplicateWord", () => {
 });
 
 describe("flattenSttHints", () => {
-  it("includes every word and alternative", () => {
+  it("includes every correctly spelled word, newest first", () => {
     const hints: string[] = flattenSttHints(SAMPLE);
-    expect(hints).toContain("WhisperWoof");
-    expect(hints).toContain("whisper woof");
-    expect(hints).toContain("Heqing");
-    expect(hints).toContain("he ching");
-    expect(hints).toContain("LGTM");
+    expect(hints).toEqual(["Mando", "LGTM", "Ollama", "Heqing", "WhisperWoof"]);
   });
 
-  it("deduplicates when word and alternative collide", () => {
+  it("never includes misheard alternatives (they would bias STT toward the wrong spelling)", () => {
+    const hints: string[] = flattenSttHints(SAMPLE);
+    expect(hints).not.toContain("whisper woof");
+    expect(hints).not.toContain("he ching");
+    expect(hints).not.toContain("looks good to me");
+  });
+
+  it("deduplicates repeated words", () => {
     const withDup: VocabEntry[] = [
-      { id: "1", word: "test", category: "general", alternatives: ["test"], source: "manual", usageCount: 0 },
+      { id: "1", word: "test", category: "general", alternatives: [], source: "manual", usageCount: 0 },
+      { id: "2", word: "test", category: "general", alternatives: [], source: "auto-learn", usageCount: 0 },
     ];
     const hints: string[] = flattenSttHints(withDup);
-    expect(hints.filter((h) => h === "test")).toHaveLength(1);
+    expect(hints).toEqual(["test"]);
   });
 
   it("boosts app-specific entries to the front when bundleId is provided", () => {
@@ -137,6 +143,11 @@ describe("flattenSttHints", () => {
     const hints: string[] = flattenSttHints(withContext, "com.microsoft.VSCode");
     // Ollama (the app-specific entry) should land before WhisperWoof
     expect(hints.indexOf("Ollama")).toBeLessThan(hints.indexOf("WhisperWoof"));
+  });
+
+  it("leaves alternatives out on the app-boosted path too", () => {
+    const appContexts = { "com.x": { count: 3, firstSeen: "", lastSeen: "" } };
+    expect(flattenSttHints([{ ...SAMPLE[2]!, appContexts }], "com.x")).toEqual(["Ollama"]);
   });
 
   it("returns empty for empty or null input", () => {
@@ -255,5 +266,58 @@ describe("planVocabularyImport", () => {
     const result = planVocabularyImport([], "not an array" as unknown as string[], "general", FIXED_NOW, idFactory);
     expect(result.additions).toEqual([]);
     expect(result.skipped).toBe(0);
+  });
+});
+
+describe("removeLearnedWords", () => {
+  it("drops auto-learned entries matching the words (case-insensitive)", () => {
+    const next = removeLearnedWords(SAMPLE, ["ollama"]);
+    expect(next.map((e: VocabEntry) => e.word)).toEqual(["WhisperWoof", "Heqing", "LGTM", "Mando"]);
+  });
+
+  it("keeps manual entries with the same word", () => {
+    expect(removeLearnedWords(SAMPLE, ["Mando"])).toHaveLength(SAMPLE.length);
+  });
+
+  it("returns a new array and leaves the input untouched", () => {
+    const next = removeLearnedWords(SAMPLE, ["Ollama"]);
+    expect(next).not.toBe(SAMPLE);
+    expect(SAMPLE).toHaveLength(5);
+  });
+
+  it("keeps imported entries with the same word", () => {
+    const imported: VocabEntry[] = [{ ...SAMPLE[2]!, source: "import" }];
+    expect(removeLearnedWords(imported, ["Ollama"])).toEqual(imported);
+  });
+
+  it("handles empty or bad input", () => {
+    expect(removeLearnedWords(SAMPLE, [])).toHaveLength(5);
+    expect(removeLearnedWords(SAMPLE, null)).toHaveLength(5);
+    expect(removeLearnedWords(null, ["x"])).toEqual([]);
+  });
+});
+
+describe("removeFromDictionary", () => {
+  it("drops matching words case-insensitively and keeps the rest in order", () => {
+    expect(removeFromDictionary(["Supabase", "Ollama", "Heqing"], ["supabase"])).toEqual([
+      "Ollama",
+      "Heqing",
+    ]);
+  });
+
+  it("returns the same contents when nothing matches", () => {
+    expect(removeFromDictionary(["Ollama"], ["x"])).toEqual(["Ollama"]);
+  });
+
+  it("returns a new array and leaves the input untouched", () => {
+    const dict = ["Supabase", "Ollama"];
+    const next = removeFromDictionary(dict, ["Supabase"]);
+    expect(next).not.toBe(dict);
+    expect(dict).toEqual(["Supabase", "Ollama"]);
+  });
+
+  it("handles empty or bad input", () => {
+    expect(removeFromDictionary(["Ollama"], null)).toEqual(["Ollama"]);
+    expect(removeFromDictionary(null, ["x"])).toEqual([]);
   });
 });

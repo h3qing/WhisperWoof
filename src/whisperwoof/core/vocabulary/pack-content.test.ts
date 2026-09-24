@@ -85,12 +85,14 @@ describe("pack uniqueness across files", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("default-enabled packs exist", () => {
+  // Packs are opt-in: generic words in every prompt bias Whisper toward
+  // them (with Brands on, "Vercel" came out as "Versacell").
+  it("no pack is enabled by default", () => {
     const packFiles = getPackFiles();
     const defaultEnabled = packFiles
       .map((f) => loadPack(f))
       .filter((p: { defaultEnabled?: boolean }) => p.defaultEnabled);
-    expect(defaultEnabled.length).toBeGreaterThan(0);
+    expect(defaultEnabled).toEqual([]);
   });
 });
 

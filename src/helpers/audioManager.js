@@ -11,6 +11,11 @@ import {
   normalizeChineseScript,
   resolveChineseScript,
 } from "../whisperwoof/core/language/normalize-chinese-script";
+import {
+  isHintHijack,
+  nextAutoHintsSuppressed,
+  shouldSendHints,
+} from "../whisperwoof/core/language/auto-hints";
 import { guardPolishedOutput } from "../whisperwoof/core/polish/polish-output-guard";
 import {
   formatSpokenEnumeration,
@@ -33,6 +38,9 @@ import {
 } from "../stores/settingsStore";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
+// Auto language mode: hints are held back after they hijacked a CJK decode.
+// Module-level so it survives the AudioManager being recreated.
+let autoHintsSuppressed = false;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
 
@@ -878,12 +886,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         options.language = language;
       }
 
-      // Add custom dictionary + vocabulary packs as initial prompt to help Whisper recognize specific words.
-      // ONLY when a specific dictation language is pinned: an initial prompt biases Whisper's language
-      // detection, so an English vocab list ("OpenWhispr", "claude", …) turns auto-detected non-English
-      // speech (e.g. Chinese) into English garbage. In auto mode we don't know the language, so skip it.
+      // Memory, Dictionary and Word Pack words as Whisper's initial prompt. In
+      // Auto mode an English prompt can hijack the decode of Chinese speech
+      // into English; that is caught below and redone without the prompt,
+      // and hints stay off until the next non-CJK dictation (auto-hints.ts).
       const dictionaryPrompt = await this.getPackEnhancedDictionaryPrompt();
-      if (dictionaryPrompt && language) {
+      const sendHints = shouldSendHints({
+        hasPrompt: Boolean(dictionaryPrompt),
+        language,
+        suppressed: autoHintsSuppressed,
+      });
+      if (sendHints) {
         options.initialPrompt = dictionaryPrompt;
       }
 
@@ -897,7 +910,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       const transcriptionStart = performance.now();
-      const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
+      let result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
+      if (!language && result.success) {
+        const hijacked = sendHints && isHintHijack(result);
+        autoHintsSuppressed = nextAutoHintsSuppressed(autoHintsSuppressed, {
+          language: result.language,
+          hijacked,
+          hintsSent: sendHints,
+        });
+        if (hijacked) {
+          logger.info("Hint prompt hijacked a CJK decode; redoing without hints", {
+            language: result.language,
+          });
+          const { initialPrompt: _dropped, ...withoutHints } = options;
+          const retry = await window.electronAPI
+            .transcribeLocalWhisper(arrayBuffer, withoutHints)
+            .catch(() => null);
+          // Keep the hinted text if the retry fails: a questionable result beats none.
+          if (retry?.success) result = retry;
+        }
+      }
       timings.transcriptionProcessingDurationMs = Math.round(
         performance.now() - transcriptionStart
       );
@@ -1306,7 +1338,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
-    const result = await this._cleanupTranscription(text, source);
+    const remembered = await this.applyMemoryReplacements(text);
+    const result = await this._cleanupTranscription(remembered, source);
     // Deterministic punctuation pass: Chinese output gets real full-width
     // 。，？！：； with a trailing space. No-op for non-CJK text, so English is
     // untouched. Costs the model nothing (pure string transform on the output).
@@ -1314,6 +1347,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return typeof result === "string"
       ? formatSpokenEnumeration(normalizeCjkPunctuation(result))
       : result;
+  }
+
+  /**
+   * Swap mishearings Memory learned from your corrections ("super base" ->
+   * Supabase) into the transcript before polish. Runs for every local engine
+   * (including Parakeet, X-ASR and SenseVoice, which take no STT hints) and
+   * the batch cloud providers; not yet for OpenWhispr Cloud or streaming.
+   */
+  async applyMemoryReplacements(text) {
+    if (typeof text !== "string" || !text || !window.electronAPI?.whisperwoofApplyMemoryReplacements) {
+      return text;
+    }
+    try {
+      const { text: replaced, applied } =
+        await window.electronAPI.whisperwoofApplyMemoryReplacements(text);
+      if (applied.length > 0) logger.debug("Memory replacements applied", { applied }, "transcription");
+      return replaced;
+    } catch {
+      return text;
+    }
   }
 
   async _cleanupTranscription(text, source) {
@@ -1836,7 +1889,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             .split(",")
             .flatMap((entry) => entry.trim().split(/\s+/))
             .filter(Boolean)
-            .slice(0, 100);
+            // The prompt ends with the highest-priority words (Memory, Dictionary).
+            .slice(-100);
           if (tokens.length > 0) {
             proxyData.contextBias = tokens;
           }
