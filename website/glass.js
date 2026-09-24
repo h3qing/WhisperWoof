@@ -1,33 +1,6 @@
-/* Liquid glass behaviour for theme.css:
-   - the specular highlight on every glass surface follows the pointer
-     (sets --mx / --my on the element under it);
-   - segmented controls get a liquid bubble that slides to the chosen option.
-   Both stand down under prefers-reduced-motion. */
+/* Segmented controls (theme.css .seg): a knob that slides to the option you
+   pick. It moves only when you click; reduced motion drops the slide (CSS). */
 (() => {
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const GLASS = ".lg, .lg-tint, .lg-dark, .btn";
-
-  if (!reduce) {
-    let frame = 0;
-    let last = null;
-    window.addEventListener(
-      "pointermove",
-      (e) => {
-        last = e;
-        if (frame) return;
-        frame = requestAnimationFrame(() => {
-          frame = 0;
-          const el = last.target instanceof Element ? last.target.closest(GLASS) : null;
-          if (!el) return;
-          const r = el.getBoundingClientRect();
-          el.style.setProperty("--mx", `${last.clientX - r.left}px`);
-          el.style.setProperty("--my", `${last.clientY - r.top}px`);
-        });
-      },
-      { passive: true }
-    );
-  }
-
   function mountBubble(seg) {
     const bubble = document.createElement("span");
     bubble.className = "seg-bubble";
