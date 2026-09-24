@@ -3,102 +3,115 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* WhisperWoof "liquid glass" theme — Mando's coat in both modes.
-     Registers color tokens with Tailwind v4; .dark overrides them below.
-     Layers (after Apple's Liquid Glass guidance): a slow Mando-hued colour
-     field is the backdrop, content sits on solid cards, and only the
-     functional layer (sidebars, toolbars, floating panels) is glass. Amber
-     fill is reserved for the primary action and selected states. */
-  --color-primary: #9c602b; /* Mando amber, >=4.5:1 with the light foreground */
-  --color-primary-foreground: #fff8f0;
-  --color-secondary: #efe6da;
-  --color-secondary-foreground: #3a2c21;
-  --color-muted: #efe6da;
-  --color-muted-foreground: #6e6055;
-  --color-accent: #f1e1cc;
-  --color-accent-foreground: #2a2019;
-  --color-destructive: #c2412f;
+  /* WhisperWoof "liquid glass" theme: Apple's Liquid Glass layering (after
+     the Glassfolio system) in Mando's coat. Registers color tokens with
+     Tailwind v4; .dark overrides them below. See DESIGN.md.
+     - Glass is for things still in motion: the sidebar, toolbars, popovers,
+       the dictation overlay, Cmd+K, and the live words while Mando listens.
+     - What has landed (history, notes, settings) sits on solid sheets.
+     - Caramel is the one accent. Status colors are for status only. */
+  --color-primary: #8f5a2a; /* caramel coat, deepened: 5.6:1 on a sheet */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f0ea;
+  --color-secondary-foreground: #2a211b;
+  --color-muted: #f5f0ea;
+  --color-muted-foreground: #64564b; /* smoky saddle: 6.8:1 on a sheet */
+  --color-accent: #f3ede6;
+  --color-accent-foreground: #2a211b;
+  --color-destructive: #b0382c;
   --color-destructive-foreground: #ffffff;
-  --color-border: #e4d8c9;
-  --color-input: #fbf6ef;
-  --color-ring: #b8793c;
-  --color-background: #f6f0e8;
-  --color-foreground: #2a2019;
-  --color-card: #fffbf6;
-  --color-card-foreground: #2a2019;
-  --color-popover: #fffbf6;
-  --color-popover-foreground: #2a2019;
-  --color-link: #9c602b;
-  --color-success: #3f7f4a;
+  --color-border: #e8e0d6;
+  --color-input: #f5f0ea;
+  --color-ring: #8f5a2a;
+  --color-background: #ebe4dc;
+  --color-foreground: #2a211b;
+  --color-card: #fdfbf8; /* white chest */
+  --color-card-foreground: #2a211b;
+  --color-popover: #fdfbf8;
+  --color-popover-foreground: #2a211b;
+  --color-link: #8f5a2a;
+  --color-success: #3b7a4c;
   --color-success-foreground: #ffffff;
-  --color-warning: #b7791f;
+  --color-warning: #80660f; /* mustard, so it never reads as the caramel accent */
   --color-warning-foreground: #ffffff;
-  --color-info: #9c602b;
+  --color-info: #8f5a2a;
   --color-info-foreground: #ffffff;
+  --color-faint: #8e8074; /* faint text: raw transcripts, chevrons, hints */
+  --color-select: color-mix(in srgb, #8f5a2a 14%, transparent); /* selected nav, pressed toggle */
+  --color-live: #b87a3c; /* outline of words still being heard */
+  --color-live-glass: rgb(196 138 76 / 0.22);
 
-  /* Mando's coat — use these instead of hex literals in WhisperWoof UI */
-  --color-mando: #b8793c; /* coat */
-  --color-mando-deep: #7e4e1f; /* shadowed fur, text on light glass */
-  --color-mando-light: #e8a060; /* highlight, live underline on dark */
-  --color-mando-cream: #f3e2cc; /* chest */
+  /* Mando's coat: use these instead of hex literals in WhisperWoof UI */
+  --color-mando: #c48a4c; /* coat */
+  --color-mando-deep: #8f5a2a; /* coat in shadow, text on light glass */
+  --color-mando-light: #e2a867; /* sunlit coat */
+  --color-mando-cream: #f4e7d3; /* chest */
 
-  /* Surface hierarchy — warm light */
-  --color-surface-0: #f6f0e8;
-  --color-surface-1: #fbf6ef;
-  --color-surface-2: #fffbf6;
-  --color-surface-3: #f1e8dc;
-  --color-surface-raised: #eadfd1;
+  /* Surfaces: 0 = window backdrop, 1 = nested (inputs, drawers),
+     2 = sheets and cards, 3 = hovered rows */
+  --color-surface-0: #ebe4dc;
+  --color-surface-1: #f5f0ea;
+  --color-surface-2: #fdfbf8;
+  --color-surface-3: #f3ede6;
+  --color-surface-raised: #ece4da;
 
   /* Border states */
-  --color-border-subtle: #e9dfd2;
-  --color-border-hover: #d8c9b7;
-  --color-border-active: #b8793c;
+  --color-border-subtle: #ece5dc;
+  --color-border-hover: #d9cdbf;
+  --color-border-active: #b87a3c;
 
-  /* Shadows (warm) — both modes, so shadow-* utilities always resolve */
-  --shadow-card: 0 0 0 0.5px rgb(90 60 30 / 0.1), 0 1px 2px rgb(80 45 15 / 0.05),
-    0 10px 28px -18px rgb(80 45 15 / 0.35);
-  --shadow-card-hover: 0 4px 14px -4px rgb(80 45 15 / 0.18), 0 0 0 0.5px rgb(90 60 30 / 0.14);
-  --shadow-elevated: 0 10px 30px -8px rgb(80 45 15 / 0.22);
-  --shadow-modal: 0 28px 60px -16px rgb(80 45 15 / 0.32);
-  --shadow-selected-glow: inset 0 0 0 1px rgb(184 121 60 / 0.3), 0 0 16px -4px rgb(184 121 60 / 0.25);
+  /* Sheets lift with shadow alone: no border (both modes, so shadow-* always resolves) */
+  --shadow-card: 0 1px 2px rgb(58 36 20 / 0.06), 0 8px 24px -16px rgb(58 36 20 / 0.2);
+  --shadow-card-hover: 0 1px 2px rgb(58 36 20 / 0.08), 0 12px 28px -16px rgb(58 36 20 / 0.26);
+  --shadow-elevated: 0 12px 36px -8px rgb(58 36 20 / 0.2);
+  --shadow-modal: 0 28px 60px -16px rgb(58 36 20 / 0.32);
+  --shadow-selected-glow: inset 0 0 0 1px rgb(143 90 42 / 0.3), 0 0 16px -4px rgb(184 122 60 / 0.25);
+
+  /* Nested radii: a panel inside a sheet is the sheet radius minus its inset */
+  --radius-sheet: 22px;
+  --radius-window: 26px;
 }
 
 :root {
-  /* Typography */
+  /* Typography: Nunito (bundled, src/assets/fonts/nunito.css); PingFang for Chinese */
   --font-family-sans:
-    "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+    "Nunito", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
 
   /* Opacities */
   --opacity-subtle: 0.1;
   --opacity-medium: 0.5;
   --opacity-high: 0.9;
 
-  /* Border radius — concentric: controls < panels < windows */
-  --radius: 0.5rem; /* 8px - buttons, inputs */
+  /* Border radius: concentric, controls < panels < sheets < windows */
+  --radius: 0.5rem; /* 8px */
   --radius-sm: 0.375rem; /* 6px */
   --radius-md: 0.5rem; /* 8px */
-  --radius-lg: 0.75rem; /* 12px - cards, panels */
-  --radius-xl: 1rem; /* 16px - sheets, floating panels */
-  --radius-2xl: 1.25rem; /* 20px - windows, modals */
+  --radius-lg: 0.75rem; /* 12px - rows, text areas */
+  --radius-xl: 1rem; /* 16px */
+  --radius-2xl: 1.25rem; /* 20px */
 
-  /* Liquid glass material (light). Regular = floating controls and panels,
-     thick = sidebars and text-heavy chrome, clear = over rich imagery only. */
-  --glass-regular: rgb(255 250 244 / 0.55);
-  --glass-thick: rgb(255 250 244 / 0.72);
-  --glass-clear: rgb(255 250 244 / 0.24);
-  --glass-edge: rgb(255 255 255 / 0.75); /* specular top edge */
-  --glass-hairline: rgb(90 60 30 / 0.12);
-  --glass-shadow: 0 10px 30px -8px rgb(80 45 15 / 0.22);
-  --glass-blur: 26px;
+  /* Liquid glass material (light). The color comes from what's behind it,
+     so it always sits over the Mando backdrop. Two strengths: regular for
+     surfaces, thick for the sidebar and anything holding a lot of text. */
+  --glass-regular: rgb(255 251 246 / 0.42);
+  --glass-thick: rgb(255 251 246 / 0.6);
+  --glass-clear: rgb(255 251 246 / 0.24);
+  --glass-strong: rgb(255 251 246 / 0.66); /* buttons on glass */
+  --glass-rim-hi: rgb(255 255 255 / 0.95); /* where light catches the edge */
+  --glass-rim-lo: rgb(255 255 255 / 0.18);
+  --glass-inner: rgb(255 255 255 / 0.3); /* top sheen */
+  --glass-hover: var(--glass-inner); /* hovered item on glass */
+  --glass-shade: rgb(58 36 20 / 0.16);
+  --glass-blur: 22px;
   --glass-saturate: 170%;
+  --glass-brightness: 1.05;
 
-  /* The Mando colour field behind everything (content layer) */
-  --field-a: #e9b67a;
-  --field-b: #c98a4b;
-  --field-c: #f4dfc4;
-  --field-d: #d9a066;
-  --field-strength: 0.6;
+  /* The Mando backdrop behind every window: caramel coat at the top left,
+     mauve nose at the bottom right, cream chest at the top. Still. */
+  --field-a: #f0c996;
+  --field-b: #e3c1bc;
+  --field-c: #f4e7d3;
 
   /* Legacy brand tokens kept for existing references */
   --color-parchment-bg: #f9f6f1;
@@ -112,184 +125,244 @@
   --color-pattern: #eadfd1;
 
   /* Model picker premium effects (light mode) */
-  --shadow-metallic-light: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(80, 45, 15, 0.08);
-  --shadow-card-hover-subtle: 0 2px 8px -2px rgba(80, 45, 15, 0.12);
+  --shadow-metallic-light: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 3px rgba(58, 36, 20, 0.08);
+  --shadow-card-hover-subtle: 0 2px 8px -2px rgba(58, 36, 20, 0.12);
 }
 
 .dark {
-  /* WhisperWoof Dark — Mando palette (warm browns sampled from the dog) */
-  --color-background: oklch(0.18 0.01 67);
-  --color-foreground: oklch(0.93 0.012 75);
-  --color-card: oklch(0.22 0.012 67);
-  --color-card-foreground: oklch(0.93 0.012 75);
-  --color-popover: oklch(0.24 0.013 67);
-  --color-popover-foreground: oklch(0.93 0.012 75);
-  --color-primary: oklch(0.7 0.11 62); /* brighter amber on dark */
-  --color-primary-foreground: oklch(0.17 0.02 60);
-  --color-secondary: oklch(0.26 0.013 67);
-  --color-secondary-foreground: oklch(0.88 0.01 75);
-  --color-muted: oklch(0.24 0.012 67);
-  --color-muted-foreground: oklch(0.66 0.02 65); /* was 0.48: too dim to read */
-  --color-accent: oklch(0.28 0.02 62);
-  --color-accent-foreground: oklch(0.93 0.012 75);
-  --color-destructive: oklch(0.6 0.15 28);
-  --color-destructive-foreground: oklch(0.97 0 0);
-  --color-border: oklch(0.31 0.016 60);
-  --color-input: oklch(0.26 0.014 62);
-  --color-ring: oklch(0.7 0.11 62);
-  --color-success: oklch(0.66 0.11 145);
-  --color-success-foreground: oklch(0.16 0 0);
-  --color-warning: oklch(0.74 0.12 75);
-  --color-warning-foreground: oklch(0.16 0 0);
-  --color-info: oklch(0.7 0.11 62);
-  --color-info-foreground: oklch(0.16 0 0);
-  --color-link: oklch(0.74 0.1 62);
+  /* Its own palette, not an inversion: the accent gets lighter and warmer,
+     sheets become brown-black rather than gray. */
+  --color-background: #120e0b;
+  --color-foreground: #f3ede6;
+  --color-card: #1a1512;
+  --color-card-foreground: #f3ede6;
+  --color-popover: #1f1915;
+  --color-popover-foreground: #f3ede6;
+  --color-primary: #e2a867; /* sunlit coat on dark: 8.6:1 */
+  --color-primary-foreground: #1d130b;
+  --color-secondary: #221c18;
+  --color-secondary-foreground: #e9e1d8;
+  --color-muted: #221c18;
+  --color-muted-foreground: #bfb2a6;
+  --color-accent: #261f1a;
+  --color-accent-foreground: #f3ede6;
+  --color-destructive: #ef7d72;
+  --color-destructive-foreground: #1d0f0c;
+  --color-border: #312822;
+  --color-input: #221c18;
+  --color-ring: #e2a867;
+  --color-success: #72c291;
+  --color-success-foreground: #0f1a12;
+  --color-warning: #dcc15a;
+  --color-warning-foreground: #1a1605;
+  --color-info: #e2a867;
+  --color-info-foreground: #1d130b;
+  --color-link: #e2a867;
+  --color-faint: #8f8276;
+  --color-select: color-mix(in srgb, #e2a867 22%, transparent);
+  --color-live: #e2a867;
+  --color-live-glass: rgb(226 168 103 / 0.22);
 
-  --color-mando: #c8894b;
-  --color-mando-deep: #e8a060;
-  --color-mando-light: #e8a060;
-  --color-mando-cream: #3a2a1d;
+  --color-mando: #d69a57;
+  --color-mando-deep: #e2a867;
+  --color-mando-light: #e8b27a;
+  --color-mando-cream: #3a2c20;
 
-  /* Surface hierarchy — warm brown depth */
-  --color-surface-0: oklch(0.18 0.01 67);
-  --color-surface-1: oklch(0.21 0.012 67);
-  --color-surface-2: oklch(0.24 0.013 67);
-  --color-surface-3: oklch(0.27 0.014 67);
-  --color-surface-raised: oklch(0.3 0.015 67);
+  /* Surfaces: brown-black, nested panels a step lighter */
+  --color-surface-0: #120e0b;
+  --color-surface-1: #221c18;
+  --color-surface-2: #1a1512;
+  --color-surface-3: #261f1a;
+  --color-surface-raised: #2c241e;
 
   /* Border states */
-  --color-border-subtle: oklch(0.28 0.012 60);
-  --color-border-hover: oklch(0.38 0.02 60);
-  --color-border-active: oklch(0.62 0.1 60);
+  --color-border-subtle: #2a221d;
+  --color-border-hover: #3d332b;
+  --color-border-active: #c48a4c;
 
-  /* Shadows — warm */
-  /* Lit top edge + hairline so dark cards lift off the field, not sink into it. */
-  --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.045), inset 0 1px 0 oklch(1 0 0 / 0.06),
-    0 12px 32px -16px oklch(0 0 0 / 0.6);
-  --shadow-card-hover: 0 4px 12px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 0.04);
-  --shadow-elevated: 0 8px 24px oklch(0 0 0 / 0.4);
-  --shadow-modal: 0 24px 48px -12px oklch(0 0 0 / 0.5);
-  --shadow-metallic-dark: inset 0 1px 0 rgba(232, 213, 196, 0.05), 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-selected-glow:
-    inset 0 0 0 1px oklch(0.7 0.11 62 / 0.28), 0 0 16px -4px oklch(0.7 0.11 62 / 0.2);
+  /* A faint lit edge so dark sheets lift off the backdrop instead of sinking */
+  --shadow-card: 0 0 0 1px rgb(255 236 214 / 0.04), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 10px 28px -14px rgb(0 0 0 / 0.6);
+  --shadow-card-hover: 0 0 0 1px rgb(255 236 214 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 14px 32px -14px rgb(0 0 0 / 0.65);
+  --shadow-elevated: 0 12px 32px -8px rgb(0 0 0 / 0.5);
+  --shadow-modal: 0 24px 48px -12px rgb(0 0 0 / 0.55);
+  --shadow-metallic-dark: inset 0 1px 0 rgba(255, 236, 214, 0.05), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-selected-glow: inset 0 0 0 1px rgb(226 168 103 / 0.28), 0 0 16px -4px rgb(226 168 103 / 0.2);
   --shadow-card-hover-subtle: 0 2px 8px -2px rgba(0, 0, 0, 0.18);
 
-  --glass-regular: rgb(38 27 19 / 0.52);
-  --glass-thick: rgb(33 23 16 / 0.72);
-  --glass-clear: rgb(38 27 19 / 0.26);
-  --glass-edge: rgb(255 228 196 / 0.14);
-  --glass-hairline: rgb(255 220 180 / 0.1);
-  --glass-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.5);
+  --glass-regular: rgb(44 34 27 / 0.48);
+  --glass-thick: rgb(40 31 25 / 0.66);
+  --glass-clear: rgb(44 34 27 / 0.26);
+  --glass-strong: rgb(58 46 37 / 0.7);
+  --glass-rim-hi: rgb(255 236 214 / 0.32);
+  --glass-rim-lo: rgb(255 236 214 / 0.05);
+  --glass-inner: rgb(255 240 224 / 0.07);
+  --glass-shade: rgb(0 0 0 / 0.45);
+  --glass-saturate: 150%;
+  --glass-brightness: 0.96;
 
-  --field-a: #6b3f1c;
-  --field-b: #3a2415;
-  --field-c: #8a5427;
-  --field-d: #23160e;
+  --field-a: #6e4521;
+  --field-b: #57312f;
+  --field-c: #45372a;
 }
 
 /* ── Liquid glass utilities ────────────────────────────────────────────────
    Only for the functional layer: sidebars, toolbars, floating panels,
-   popovers, the dictation overlay. Never for content, never glass on glass. */
+   popovers, the dictation overlay. Never under numbers or tables, never glass
+   on glass. The rim and sheen are drawn with shadows and a background image,
+   so the utilities work on any element without changing its positioning. */
 @utility glass {
   background-color: var(--glass-regular);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  background-image: radial-gradient(120% 60% at 30% 0%, var(--glass-inner), transparent 70%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    inset 0 0 0 0.5px var(--glass-hairline),
-    var(--glass-shadow);
+    inset 0 1px 0.5px var(--glass-rim-hi),
+    inset 0 0 0 1px var(--glass-rim-lo),
+    inset 0 -8px 16px -12px var(--glass-shade),
+    0 1px 2px var(--glass-shade),
+    0 12px 36px -8px var(--glass-shade);
 }
 @utility glass-thick {
   background-color: var(--glass-thick);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  background-image: radial-gradient(120% 50% at 30% 0%, var(--glass-inner), transparent 70%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    inset 0 0 0 0.5px var(--glass-hairline);
+    inset 0 1px 0.5px var(--glass-rim-hi),
+    inset 0 0 0 1px var(--glass-rim-lo),
+    0 1px 2px var(--glass-shade),
+    0 12px 36px -8px var(--glass-shade);
 }
 @utility glass-clear {
   background-color: var(--glass-clear);
   backdrop-filter: blur(12px) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(12px) saturate(var(--glass-saturate));
   box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    inset 0 0 0 0.5px var(--glass-hairline);
+    inset 0 1px 0.5px var(--glass-rim-hi),
+    inset 0 0 0 1px var(--glass-rim-lo);
 }
 /* The one tinted glass: primary action / selected state. */
 @utility glass-tint {
-  background-color: color-mix(in srgb, var(--color-primary) 82%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 88%, transparent);
   color: var(--color-primary-foreground);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    0 6px 16px -6px color-mix(in srgb, var(--color-primary) 60%, transparent);
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    0 2px 8px -2px var(--color-primary);
+}
+/* Specular rim: light catches the top-left edge and fades around the shape.
+   Add to a positioned glass element (relative/absolute/fixed) that should
+   read as a slab of glass: the sidebar, the live panel, the settings window. */
+@utility glass-rim {
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      145deg,
+      var(--glass-rim-hi),
+      var(--glass-rim-lo) 38%,
+      var(--glass-rim-lo) 62%,
+      var(--glass-rim-hi)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+}
+/* A solid content sheet: the surface for anything that has landed. */
+@utility sheet {
+  background-color: var(--color-card);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-card);
+}
+/* Words still being heard: frosted caramel glass that turns to plain ink
+   once the recognizer commits them. WhisperWoof's one signature element. */
+@utility live-words {
+  padding: 0 0.18em;
+  margin: 0 -0.04em;
+  border-radius: 0.34em;
+  background-image: linear-gradient(rgb(255 255 255 / 0.35), transparent 60%);
+  background-color: var(--color-live-glass);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-live) 70%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.dark .live-words {
+  background-image: linear-gradient(rgb(255 255 255 / 0.08), transparent 60%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-live) 60%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+/* A capsule button press: a small spring, answering the click. */
+@utility press {
+  transition:
+    transform 0.2s cubic-bezier(0.3, 0.7, 0.4, 1.4),
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
 }
 
-/* The Mando colour field: drop <div class="mando-field" aria-hidden> as the
-   first child of a positioned window root. Four slow blobs under a heavy
-   blur; strength via --field-strength. */
+/* The Mando backdrop: drop <div class="mando-field" aria-hidden> as the first
+   child of a positioned window root. Three large, soft gradients over a warm
+   base; it never moves (motion only answers something the user did). */
 .mando-field {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
-  background: var(--color-background);
-}
-.mando-field::before,
-.mando-field::after {
-  content: "";
-  position: absolute;
-  inset: -25%;
-  filter: blur(64px);
-  opacity: var(--field-strength);
   background:
-    radial-gradient(40% 45% at 18% 20%, var(--field-a), transparent 70%),
-    radial-gradient(38% 50% at 82% 35%, var(--field-b), transparent 70%),
-    radial-gradient(45% 40% at 45% 85%, var(--field-c), transparent 70%),
-    radial-gradient(30% 35% at 10% 80%, var(--field-d), transparent 70%);
-  animation: mando-field-drift 28s ease-in-out infinite alternate;
-}
-.mando-field::after {
-  opacity: calc(var(--field-strength) * 0.6);
-  animation-duration: 36s;
-  animation-direction: alternate-reverse;
-  transform: rotate(180deg);
-}
-@keyframes mando-field-drift {
-  to {
-    transform: translate(6%, 4%) scale(1.1);
-  }
+    radial-gradient(900px 620px at 6% -4%, var(--field-a) 0%, transparent 62%),
+    radial-gradient(760px 560px at 102% 104%, var(--field-b) 0%, transparent 58%),
+    radial-gradient(620px 420px at 70% 10%, var(--field-c) 0%, transparent 60%),
+    var(--color-background);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mando-field::before,
-  .mando-field::after {
-    animation: none;
-  }
-}
-/* Reduce Transparency: glass becomes solid, the field stays but flattens. */
+/* Reduce Transparency: glass becomes opaque, no blur, no sheen. */
 @media (prefers-reduced-transparency: reduce) {
   :root,
   .dark {
     --glass-regular: var(--color-surface-2);
-    --glass-thick: var(--color-surface-1);
+    --glass-thick: var(--color-surface-2);
     --glass-clear: var(--color-surface-2);
+    --glass-strong: var(--color-surface-1);
+    --glass-inner: transparent;
+    --glass-hover: var(--color-surface-3);
     --glass-blur: 0px;
   }
-  .mando-field::before,
-  .mando-field::after {
-    opacity: calc(var(--field-strength) * 0.35);
-  }
 }
-/* Increase Contrast: stronger edges on glass. */
+/* Increase Contrast: more opaque glass, stronger hairlines. */
 @media (prefers-contrast: more) {
   :root {
-    --glass-hairline: rgb(60 35 15 / 0.45);
+    --glass-regular: rgb(255 251 246 / 0.85);
+    --glass-thick: rgb(255 251 246 / 0.9);
+    --glass-rim-lo: rgb(60 35 15 / 0.35);
+    --color-border: #b9aa9a;
   }
   .dark {
-    --glass-hairline: rgb(255 228 196 / 0.4);
+    --glass-regular: rgb(40 31 25 / 0.9);
+    --glass-thick: rgb(40 31 25 / 0.92);
+    --glass-rim-lo: rgb(255 236 214 / 0.35);
+    --color-border: #5a4c40;
   }
 }
 
@@ -398,53 +471,32 @@ a svg:hover,
   cursor: pointer;
 }
 
-/* Premium input styling with subtle depth */
-input,
-textarea {
-  border-radius: var(--radius);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    box-shadow 0.2s ease;
-  font-family: var(--font-family-sans);
-  box-shadow: inset 0 1px 2px oklch(from var(--color-foreground) l c h / 0.06);
+/* Inputs sit on the nested surface with a hairline; focus draws the caramel ring.
+   In the base layer so a component's own utilities (rounded-full, bg-card) win. */
+@layer base {
+  input,
+  textarea {
+    border-radius: var(--radius);
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease;
+    font-family: var(--font-family-sans);
+    background-color: var(--color-input);
+    border: 1px solid var(--color-border);
+    color: var(--color-foreground);
+    box-shadow: none;
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: var(--color-border-active);
+    box-shadow: 0 0 0 3px var(--color-select);
+  }
 }
 
-/* Light mode inputs - embossed parchment */
-:root input,
-:root textarea {
-  background-color: var(--color-parchment-bg);
-  border: 1px solid var(--color-parchment-border);
-  color: var(--color-parchment-text);
-}
-
-:root input:focus,
-:root textarea:focus {
-  border-color: var(--color-parchment-accent);
-  box-shadow:
-    0 0 0 2px oklch(from var(--color-parchment-accent) l c h / 0.2),
-    inset 0 1px 3px oklch(from var(--color-parchment-text) l c h / var(--opacity-subtle));
-  background-color: var(--color-background);
-}
-
-/* Dark mode inputs — flat, no embossed shadow */
-.dark input,
-.dark textarea {
-  background-color: var(--color-input);
-  border: 1px solid var(--color-border);
-  color: var(--color-foreground);
-  box-shadow: none;
-}
-
-.dark input:focus,
-.dark textarea:focus {
-  border-color: var(--color-border-active);
-  box-shadow: 0 0 0 2px oklch(from var(--color-ring) l c h / 0.15);
-}
-
-/* Borderless editor sitting directly on a card (Notes view). The input rules
-   above are unlayered, so Tailwind utilities can't undo them. */
+/* Borderless editor sitting directly on a card (Notes view). */
 :root textarea.bare-field,
 :root textarea.bare-field:focus,
 .dark textarea.bare-field,
@@ -567,9 +619,10 @@ a:hover {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   color: var(--color-foreground);
   box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    inset 0 0 0 0.5px var(--glass-hairline),
-    var(--glass-shadow);
+    inset 0 1px 0.5px var(--glass-rim-hi),
+    inset 0 0 0 1px var(--glass-rim-lo),
+    0 1px 2px var(--glass-shade),
+    0 12px 36px -8px var(--glass-shade);
 }
 
 @keyframes toast-progress {
@@ -1222,8 +1275,8 @@ body:has(.agent-overlay-window) #root {
    desktop to blur there, so its CSS glass (toasts, the non-native live panel)
    would read as thin tint over whatever app is behind. Nearly opaque instead. */
 :root:has(.dictation-window) {
-  --glass-regular: rgb(255 250 244 / 0.94);
+  --glass-regular: rgb(253 251 248 / 0.94);
 }
 :root.dark:has(.dictation-window) {
-  --glass-regular: rgb(38 27 19 / 0.93);
+  --glass-regular: rgb(33 26 21 / 0.93);
 }

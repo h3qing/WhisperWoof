@@ -6,6 +6,8 @@
  * laptop screen — instead of the bottom of the monitor the user was on.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import {
   WindowPositionUtil,
   WINDOW_SIZES,
@@ -73,8 +75,18 @@ describe("native vibrancy per overlay size", () => {
 });
 
 describe("control panel first paint", () => {
-  it("uses the warm theme background, not the old cold navy", () => {
-    expect(controlPanelBackground(false)).toBe("#f6f0e8");
-    expect(controlPanelBackground(true)).toBe("#1c1814");
+  // The window is painted before the renderer loads; if this drifts from the
+  // theme's --color-background the window flashes a foreign colour on open.
+  const css = readFileSync(resolve(__dirname, "../../../index.css"), "utf8");
+  const backgroundIn = (block: string) =>
+    block.match(/--color-background:\s*(#[0-9a-f]{6})/i)?.[1]?.toLowerCase();
+  const lightBlock = css.slice(css.indexOf("@theme {"), css.indexOf("\n}\n", css.indexOf("@theme {")));
+  const darkBlock = css.slice(css.indexOf("\n.dark {"), css.indexOf("\n}\n", css.indexOf("\n.dark {")));
+
+  it("matches the light theme's backdrop", () => {
+    expect(controlPanelBackground(false)).toBe(backgroundIn(lightBlock));
+  });
+  it("matches the dark theme's backdrop", () => {
+    expect(controlPanelBackground(true)).toBe(backgroundIn(darkBlock));
   });
 });

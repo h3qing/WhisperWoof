@@ -502,7 +502,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         {/* Hotkey section */}
         <div className="p-4 border-b border-border-subtle">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="text-xs font-medium text-muted-foreground">
               {t("onboarding.activation.hotkey")}
             </span>
           </div>
@@ -524,7 +524,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         {!isUsingNativeShortcut && (
           <div className="p-4 flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="text-xs font-medium text-muted-foreground">
                 {t("onboarding.activation.mode")}
               </span>
               <p className="text-xs text-muted-foreground/70 mt-0.5">
@@ -545,7 +545,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       {/* Test area - minimal chrome */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <span className="text-xs font-medium text-muted-foreground">
             {t("onboarding.activation.test")}
           </span>
           <span className="text-xs text-muted-foreground/60">
@@ -610,7 +610,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   };
 
-  // WhisperWoof: Noto Sans is bundled locally (src/assets/fonts/noto-sans.css)
+  // WhisperWoof: Nunito is bundled locally (src/assets/fonts/nunito.css)
   // No need to load from Google CDN — blocked by CSP and unnecessary
 
   const onboardingPlatform =

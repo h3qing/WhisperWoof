@@ -79,7 +79,7 @@ const MAIN_WINDOW_CONFIG = {
 // Painted before the renderer loads; matches --color-background in index.css
 // so the window doesn't flash a foreign colour on open.
 function controlPanelBackground(dark) {
-  return dark ? "#1c1814" : "#f6f0e8";
+  return dark ? "#120e0b" : "#ebe4dc";
 }
 
 // Control panel window configuration
@@ -106,7 +106,7 @@ const CONTROL_PANEL_CONFIG = {
   frame: false,
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 20, y: 20 },
+    trafficLightPosition: { x: 24, y: 24 }, // inside the floating sidebar
   }),
   transparent: false,
   minimizable: true,
