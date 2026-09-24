@@ -37,9 +37,9 @@ positions itself.
 The provisional tail of a live dictation is wrapped in
 `<span className="live-words">`: a gradient sheen over `--color-live-glass`
 with a 1px inset `--color-live` outline, `box-decoration-break: clone` so it
-wraps cleanly. Used by `LiveDictationPanel` (pinned by its test), the
-dictation-mode demo in Settings, and the website hero. Don't reuse it as
-decoration.
+wraps cleanly. Used by `LiveDictationPanel` (pinned by its test) and the
+dictation-mode demo in Settings; the website hero draws the same look with
+its own `.live` class (`website/theme.css`). Don't reuse it as decoration.
 
 ## Color
 

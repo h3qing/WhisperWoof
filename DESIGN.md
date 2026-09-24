@@ -7,7 +7,7 @@ after. Implementation notes: `docs/design/liquid-glass.md`.
 
 Source of truth: `src/index.css` (tokens and utilities),
 `src/components/ControlPanel.tsx` + `ControlPanelSidebar.tsx` (layout),
-`src/components/ui/` (controls), `website/index.html` (site),
+`src/components/ui/` (controls), `website/theme.css` + `website/index.html` (site),
 `src/assets/logo.svg` (icon).
 
 ## Product context
@@ -18,7 +18,7 @@ Source of truth: `src/index.css` (tokens and utilities),
 - **Who it's for:** people who write all day and would rather talk, often in
   Chinese and English at once.
 - **Project type:** a desktop app (Electron control panel, floating dictation
-  overlay, Cmd+K bar) plus a one-page marketing site.
+  overlay, Cmd+K bar) plus a two-page marketing site (home and How it works).
 
 ## 1. Principles
 
@@ -71,8 +71,9 @@ Status always pairs an icon and a label with its color.
 
 **Backdrop.** Three large, soft radial gradients over the base, still (it
 never drifts): caramel coat at the top left, mauve nose at the bottom right,
-cream chest at the top. `.mando-field` draws it inside each window; the site
-sets it on `body` with `background-attachment: fixed`.
+cream chest at the top. `.mando-field` draws it behind the control panel,
+onboarding and the permissions gate; the site uses its own fixed
+`.mando-field` layer (`website/theme.css`).
 
 | Glow | Light | Dark |
 |---|---|---|

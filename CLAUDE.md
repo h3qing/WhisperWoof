@@ -41,6 +41,7 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     meeting/                  Tests for meeting safety modules
   ui/                         ← Renderer (React + TSX)
     history/                  HistoryPanel, Search, AudioPlayer
+    home/                     HomeStats: headline sentence + row of facts (home-summary.ts), activity heatmap
     indicator/                MandoSprite (animated Mando: spritesheet + mando-manifest.json,
                               state → animation + hop machine in mando-sprite.ts),
                               CancelRecordingButton, MeetingRecordingPill. The indicator
@@ -125,6 +126,7 @@ npm start            # Start dev mode
 npx vitest           # Run tests
 npm run build        # Build for production
 node scripts/build-mando-sprites.js [path/to/Mando-assets-v6]  # Rebuild Mando WebP spritesheets (needs ffmpeg, cwebp, img2webp)
+node scripts/build-app-icon.js  # Rebuild icon.png/.icns/.ico from src/assets/logo.svg (macOS; needs Google Chrome, sips, iconutil)
 ```
 
 ## Implementation Phases

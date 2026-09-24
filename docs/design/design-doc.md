@@ -749,6 +749,8 @@ Plugins are Node.js modules loaded from `~/.whisperwoof/plugins/`. Each plugin i
 
 ### Design Tokens
 
+> **Superseded (v2.0.0):** the live design system is [`DESIGN.md`](../../DESIGN.md) (Mando glass: Mando's colors, Nunito, glass vs sheets). The tokens below are the original 2026-03-23 draft, kept for history.
+
 Minimal design system for consistent implementation. Formalize into DESIGN.md via `/design-consultation` before Phase 2.
 
 #### Color Tokens
