@@ -60,7 +60,7 @@ main() {
     say "Checksum verified"
   fi
 
-  say "Installing to /Applications"
+  say "Installing to $DEST_DIR"
   MOUNT="$(hdiutil attach "$WORK/$APP_NAME.dmg" -nobrowse -readonly | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
   [[ -d "$MOUNT/$APP_NAME.app" ]] || fail "The disk image doesn't contain $APP_NAME.app."
 
