@@ -14,9 +14,12 @@ const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const vaultFiles = require("./vault/vault-files");
+const { resolveAppFile } = require("./app-files");
 
 const EVAL_FILE = path.join(app.getPath("userData"), "eval-dataset.json");
 const EVAL_AUDIO_DIR = path.join(app.getPath("userData"), "eval-audio");
+// The app's own recordings (AudioStorageManager) — the only audio a rating may copy.
+const RECORDINGS_DIR = path.join(app.getPath("userData"), "audio");
 
 function ensureDir() {
   if (!fs.existsSync(EVAL_AUDIO_DIR)) {
@@ -33,6 +36,26 @@ function loadDataset() {
     debugLogger.warn("[EvalDataset] Failed to load", { error: err.message });
   }
   return { entries: [] };
+}
+
+/**
+ * Copy one of the app's recordings into eval-audio. The source path comes
+ * from the renderer, so anything outside the recordings folder is refused.
+ */
+function copyRecording(audioSourcePath, savedAudioPath) {
+  const sourcePath = resolveAppFile(audioSourcePath, [RECORDINGS_DIR]);
+  if (!sourcePath) {
+    debugLogger.warn("[EvalDataset] Ignored audio outside the recordings folder");
+    return null;
+  }
+  try {
+    // Plain or sealed, the copy is written the way encryption currently requires.
+    vaultFiles.writeFile(savedAudioPath, vaultFiles.readFile(sourcePath), { kind: "audio" });
+    return savedAudioPath;
+  } catch (err) {
+    debugLogger.warn("[EvalDataset] Failed to copy audio", { error: err.message });
+    return null;
+  }
 }
 
 function saveDataset(data) {
@@ -54,7 +77,7 @@ function saveDataset(data) {
  * @param {string} [params.idealOutput] - user-edited correct version
  * @param {string} [params.sttModel] - which STT model was used
  * @param {string} [params.polishPreset] - which preset was used
- * @param {string} [params.audioSourcePath] - original audio file path (will be copied)
+ * @param {string} [params.audioSourcePath] - a recording in userData/audio (will be copied; other paths are ignored)
  * @param {Buffer} [params.audioBuffer] - raw audio data to save
  */
 function rateTranscription({
@@ -82,14 +105,8 @@ function rateTranscription({
       debugLogger.warn("[EvalDataset] Failed to save audio", { error: err.message });
       savedAudioPath = null;
     }
-  } else if (audioSourcePath && fs.existsSync(audioSourcePath)) {
-    savedAudioPath = path.join(EVAL_AUDIO_DIR, `${id}.webm`);
-    try {
-      vaultFiles.writeFile(savedAudioPath, fs.readFileSync(audioSourcePath), { kind: "audio" });
-    } catch (err) {
-      debugLogger.warn("[EvalDataset] Failed to copy audio", { error: err.message });
-      savedAudioPath = null;
-    }
+  } else if (audioSourcePath) {
+    savedAudioPath = copyRecording(audioSourcePath, path.join(EVAL_AUDIO_DIR, `${id}.webm`));
   }
 
   const entry = {
@@ -145,8 +162,10 @@ function getEvalStats() {
 function deleteEvalEntry(id) {
   const dataset = loadDataset();
   const entry = dataset.entries.find((e) => e.id === id);
-  if (entry?.audioPath && vaultFiles.exists(entry.audioPath)) {
-    try { vaultFiles.unlink(entry.audioPath); } catch { /* */ }
+  // Only clips inside eval-audio — the path is read back from a JSON file.
+  const audioPath = entry?.audioPath ? resolveAppFile(entry.audioPath, [EVAL_AUDIO_DIR]) : null;
+  if (audioPath) {
+    try { vaultFiles.unlink(audioPath); } catch { /* */ }
   }
   dataset.entries = dataset.entries.filter((e) => e.id !== id);
   saveDataset(dataset);
