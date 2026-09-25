@@ -329,7 +329,8 @@ class OpenAIRealtimeStreaming {
         });
       }
 
-      this.ws.close();
+      // The server may have closed the socket during the commit wait (cleanup() then cleared it).
+      this.ws?.close();
     }
 
     const result = { text: this.getFullTranscript() };
