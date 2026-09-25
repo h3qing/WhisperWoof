@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const debugLogger = require("./debugLogger");
 const {
   isMeetingAudioDirName,
+  isRemovableMeetingAudioDir,
   findStaleMeetingAudioDirs,
 } = require("../whisperwoof/bridge/audio-retention-pure");
 
@@ -195,10 +196,23 @@ class MeetingAudioBuffer {
   /**
    * Clean up temporary audio files from disk.
    * Call after batch re-transcription is complete or when files are no longer needed.
+   * Only deletes a finished session folder of this buffer; any other path is refused.
    */
   cleanupFiles(dir) {
     const targetDir = dir || this._pendingCleanupDir;
     if (!targetDir) return;
+
+    if (
+      !isRemovableMeetingAudioDir(targetDir, {
+        baseDir: this._baseDir,
+        activeDir: this._sessionDir,
+      })
+    ) {
+      debugLogger.error("[AudioBuffer] Refused cleanup of a folder it doesn't own", {
+        dir: targetDir,
+      });
+      return;
+    }
 
     try {
       if (fs.existsSync(targetDir)) {

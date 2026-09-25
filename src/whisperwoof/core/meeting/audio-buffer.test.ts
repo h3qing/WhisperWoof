@@ -357,6 +357,49 @@ describe("MeetingAudioBuffer", () => {
     it("is a no-op when there is nothing to clean up", () => {
       buffer.cleanupFiles(); // should not throw
     });
+
+    const UUID = "0b6e3a52-9d1c-4f0e-8a51-3c2f7d9e1a44";
+
+    function makeUserDir(dir: string) {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "keep.txt"), "user data");
+      return dir;
+    }
+
+    it("refuses a folder outside its base dir, even one named like a buffer", () => {
+      const base = makeUserDir(path.join(tmpDir, "temp"));
+      const scoped = new MeetingAudioBuffer(base);
+      const outside = makeUserDir(path.join(tmpDir, `meeting-audio-${UUID}`));
+      const home = makeUserDir(path.join(tmpDir, "home"));
+
+      scoped.cleanupFiles(outside);
+      scoped.cleanupFiles(`${base}/meeting-audio-${UUID}/../../home`);
+      scoped.cleanupFiles(base);
+
+      expect(fs.existsSync(outside)).toBe(true);
+      expect(fs.existsSync(home)).toBe(true);
+      expect(fs.existsSync(path.join(base, "keep.txt"))).toBe(true);
+    });
+
+    it("refuses a folder in its base dir that isn't a meeting buffer", () => {
+      const notes = makeUserDir(path.join(tmpDir, "notes"));
+      const nested = makeUserDir(path.join(notes, `meeting-audio-${UUID}`));
+
+      buffer.cleanupFiles(notes);
+      buffer.cleanupFiles(nested);
+
+      expect(fs.existsSync(nested)).toBe(true);
+    });
+
+    it("never deletes the meeting being recorded", () => {
+      buffer.start();
+      buffer.writeChunk(makePcmChunk(100), "mic");
+      const active = buffer.getSessionDir()!;
+
+      buffer.cleanupFiles(active);
+
+      expect(fs.existsSync(path.join(active, "mic-0000.wav"))).toBe(true);
+    });
   });
 
   describe("sweepStaleSessions()", () => {

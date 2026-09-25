@@ -14,6 +14,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Meeting audio no longer piles up in your temp folder.** While you record a meeting, the audio is also written to WAV files on disk so a crash can't lose it, but those files were never deleted. Now they're removed as soon as the meeting ends normally. They're kept only when something went wrong (stopping failed, the transcript couldn't be saved, or the connection dropped for good), and leftovers are deleted after 24 hours.
 - **The Audio Retention setting works.** Saved dictation audio was deleted after 30 days whatever you picked. Now 7, 14, 60 or 90 days means exactly that, and Disabled stops saving new recordings (audio you already have stays until you clear it). The cleanup also no longer runs at launch before your setting is known, so a 60- or 90-day choice isn't cut to 30.
 
+### Security
+- **The app window can no longer delete folders.** An unused `meeting-audio-cleanup` channel passed a path from the window straight to a recursive delete, so a compromised or buggy window could erase any folder you can write to. The channel is gone, and the meeting audio buffer now only deletes its own finished `meeting-audio-<id>` folders in the temp directory, never the meeting being recorded.
+
 ## [2.3.0] - 2026-09-25 — Encryption: your notes and recordings, locked
 
 ### Added

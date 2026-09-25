@@ -8,6 +8,8 @@
  * system; everything that decides *what to delete* is here.
  */
 
+const path = require("path");
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // A crash buffer left behind (crash, quit mid-meeting, abnormal end) stays
@@ -70,6 +72,25 @@ function isMeetingAudioDirName(name) {
 }
 
 /**
+ * Whether a folder may be deleted as a meeting crash buffer: a
+ * meeting-audio-<uuid> folder directly inside the buffer's base dir, never the
+ * meeting being recorded. Anything else (a path outside, a parent, a
+ * traversal) is refused.
+ *
+ * @param {unknown} dir
+ * @param {{ baseDir: string, activeDir?: string|null }} options
+ */
+function isRemovableMeetingAudioDir(dir, { baseDir, activeDir = null }) {
+  if (typeof dir !== "string" || dir === "") return false;
+  const target = path.resolve(dir);
+  if (activeDir && target === path.resolve(activeDir)) return false;
+  return (
+    path.dirname(target) === path.resolve(baseDir) &&
+    isMeetingAudioDirName(path.basename(target))
+  );
+}
+
+/**
  * Names of crash-buffer folders to delete: meeting-audio-<uuid> directories
  * untouched for maxAgeMs, never the meeting being recorded.
  *
@@ -101,5 +122,6 @@ module.exports = {
   shouldKeepMeetingAudio,
   chunkMissedTranscriber,
   isMeetingAudioDirName,
+  isRemovableMeetingAudioDir,
   findStaleMeetingAudioDirs,
 };

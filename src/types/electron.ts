@@ -1274,7 +1274,6 @@ declare global {
         audioFiles?: string[];
         checkpointedSegments?: number;
       }>;
-      meetingAudioCleanup?: (dir?: string) => Promise<{ success: boolean; error?: string }>;
       meetingCheckpointStart?: (noteId: string) => Promise<{ success: boolean; error?: string }>;
       onMeetingTranscriptionSegment?: (
         callback: (data: {

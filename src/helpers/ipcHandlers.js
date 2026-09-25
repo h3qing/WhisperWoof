@@ -4932,16 +4932,6 @@ class IPCHandlers {
       }
     });
 
-    // Cleanup audio buffer files after they're no longer needed
-    ipcMain.handle("meeting-audio-cleanup", async (_event, dir) => {
-      try {
-        this._meetingAudioBuffer.cleanupFiles(dir);
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    });
-
     // Start transcript checkpoint for a meeting note
     ipcMain.handle("meeting-checkpoint-start", async (_event, noteId) => {
       if (!noteId) return { success: false, error: "noteId required" };

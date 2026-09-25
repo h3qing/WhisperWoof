@@ -5,6 +5,7 @@
  *
  * Imports the real bridge module ipcHandlers.js and meetingAudioBuffer.js use.
  */
+import path from "path";
 import { describe, it, expect } from "vitest";
 import * as retention from "../../bridge/audio-retention-pure.js";
 
@@ -17,6 +18,7 @@ const {
   shouldKeepMeetingAudio,
   chunkMissedTranscriber,
   isMeetingAudioDirName,
+  isRemovableMeetingAudioDir,
   findStaleMeetingAudioDirs,
 } = retention;
 
@@ -195,5 +197,44 @@ describe("findStaleMeetingAudioDirs", () => {
   it("does not mutate its input", () => {
     const entries = Object.freeze([Object.freeze(dir(`meeting-audio-${UUID}`, 3 * DAY_MS))]);
     expect(() => findStaleMeetingAudioDirs(entries, { nowMs: NOW })).not.toThrow();
+  });
+});
+
+describe("isRemovableMeetingAudioDir", () => {
+  const BASE = path.join(path.sep, "var", "folders", "xy", "T");
+  const own = path.join(BASE, `meeting-audio-${UUID}`);
+
+  it("allows a meeting buffer folder directly inside the base dir", () => {
+    expect(isRemovableMeetingAudioDir(own, { baseDir: BASE })).toBe(true);
+    expect(isRemovableMeetingAudioDir(`${own}${path.sep}`, { baseDir: BASE })).toBe(true);
+  });
+
+  it("refuses anything outside the base dir or not named like a buffer", () => {
+    for (const dir of [
+      path.sep,
+      BASE,
+      path.dirname(BASE),
+      path.join(BASE, "Documents"),
+      path.join(BASE, "..", `meeting-audio-${UUID}`),
+      path.join(BASE, "sub", `meeting-audio-${UUID}`),
+      path.join(own, "mic-0000.wav"),
+      `${own}/../..`,
+      `${own}/../../../../Users/me`,
+      `meeting-audio-${UUID}`,
+    ]) {
+      expect(isRemovableMeetingAudioDir(dir, { baseDir: BASE })).toBe(false);
+    }
+  });
+
+  it("refuses the meeting being recorded", () => {
+    const other = path.join(BASE, `meeting-audio-${OTHER_UUID}`);
+    expect(isRemovableMeetingAudioDir(own, { baseDir: BASE, activeDir: own })).toBe(false);
+    expect(isRemovableMeetingAudioDir(own, { baseDir: BASE, activeDir: other })).toBe(true);
+  });
+
+  it("refuses a path that isn't a non-empty string", () => {
+    for (const dir of [undefined, null, "", 42, {}, [own]]) {
+      expect(isRemovableMeetingAudioDir(dir, { baseDir: BASE })).toBe(false);
+    }
   });
 });
