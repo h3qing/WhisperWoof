@@ -427,7 +427,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, dictationRoute, isStarting, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, liveNotice, dictationRoute, isStarting, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -460,6 +460,7 @@ export default function App() {
     lastFrame: lastLiveFrame,
     isLiveCapture: isLiveMode,
     starting: isStarting,
+    captureRunning: isRecording || isProcessing,
     liveMode: liveModeEnabled,
     autoHide: floatingIconAutoHide,
     windowHidden,
@@ -470,6 +471,9 @@ export default function App() {
   // then the panel falls back to CSS glass.
   const nativeLivePanel =
     showLivePanel && getPlatform() === "darwin" && toastCount === 0 && !isCommandMenuOpen;
+  // Live mode, but this capture found no usable stream (e.g. a pinned language
+  // the preview model can't serve): the regular indicator needs its own height.
+  const nonLiveCapture = liveModeEnabled && !showLivePanel && (isRecording || isProcessing);
 
   useEffect(() => {
     const resizeWindow = () => {
@@ -481,7 +485,7 @@ export default function App() {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
       } else if (showLivePanel) {
         window.electronAPI?.resizeMainWindow?.("LIVE_PANEL");
-      } else if (liveModeEnabled) {
+      } else if (liveModeEnabled && !nonLiveCapture) {
         // Live mode keeps the wide size even when idle: resizing at every
         // capture start/end drew the panel into the narrow window first (center
         // strip, then the sides) and left a stale frame behind on shrink.
@@ -491,7 +495,7 @@ export default function App() {
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount, showLivePanel, liveModeEnabled]);
+  }, [isCommandMenuOpen, toastCount, showLivePanel, liveModeEnabled, nonLiveCapture]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -767,6 +771,7 @@ export default function App() {
                     onCelebrationEnd={endCelebration}
                     native={nativeLivePanel}
                     route={dictationRoute}
+                    notice={isLiveMode && (isRecording || isProcessing) ? liveNotice : null}
                   />
                 ) : (
                 <WhisperWoofIndicator

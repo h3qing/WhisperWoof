@@ -5,6 +5,14 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Fixed
+- **Live typing says why your words aren't appearing.** If the live preview can't run (its model isn't downloaded, or the streaming server didn't start or dropped mid-capture), the panel says so, points to Settings → Transcription when the model is missing, and still shows the pasted text when you let go. Before, it sat on "Start talking…" for the whole dictation, and a stream that failed after starting went unnoticed because nothing listened for its error.
+- **No more frozen "Listening" panel.** With "hide when not recording" on (the default), a live-mode dictation that couldn't stream (for example, a pinned language the preview model doesn't cover) kept the last Listening frame on screen until it finished. It now shows the regular indicator.
+- **A single line of live text is no longer dimmed at the top.** The fade for older lines only starts once the panel is full.
+
+### Changed
+- **A smaller, glassier live typing panel.** 320 px wide instead of 420, with a smaller Mando. On macOS it uses the translucent HUD material, so the app behind shows through, blurred, instead of a solid grey slab; the panel adds a lit top edge and a sheen (`glass-native`).
+
 ## [2.0.0] - 2026-09-24 — A new look: glass in Mando's colors
 
 ### Changed

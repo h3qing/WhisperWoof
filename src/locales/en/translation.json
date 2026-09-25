@@ -1927,7 +1927,9 @@
       "correcting": "Checking…",
       "polishing": "Polishing…",
       "done": "Pasted",
-      "startTalking": "Start talking…"
+      "startTalking": "Start talking…",
+      "noticeModelMissing": "Live preview model isn't downloaded (Settings → Transcription). Your text appears when you let go.",
+      "noticeUnavailable": "Live preview didn't start. Your text appears when you let go."
     }
   },
   "agentMode": {

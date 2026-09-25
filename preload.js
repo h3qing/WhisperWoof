@@ -252,6 +252,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("parakeet-stream-partial", handler);
     return () => ipcRenderer.removeListener("parakeet-stream-partial", handler);
   },
+  onParakeetStreamError: (callback) => {
+    const handler = (_event, message) => callback(message);
+    ipcRenderer.on("parakeet-stream-error", handler);
+    return () => ipcRenderer.removeListener("parakeet-stream-error", handler);
+  },
 
   // Window control functions
   windowMinimize: () => ipcRenderer.invoke("window-minimize"),

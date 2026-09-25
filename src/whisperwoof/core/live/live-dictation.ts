@@ -118,6 +118,18 @@ export function toLiveSegments(payload: unknown): LiveSegments {
   return { text: String(p.text ?? `${committed}${partial}`), committed, partial };
 }
 
+/**
+ * Why a live capture shows no words. The panel says so instead of sitting on
+ * "Start talking…"; the capture itself still pastes after release.
+ */
+export type LiveNotice = "model-missing" | "unavailable";
+
+/** Map a stream-start error (main-process message) to what the panel tells the user. */
+export function liveNoticeForError(error: unknown): LiveNotice {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /not downloaded/i.test(message) ? "model-missing" : "unavailable";
+}
+
 export interface LivePanelInput {
   isRecording: boolean;
   isProcessing: boolean;
@@ -199,6 +211,8 @@ export interface LivePanelFrameInput {
   isLiveCapture: boolean;
   /** Hotkey pressed, mic not open yet. */
   starting: boolean;
+  /** A capture is recording or processing (live or not). */
+  captureRunning: boolean;
   liveMode: boolean;
   autoHide: boolean;
   windowHidden: boolean;
@@ -209,10 +223,13 @@ export interface LivePanelFrameInput {
  * In live mode the old idle icon must never flash: from the hotkey press the
  * panel shows Listening; with auto-hide on, the finished frame holds while the
  * window hides, and a hidden window pre-renders Listening for the next show.
+ * A capture that isn't live (its plan found no usable stream) gets the regular
+ * indicator: a held Listening frame would sit there frozen until it ends.
  */
 export function pickLivePanelFrame(input: LivePanelFrameInput): LivePanelView | null {
   if (input.isLiveCapture && input.view.phase !== "hidden") return input.view;
   if (!input.liveMode) return null;
+  if (input.captureRunning) return null;
   if (input.starting) return LISTENING_FRAME;
   if (!input.autoHide) return null;
   return input.windowHidden ? LISTENING_FRAME : (input.lastFrame ?? LISTENING_FRAME);

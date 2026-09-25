@@ -90,6 +90,7 @@ The utilities live in `src/index.css`:
 | `glass` | popovers, toasts, the live panel, capsule groups |
 | `glass-thick` | the sidebar, settings window, menus, anything holding a lot of text |
 | `glass-rim` | adds the specular gradient rim (a positioned element only) |
+| `glass-native` | light over a native macOS material: the live panel's window |
 | `glass-tint` | the one caramel glass action |
 | `sheet` | a solid content surface |
 | `live-words` | the signature: provisional words in frosted caramel |
@@ -221,7 +222,8 @@ The control panel is an opaque window (`backgroundColor` matches
 `--color-background`, pinned by a test) with the Mando backdrop drawn in CSS:
 native vibrancy would take its color from the wallpaper and lose Mando's.
 Floating single-panel windows (the live dictation panel, the agent overlay)
-use Electron `vibrancy` with only a light Mando tint on top. See
+use Electron `vibrancy` with only a light Mando tint on top; the live panel
+uses the translucent `hud` material and `glass-native`. See
 `docs/design/liquid-glass.md`.
 
 ## 11. Words

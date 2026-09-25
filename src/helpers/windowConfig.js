@@ -35,15 +35,17 @@ const WINDOW_SIZES = {
   EXPANDED: { width: 400, height: 500 },
   // Live mode keeps this size while idle too (the Mando indicator sits at its
   // bottom edge); LIVE_PANEL is the same rectangle while the panel is showing.
-  LIVE: { width: 420, height: 112 },
+  LIVE: { width: 320, height: 112 },
   // The live dictation panel, and nothing else: on macOS this size carries a
   // native material that fills the whole window, so the window is the panel.
-  LIVE_PANEL: { width: 420, height: 112 },
+  LIVE_PANEL: { width: 320, height: 112 },
 };
 
 // Native macOS material per overlay size (null = none). Only sizes whose
 // window is exactly one panel qualify; toasts/menus need transparent margins.
-const WINDOW_VIBRANCY = { LIVE_PANEL: "popover" };
+// "hud" is the translucent heads-up material: the app behind shows through,
+// blurred, where "popover" read as an opaque grey slab.
+const WINDOW_VIBRANCY = { LIVE_PANEL: "hud" };
 
 function vibrancyForSize(sizeKey) {
   return Object.hasOwn(WINDOW_VIBRANCY, sizeKey) ? WINDOW_VIBRANCY[sizeKey] : null;

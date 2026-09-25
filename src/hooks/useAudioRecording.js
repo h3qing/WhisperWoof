@@ -44,6 +44,9 @@ export const useAudioRecording = (toast, options = {}) => {
   // letter is pressed so the overlay can say so before release.
   const [dictationRoute, setDictationRoute] = useState("paste-at-cursor");
   const [liveFinalText, setLiveFinalText] = useState("");
+  // Why this live capture shows no words (preview model missing, stream
+  // failed), or null. The panel says so; the capture still pastes on release.
+  const [liveNotice, setLiveNotice] = useState(null);
   // True from the hotkey press until recording actually starts (mic open takes
   // 100-500ms), so the live panel can show "Listening" instead of the idle icon.
   const [isStarting, setIsStarting] = useState(false);
@@ -62,6 +65,7 @@ export const useAudioRecording = (toast, options = {}) => {
     if (startLockRef.current) return false;
     startLockRef.current = true;
     setIsStarting(true);
+    setLiveNotice(null);
     try {
       if (!audioManagerRef.current) return false;
 
@@ -220,9 +224,9 @@ export const useAudioRecording = (toast, options = {}) => {
         }
         void playStartCue();
       },
-      // Stream couldn't start (preview model missing, server error): the panel
-      // would sit on "Start talking…" forever, so show the regular indicator.
-      onLiveStreamUnavailable: () => setIsLiveMode(false),
+      // Stream couldn't start or died (preview model missing, server error):
+      // keep the panel, but say why no words appear instead of "Start talking…".
+      onLiveStreamUnavailable: (notice) => setLiveNotice(notice ?? "unavailable"),
       onPartialTranscript: (payload) => {
         const segments = toLiveSegments(payload);
         setLiveSegments(segments);
@@ -645,6 +649,7 @@ export const useAudioRecording = (toast, options = {}) => {
     liveSegments,
     isLiveMode,
     liveFinalText,
+    liveNotice,
     dictationRoute,
     isStarting,
     startRecording: performStartRecording,
