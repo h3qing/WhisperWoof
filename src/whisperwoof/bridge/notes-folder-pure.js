@@ -49,7 +49,10 @@ function parseNote(content) {
 
 /** One line of body text for the list, without repeating the title. */
 function previewOf({ title, body }) {
-  const lines = String(body ?? "").split("\n").map((l) => l.replace(/^#+\s*/, "").trim()).filter(Boolean);
+  const lines = String(body ?? "")
+    .split("\n")
+    .map((l) => l.replace(/!\[[^\]]*\]\([^)\s]+\)/g, "Image").replace(/^#+\s*/, "").trim())
+    .filter(Boolean);
   const rest = lines[0] === title ? lines.slice(1) : lines;
   const flat = rest.join(" ");
   return flat.length > PREVIEW_MAX ? `${flat.slice(0, PREVIEW_MAX)}…` : flat;

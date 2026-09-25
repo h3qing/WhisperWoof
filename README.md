@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.1.1-C87B3A?style=flat-square" alt="v2.1.1"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.2.0-C87B3A?style=flat-square" alt="v2.2.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1197%20passing-brightgreen?style=flat-square" alt="1197 tests passing">
+  <img src="https://img.shields.io/badge/tests-1229%20passing-brightgreen?style=flat-square" alt="1229 tests passing">
 </p>
 
 <p align="center">
@@ -99,7 +99,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 - **Hotkey-driven routing** — Different combos send voice to different destinations. Explicit, not magic.
 
 ### Capture & History
-- **Clipboard timeline** — A condensed, card-based timeline of everything you copy: grouped by day, click to re-copy, with the source app (Messages, Chrome…) and image thumbnails.
+- **Clipboard** *(new in 2.2)* — Everything you copy, text on one side and images on the other. Click to copy again (images paste as images), save any item to Notes, pin what matters, and choose how long history is kept and how much space images may use.
 - **Voice history + audio playback** — Tap any entry to replay the original recording.
 - **Full-text search** — SQLite FTS5 across all your voice and clipboard entries.
 

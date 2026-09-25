@@ -5,6 +5,22 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-25 — A clipboard you can actually use
+
+### Added
+- **Clipboard: text on one side, images on the other.** Each image shows a preview; "Look closer" opens it large. Search covers text and photo file names.
+- **Images copy back as images.** Click any item to put it back on your clipboard: a screenshot or photo pastes into chats and documents as the picture, not as its file name. It moves to the top of its list instead of being saved twice.
+- **Photos copied in Finder are kept as the photos.** Copying a photo file used to save only its name (and the Finder icon); now the photo itself is kept, up to 10 per copy and 50 MB each, HEIC included.
+- **Other files are opt-in.** PDFs, documents, videos and other files keep only their name unless you turn on **Keep copied files**, which first explains that files are saved in full (up to 100 MB each) and count towards the space limit. Kept files paste back as files, show in Finder, and can be saved to Notes (as a link to a copy in `attachments/`).
+- **Save to Notes.** Any item becomes a note in your notes folder. An image goes into `attachments/` and the note links to it, so it shows in Notes (and in Obsidian).
+- **Pin, remove, clear.** Pinned items are never cleaned up. Remove one item from its row, or clear all text, all images, everything older than a week, or everything, after a confirmation that says how much goes.
+- **You decide how much it keeps.** The Clipboard view says how many things are kept and how much space images and files take. Choose how long history is kept (forever, 90, 30 or 7 days) and how much space images and files may use (up to 2 GB, or no limit); past the limit the oldest go first. The default keeps all text and caps images at 1 GB.
+
+### Fixed
+- **Images in the Clipboard view had no preview**, and clicking one copied the text "[Image 1024×1024]": the view never recognised an image.
+- **Deleted clipboard images stayed on disk.** Removing an image (from Clipboard or History) now deletes its file and preview too.
+- **An image sitting on the clipboard was decoded twice a second** for as long as it stayed there. The monitor now compares the clipboard's raw bytes and only reads an image when it changes. Copying the same thing again no longer adds a duplicate.
+
 ## [2.1.1] - 2026-09-25 — Live typing and Parakeet actually ship
 
 ### Fixed
