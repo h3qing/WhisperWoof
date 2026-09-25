@@ -10,7 +10,9 @@
  */
 
 const SQLITE_MAGIC = Buffer.from("SQLite format 3\0", "latin1");
+// "rotate" (new recovery phrase) has its own steps in vault-rotate.js; it only shares the journal.
 const DIRECTIONS = Object.freeze(["enable", "disable"]);
+const JOURNAL_DIRECTIONS = Object.freeze([...DIRECTIONS, "rotate"]);
 const PHASES = Object.freeze(["db", "files", "cleanup", "done"]);
 
 function assertDirection(direction) {
@@ -54,7 +56,7 @@ function planFileStep(direction, { plain, sealed }) {
 }
 
 function startJournal(direction, now = new Date()) {
-  assertDirection(direction);
+  if (!JOURNAL_DIRECTIONS.includes(direction)) throw new Error(`Unknown direction: ${direction}`);
   return { v: 1, direction, startedAt: now.toISOString(), phase: "db" };
 }
 
@@ -67,7 +69,7 @@ function parseJournal(json) {
   const ok =
     json &&
     json.v === 1 &&
-    DIRECTIONS.includes(json.direction) &&
+    JOURNAL_DIRECTIONS.includes(json.direction) &&
     PHASES.includes(json.phase) &&
     typeof json.startedAt === "string";
   if (!ok) throw new Error("Migration journal is damaged");

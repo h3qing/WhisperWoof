@@ -164,6 +164,17 @@ describe("streaming writer (meeting recorder)", () => {
   });
 });
 
+describe("opensWith", () => {
+  it("tells whether a key opens a file without decrypting its body", () => {
+    const a = pair();
+    const b = pair();
+    const sealed = ww.encrypt(crypto.randomBytes(1000), a.publicRaw);
+    expect(ww.opensWith(sealed, a.privateKey)).toBe(true);
+    expect(ww.opensWith(sealed, b.privateKey)).toBe(false);
+    expect(ww.opensWith(Buffer.from("plain"), a.privateKey)).toBe(false);
+  });
+});
+
 describe("rewrap (new recovery phrase)", () => {
   it("moves a file to a new key without touching its body", () => {
     const oldK = pair();

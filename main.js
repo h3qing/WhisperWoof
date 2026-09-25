@@ -42,7 +42,7 @@ try {
 // This happens when Node.js runs as x86_64 on an Apple Silicon Mac,
 // compiling better-sqlite3 for the wrong architecture.
 try {
-  require("better-sqlite3");
+  require("better-sqlite3-multiple-ciphers");
 } catch (archErr) {
   if (archErr.message && archErr.message.includes("incompatible architecture")) {
     const { dialog } = require("electron");

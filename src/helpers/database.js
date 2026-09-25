@@ -1,4 +1,4 @@
-const Database = require("better-sqlite3");
+const Database = require("better-sqlite3-multiple-ciphers");
 const path = require("path");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");

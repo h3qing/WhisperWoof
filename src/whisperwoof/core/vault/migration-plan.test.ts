@@ -88,6 +88,12 @@ describe("journal", () => {
     expect(seen).toEqual(["db", "files", "cleanup", "done"]);
   });
 
+  it("accepts a rotation journal (new recovery phrase)", () => {
+    const j = plan.startJournal("rotate", new Date());
+    expect(plan.parseJournal(JSON.parse(JSON.stringify(j))).direction).toBe("rotate");
+    expect(() => plan.planFileStep("rotate", { plain: true, sealed: false })).toThrow();
+  });
+
   it("parses a saved journal and rejects a damaged one", () => {
     const j = plan.startJournal("disable", new Date());
     expect(plan.parseJournal(JSON.parse(JSON.stringify(j)))).toEqual(j);

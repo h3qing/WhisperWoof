@@ -12,7 +12,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const { app, clipboard, nativeImage } = require("electron");
-const Database = require("better-sqlite3");
+const Database = require("better-sqlite3-multiple-ciphers");
 const path = require("path");
 const debugLogger = require("../../helpers/debugLogger");
 

@@ -209,6 +209,16 @@ function decrypt(buf, privateKey, { allowPartial = false } = {}) {
   return { plaintext: Buffer.concat(parts), complete, kind: h.kind };
 }
 
+/** Whether `privateKey` opens this file (header only — the body isn't decrypted). */
+function opensWith(buf, privateKey) {
+  try {
+    vc.wipe(openFileKey(parseHeader(buf), privateKey));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function readKind(buf) {
   return parseHeader(buf).kind;
 }
@@ -232,5 +242,6 @@ module.exports = {
   createStream,
   sealChunk,
   readKind,
+  opensWith,
   rewrap,
 };
