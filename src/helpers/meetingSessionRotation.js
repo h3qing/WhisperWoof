@@ -13,21 +13,27 @@ const SESSION_MAX_AGE_MS = 25 * 60 * 1000; // 5min before OpenAI's ~30min limit
 const MEETING_SOURCES = ["mic", "system"];
 
 /**
- * The streams to rotate now: none while no meeting is streaming, a rotation is
- * under way, or the sessions are younger than maxAgeMs; otherwise every open
- * stream except one mid-reconnect (a reconnect opens a fresh session anyway).
+ * The streams to rotate now: none while no meeting is streaming or a rotation
+ * is under way; otherwise each stream whose session went live maxAgeMs ago or
+ * more, except one mid-reconnect (a reconnect opens a fresh session anyway).
+ *
+ * Age is per session (connectedAt), not per meeting: meeting mode pre-warms
+ * sessions before recording starts, and a stream that reconnected is younger.
  * @returns {string[]} "mic" | "system"
  */
 function sourcesToRotate({
-  startedAt,
+  active,
   now,
   rotating,
   streams,
   reconnecting = {},
   maxAgeMs = SESSION_MAX_AGE_MS,
 }) {
-  if (!startedAt || rotating || now - startedAt < maxAgeMs) return [];
-  return MEETING_SOURCES.filter((source) => streams[source] && !reconnecting[source]);
+  if (!active || rotating) return [];
+  return MEETING_SOURCES.filter((source) => {
+    const connectedAt = streams[source]?.connectedAt;
+    return connectedAt != null && now - connectedAt >= maxAgeMs && !reconnecting[source];
+  });
 }
 
 /** OpenAIRealtimeStreaming.connect() options for a meeting, minus the token. */

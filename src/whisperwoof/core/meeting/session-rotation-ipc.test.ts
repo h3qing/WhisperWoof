@@ -9,82 +9,11 @@
  * only the fields these methods use; electron and ws are swapped in through
  * require.cache because the modules are CommonJS.
  */
-import { EventEmitter } from "events";
 import { createRequire } from "module";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { FakeWebSocket, injectModule, sockets } from "./fake-realtime-socket";
 
 const require = createRequire(import.meta.url);
-
-const sockets: FakeWebSocket[] = [];
-
-class FakeWebSocket extends EventEmitter {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSING = 2;
-  static CLOSED = 3;
-  readyState = FakeWebSocket.CONNECTING;
-  sent: Array<{ type: string }> = [];
-
-  constructor(
-    public url: string,
-    public opts: { headers: Record<string, string> }
-  ) {
-    super();
-    sockets.push(this);
-    setImmediate(() => {
-      this.readyState = FakeWebSocket.OPEN;
-      this.emit("open");
-      this.serverSends({ type: "transcription_session.created" });
-    });
-  }
-
-  serverSends(event: object) {
-    this.emit("message", Buffer.from(JSON.stringify(event)));
-  }
-
-  send(data: string) {
-    const msg = JSON.parse(data);
-    this.sent.push(msg);
-    if (msg.type === "transcription_session.update") {
-      setImmediate(() => this.serverSends({ type: "transcription_session.updated" }));
-    }
-    if (msg.type === "input_audio_buffer.commit") {
-      setImmediate(() =>
-        this.serverSends({
-          type: "conversation.item.input_audio_transcription.completed",
-          transcript: "last words before rotation",
-        })
-      );
-    }
-  }
-
-  // Like ws: the close event arrives later, after the closing handshake.
-  close() {
-    if (this.readyState === FakeWebSocket.CLOSED) return;
-    this.readyState = FakeWebSocket.CLOSED;
-    setImmediate(() => this.emit("close", 1000, Buffer.from("")));
-  }
-
-  /** The server ends the session (e.g. OpenAI's 30 minute limit). */
-  drop() {
-    this.readyState = FakeWebSocket.CLOSED;
-    this.emit("close", 1006, Buffer.from(""));
-  }
-
-  get bearer() {
-    return this.opts.headers.Authorization.replace("Bearer ", "");
-  }
-}
-
-function inject(request: string, exports: unknown) {
-  const resolved = require.resolve(request);
-  require.cache[resolved] = {
-    id: resolved,
-    filename: resolved,
-    loaded: true,
-    exports,
-  } as NodeJS.Module;
-}
 
 const sentToWindow: Array<[string, unknown]> = [];
 const win = {
@@ -93,8 +22,10 @@ const win = {
     send: (channel: string, payload: unknown) => sentToWindow.push([channel, payload]),
   },
 };
-inject("ws", FakeWebSocket);
-inject("electron", { BrowserWindow: { fromWebContents: () => win, getAllWindows: () => [win] } });
+injectModule("ws", FakeWebSocket);
+injectModule("electron", {
+  BrowserWindow: { fromWebContents: () => win, getAllWindows: () => [win] },
+});
 const IPCHandlers = require("../../../helpers/ipcHandlers");
 const OpenAIRealtimeStreaming = require("../../../helpers/openaiRealtimeStreaming");
 
@@ -112,9 +43,10 @@ async function runBackoff(reconnect: Promise<void>) {
   return reconnect;
 }
 
-async function liveStream(apiKey: string) {
+async function liveStream(apiKey: string, { ageMinutes = 0 } = {}) {
   const stream = new OpenAIRealtimeStreaming();
   await stream.connect({ apiKey, preconfigured: true });
+  stream.connectedAt = Date.now() - ageMinutes * MIN;
   return stream;
 }
 
@@ -155,12 +87,11 @@ describe("meeting session rotation (IPCHandlers)", () => {
   });
 
   it("keeps transcribing after the 25 minute rotation", async () => {
-    const oldMic = await liveStream("ek_first_mic");
-    const oldSystem = await liveStream("ek_first_system");
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
+    const oldSystem = await liveStream("ek_first_system", { ageMinutes: 26 });
     handlers._meetingMicStreaming = oldMic;
     handlers._meetingSystemStreaming = oldSystem;
     expect(oldMic.sendAudio(Buffer.alloc(4800))).toBe(true);
-    handlers._meetingStreamingStartedAt = Date.now() - 26 * MIN;
 
     await handlers._checkMeetingSessionRotation();
     await flush();
@@ -186,15 +117,15 @@ describe("meeting session rotation (IPCHandlers)", () => {
     expect(handlers._meetingRetiredStreams.mic).toEqual([oldMic]);
     expect(oldMic.getFullTranscript()).toBe("last words before rotation");
 
-    // The rotation clock restarts, and the renderer isn't told about an "error".
-    expect(Date.now() - handlers._meetingStreamingStartedAt).toBeLessThan(MIN);
+    // The renderer isn't told about an "error", and the fresh sessions aren't due again.
     expect(sentToWindow).toEqual([]);
+    await handlers._checkMeetingSessionRotation();
+    expect(fetchToken).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing before 25 minutes", async () => {
-    const oldMic = await liveStream("ek_first_mic");
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 24 });
     handlers._meetingMicStreaming = oldMic;
-    handlers._meetingStreamingStartedAt = Date.now() - 24 * MIN;
 
     await handlers._checkMeetingSessionRotation();
 
@@ -202,27 +133,50 @@ describe("meeting session rotation (IPCHandlers)", () => {
     expect(fetchToken).not.toHaveBeenCalled();
   });
 
-  it("keeps the old session and retries on the next check when rotation fails", async () => {
-    const oldMic = await liveStream("ek_first_mic");
+  it("rotates sessions warmed up before recording by their own age, not the recording's", async () => {
+    // Meeting mode pre-warms the sessions; recording started 1 minute ago, 25 minutes later.
+    const warmMic = await liveStream("ek_warm_mic", { ageMinutes: 26 });
+    handlers._meetingMicStreaming = warmMic;
+    handlers._meetingStreamingStartedAt = Date.now() - 1 * MIN;
+
+    await handlers._checkMeetingSessionRotation();
+
+    expect(handlers._meetingMicStreaming).not.toBe(warmMic);
+    expect(handlers._meetingMicStreaming.isConnected).toBe(true);
+  });
+
+  it("rotates only the stream that is due", async () => {
+    // The system stream reconnected 5 minutes ago; the mic session is 26 minutes old.
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
+    const reconnectedSystem = await liveStream("ek_reconnected_system", { ageMinutes: 5 });
     handlers._meetingMicStreaming = oldMic;
-    const startedAt = Date.now() - 26 * MIN;
-    handlers._meetingStreamingStartedAt = startedAt;
+    handlers._meetingSystemStreaming = reconnectedSystem;
+
+    await handlers._checkMeetingSessionRotation();
+
+    expect(handlers._meetingMicStreaming).not.toBe(oldMic);
+    expect(handlers._meetingSystemStreaming).toBe(reconnectedSystem);
+    expect(fetchToken).toHaveBeenCalledTimes(1);
+    expect(fetchToken.mock.calls[0]).toHaveLength(2); // one single-stream token
+  });
+
+  it("keeps the old session and retries on the next check when rotation fails", async () => {
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
+    handlers._meetingMicStreaming = oldMic;
     fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
 
     await handlers._checkMeetingSessionRotation();
 
     expect(handlers._meetingMicStreaming).toBe(oldMic);
     expect(oldMic.sendAudio(Buffer.alloc(4800))).toBe(true);
-    expect(handlers._meetingStreamingStartedAt).toBe(startedAt);
 
     await handlers._checkMeetingSessionRotation();
     expect(handlers._meetingMicStreaming).not.toBe(oldMic);
   });
 
   it("closes the new session and leaves the stream alone when the meeting stops mid-rotation", async () => {
-    const oldMic = await liveStream("ek_first_mic");
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
     handlers._meetingMicStreaming = oldMic;
-    handlers._meetingStreamingStartedAt = Date.now() - 26 * MIN;
     fetchToken.mockImplementationOnce(async () => {
       handlers._stopMeetingSessionRotation(); // meeting-transcription-stop
       return "ek_fresh_late";
@@ -278,9 +232,8 @@ describe("meeting session rotation (IPCHandlers)", () => {
 
   it("stands a reconnect down when rotation already replaced the stream that dropped", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout"] });
-    const oldMic = await liveStream("ek_first_mic");
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
     handlers._meetingMicStreaming = oldMic;
-    handlers._meetingStreamingStartedAt = Date.now() - 26 * MIN;
 
     // Rotation starts, then the old mic session drops before the swap.
     const rotation = handlers._checkMeetingSessionRotation();

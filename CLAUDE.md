@@ -75,7 +75,7 @@ Voice/System Audio Chunks
     │     └── Crash-safe: valid WAV on disk at all times
     │
     ├──► OpenAI Realtime WebSocket (streaming transcription)
-    │     ├── Rotation at 25min (ipcHandlers + meetingSessionRotation.js):
+    │     ├── Rotation at 25min per session (connectedAt; ipcHandlers + meetingSessionRotation.js):
     │     │   fresh session connects first, swaps in, then the old one closes
     │     └── If disconnect: auto-reconnect with exponential backoff (fresh token)
     │
