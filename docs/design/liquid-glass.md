@@ -76,7 +76,7 @@ over the native material (`glass-native`: a 6% coat tint, a lit top edge and
 a sheen near the top), with no CSS radius: the window's native corners are
 the panel's corners.
 
-- Dictation overlay: only `LIVE_PANEL` (320 x 112) carries a material, the
+- Dictation overlay: only `LIVE_PANEL` (360 x 72) carries a material, the
   translucent `hud` (`vibrancyForSize` in `src/helpers/windowConfig.js`;
   `popover` read as an opaque grey slab). Idle live mode (`LIVE`, same rectangle,
   just Mando) and the toast/menu sizes stay transparent, and the live panel

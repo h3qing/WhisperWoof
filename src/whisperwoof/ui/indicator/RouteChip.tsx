@@ -22,10 +22,12 @@ export function RouteChip({ route, size = 'md' }: RouteChipProps) {
   if (route === 'paste-at-cursor') return null;
 
   const Icon = ROUTE_ICON[route];
+  // A sign, not prose: English in every UI language (as the live panel's pill).
+  const en = { lng: 'en' } as const;
   const label = {
-    'copy-to-clipboard': t('app.live.routeCopy', { defaultValue: 'Copy' }),
-    'save-as-markdown': t('app.live.routeNote', { defaultValue: 'Note' }),
-    project: t('app.live.routeProject', { defaultValue: 'Project' }),
+    'copy-to-clipboard': t('app.live.routeCopy', { ...en, defaultValue: 'Copy' }),
+    'save-as-markdown': t('app.live.routeNote', { ...en, defaultValue: 'Note' }),
+    project: t('app.live.routeProject', { ...en, defaultValue: 'Project' }),
   }[route];
   const sizing = size === 'sm' ? 'px-1.5 text-[9px] leading-[14px]' : 'px-2 text-[11px] leading-[18px]';
 

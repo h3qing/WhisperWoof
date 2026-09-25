@@ -192,6 +192,7 @@ only on large type.
 | Sheet | `card`, radius 22, two-part shadow, no border. |
 | Rows | hovered or selected rows become rounded (`rounded-lg`) with `surface-3` or `select`. |
 | Live words | `live-words`: gradient sheen over `live-glass`, 1px inset `live` outline, `box-decoration-break: clone`. Caret in `live`. |
+| Live panel | One-line ticker, 360 × 72 on native glass: Mando (36px) with a capsule sign under him (route, then status; English in every UI language), the words on one line to the right. The line slides left as it grows and the oldest words fade off the left edge. |
 | Status | icon, label and color together, never color alone. |
 
 ## 8. Motion

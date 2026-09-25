@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.0.0-C87B3A?style=flat-square" alt="v2.0.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.1.0-C87B3A?style=flat-square" alt="v2.1.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1182%20passing-brightgreen?style=flat-square" alt="1182 tests passing">
+  <img src="https://img.shields.io/badge/tests-1194%20passing-brightgreen?style=flat-square" alt="1194 tests passing">
 </p>
 
 <p align="center">
@@ -65,7 +65,7 @@ Nobody built the bridge. **WhisperWoof is that bridge.**
 
 Hands-free: **double-tap Fn** to lock recording on, then tap once to stop and paste.
 
-**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input. Settled text is solid ink, the tail that may still change sits in frosted glass; on release it's re-checked by your transcription model, polished, and pasted.
+**Live typing** (Settings → Transcription → How dictation works): watch the words appear while you speak, like a phone keyboard's voice input, on one line next to Mando that slides left as you keep talking. Settled text is solid ink, the tail that may still change sits in frosted glass; on release it's re-checked by your transcription model, polished, and pasted.
 
 ```
 Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)

@@ -1929,7 +1929,13 @@
       "done": "Pasted",
       "startTalking": "Start talking…",
       "noticeModelMissing": "Live preview model isn't downloaded (Settings → Transcription). Your text appears when you let go.",
-      "noticeUnavailable": "Live preview didn't start. Your text appears when you let go."
+      "noticeUnavailable": "Live preview didn't start. Your text appears when you let go.",
+      "routeCopy": "Copy",
+      "routeNote": "Note",
+      "routeProject": "Project",
+      "doneCopied": "Copied",
+      "doneNote": "Saved",
+      "doneProject": "Filed"
     }
   },
   "agentMode": {

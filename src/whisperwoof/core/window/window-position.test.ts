@@ -60,8 +60,11 @@ describe("native vibrancy per overlay size", () => {
     expect(vibrancyForSize("BASE")).toBeNull();
     expect(vibrancyForSize("WITH_TOAST")).toBeNull();
     expect(vibrancyForSize("WITH_MENU")).toBeNull();
-    expect(WINDOW_SIZES.LIVE_PANEL).toEqual({ width: 320, height: 112 });
-    expect(WINDOW_SIZES.LIVE).toEqual(WINDOW_SIZES.LIVE_PANEL);
+    expect(WINDOW_SIZES.LIVE_PANEL).toEqual({ width: 360, height: 72 });
+    // Idle live mode keeps the panel's width (a capture start never redraws
+    // the panel into a narrower window) and is tall enough for the full icon.
+    expect(WINDOW_SIZES.LIVE.width).toBe(WINDOW_SIZES.LIVE_PANEL.width);
+    expect(WINDOW_SIZES.LIVE.height).toBeGreaterThanOrEqual(WINDOW_SIZES.LIVE_PANEL.height);
   });
 
   it("ignores size keys that are not its own (renderer input)", () => {

@@ -660,10 +660,12 @@ export default function App() {
       {/* Voice button - position determined by panelStartPosition setting */}
       <div
         className={`fixed z-50 ${
+          // The live panel sits on the window's bottom edge: resizes are
+          // bottom-anchored, so it stays put when the idle window trims to it.
           nativeLivePanel
-            ? "inset-0"
+            ? "inset-x-0 bottom-0"
             : showLivePanel
-              ? "bottom-0 left-1/2 -translate-x-1/2" // 112px panel in a 112px-tall window
+              ? "bottom-0 left-1/2 -translate-x-1/2"
             : panelStartPosition === "bottom-left"
               ? "bottom-1 left-1"
               : panelStartPosition === "center"
@@ -685,9 +687,9 @@ export default function App() {
           }}
         >
           {showLivePanel ? (
-            // Over the panel's top-right corner, outside the mic button (no
-            // nested buttons).
-            <div className="absolute right-3.5 top-2.5 z-10">{cancelButton}</div>
+            // At the panel's right end, centred on the line, outside the mic
+            // button (no nested buttons). The panel keeps a gutter for it.
+            <div className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2">{cancelButton}</div>
           ) : (
             cancelButton
           )}

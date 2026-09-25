@@ -56,8 +56,32 @@ describe('LiveDictationPanel notice', () => {
     expect(html).not.toContain('didn&#x27;t start');
   });
 
-  it('fades only the oldest of three lines, never a single line', () => {
-    const html = renderWith({ phase: 'streaming', committed: '好', partial: '' }, null);
-    expect(html).toContain('linear-gradient(to top, black 52px, transparent 66px)');
+});
+
+describe('LiveDictationPanel ticker', () => {
+  function renderWith(props: Record<string, unknown>): string {
+    return renderToStaticMarkup(
+      createElement(LiveDictationPanel, { speaking: true, celebrating: false, ...props } as never)
+    );
+  }
+
+  it('keeps the words on one line that slides instead of wrapping', () => {
+    const html = renderWith({ view: { phase: 'streaming', committed: '今天下午三点开个会', partial: '' } });
+    expect(html).toContain('white-space:nowrap');
+    expect(html).toContain('今天下午三点开个会');
+  });
+
+  it('shows where the words go in the pill under Mando', () => {
+    const html = renderWith({
+      view: { phase: 'streaming', committed: '记一下', partial: '' },
+      route: 'save-as-markdown',
+    });
+    expect(html).toMatch(/role="status"[^>]*>.*Note/);
+  });
+
+  it('says Listening for a plain dictation, and names the destination once done', () => {
+    expect(renderWith({ view: { phase: 'listening', committed: '', partial: '' } })).toContain('Listening');
+    const done = renderWith({ view: { phase: 'done', committed: '好。', partial: '' }, route: 'copy-to-clipboard' });
+    expect(done).toContain('Copied');
   });
 });
