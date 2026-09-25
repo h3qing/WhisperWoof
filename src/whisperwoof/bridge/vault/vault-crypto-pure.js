@@ -27,6 +27,21 @@ class VaultCryptoError extends Error {
   }
 }
 
+/**
+ * Concatenate into freshly allocated memory. Buffer.concat takes small results
+ * from Node's shared 8 KB pool, and a pooled Buffer's .buffer exposes the
+ * whole slab — so anything holding a secret or plaintext must not live there.
+ */
+function unpooledConcat(parts) {
+  const out = Buffer.alloc(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    part.copy(out, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
 function hkdf(ikm, info, length = KEY_LEN, salt = Buffer.alloc(0)) {
   return Buffer.from(crypto.hkdfSync("sha256", ikm, salt, Buffer.from(info, "utf8"), length));
 }
@@ -47,7 +62,7 @@ function aeadOpen(key, box, aad = "") {
     const decipher = crypto.createDecipheriv("aes-256-gcm", key, box.nonce);
     decipher.setAAD(Buffer.from(aad, "utf8"));
     decipher.setAuthTag(box.ct.subarray(box.ct.length - TAG_LEN));
-    return Buffer.concat([decipher.update(box.ct.subarray(0, box.ct.length - TAG_LEN)), decipher.final()]);
+    return unpooledConcat([decipher.update(box.ct.subarray(0, box.ct.length - TAG_LEN)), decipher.final()]);
   } catch {
     throw new VaultCryptoError("Decryption failed");
   }
@@ -86,7 +101,7 @@ function scryptKey(password, salt, params) {
 
 function x25519PrivateFromSeed(seed) {
   return crypto.createPrivateKey({
-    key: Buffer.concat([X25519_PKCS8_PREFIX, seed]),
+    key: unpooledConcat([X25519_PKCS8_PREFIX, seed]),
     format: "der",
     type: "pkcs8",
   });
@@ -171,6 +186,7 @@ module.exports = {
   NONCE_LEN,
   TAG_LEN,
   VaultCryptoError,
+  unpooledConcat,
   hkdf,
   aeadSeal,
   aeadOpen,

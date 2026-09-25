@@ -12,6 +12,7 @@ import UpcomingMeetings from "./UpcomingMeetings";
 import { useSettingsStore } from "../stores/settingsStore";
 import ClipboardHistory from "../whisperwoof/ui/clipboard-preview/ClipboardHistory";
 import HomeStats from "../whisperwoof/ui/home/HomeStats";
+import EncryptionOffer from "../whisperwoof/ui/vault/EncryptionOffer";
 import ModelStatusBar from "./ModelStatusBar";
 
 interface HistoryViewProps {
@@ -120,6 +121,8 @@ export default function HistoryView({
         }} />
         {/* WhisperWoof: active model indicator — what STT + cleanup models are running */}
         <ModelStatusBar onOpenSettings={onOpenSettings} />
+        {/* WhisperWoof: one-time encryption offer, with a real "no" */}
+        <EncryptionOffer />
         {showCloudMigrationBanner && (
           <div className="mb-3 relative rounded-[var(--radius-sheet)] bg-card shadow-card p-3">
             <button

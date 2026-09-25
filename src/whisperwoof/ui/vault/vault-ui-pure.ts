@@ -391,3 +391,24 @@ export function lockNowDescription(status: VaultStatus): string {
     ? "A meeting is recording. WhisperWoof locks when it ends."
     : "Dictation keeps working. History and notes need an unlock.";
 }
+
+// --- The one-time offer on Home ---------------------------------------------
+
+/** What someone answered to the Home offer (kept on this Mac only). */
+export type EncryptionOfferAnswer = "declined" | "accepted" | null;
+
+export const ENCRYPTION_OFFER_KEY = "whisperwoof-encryption-offer";
+
+/**
+ * Encryption is opt-in, so Home offers it once — with a real "no". After a
+ * decline, the reminder shows until the view goes away, then never again.
+ */
+export function encryptionOfferView(
+  status: VaultStatus | null | undefined,
+  answer: EncryptionOfferAnswer,
+  declinedJustNow: boolean
+): "offer" | "declined" | "hidden" {
+  if (!status || !status.platformSupported || status.status !== "off") return "hidden";
+  if (declinedJustNow) return "declined";
+  return answer ? "hidden" : "offer";
+}

@@ -409,6 +409,12 @@ function setupVault() {
         broadcast: (channel, payload) => ipcHandlers.broadcastToWindows(channel, payload),
       }),
   });
+  // Calendar accounts and events are in the database: pause while locked.
+  vault.onUnlocked(async () => {
+    googleCalendarManager?.start();
+    meetingDetectionEngine?._schedulePreMeetingNotification?.();
+  });
+  vault.onLocking(async () => googleCalendarManager?.stop());
   vault.addLockBlocker(() => Boolean(ipcHandlers._meetingAudioBuffer?.isActive));
   controller.onStatus(() => trayManager?.updateTrayMenu?.());
   controller.refreshTouchIdAvailability().catch(() => {});

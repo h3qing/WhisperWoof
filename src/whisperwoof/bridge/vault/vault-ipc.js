@@ -38,6 +38,7 @@ function registerVaultIpc(ipcMain) {
 
   handle("vault-get-status", () => controller.getStatus());
   handle("vault-begin-setup", () => controller.beginSetup());
+  handle("vault-copy-phrase", () => controller.copyPhrase());
   handle("vault-complete-setup", (a) => {
     const args = obj(a);
     return controller.completeSetup({

@@ -188,3 +188,11 @@ describe("rewrap (new recovery phrase)", () => {
     expect(body(moved).equals(body(sealed))).toBe(true);
   });
 });
+
+describe("decrypt output", () => {
+  it("owns its memory (safe to hand .buffer to a renderer)", () => {
+    const k = pair();
+    const out = ww.decrypt(ww.encrypt(Buffer.from("small note"), k.publicRaw), k.privateKey).plaintext;
+    expect(out.byteOffset === 0 && out.buffer.byteLength === out.length).toBe(true);
+  });
+});

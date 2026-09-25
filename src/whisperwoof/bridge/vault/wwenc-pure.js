@@ -206,7 +206,7 @@ function decrypt(buf, privateKey, { allowPartial = false } = {}) {
   }
   vc.wipe(payloadKey);
   if (!complete && !allowPartial) throw new WwencError("TRUNCATED", "This file is incomplete");
-  return { plaintext: Buffer.concat(parts), complete, kind: h.kind };
+  return { plaintext: vc.unpooledConcat(parts), complete, kind: h.kind };
 }
 
 /** Whether `privateKey` opens this file (header only — the body isn't decrypted). */

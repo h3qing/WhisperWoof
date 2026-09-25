@@ -15,7 +15,11 @@
 //   create               → {"publicKey":b64 X9.63,"keyBlob":b64}
 //   unlock  (stdin JSON {"keyBlob","peer","reason","cancelTitle"})
 //                        → {"shared":b64}   or error cancelled|fallback|invalidated|lockout|failed
+//   copy    (stdin JSON {"text"}) → {"copied":true}
+//           Puts text on the clipboard marked concealed + transient
+//           (nspasteboard.org), so clipboard managers don't keep it.
 
+import AppKit
 import CryptoKit
 import Foundation
 import LocalAuthentication
@@ -125,9 +129,22 @@ func unlock() -> Never {
   }
 }
 
+func copySecret() -> Never {
+  guard let text = readInput()["text"], !text.isEmpty else { fail("failed", "Bad input") }
+  let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+  let transient = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+  let board = NSPasteboard.general
+  board.declareTypes([.string, concealed, transient], owner: nil)
+  guard board.setString(text, forType: .string) else { fail("failed", "Couldn't copy") }
+  board.setData(Data(), forType: concealed)
+  board.setData(Data(), forType: transient)
+  emit(["copied": true])
+}
+
 switch CommandLine.arguments.dropFirst().first {
 case "status": status()
 case "create": create()
 case "unlock": unlock()
-default: fail("failed", "usage: macos-vault-helper status|create|unlock")
+case "copy": copySecret()
+default: fail("failed", "usage: macos-vault-helper status|create|unlock|copy")
 }

@@ -1,8 +1,9 @@
 // Small building blocks shared by the encryption dialogs, the settings section
 // and the lock screen. Tokens only; every control is a capsule (DESIGN.md).
 
-import React, { useId } from "react";
-import { CircleAlert, Loader2 } from "lucide-react";
+import React, { useId, useState } from "react";
+import { Check, CircleAlert, Copy, Loader2 } from "lucide-react";
+import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../components/lib/utils";
 import type { VaultMigration } from "../../../types/electron";
@@ -19,7 +20,10 @@ import {
 export function FieldError({ message, className }: { message: string | null; className?: string }) {
   if (!message) return null;
   return (
-    <p role="alert" className={cn("flex items-start gap-1.5 text-[13px] text-destructive", className)}>
+    <p
+      role="alert"
+      className={cn("flex items-start gap-1.5 text-[13px] text-destructive", className)}
+    >
       <CircleAlert className="size-3.5 shrink-0 mt-[3px]" aria-hidden />
       <span>{message}</span>
     </p>
@@ -32,7 +36,13 @@ type PasswordFieldProps = Omit<React.ComponentProps<"input">, "onChange" | "type
   onValueChange: (value: string) => void;
 };
 
-export function PasswordField({ label, value, onValueChange, className, ...rest }: PasswordFieldProps) {
+export function PasswordField({
+  label,
+  value,
+  onValueChange,
+  className,
+  ...rest
+}: PasswordFieldProps) {
   const id = useId();
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -90,23 +100,45 @@ export function NewPasswordFields({
 }
 
 /**
- * The recovery phrase, shown once. No copy button and no selection: the
- * clipboard monitor would save the words into history.
+ * The recovery phrase, shown once. Copying goes only through the Copy button:
+ * main puts the words on the clipboard marked concealed (clipboard managers
+ * skip them), keeps them out of WhisperWoof's history and clears them after a
+ * minute. Plain selection and ⌘C stay off, so there's no unprotected copy.
  */
 export function PhraseGrid({ words }: { words: readonly string[] }) {
+  const [copied, setCopied] = useState<"idle" | "done" | "failed">("idle");
+  const copy = async () => {
+    const result = await window.electronAPI?.vaultCopyPhrase?.().catch(() => null);
+    setCopied(result?.success ? "done" : "failed");
+  };
   return (
-    <ol
-      aria-label="Recovery phrase"
-      className="grid grid-cols-3 gap-x-4 gap-y-2.5 rounded-lg bg-surface-1 p-4 select-none"
-      onCopy={(e) => e.preventDefault()}
-    >
-      {words.map((word, i) => (
-        <li key={i} className="flex items-baseline gap-2 min-w-0">
-          <span className="w-5 shrink-0 text-right text-xs text-faint tabular-nums">{i + 1}</span>
-          <span className="truncate text-[15px] font-semibold text-foreground">{word}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="space-y-2">
+      <ol
+        aria-label="Recovery phrase"
+        className="grid grid-cols-3 gap-x-4 gap-y-2.5 rounded-lg bg-surface-1 p-4 select-none"
+        onCopy={(e) => e.preventDefault()}
+      >
+        {words.map((word, i) => (
+          <li key={i} className="flex items-baseline gap-2 min-w-0">
+            <span className="w-5 shrink-0 text-right text-xs text-faint tabular-nums">{i + 1}</span>
+            <span className="truncate text-[15px] font-semibold text-foreground">{word}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="flex items-center gap-3">
+        <Button type="button" variant="outline" size="sm" onClick={() => void copy()}>
+          {copied === "done" ? <Check aria-hidden /> : <Copy aria-hidden />}
+          {copied === "done" ? "Copied" : "Copy"}
+        </Button>
+        <p className="text-[13px] text-muted-foreground" aria-live="polite">
+          {copied === "done"
+            ? "Paste it into your password manager. The clipboard clears in 1 minute."
+            : copied === "failed"
+              ? "Couldn't copy. Write the words down instead."
+              : "Or paste it into your password manager."}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -124,7 +156,10 @@ export function ConfirmWordsFields({
     <div className="grid grid-cols-3 gap-3">
       {indexes.map((index, n) => (
         <div key={index} className="space-y-1.5">
-          <label htmlFor={`${baseId}-${index}`} className="block text-[13px] font-semibold text-foreground">
+          <label
+            htmlFor={`${baseId}-${index}`}
+            className="block text-[13px] font-semibold text-foreground"
+          >
             {wordLabel(index)}
           </label>
           <Input
@@ -143,7 +178,13 @@ export function ConfirmWordsFields({
   );
 }
 
-export function MigrationProgress({ migration, notesReadable }: { migration: VaultMigration; notesReadable: boolean }) {
+export function MigrationProgress({
+  migration,
+  notesReadable,
+}: {
+  migration: VaultMigration;
+  notesReadable: boolean;
+}) {
   const percent = migrationPercent(migration);
   const error = migrationErrorText(migration);
   return (
@@ -197,7 +238,9 @@ export function CheckRow({
       />
       <label htmlFor={id} className="min-w-0 cursor-pointer">
         <span className="block text-sm font-semibold text-foreground">{label}</span>
-        {description && <span className="block text-[13px] text-muted-foreground mt-0.5">{description}</span>}
+        {description && (
+          <span className="block text-[13px] text-muted-foreground mt-0.5">{description}</span>
+        )}
       </label>
     </div>
   );
@@ -216,7 +259,10 @@ export function SegmentedControl<T extends string | number>({
   label: string;
   disabled?: boolean;
 }) {
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value)
+  );
   return (
     <div
       role="radiogroup"
@@ -231,7 +277,10 @@ export function SegmentedControl<T extends string | number>({
       <span
         aria-hidden
         className="absolute top-[3px] bottom-[3px] left-[3px] rounded-full bg-card shadow-card dark:bg-surface-raised transition-transform duration-[320ms] ease-[cubic-bezier(.3,.7,.3,1.15)]"
-        style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${index * 100}%)` }}
+        style={{
+          width: `calc((100% - 6px) / ${options.length})`,
+          transform: `translateX(${index * 100}%)`,
+        }}
       />
       {options.map((option) => {
         const selected = option.value === value;
@@ -260,5 +309,9 @@ export function SegmentedControl<T extends string | number>({
 /** "Step 2 of 5", quiet, above a dialog title. */
 export function StepCount({ number, total }: { number: number | null; total: number }) {
   if (number === null) return null;
-  return <p className="text-xs font-medium text-muted-foreground tabular-nums">Step {number} of {total}</p>;
+  return (
+    <p className="text-xs font-medium text-muted-foreground tabular-nums">
+      Step {number} of {total}
+    </p>
+  );
 }

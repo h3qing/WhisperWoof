@@ -88,4 +88,10 @@ async function deriveSecret({ keyBlob, peer, reason }) {
   return Buffer.from(result.shared, "base64");
 }
 
-module.exports = { getAvailability, createKey, deriveSecret };
+/** Copy text marked concealed + transient, so clipboard managers skip it. → boolean */
+async function copySecret(text) {
+  const result = await run("copy", { text }, QUICK_TIMEOUT_MS);
+  return result.copied === true;
+}
+
+module.exports = { getAvailability, createKey, deriveSecret, copySecret };

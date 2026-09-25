@@ -18,6 +18,7 @@ const { vaultPaths, ensurePrivateDir, writeFileAtomic } = require("./vault-paths
 const planPure = require("./migration-plan-pure");
 
 const SETUP_TTL_MS = 30 * 60 * 1000;
+const CLIPBOARD_CLEAR_MS = 60 * 1000;
 const TOUCH_ID_REASON = "unlock your WhisperWoof history and notes";
 
 let setup = null; // { entropy, words, confirmIndexes, expires, purpose: "setup" | "rotate" }
@@ -105,6 +106,26 @@ function takeConfirmedSession(purpose, confirmWords) {
   const session = setup;
   setup = null;
   return session;
+}
+
+/**
+ * Copy the recovery phrase being shown (setup or a new phrase) in one click.
+ * Kept out of WhisperWoof's clipboard history, marked concealed/transient for
+ * other clipboard managers, and cleared after a minute if it's still there.
+ */
+async function copyPhrase() {
+  return guarded(async () => {
+    if (!setup || Date.now() > setup.expires) return fail("There's no recovery phrase to copy.", "INVALID");
+    const text = setup.words.join(" ");
+    const { clipboard } = require("electron");
+    require("../app-init").skipClipboardCapture(text);
+    const marked = await touchId.copySecret(text).catch(() => false);
+    if (!marked) clipboard.writeText(text);
+    setTimeout(() => {
+      if (clipboard.readText() === text) clipboard.clear();
+    }, CLIPBOARD_CLEAR_MS).unref?.();
+    return ok({ clearsInSeconds: CLIPBOARD_CLEAR_MS / 1000 });
+  });
 }
 
 function beginSetup() {
@@ -312,6 +333,7 @@ module.exports = {
   onStatus,
   refreshTouchIdAvailability,
   beginSetup,
+  copyPhrase,
   completeSetup,
   unlockWithTouchId,
   unlockWithPassword,

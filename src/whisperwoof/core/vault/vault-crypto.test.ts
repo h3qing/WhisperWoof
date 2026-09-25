@@ -102,3 +102,21 @@ describe("wipe", () => {
     expect([...b]).toEqual([0, 0, 0]);
   });
 });
+
+describe("secrets never share Node's Buffer pool", () => {
+  // A pooled Buffer's .buffer is a shared 8 KB slab: handing it to a renderer
+  // (or anywhere) leaks whatever else sits in the slab — keys included.
+  const ownsMemory = (b: Buffer) => b.byteOffset === 0 && b.buffer.byteLength === b.length;
+
+  it("aeadOpen returns a Buffer with its own memory", () => {
+    const key = crypto.randomBytes(32);
+    const small = vc.aeadOpen(key, vc.aeadSeal(key, Buffer.from("tiny"), ""), "");
+    expect(ownsMemory(small)).toBe(true);
+  });
+
+  it("unpooledConcat copies into fresh memory", () => {
+    const out = vc.unpooledConcat([Buffer.from("ab"), Buffer.from("cd")]);
+    expect(out.toString()).toBe("abcd");
+    expect(ownsMemory(out)).toBe(true);
+  });
+});

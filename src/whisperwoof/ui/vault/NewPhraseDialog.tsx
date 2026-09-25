@@ -35,7 +35,7 @@ const HEADINGS: Record<Step, { title: string; description: string }> = {
   phrase: {
     title: "Write down your new recovery phrase",
     description:
-      "These 12 words open your data on any Mac, even if you forget your password. Write them on paper and keep them somewhere safe. They won't be shown again.",
+      "These 12 words open your data on any Mac, even if you forget your password. Write them down or save them in your password manager. They won't be shown again.",
   },
   confirm: { title: "Check your new recovery phrase", description: "Type these words from your new recovery phrase." },
   working: {

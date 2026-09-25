@@ -878,6 +878,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("vault-status", listener);
   },
   vaultBeginSetup: () => ipcRenderer.invoke("vault-begin-setup"),
+  vaultCopyPhrase: () => ipcRenderer.invoke("vault-copy-phrase"),
   vaultCompleteSetup: (args) => ipcRenderer.invoke("vault-complete-setup", args),
   vaultUnlockWithTouchId: () => ipcRenderer.invoke("vault-unlock-touchid"),
   vaultUnlockWithPassword: (password) => ipcRenderer.invoke("vault-unlock-password", password),

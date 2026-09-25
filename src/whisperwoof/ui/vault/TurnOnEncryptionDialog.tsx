@@ -62,7 +62,7 @@ function heading(step: TurnOnStep, status: VaultStatus): { title: string; descri
       return {
         title: "Write down your recovery phrase",
         description:
-          "These 12 words open your data on any Mac, even if you forget your password. Write them on paper and keep them somewhere safe. They won't be shown again.",
+          "These 12 words open your data on any Mac, even if you forget your password. Write them down or save them in your password manager. They won't be shown again.",
       };
     case "confirm":
       return { title: "Check your recovery phrase", description: "Type these words from your recovery phrase." };

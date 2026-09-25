@@ -588,7 +588,8 @@ class IPCHandlers {
 
     ipcMain.handle("get-audio-buffer", async (event, id) => {
       const buffer = this.audioStorageManager.getAudioBuffer(id);
-      return buffer ? buffer.buffer : null;
+      // Exactly these bytes: a pooled Buffer's .buffer would carry its whole slab.
+      return buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : null;
     });
 
     ipcMain.handle("delete-transcription-audio", async (event, id) => {

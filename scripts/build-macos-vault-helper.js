@@ -143,6 +143,8 @@ const compileArgs = [
   "-o",
   outputBinary,
   "-framework",
+  "AppKit",
+  "-framework",
   "LocalAuthentication",
   "-framework",
   "Security",

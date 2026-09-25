@@ -1542,6 +1542,8 @@ declare global {
       vaultGetStatus?: () => Promise<VaultStatus>;
       onVaultStatus?: (callback: (status: VaultStatus) => void) => () => void;
       vaultBeginSetup?: () => Promise<VaultNewPhraseResult>;
+      /** Copies the phrase being shown: kept out of history, concealed, cleared after a minute. */
+      vaultCopyPhrase?: () => Promise<VaultResult>;
       vaultCompleteSetup?: (args: {
         password: string;
         confirmWords: Record<number, string>;

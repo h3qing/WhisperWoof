@@ -214,6 +214,11 @@ function startClipboardMonitor() {
   debugLogger.log("[WhisperWoof] Clipboard monitoring started");
 }
 
+/** Don't record this text as a clipboard entry (e.g. a recovery phrase being copied). */
+function skipClipboardCapture(text) {
+  lastClipboardText = text;
+}
+
 function stopClipboardMonitor() {
   if (clipboardInterval) {
     clearInterval(clipboardInterval);
@@ -642,6 +647,7 @@ module.exports = {
   updateWhisperWoofEntryText,
   startClipboardMonitor,
   stopClipboardMonitor,
+  skipClipboardCapture,
   createWhisperWoofProject,
   getWhisperWoofProjects,
   deleteWhisperWoofProject,

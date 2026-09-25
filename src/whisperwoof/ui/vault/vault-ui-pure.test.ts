@@ -6,6 +6,7 @@ import {
   checkConfirmWords,
   checkNewPassword,
   confirmWordsPayload,
+  encryptionOfferView,
   encryptionSummary,
   initialAuthMode,
   initialTurnOnState,
@@ -361,5 +362,30 @@ describe("settings copy", () => {
     expect(touchIdRowDescription({ available: false, reason: "notEnrolled" })).toMatch(/Add a fingerprint/);
     expect(touchIdRowDescription({ available: false, reason: "lockout" })).toMatch(/too many tries/);
     expect(touchIdRowDescription({ available: false })).toBe("This Mac doesn't have Touch ID.");
+  });
+});
+
+describe("encryptionOfferView (the one-time offer on Home)", () => {
+  const off = status({ status: "off", prefs: { touchId: false, lockOnSleep: true, idleMinutes: 0, notesReadable: false } });
+
+  it("offers encryption to someone who hasn't answered yet", () => {
+    expect(encryptionOfferView(off, null, false)).toBe("offer");
+  });
+
+  it("answers a decline with where to find it later, once", () => {
+    expect(encryptionOfferView(off, "declined", true)).toBe("declined");
+    expect(encryptionOfferView(off, "declined", false)).toBe("hidden");
+  });
+
+  it("stays out of the way when encryption is on, unsupported, or status isn't known yet", () => {
+    expect(encryptionOfferView(status({ status: "unlocked" }), null, false)).toBe("hidden");
+    expect(encryptionOfferView(status({ status: "locked" }), null, false)).toBe("hidden");
+    expect(encryptionOfferView({ ...off, platformSupported: false }, null, false)).toBe("hidden");
+    expect(encryptionOfferView(undefined, null, false)).toBe("hidden");
+    expect(encryptionOfferView(null, null, false)).toBe("hidden");
+  });
+
+  it("doesn't come back after someone turned it on and later off", () => {
+    expect(encryptionOfferView(off, "accepted", false)).toBe("hidden");
   });
 });
