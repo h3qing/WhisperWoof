@@ -8,6 +8,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Fixed
 - **Meeting transcription no longer stops after 25 minutes.** Long meetings switch to a fresh transcription session before OpenAI's 30-minute limit, but the old session was closed and never replaced, so everything after minute 25 stayed untranscribed. The new session now connects first and takes over without a gap, and the words spoken as the switch happens aren't lost. The full meeting transcript is shown when you stop, not only the part since the last switch.
 - **Dropped meeting connections reconnect when you're signed in.** A lost meeting connection used to reconnect with your own OpenAI key, which signed-in users usually don't have, so it never recovered. It now gets a new session the same way the meeting started.
+- **Stopping kept no text when OpenAI hung up at that moment.** If the connection closed while a meeting (or OpenAI live dictation) was saving its last words, the stop came back empty for that whole session. Its text is kept now.
 
 ## [2.2.0] - 2026-09-25 — A clipboard you can actually use
 
