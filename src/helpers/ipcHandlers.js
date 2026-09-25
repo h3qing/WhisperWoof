@@ -2936,6 +2936,11 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-set-notes-dir", async (_event, dir) => {
       try {
+        require("../whisperwoof/bridge/markdown-route").assertNotesDirMovable();
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+      try {
         const { setNotesDir } = require("../whisperwoof/bridge/markdown-route");
         const result = setNotesDir(dir);
         return { success: true, path: result };
