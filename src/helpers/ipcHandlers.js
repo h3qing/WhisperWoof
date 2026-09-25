@@ -3688,7 +3688,7 @@ class IPCHandlers {
         if (!pluginId || !text) {
           return { success: false, error: "Missing pluginId or text" };
         }
-        const { getPlugins } = require("../whisperwoof/bridge/plugin-bridge");
+        const { getPlugins, authorizePluginCommand } = require("../whisperwoof/bridge/plugin-bridge");
         const plugins = getPlugins();
         const plugin = plugins.find((p) => p.id === pluginId);
         if (!plugin) {
@@ -3697,13 +3697,17 @@ class IPCHandlers {
         if (!plugin.enabled) {
           return { success: false, error: `Plugin "${plugin.name}" is not enabled` };
         }
+        // The stored command is renderer-writable; the main process decides what runs.
+        const authorized = await authorizePluginCommand(plugin);
+        if (!authorized.ok) {
+          return { success: false, error: authorized.error };
+        }
 
         // Use dynamic import for MCP SDK (ESM module)
         const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
         const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js");
 
-        const [command, ...args] = plugin.command.split(/\s+/);
-        const transport = new StdioClientTransport({ command, args });
+        const transport = new StdioClientTransport({ command: authorized.command, args: authorized.args });
         const client = new Client({ name: "whisperwoof", version: "0.9.0" }, { capabilities: {} });
 
         await client.connect(transport);

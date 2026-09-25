@@ -34,6 +34,8 @@ const USER_DATA = app.getPath("userData");
 const CONFIG_FILES = {
   vocabulary: path.join(USER_DATA, "whisperwoof-vocabulary.json"),
   styleExamples: path.join(USER_DATA, "whisperwoof-style-examples.json"),
+  // Imported plugin commands are untrusted, like any write to this file:
+  // plugin-bridge's authorizePluginCommand asks before any command runs.
   plugins: path.join(USER_DATA, "whisperwoof-plugins.json"),
 };
 

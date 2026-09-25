@@ -1,7 +1,13 @@
 const debugLogger = require("../../helpers/debugLogger");
 const path = require("path");
 const fs = require("fs");
-const { app } = require("electron");
+const { app, dialog } = require("electron");
+const {
+  ALLOW_BUTTON,
+  parsePluginCommand,
+  buildApprovalDialog,
+  pickSetupEnv,
+} = require("./plugin-command-pure");
 
 // Plugins stored in a JSON file
 const PLUGINS_FILE = path.join(app.getPath("userData"), "whisperwoof-plugins.json");
@@ -62,8 +68,8 @@ function updatePlugin(id, updates) {
   // If env is provided (API key from setup), store it securely via safeStorage
   // and set the key in process.env so child processes (MCP servers) can read it
   if (updates.env) {
-    for (const [key, value] of Object.entries(updates.env)) {
-      if (value) process.env[key] = value;
+    for (const [key, value] of Object.entries(pickSetupEnv(id, updates.env, DEFAULT_PLUGINS))) {
+      process.env[key] = value;
     }
   }
   const { env, ...rest } = updates;
@@ -85,4 +91,35 @@ function removePlugin(id) {
   savePlugins(plugins);
 }
 
-module.exports = { getPlugins, updatePlugin, addPlugin, removePlugin };
+// The user's answer per exact command, this session. Main-process memory only:
+// anything on disk, the plugins file included, is renderer-writable. Keeping
+// the answer, pending or given, means one dialog per command, and a
+// Don't Allow can't be asked again and again until the user gives in.
+let answers = new Map();
+
+function askToRun(plugin, display) {
+  if (!answers.has(display)) {
+    const allowed = dialog
+      .showMessageBox(buildApprovalDialog(plugin.name, display))
+      .then(({ response }) => response === ALLOW_BUTTON, () => false);
+    answers = new Map([...answers, [display, allowed]]);
+  }
+  return answers.get(display);
+}
+
+/**
+ * Gate before spawning a plugin's MCP server: the user allows the exact
+ * command in a native dialog, once per session.
+ * Returns { ok, command, args } or { ok: false, error }.
+ */
+async function authorizePluginCommand(plugin) {
+  const parsed = parsePluginCommand(plugin.command);
+  if (!parsed) return { ok: false, error: `Plugin "${plugin.name}" has an invalid command` };
+  if (!(await askToRun(plugin, parsed.display))) {
+    debugLogger.warn("[WhisperWoof] Plugin command not allowed", { id: plugin.id });
+    return { ok: false, error: `Plugin "${plugin.name}" was not allowed to run. Restart WhisperWoof to be asked again.` };
+  }
+  return { ok: true, command: parsed.command, args: parsed.args };
+}
+
+module.exports = { getPlugins, updatePlugin, addPlugin, removePlugin, authorizePluginCommand };
