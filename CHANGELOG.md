@@ -5,6 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-25 — Live typing and Parakeet actually ship
+
+### Fixed
+- **Live typing works in the downloaded app.** Every release since 1.16.0 was built without the sherpa-onnx speech servers: the release build downloaded them and then its cleanup step deleted them again, because the list of files to keep was compared as one long string. So the live preview could never start (the panel sat on "Start talking…"), and the Parakeet, SenseVoice and X-ASR models couldn't run either. Building from source was fine, which is why it went unnoticed. The servers are now kept, and the release build fails loudly if they're ever missing again.
+
 ## [2.1.0] - 2026-09-25 — Live typing as a one-line ticker
 
 ### Changed
