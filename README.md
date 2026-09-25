@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.1.0-C87B3A?style=flat-square" alt="v2.1.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.1.1-C87B3A?style=flat-square" alt="v2.1.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1194%20passing-brightgreen?style=flat-square" alt="1194 tests passing">
+  <img src="https://img.shields.io/badge/tests-1197%20passing-brightgreen?style=flat-square" alt="1197 tests passing">
 </p>
 
 <p align="center">

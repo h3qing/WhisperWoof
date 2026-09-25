@@ -310,10 +310,13 @@ function setExecutable(filePath) {
   }
 }
 
-function cleanupFiles(binDir, prefix, keepPrefix) {
+// Removes files starting with `prefix` that start with none of `keep` (one
+// name prefix or a list of them): binaries left behind by older versions.
+function cleanupFiles(binDir, prefix, keep) {
+  const keepPrefixes = Array.isArray(keep) ? keep : [keep];
   const files = fs.readdirSync(binDir).filter((f) => f.startsWith(prefix));
   files.forEach((file) => {
-    if (!file.startsWith(keepPrefix)) {
+    if (!keepPrefixes.some((keepPrefix) => file.startsWith(keepPrefix))) {
       const filePath = path.join(binDir, file);
       console.log(`Removing old binary: ${file}`);
       fs.unlinkSync(filePath);

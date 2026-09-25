@@ -65,6 +65,12 @@ const BINARIES = {
 
 const BIN_DIR = path.join(__dirname, "..", "resources", "bin");
 
+// The executables one platform's install puts in BIN_DIR (the app needs all three).
+function installedBinaryNames(platformArch) {
+  const config = BINARIES[platformArch];
+  return [config.outputName, config.onlineOutputName, config.diarizeOutputName];
+}
+
 const VERSIONED_LIB_PATTERN = /^(lib.+?)\.(\d+\.\d+\.\d+)\.(dylib|so|dll)$/;
 const REQUIRED_MACOS_ARCHITECTURES = ["x86_64", "arm64"];
 
@@ -362,11 +368,17 @@ async function main() {
     }
 
     if (args.shouldCleanup) {
-      cleanupFiles(BIN_DIR, "sherpa-onnx", [
-        `sherpa-onnx-ws-${args.platformArch}`,
-        `sherpa-onnx-online-ws-${args.platformArch}`,
-        `sherpa-onnx-diarize-${args.platformArch}`,
-      ]);
+      cleanupFiles(BIN_DIR, "sherpa-onnx", installedBinaryNames(args.platformArch));
+    }
+
+    // Cleanup once deleted everything it had just installed (every CI release
+    // from 1.16.0 to 2.1.0 shipped without sherpa-onnx). Fail loudly instead.
+    const missing = installedBinaryNames(args.platformArch).filter(
+      (name) => !fs.existsSync(path.join(BIN_DIR, name))
+    );
+    if (missing.length > 0) {
+      console.error(`Missing after install: ${missing.join(", ")}`);
+      process.exitCode = 1;
     }
   } else {
     console.log("Downloading binaries for all platforms:");
@@ -398,6 +410,7 @@ module.exports = {
   BINARIES,
   BIN_DIR,
   getDownloadUrl,
+  installedBinaryNames,
   parseMacosDeploymentTargets,
   validateMacosDeploymentTargets,
   verifyPackagedMacosParakeet,
