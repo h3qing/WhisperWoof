@@ -27,6 +27,11 @@ interface WhisperWoofElectronAPI {
   whisperwoofToggleFavorite: (id: string) => Promise<{ success: boolean; isFavorite: boolean }>;
   whisperwoofGetFavorites: (limit: number) => Promise<Entry[]>;
   whisperwoofGetImage: (imagePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+  /** Clipboard images by entry id, converted for display (HEIC, TIFF → PNG). */
+  whisperwoofClipboardPreview?: (
+    id: string,
+    options: { size: "thumb" | "large" }
+  ) => Promise<{ success: boolean; data?: string; mime?: string; error?: string }>;
   whisperwoofUpdateEntry: (
     id: string,
     patch: { undo: true }
@@ -247,19 +252,22 @@ const EntryRow = React.memo(function EntryRow({
   );
 });
 
-function ImagePreview({ imagePath }: { readonly imagePath: string }) {
+function ImagePreview({ imagePath, entryId }: { readonly imagePath: string; readonly entryId: string }) {
   const [imageData, setImageData] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const electron = getAPI();
+    const request = electron.whisperwoofClipboardPreview
+      ? electron.whisperwoofClipboardPreview(entryId, { size: "large" })
+      : electron.whisperwoofGetImage(imagePath).then((r) => ({ ...r, mime: "image/png" }));
 
-    getAPI()
-      .whisperwoofGetImage(imagePath)
+    request
       .then((result) => {
         if (cancelled) return;
         if (result.success && result.data) {
-          setImageData(result.data);
+          setImageData(`data:${result.mime ?? "image/png"};base64,${result.data}`);
           setLoadError(null);
         } else {
           setImageData(null);
@@ -275,7 +283,7 @@ function ImagePreview({ imagePath }: { readonly imagePath: string }) {
     return () => {
       cancelled = true;
     };
-  }, [imagePath]);
+  }, [imagePath, entryId]);
 
   if (loadError) {
     return (
@@ -295,7 +303,7 @@ function ImagePreview({ imagePath }: { readonly imagePath: string }) {
 
   return (
     <img
-      src={`data:image/png;base64,${imageData}`}
+      src={imageData}
       alt="Clipboard capture"
       className="max-w-full rounded-md border border-border-subtle"
     />
@@ -380,7 +388,7 @@ function EntryDetail({
               Image {imageMeta.width}&times;{imageMeta.height}
             </span>
           </div>
-          <ImagePreview imagePath={entry.audioPath} />
+          <ImagePreview imagePath={entry.audioPath} entryId={entry.id} />
         </div>
       ) : hasPolish ? (
         <>

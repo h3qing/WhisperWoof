@@ -15,6 +15,7 @@ const { app, clipboard, nativeImage } = require("electron");
 const Database = require("better-sqlite3");
 const path = require("path");
 const debugLogger = require("../../helpers/debugLogger");
+const clipboardPure = require("./clipboard-pure");
 
 let initialized = false;
 let whisperwoofDb = null;
@@ -119,94 +120,260 @@ async function captureSourceApp() {
   }
 }
 
-function startClipboardMonitor() {
-  // Poll every 500ms for clipboard changes
-  lastClipboardText = clipboard.readText() || "";
+// ── Clipboard monitor ─────────────────────────────────────────────────────
+// Polls every 500ms. Text is cheap to read. Images are noticed by a key made
+// from the pasteboard's raw bytes, so an image that sits on the clipboard is
+// never decoded again (reading it as a NativeImage every tick decoded e.g. a
+// 5K screenshot twice a second for as long as it stayed there). A Finder copy
+// of photos is captured as the photos themselves, not as their file names and
+// Finder icon. Copying something again moves its entry to the top instead of
+// adding a duplicate.
 
-  clipboardInterval = setInterval(async () => {
+const CLIPBOARD_POLL_MS = 500;
+const IMAGE_KEY_SAMPLE_BYTES = 256 * 1024;
+const THUMB_WIDTH = 480;
+const MAX_CAPTURED_FILE_BYTES = 200 * 1024 * 1024;
+let lastImageKey = "";
+
+const sha1 = (buf) => crypto.createHash("sha1").update(buf).digest("hex");
+
+function clipboardImagesDir() {
+  const dir = path.join(app.getPath("userData"), "whisperwoof-images");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/** Image bytes as the copying app put them on the pasteboard, without decoding (macOS). */
+function readRawImage() {
+  for (const format of ["public.png", "public.tiff"]) {
     try {
-      // Check for image on clipboard FIRST (image copy may also have text)
-      const img = clipboard.readImage();
-      if (!img.isEmpty()) {
-        const imgSize = img.getSize();
-        // Dedup by dimensions (reuse lastClipboardText variable)
-        const imgKey = `img_${imgSize.width}x${imgSize.height}`;
-        if (imgKey !== lastClipboardText) {
-          lastClipboardText = imgKey;
+      const bytes = clipboard.readBuffer(format);
+      if (bytes && bytes.length > 0) return { bytes, format };
+    } catch {
+      // format not on the pasteboard
+    }
+  }
+  return null;
+}
 
-          // Save image to disk
-          const imgId = crypto.randomUUID();
-          const imgDir = path.join(app.getPath("userData"), "whisperwoof-images");
-          if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
+/** Files copied in Finder, in copy order ([] when the copy isn't files). */
+function readCopiedFiles() {
+  let paths = [];
+  try {
+    paths = clipboardPure.parseFilenamesPlist(clipboard.read("NSFilenamesPboardType"));
+  } catch {
+    // not a file copy
+  }
+  if (paths.length === 0) {
+    try {
+      const one = clipboardPure.fileUrlToPath(clipboard.read("public.file-url"));
+      if (one) paths = [one];
+    } catch {
+      // not a file copy
+    }
+  }
+  return paths;
+}
 
-          const imgPath = path.join(imgDir, `${imgId}.png`);
-          fs.writeFileSync(imgPath, img.toPNG());
-
-          // Create a thumbnail (max 200px wide)
-          const thumb = img.resize({ width: Math.min(200, imgSize.width) });
-          const thumbPath = path.join(imgDir, `${imgId}_thumb.png`);
-          fs.writeFileSync(thumbPath, thumb.toPNG());
-
-          const sourceApp = await captureSourceApp();
-          saveWhisperWoofEntry({
-            source: "clipboard",
-            rawText: `[Image ${imgSize.width}\u00d7${imgSize.height}]`,
-            polished: null,
-            routedTo: null,
-            hotkeyUsed: null,
-            durationMs: null,
-            projectId: null,
-            audioPath: imgPath,
-            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath, sourceApp },
-          });
-
-          debugLogger.debug("[WhisperWoof] Clipboard image captured", {
-            width: imgSize.width,
-            height: imgSize.height,
-          });
-          return; // Image handled — skip text check this cycle
-        }
+/** What image the clipboard holds right now, as a cheap comparison key ("" = none). */
+function readClipboardImage() {
+  const copied = readCopiedFiles();
+  // A file copy also carries the Finder icon as image data: only the photos
+  // among the files count. Other files stay text (their names), as before.
+  if (copied.length > 0 && !copied.some(clipboardPure.isImageFile)) return { key: "" };
+  const files = copied.filter(clipboardPure.isImageFile).slice(0, clipboardPure.MAX_FILES_PER_COPY);
+  if (files.length > 0) {
+    const parts = files.map((file) => {
+      try {
+        const stat = fs.statSync(file);
+        return `${file}:${stat.size}:${stat.mtimeMs}`;
+      } catch {
+        return file;
       }
+    });
+    return { key: `files:${parts.join("|")}`, files };
+  }
+  const raw = readRawImage();
+  if (raw) {
+    return { key: `raw:${raw.bytes.length}:${sha1(raw.bytes.subarray(0, IMAGE_KEY_SAMPLE_BYTES))}`, raw };
+  }
+  // Other platforms (or unusual pasteboard types): only the decoded image is readable.
+  const formats = clipboard.availableFormats();
+  if (formats.some((f) => f.startsWith("image/"))) {
+    return { key: `formats:${formats.join(",")}:${clipboard.readText() || ""}`, decode: true };
+  }
+  return { key: "" };
+}
 
-      const currentText = clipboard.readText() || "";
+/** Take whatever is on the clipboard now as already seen (startup, and after the app writes it). */
+function adoptCurrentClipboard() {
+  lastClipboardText = clipboard.readText() || "";
+  lastImageKey = readClipboardImage().key;
+}
 
-      // Skip if same as last capture
-      if (currentText === lastClipboardText) return;
-      // Skip if empty
-      if (!currentText.trim()) return;
-      // Skip very short text (likely accidental)
-      if (currentText.trim().length < 2) return;
-      // WhisperWoof dedup: skip if this text was just voice-transcribed
-      // (pasting voice text puts it on clipboard — don't double-capture)
-      if (recentVoiceTexts.has(currentText.trim())) {
-        lastClipboardText = currentText;
-        return;
-      }
+function bumpClipboardEntry(id) {
+  whisperwoofDb?.prepare("UPDATE bf_entries SET created_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
 
-      lastClipboardText = currentText;
+/** Same pixels regardless of how an app encoded them: size plus a tiny downscaled bitmap. */
+function imageFingerprint(image) {
+  const { width, height } = image.getSize();
+  return `${width}x${height}:${sha1(image.resize({ width: 32 }).toBitmap())}`;
+}
 
-      // Save to bf_entries
-      const sourceApp = await captureSourceApp();
-      saveWhisperWoofEntry({
-        source: "clipboard",
-        rawText: currentText,
-        polished: null,
-        routedTo: null,
-        hotkeyUsed: null,
-        durationMs: null,
-        projectId: null,
-        audioPath: null,
-        metadata: { sourceApp },
-      });
+async function storeClipboardImage({ image, bytes, ext, fileName }) {
+  if (!whisperwoofDb || image.isEmpty()) return;
+  const fingerprint = imageFingerprint(image);
+  const existing = whisperwoofDb
+    .prepare("SELECT id FROM bf_entries WHERE source = 'clipboard' AND metadata LIKE ? LIMIT 1")
+    .get(`%"fingerprint":"${fingerprint}"%`);
+  if (existing) {
+    bumpClipboardEntry(existing.id);
+    return;
+  }
 
-      debugLogger.debug("[WhisperWoof] Clipboard entry captured", {
-        length: currentText.length,
-      });
+  const { width, height } = image.getSize();
+  const id = crypto.randomUUID();
+  const dir = clipboardImagesDir();
+  const imagePath = path.join(dir, `${id}${ext}`);
+  fs.writeFileSync(imagePath, bytes);
+  const thumb = width > THUMB_WIDTH ? image.resize({ width: THUMB_WIDTH }) : image;
+  const thumbBytes = thumb.toPNG();
+  const thumbPath = path.join(dir, `${id}_thumb.png`);
+  fs.writeFileSync(thumbPath, thumbBytes);
+
+  const sourceApp = await captureSourceApp();
+  saveWhisperWoofEntry({
+    source: "clipboard",
+    rawText: clipboardPure.imageEntryText({ width, height, fileName }),
+    polished: null,
+    routedTo: null,
+    hotkeyUsed: null,
+    durationMs: null,
+    projectId: null,
+    audioPath: imagePath,
+    metadata: {
+      type: "image",
+      width,
+      height,
+      thumbPath,
+      sourceApp,
+      fingerprint,
+      bytes: bytes.length + thumbBytes.length,
+      ...(fileName ? { fileName } : {}),
+    },
+  });
+  debugLogger.debug("[WhisperWoof] Clipboard image captured", { width, height, fromFile: Boolean(fileName) });
+}
+
+async function captureCopiedImageFile(filePath) {
+  try {
+    if (fs.statSync(filePath).size > MAX_CAPTURED_FILE_BYTES) return;
+    const image = nativeImage.createFromPath(filePath);
+    if (image.isEmpty()) return; // a format macOS can't read
+    await storeClipboardImage({
+      image,
+      bytes: fs.readFileSync(filePath),
+      ext: clipboardPure.extensionOf(filePath) || ".png",
+      fileName: path.basename(filePath),
+    });
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Copied photo not captured", { error: err.message });
+  }
+}
+
+async function captureClipboardImageData(found) {
+  let image;
+  let bytes;
+  if (found.raw?.format === "public.png") {
+    bytes = found.raw.bytes; // stored as the app wrote it: no re-encode
+    image = nativeImage.createFromBuffer(bytes);
+  } else {
+    image = found.raw ? nativeImage.createFromBuffer(found.raw.bytes) : clipboard.readImage();
+    if (image.isEmpty()) image = clipboard.readImage();
+    bytes = image.toPNG();
+  }
+  await storeClipboardImage({ image, bytes, ext: ".png", fileName: null });
+}
+
+function afterClipboardChange({ imageAdded = false } = {}) {
+  try {
+    const store = require("./clipboard-store");
+    if (imageAdded) store.prune();
+    store.notifyChanged();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Clipboard follow-up failed", { error: err.message });
+  }
+}
+
+async function pollClipboard() {
+  const found = readClipboardImage();
+  if (found.key) {
+    if (found.key === lastImageKey) return;
+    lastImageKey = found.key;
+    // The file name or alt text that came with it belongs to this copy.
+    lastClipboardText = clipboard.readText() || "";
+    if (found.files) {
+      for (const file of found.files) await captureCopiedImageFile(file);
+    } else {
+      await captureClipboardImageData(found);
+    }
+    afterClipboardChange({ imageAdded: true });
+    return;
+  }
+  lastImageKey = "";
+
+  const currentText = clipboard.readText() || "";
+  if (currentText === lastClipboardText) return;
+  lastClipboardText = currentText;
+  // Skip empty and very short text (likely accidental)
+  if (currentText.trim().length < 2) return;
+  // WhisperWoof dedup: skip if this text was just voice-transcribed
+  // (pasting voice text puts it on clipboard — don't double-capture)
+  if (recentVoiceTexts.has(currentText.trim())) return;
+  if (!whisperwoofDb) return;
+
+  const existing = whisperwoofDb
+    .prepare(
+      "SELECT id FROM bf_entries WHERE source = 'clipboard' AND raw_text = ? ORDER BY created_at DESC LIMIT 1"
+    )
+    .get(currentText);
+  if (existing) {
+    bumpClipboardEntry(existing.id);
+  } else {
+    const sourceApp = await captureSourceApp();
+    saveWhisperWoofEntry({
+      source: "clipboard",
+      rawText: currentText,
+      polished: null,
+      routedTo: null,
+      hotkeyUsed: null,
+      durationMs: null,
+      projectId: null,
+      audioPath: null,
+      metadata: { sourceApp },
+    });
+    debugLogger.debug("[WhisperWoof] Clipboard entry captured", { length: currentText.length });
+  }
+  afterClipboardChange();
+}
+
+function startClipboardMonitor() {
+  if (clipboardInterval) return;
+  adoptCurrentClipboard();
+  let polling = false;
+  clipboardInterval = setInterval(async () => {
+    if (polling) return; // a slow capture (big photo) must not overlap the next tick
+    polling = true;
+    try {
+      await pollClipboard();
     } catch (err) {
       // Never crash the poll loop
       debugLogger.debug("[WhisperWoof] Clipboard poll error", { error: err.message });
+    } finally {
+      polling = false;
     }
-  }, 500);
+  }, CLIPBOARD_POLL_MS);
 
   debugLogger.log("[WhisperWoof] Clipboard monitoring started");
 }
@@ -293,6 +460,12 @@ async function initializeWhisperWoof() {
   // TODO: Register WhisperWoof hotkey routes
 
   startClipboardMonitor();
+  // Apply the clipboard retention the user chose (images over the space cap, old items).
+  try {
+    require("./clipboard-store").prune();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Clipboard retention skipped", { error: err.message });
+  }
 
   // Start Telegram companion sync (polls inbox file for mobile-captured entries)
   try {
@@ -425,7 +598,19 @@ function searchWhisperWoofEntries(query, limit = 50) {
 
 function deleteWhisperWoofEntry(id) {
   if (!whisperwoofDb) return;
+  const row = whisperwoofDb.prepare("SELECT source, audio_path, metadata FROM bf_entries WHERE id = ?").get(id);
   whisperwoofDb.prepare('DELETE FROM bf_entries WHERE id = ?').run(id);
+  // A clipboard image's files go with it (they used to stay on disk forever).
+  const meta = row ? clipboardPure.parseMetadata(row.metadata) : {};
+  if (row?.source === "clipboard" && meta.type === "image") {
+    for (const file of [row.audio_path, meta.thumbPath]) {
+      try {
+        if (file) fs.rmSync(file, { force: true });
+      } catch {
+        // best effort
+      }
+    }
+  }
 }
 
 function toggleWhisperWoofFavorite(id) {
@@ -583,6 +768,7 @@ module.exports = {
   updateWhisperWoofEntryText,
   startClipboardMonitor,
   stopClipboardMonitor,
+  adoptCurrentClipboard,
   createWhisperWoofProject,
   getWhisperWoofProjects,
   deleteWhisperWoofProject,

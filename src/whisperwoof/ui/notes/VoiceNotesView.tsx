@@ -6,6 +6,7 @@ import { PlayRecordingButton } from "./PlayRecordingButton";
 import { NOTE_DRAG_TYPE, ProjectFolders } from "./ProjectFolders";
 import { folderCounts, notesInFolder, projectOf, type NoteFolder } from "./note-folders";
 import { useNoteProjects } from "./useNoteProjects";
+import { noteImageRefs, withoutImageLinks } from "./note-attachments";
 
 // Notes: the .md files in the notes folder (where fn+N / fn+P save), filed
 // into projects from the folder column (drag a note onto a project). The files
@@ -31,6 +32,7 @@ interface NotesApi {
   whisperwoofNotesOpenFolder: () => Promise<{ success: boolean; error?: string }>;
   whisperwoofNotesWatch: () => Promise<{ success: boolean }>;
   onWhisperwoofNotesChanged: (cb: () => void) => () => void;
+  whisperwoofNotesAttachment: (ref: string) => Promise<{ success: boolean; data?: string; mime?: string; error?: string }>;
 }
 
 const api = () => (window as unknown as { electronAPI?: Partial<NotesApi> }).electronAPI;
@@ -54,12 +56,49 @@ function matchesQuery(note: VoiceNote, query: string): boolean {
 }
 
 function preview(note: VoiceNote): string {
-  const lines = note.body
+  const lines = withoutImageLinks(note.body)
     .split("\n")
     .map((l) => l.replace(/^#+\s*/, "").trim())
     .filter(Boolean);
   const rest = lines[0] === note.title ? lines.slice(1) : lines;
   return rest.join(" ");
+}
+
+/** Images the note links to in attachments/ (e.g. saved from the clipboard). */
+function NoteImages({ body }: { readonly body: string }) {
+  const refs = useMemo(() => noteImageRefs(body), [body]);
+  const key = refs.join("\n");
+  const [images, setImages] = useState<ReadonlyArray<{ ref: string; src: string }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      refs.map(async (ref) => {
+        const res = await api()?.whisperwoofNotesAttachment?.(ref);
+        return res?.success && res.data ? { ref, src: `data:${res.mime};base64,${res.data}` } : null;
+      })
+    ).then((loaded) => {
+      if (!cancelled) setImages(loaded.filter((x): x is { ref: string; src: string } => x !== null));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `key` stands in for `refs` (a new array on every body edit)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  if (images.length === 0) return null;
+  return (
+    <div className="flex gap-2 overflow-x-auto px-5 pt-3">
+      {images.map((img) => (
+        <img
+          key={img.ref}
+          src={img.src}
+          alt={img.ref.slice("attachments/".length)}
+          title={img.ref.slice("attachments/".length)}
+          className="max-h-48 shrink-0 rounded-lg bg-surface-1 object-contain"
+        />
+      ))}
+    </div>
+  );
 }
 
 interface VoiceNotesViewProps {
@@ -356,6 +395,7 @@ export default function VoiceNotesView({ focusName = null }: VoiceNotesViewProps
                 </button>
               </div>
             </div>
+            <NoteImages body={draft} />
             <textarea
               value={draft}
               onChange={(e) => onEdit(e.target.value)}
