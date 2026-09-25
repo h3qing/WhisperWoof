@@ -2866,15 +2866,24 @@ class IPCHandlers {
     // WhisperWoof: Save entry to bf_entries table
     ipcMain.handle("whisperwoof-save-entry", async (event, entry) => {
       try {
+        const fs = require("fs");
         const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
+        const { appFileDirs } = require("../whisperwoof/bridge/app-file-paths-pure");
+        const { resolveAppFile } = require("../whisperwoof/bridge/app-files");
+        // audio_path is read and deleted later, so the renderer may only point it
+        // at a file inside the app's own folders (plain or sealed); anything else is dropped.
+        const audioPath = entry?.audioPath == null ? null : resolveAppFile(entry.audioPath, appFileDirs(app.getPath("userData")));
+        if (entry?.audioPath != null && !audioPath) {
+          debugLogger.log("[WhisperWoof] save-entry: dropped audioPath outside app folders");
+        }
         if (vault.isOn() && vault.isUnlocked() && isProvisionalId(entry?.metadata?.transcriptionId)) {
           // Its transcription was sealed while locked: import both in order.
-          const sealed = { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+          const sealed = { ...entry, audioPath, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
           vaultInbox.record("entry.save", { entry: sealed });
           await require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox();
           return { success: true, id: sealed.id, createdAt: sealed.createdAt };
         }
-        const result = saveWhisperWoofEntry(entry);
+        const result = saveWhisperWoofEntry({ ...entry, audioPath });
         if (result) {
           // Memory: track vocabulary usage from this transcription
           try {
@@ -3307,10 +3316,14 @@ class IPCHandlers {
     });
 
     // WhisperWoof: Read image file as base64 (for History view)
+    // Only files inside userData/whisperwoof-images — the path comes from the renderer.
     ipcMain.handle("whisperwoof-get-image", async (_event, imagePath) => {
       try {
-        if (!vaultFiles.exists(imagePath)) return { success: false, error: "File not found" };
-        const data = vaultFiles.readFile(imagePath);
+        const { resolveAppFile } = require("../whisperwoof/bridge/app-files");
+        const imagesDir = path.join(app.getPath("userData"), "whisperwoof-images");
+        const safePath = resolveAppFile(imagePath, [imagesDir]);
+        if (!safePath) return { success: false, error: "File not found" };
+        const data = vaultFiles.readFile(safePath);
         return { success: true, data: data.toString("base64") };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-image failed: ${error.message}`);
