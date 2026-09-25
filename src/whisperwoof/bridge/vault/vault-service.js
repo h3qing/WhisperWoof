@@ -14,6 +14,8 @@ const debugLogger = require("../../../helpers/debugLogger");
 const vk = require("./vault-keys-pure");
 const vc = require("./vault-crypto-pure");
 const ww = require("./wwenc-pure");
+const path = require("path");
+const { sqliteState } = require("./migration-plan-pure");
 const { vaultPaths, ensurePrivateDir, writeFileAtomic, removeIfExists } = require("./vault-paths");
 
 class VaultLockedError extends Error {
@@ -39,6 +41,7 @@ let busy = false;
 // new key, and files still sealed to the old key keep opening.
 let sealOverride = null;
 let extraOpenKeys = [];
+let extraDbKeyHexes = [];
 
 function readVaultFile(file) {
   try {
@@ -48,12 +51,86 @@ function readVaultFile(file) {
   }
 }
 
-/** Read vault.json (falling back to its backup). Call once at startup. */
+function readHead(file) {
+  try {
+    const fd = fs.openSync(file, "r");
+    try {
+      const head = Buffer.alloc(16);
+      return head.subarray(0, fs.readSync(fd, head, 0, 16, 0));
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** Sealed files WhisperWoof itself keeps (not the notes folder): the inbox, stores, media. */
+function sealedFilesOnDisk() {
+  const userData = path.dirname(vaultPaths.dir());
+  const dirs = [vaultPaths.inboxDir(), userData, path.join(userData, "audio"), path.join(userData, "whisperwoof-images")];
+  return dirs.flatMap((dir) => {
+    try {
+      return fs.readdirSync(dir).filter((n) => n.endsWith(".wwenc")).map((n) => path.join(dir, n));
+    } catch {
+      return [];
+    }
+  });
+}
+
+function databaseIsEncrypted() {
+  return sqliteState(readHead(vaultPaths.dbFile())) === "encrypted";
+}
+
+/**
+ * Read vault.json (falling back to its backup). Call once at startup. If it's
+ * missing or unreadable while encrypted data is still on disk, WhisperWoof
+ * stays locked (damaged) — never "off", which would write plaintext over it.
+ */
 function load() {
   const exists = fs.existsSync(vaultPaths.vaultFile()) || fs.existsSync(vaultPaths.vaultBackup());
   vault = readVaultFile(vaultPaths.vaultFile()) || readVaultFile(vaultPaths.vaultBackup());
-  damaged = exists && !vault;
+  damaged = !vault && (exists || databaseIsEncrypted() || sealedFilesOnDisk().length > 0);
+  removeStaleLeftovers();
   return status();
+}
+
+/**
+ * vault.next.json holds the new master key sealed under the old one; it must
+ * not outlive its rotation. A journal without a vault never started.
+ */
+function removeStaleLeftovers() {
+  let journal = null;
+  try {
+    journal = require("./migration-plan-pure").parseJournal(JSON.parse(fs.readFileSync(vaultPaths.journal(), "utf8")));
+  } catch {
+    journal = null;
+  }
+  if (!journal || journal.direction !== "rotate") removeIfExists(vaultPaths.nextVaultFile());
+  if (journal && !isOn()) removeIfExists(vaultPaths.journal());
+}
+
+/** Do these keys open the encrypted data on disk? No data at all counts as yes. */
+function keysOpenData(keys) {
+  if (databaseIsEncrypted()) {
+    try {
+      const Database = require("better-sqlite3-multiple-ciphers");
+      require("./vault-db").applyKey(new Database(vaultPaths.dbFile(), { readonly: true }), keys.dbKeyHex).close();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const sample = sealedFilesOnDisk()[0];
+  return !sample || ww.opensWith(fs.readFileSync(sample), keys.sealPrivateKey);
+}
+
+/** Keep an unreadable vault file for later inspection instead of overwriting it. */
+function moveDamagedVaultAside() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  for (const file of [vaultPaths.vaultFile(), vaultPaths.vaultBackup()]) {
+    if (fs.existsSync(file)) fs.renameSync(file, `${file}.damaged-${stamp}`);
+  }
 }
 
 function isOn() {
@@ -86,14 +163,14 @@ function sealsNotes() {
   return isOn() && !getPrefs().notesReadable;
 }
 
-function saveVault(next) {
+function saveVault(next, { notify = true } = {}) {
   ensurePrivateDir(vaultPaths.dir());
   const json = JSON.stringify(next, null, 2);
   writeFileAtomic(vaultPaths.vaultFile(), json);
   writeFileAtomic(vaultPaths.vaultBackup(), json);
   vault = next;
   damaged = false;
-  notifyState();
+  if (notify) notifyState();
   return next;
 }
 
@@ -119,14 +196,25 @@ function openSealed(bytes, opts) {
   return ww.decrypt(bytes, key, opts);
 }
 
-function setRotation({ sealPublic, oldPrivateKeys }) {
+/**
+ * While a new recovery phrase rolls out: seal new files to the new key, and
+ * accept the new keys for reading files and opening the database next to the
+ * current ones. Left in place if the rollout stops, so the session keeps working.
+ */
+function setRotation({ sealPublic, extraPrivateKeys, extraDbKeys }) {
   sealOverride = sealPublic;
-  extraOpenKeys = oldPrivateKeys;
+  extraOpenKeys = extraPrivateKeys;
+  extraDbKeyHexes = extraDbKeys;
 }
 
 function clearRotation() {
   sealOverride = null;
   extraOpenKeys = [];
+  extraDbKeyHexes = [];
+}
+
+function extraDbKeys() {
+  return keys ? [...extraDbKeyHexes] : [];
 }
 
 function requireKeys() {
@@ -178,6 +266,12 @@ async function unlockWithEntropy(entropy, newPassword) {
   }
   if (!damaged) throw new Error("Encryption is off");
   const rebuilt = vk.createVault({ entropy, password: newPassword });
+  // Without vault.json there's no check value: prove the phrase on the data itself.
+  if (!keysOpenData(vk.deriveKeys(rebuilt.masterKey))) {
+    vc.wipe(rebuilt.masterKey);
+    throw new vk.WrongPhraseError();
+  }
+  moveDamagedVaultAside();
   saveVault(rebuilt.vault);
   return becomeUnlocked(rebuilt.masterKey);
 }
@@ -213,6 +307,11 @@ function isLockDeferred() {
   return pendingLock;
 }
 
+/** Something (a recording meeting) needs its files left alone right now. */
+function isLockBlocked() {
+  return lockBlockers.some((blocked) => blocked());
+}
+
 /** Only one sensitive operation (setup, migration, rotation) at a time. */
 async function exclusive(fn) {
   if (busy) {
@@ -228,10 +327,27 @@ async function exclusive(fn) {
   }
 }
 
-/** Turning encryption on: the vault exists from here on, already unlocked. */
-async function adoptNewVault(nextVault, nextMasterKey) {
-  saveVault(nextVault);
+/**
+ * Turning encryption on: the vault exists from here on, already unlocked.
+ * vault.json is written first; `beforeUnlock` (e.g. writing the migration
+ * journal) runs between, so a crash never leaves a journal without a vault.
+ * Nobody sees a "locked" state in between.
+ */
+async function adoptNewVault(nextVault, nextMasterKey, { beforeUnlock } = {}) {
+  saveVault(nextVault, { notify: false });
+  if (beforeUnlock) beforeUnlock();
   return becomeUnlocked(nextMasterKey);
+}
+
+/** A new recovery phrase is in place: switch to its vault and keys, no unlock steps. */
+function replaceVault(nextVault, nextMasterKey) {
+  if (!vk.verifyMasterKey(nextVault, nextMasterKey)) throw new Error("Master key doesn't belong to the new vault");
+  saveVault(nextVault, { notify: false });
+  vc.wipe(masterKey);
+  masterKey = nextMasterKey;
+  keys = vk.deriveKeys(masterKey);
+  clearRotation();
+  notifyState();
 }
 
 /** Turning encryption off finished: forget the vault. */
@@ -284,6 +400,8 @@ module.exports = {
   openSealed,
   setRotation,
   clearRotation,
+  extraDbKeys,
+  replaceVault,
   requireKeys,
   requireMasterKey,
   unlockWithPassword,
@@ -294,6 +412,7 @@ module.exports = {
   lock,
   releaseDeferredLock,
   isLockDeferred,
+  isLockBlocked,
   exclusive,
   onUnlocked,
   onLocking,

@@ -41,10 +41,22 @@ function persistDictionary(words: string[]) {
   else localStorage.removeItem("customDictionary");
 }
 
+let lastVaultStatus: string | null = null;
+
 function followEncryption(status: { status: string } | null | undefined) {
   if (!status) return;
   keepDictionaryInLocalStorage = status.status === "off";
   if (!keepDictionaryInLocalStorage && isBrowser) localStorage.removeItem("customDictionary");
+  // A window that started while locked read an empty dictionary: load it now.
+  if (status.status === "unlocked" && lastVaultStatus === "locked") {
+    window.electronAPI
+      ?.getDictionary?.()
+      .then((words) => {
+        if (Array.isArray(words)) useSettingsStore.setState({ customDictionary: words });
+      })
+      .catch(() => {});
+  }
+  lastVaultStatus = status.status;
 }
 
 function readString(key: string, fallback: string): string {

@@ -5,6 +5,9 @@
  *
  * On unlock: finish an interrupted migration → open databases → replay inbox.
  * On lock:   close databases (keys are dropped by the vault service after).
+ *
+ * A running migration holds off automatic locks; a failed one doesn't — it
+ * leaves an error the Encryption settings show with "Try again".
  */
 
 const { powerMonitor } = require("electron");
@@ -17,8 +20,10 @@ const rotation = require("./vault-rotate");
 const IDLE_CHECK_MS = 30000;
 
 let deps = null;
-let progress = null; // { direction, phase, done, total, error? } while a migration runs
+let progress = null; // { direction, phase, done, total } while something runs
+let lastError = null; // { direction, message } from the last run that stopped
 let idleTimer = null;
+let replayChain = Promise.resolve();
 const statusListeners = [];
 
 function requireDeps() {
@@ -26,17 +31,39 @@ function requireDeps() {
   return deps;
 }
 
+function notify() {
+  for (const fn of statusListeners) fn();
+}
+
 function setProgress(next) {
   progress = next;
-  for (const fn of statusListeners) fn();
+  notify();
+}
+
+function setError(direction, err) {
+  lastError = err ? { direction, message: err.message } : null;
+  if (err) debugLogger.error("[Vault] Stopped", { direction, error: err.message });
+  notify();
 }
 
 function getProgress() {
   return progress;
 }
 
+function getError() {
+  return lastError;
+}
+
 function onProgress(fn) {
   statusListeners.push(fn);
+}
+
+async function reopenDatabases() {
+  try {
+    await requireDeps().openDatabases();
+  } catch (err) {
+    debugLogger.error("[Vault] Databases didn't reopen", { error: err.message });
+  }
 }
 
 /**
@@ -45,7 +72,8 @@ function onProgress(fn) {
  */
 async function runMigration(direction, { sealNotes } = {}) {
   const d = requireDeps();
-  setProgress({ direction, phase: "db", done: 0, total: 1 });
+  setError(direction, null);
+  setProgress({ direction, phase: direction === "disable" ? "files" : "db", done: 0, total: 1 });
   await d.closeDatabases();
   try {
     await migrate.run(direction, {
@@ -56,49 +84,80 @@ async function runMigration(direction, { sealNotes } = {}) {
       onProgress: (p) => setProgress(p),
     });
     if (direction === "disable") await vault.forgetVault();
-    setProgress(null);
   } catch (err) {
-    debugLogger.error("[Vault] Migration stopped", { direction, error: err.message });
-    setProgress({ direction, phase: "error", done: 0, total: 0, error: err.message });
+    setError(direction, err);
     throw err;
   } finally {
-    await d.openDatabases();
+    setProgress(null);
+    await reopenDatabases();
   }
 }
 
-async function replayInbox() {
-  const d = requireDeps();
-  if (vaultInbox.count() === 0) return;
-  const result = await vaultInbox.replay(d.inboxHandlers(), (file, err) =>
-    debugLogger.warn("[Vault] Inbox item kept for later", { file, error: err.message })
-  );
-  debugLogger.info("[Vault] Inbox replayed", result);
-  d.afterInboxReplay?.(result);
+/** A new recovery phrase: `start` writes the plan, rotation.finish() carries it out. */
+async function runRotation(start = () => rotation.finish()) {
+  setError("rotate", null);
+  try {
+    await start();
+  } catch (err) {
+    setError("rotate", err);
+    throw err;
+  } finally {
+    setProgress(null);
+    await reopenDatabases();
+  }
+}
+
+/** Replays run one at a time, in the order they were asked for. */
+function replayInbox() {
+  const run = async () => {
+    const d = requireDeps();
+    if (!vault.isUnlocked() || vaultInbox.count() === 0) return;
+    const { handlers, loadIdMap } = d.inbox();
+    const result = await vaultInbox.replay(handlers, {
+      idMap: loadIdMap(),
+      log: (file, err) => debugLogger.warn("[Vault] Inbox item kept for later", { file, error: err.message }),
+    });
+    debugLogger.info("[Vault] Inbox replayed", result);
+    notify();
+  };
+  replayChain = replayChain.then(run, run);
+  return replayChain;
 }
 
 async function afterUnlock() {
   const journal = migrate.readJournal();
   if (journal && journal.direction === "rotate") {
-    // A new recovery phrase was being rolled out; finishing it reopens the databases.
-    await rotation.finish().catch((err) => {
-      debugLogger.error("[Vault] New recovery phrase didn't finish", { error: err.message });
-      setProgress({ direction: "rotate", phase: "error", done: 0, total: 0, error: err.message });
-    });
-    if (!getProgress()) return;
-    await requireDeps().openDatabases();
+    // A new recovery phrase was being rolled out; finish it (it reopens the databases).
+    await runRotation().catch(() => {});
   } else if (journal) {
     // Resume what a crash or quit interrupted; runMigration reopens the databases.
     await runMigration(journal.direction).catch(() => {});
   } else {
-    await requireDeps().openDatabases();
+    await reopenDatabases();
   }
   if (vault.isUnlocked()) await replayInbox();
 }
 
+/** "Try again" after a stop: resume whatever the journal says, then replay the inbox. */
+async function retry() {
+  const journal = migrate.readJournal();
+  if (journal && journal.direction === "rotate") await runRotation();
+  else if (journal) await runMigration(journal.direction);
+  else {
+    setError(null, null);
+    await reopenDatabases();
+  }
+  await replayInbox();
+}
+
 /** Seal or unseal every note (the "Keep notes readable by other apps" switch). */
 async function convertNotes(seal) {
+  setError("notes", null);
   try {
     migrate.convertNotes(requireDeps().notesDir(), seal, (p) => setProgress(p));
+  } catch (err) {
+    setError("notes", err);
+    throw err;
   } finally {
     setProgress(null);
   }
@@ -123,7 +182,7 @@ function lockOnSleep() {
 
 /**
  * deps: { Database, userData(), notesDir(), openDatabases(), closeDatabases(),
- *         inboxHandlers(), afterInboxReplay?(result), afterLock?() }
+ *         inbox() → { handlers, loadIdMap }, afterLock?() }
  */
 function configure(nextDeps) {
   deps = nextDeps;
@@ -137,4 +196,14 @@ function configure(nextDeps) {
   idleTimer.unref?.();
 }
 
-module.exports = { configure, runMigration, convertNotes, replayInbox, getProgress, onProgress };
+module.exports = {
+  configure,
+  runMigration,
+  runRotation,
+  retry,
+  convertNotes,
+  replayInbox,
+  getProgress,
+  getError,
+  onProgress,
+};

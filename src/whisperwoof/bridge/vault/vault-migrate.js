@@ -249,26 +249,31 @@ async function run(direction, opts) {
   const keyHex = vault.requireKeys().dbKeyHex;
   const report = (done, total) => onProgress({ direction, phase: journal.phase, done, total });
 
-  if (journal.phase === "db") {
-    report(0, 1);
-    migrateDatabase(Database, vaultPaths.dbFile(), direction, keyHex);
-    journal = writeJournal(plan.advanceJournal(journal));
-  }
-
-  if (journal.phase === "files") {
-    const notes = direction === "disable" || sealNotes ? noteTargets(notesDir) : [];
-    const targets = [...userDataTargets(userData), ...notes];
-    for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
-    targets.forEach((target, i) => {
-      migrateFile(direction, target);
-      if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
-    });
-    journal = writeJournal(plan.advanceJournal(journal));
-  }
-
-  if (journal.phase === "cleanup") {
-    if (direction === "enable") removePlaintextLeftovers(userData);
-    fs.rmSync(vaultPaths.tmpDir(), { recursive: true, force: true });
+  const steps = {
+    db: () => {
+      report(0, 1);
+      migrateDatabase(Database, vaultPaths.dbFile(), direction, keyHex);
+    },
+    files: () => {
+      const notes = direction === "disable" || sealNotes ? noteTargets(notesDir) : [];
+      const targets = [...userDataTargets(userData), ...notes];
+      for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
+      targets.forEach((target, i) => {
+        try {
+          migrateFile(direction, target);
+        } catch (err) {
+          throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+        }
+        if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
+      });
+    },
+    cleanup: () => {
+      if (direction === "enable") removePlaintextLeftovers(userData);
+      fs.rmSync(vaultPaths.tmpDir(), { recursive: true, force: true });
+    },
+  };
+  while (journal.phase !== "done") {
+    steps[journal.phase]();
     journal = writeJournal(plan.advanceJournal(journal));
   }
 

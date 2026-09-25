@@ -157,7 +157,8 @@ class DebugLogger {
       .map((arg) => {
         if (typeof arg === "object") {
           try {
-            return JSON.stringify(arg, null, 2);
+            // log(...args) folds objects into the message itself: redact them here too.
+            return JSON.stringify(redactForFile(arg), null, 2);
           } catch (error) {
             return String(arg);
           }

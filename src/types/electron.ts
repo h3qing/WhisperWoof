@@ -1556,7 +1556,10 @@ declare global {
       vaultLock?: () => Promise<VaultResult>;
       vaultChangePassword?: (args: { currentPassword: string; newPassword: string }) => Promise<VaultResult>;
       vaultSetTouchId?: (enabled: boolean) => Promise<VaultResult>;
-      vaultSetPrefs?: (prefs: Partial<Omit<VaultPrefs, "touchId">>) => Promise<VaultResult>;
+      /** Turning notesReadable on needs `reauth` (password or Touch ID). */
+      vaultSetPrefs?: (prefs: Partial<Omit<VaultPrefs, "touchId">>, reauth?: VaultReauth) => Promise<VaultResult>;
+      /** Resume a migration or new recovery phrase that stopped with an error. */
+      vaultRetry?: () => Promise<VaultResult>;
       vaultBeginNewPhrase?: (reauth: VaultReauth) => Promise<VaultNewPhraseResult>;
       vaultCompleteNewPhrase?: (args: { confirmWords: Record<number, string> }) => Promise<VaultResult>;
       vaultDisable?: (reauth: VaultReauth) => Promise<VaultResult>;

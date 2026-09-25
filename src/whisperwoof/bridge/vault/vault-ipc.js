@@ -56,13 +56,14 @@ function registerVaultIpc(ipcMain) {
     controller.changePassword({ currentPassword: str(obj(a).currentPassword), newPassword: str(obj(a).newPassword) })
   );
   handle("vault-set-touchid", (enabled) => controller.setTouchIdEnabled(enabled === true));
-  handle("vault-set-prefs", (prefs) => {
+  handle("vault-retry", () => controller.retry());
+  handle("vault-set-prefs", (prefs, reauth) => {
     const p = obj(prefs);
     const allowed = {};
     if (typeof p.lockOnSleep === "boolean") allowed.lockOnSleep = p.lockOnSleep;
     if (typeof p.idleMinutes === "number") allowed.idleMinutes = p.idleMinutes;
     if (typeof p.notesReadable === "boolean") allowed.notesReadable = p.notesReadable;
-    return controller.setPrefs(allowed);
+    return controller.setPrefs(allowed, reauthArg(reauth));
   });
   handle("vault-begin-new-phrase", (reauth) => controller.beginNewPhrase(reauthArg(reauth)));
   handle("vault-complete-new-phrase", (a) => controller.completeNewPhrase({ confirmWords: confirmWordsArg(obj(a).confirmWords) }));

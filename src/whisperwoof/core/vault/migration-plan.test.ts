@@ -88,6 +88,17 @@ describe("journal", () => {
     expect(seen).toEqual(["db", "files", "cleanup", "done"]);
   });
 
+  it("turning encryption off decrypts files before the database", () => {
+    // If a file fails, the database is still encrypted and matches the vault.
+    let j = plan.startJournal("disable", new Date("2026-09-25T10:00:00Z"));
+    const seen = [j.phase];
+    while (j.phase !== "done") {
+      j = plan.advanceJournal(j);
+      seen.push(j.phase);
+    }
+    expect(seen).toEqual(["files", "db", "cleanup", "done"]);
+  });
+
   it("accepts a rotation journal (new recovery phrase)", () => {
     const j = plan.startJournal("rotate", new Date());
     expect(plan.parseJournal(JSON.parse(JSON.stringify(j))).direction).toBe("rotate");

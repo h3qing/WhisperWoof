@@ -245,7 +245,26 @@ describe("turning encryption off", () => {
     const bytes = fs.readFileSync(sealed);
     bytes[bytes.length - 3] ^= 1;
     fs.writeFileSync(sealed, bytes);
-    await expect(m.migrate.run("disable", { Database, userData, notesDir, sealNotes: true })).rejects.toThrow();
+    await expect(m.migrate.run("disable", { Database, userData, notesDir, sealNotes: true })).rejects.toThrow(/OpenWhispr-2026-09-25-1\.webm/);
     expect(fs.existsSync(sealed)).toBe(true);
+    // Files go first, so the database is still encrypted and still opens with the vault's key.
+    const db = m.db.openDatabase(Database, path.join(userData, "transcriptions.db"));
+    expect(db.prepare("SELECT count(*) AS n FROM bf_entries").get().n).toBe(51);
+    db.close();
+  });
+
+  it("while turning off, a database that's already plain opens without the key", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    await turnOn(m);
+    const dbFile = path.join(userData, "transcriptions.db");
+    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" }));
+    m.migrate.migrateDatabase(Database, dbFile, "disable", m.vault.requireKeys().dbKeyHex);
+    const db = m.db.openDatabase(Database, dbFile);
+    expect(db.prepare("SELECT count(*) AS n FROM bf_entries").get().n).toBe(51);
+    db.close();
+    // Without a turn-off in progress, a plain file under an encrypted vault is refused.
+    fs.rmSync(path.join(userData, "vault", "migration.json"));
+    expect(() => m.db.openDatabase(Database, dbFile)).toThrow();
   });
 });

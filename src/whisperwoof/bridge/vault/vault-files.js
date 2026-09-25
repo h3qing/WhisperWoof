@@ -19,11 +19,13 @@ const sealedPath = (p) => `${p}${SEALED_EXT}`;
 const isSealedName = (name) => name.endsWith(SEALED_EXT);
 const logicalName = (name) => (isSealedName(name) ? name.slice(0, -SEALED_EXT.length) : name);
 
-/** The file on disk for a logical path: the sealed one if present, else the plain one, else null. */
+/**
+ * The file on disk for a logical path, or null. With encryption on the sealed
+ * form wins; with it off the plain form wins (a stray sealed copy can't be read).
+ */
 function physicalPath(p) {
-  if (fs.existsSync(sealedPath(p))) return sealedPath(p);
-  if (fs.existsSync(p)) return p;
-  return null;
+  const order = vault.isOn() ? [sealedPath(p), p] : [p, sealedPath(p)];
+  return order.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
 
 function exists(p) {
@@ -71,7 +73,8 @@ function writeFile(p, data, { kind = "blob", seal = vault.isOn(), requireUnlocke
     removeIfExists(p);
   } else {
     writeFileAtomic(p, bytes, 0o644);
-    removeIfExists(sealedPath(p));
+    // Only drop the sealed copy while the vault can vouch for it (notes turned readable).
+    if (vault.isOn()) removeIfExists(sealedPath(p));
   }
 }
 

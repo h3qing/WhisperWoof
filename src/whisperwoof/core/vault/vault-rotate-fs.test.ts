@@ -142,6 +142,62 @@ describe("new recovery phrase", () => {
     expectEverythingOpens(restarted);
   });
 
+  it("skips a note sealed by another Mac's vault instead of failing", async () => {
+    const { m, oldEntropy } = await encryptedSetup();
+    const ww = require("../../bridge/vault/wwenc-pure.js");
+    const vc = require("../../bridge/vault/vault-crypto-pure.js");
+    const foreign = path.join(notesDir, "2026-09-20-090000.md.wwenc");
+    const other = vc.x25519FromSeed(crypto.randomBytes(32));
+    fs.writeFileSync(foreign, ww.encrypt(Buffer.from("someone else's note"), other.publicRaw, { kind: "note" }));
+    const before = fs.readFileSync(foreign);
+    m.rotation.rememberPassword(PASSWORD);
+    await m.rotation.rotate(crypto.randomBytes(16));
+    expect(fs.readFileSync(foreign).equals(before)).toBe(true);
+    expect(() => m.keys.masterKeyFromEntropy(oldEntropy, m.vault.getVault())).toThrow();
+    expectEverythingOpens(m);
+  });
+
+  it("keeps everything readable in the same session when it stops half-way", async () => {
+    const { m } = await encryptedSetup();
+    m.rotation.rememberPassword(PASSWORD);
+    m.rotation.configure({
+      Database,
+      userData: () => userData,
+      notesDir: () => notesDir,
+      closeDatabases: async () => {},
+      openDatabases: async () => {},
+      onProgress: (p: { phase: string } | null) => {
+        if (p && p.phase === "db") throw new Error("disk full");
+      },
+    });
+    await expect(m.rotation.rotate(crypto.randomBytes(16))).rejects.toThrow("disk full");
+    // Files are already on the new key, vault.json is still the old one: both keys work.
+    expectEverythingOpens(m);
+  });
+
+  it("finishes cleanly after a crash between adopting the new vault and deleting the leftovers", async () => {
+    const { m } = await encryptedSetup();
+    const newEntropy = crypto.randomBytes(16);
+    m.rotation.rememberPassword(PASSWORD);
+    await m.rotation.rotate(newEntropy);
+    // Put back what a crash right after adopting would have left behind.
+    const next = { vault: m.vault.getVault(), link: { nonce: "AAAAAAAAAAAAAAAA", ct: "AAAA" } };
+    fs.writeFileSync(path.join(userData, "vault", "vault.next.json"), JSON.stringify(next));
+    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "rotate", startedAt: new Date().toISOString(), phase: "db" }));
+    const restarted = boot();
+    await restarted.vault.unlockWithPassword(PASSWORD);
+    expect(fs.existsSync(path.join(userData, "vault", "vault.next.json"))).toBe(false);
+    expect(fs.existsSync(path.join(userData, "vault", "migration.json"))).toBe(false);
+    expectEverythingOpens(restarted);
+  });
+
+  it("deletes a leftover vault.next.json at startup when no rotation is running", async () => {
+    const { m } = await encryptedSetup();
+    fs.writeFileSync(path.join(userData, "vault", "vault.next.json"), JSON.stringify({ vault: m.vault.getVault(), link: {} }));
+    boot();
+    expect(fs.existsSync(path.join(userData, "vault", "vault.next.json"))).toBe(false);
+  });
+
   it("refuses to start without the password confirmed first", async () => {
     const { m } = await encryptedSetup();
     await expect(m.rotation.rotate(crypto.randomBytes(16))).rejects.toThrow(/Start again/);

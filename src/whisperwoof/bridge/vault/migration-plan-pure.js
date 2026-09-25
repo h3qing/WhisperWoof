@@ -14,6 +14,13 @@ const SQLITE_MAGIC = Buffer.from("SQLite format 3\0", "latin1");
 const DIRECTIONS = Object.freeze(["enable", "disable"]);
 const JOURNAL_DIRECTIONS = Object.freeze([...DIRECTIONS, "rotate"]);
 const PHASES = Object.freeze(["db", "files", "cleanup", "done"]);
+// Turning encryption off decrypts files first: if one can't be opened, the
+// database is still encrypted and still matches the vault, so nothing breaks.
+const PHASE_ORDER = Object.freeze({
+  enable: Object.freeze(["db", "files", "cleanup", "done"]),
+  disable: Object.freeze(["files", "db", "cleanup", "done"]),
+  rotate: Object.freeze(["db", "files", "cleanup", "done"]),
+});
 
 function assertDirection(direction) {
   if (!DIRECTIONS.includes(direction)) throw new Error(`Unknown direction: ${direction}`);
@@ -57,11 +64,12 @@ function planFileStep(direction, { plain, sealed }) {
 
 function startJournal(direction, now = new Date()) {
   if (!JOURNAL_DIRECTIONS.includes(direction)) throw new Error(`Unknown direction: ${direction}`);
-  return { v: 1, direction, startedAt: now.toISOString(), phase: "db" };
+  return { v: 1, direction, startedAt: now.toISOString(), phase: PHASE_ORDER[direction][0] };
 }
 
 function advanceJournal(journal) {
-  const next = PHASES[Math.min(PHASES.indexOf(journal.phase) + 1, PHASES.length - 1)];
+  const order = PHASE_ORDER[journal.direction];
+  const next = order[Math.min(order.indexOf(journal.phase) + 1, order.length - 1)];
   return { ...journal, phase: next };
 }
 

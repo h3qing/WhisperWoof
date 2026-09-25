@@ -16,6 +16,7 @@ import NewPhraseDialog from "./NewPhraseDialog";
 import TurnOffEncryptionDialog from "./TurnOffEncryptionDialog";
 import TurnOnEncryptionDialog from "./TurnOnEncryptionDialog";
 import { FieldError, MigrationProgress, SegmentedControl } from "./VaultFields";
+import NotesReadableDialog from "./NotesReadableDialog";
 import { useVaultStatus, vaultApi } from "./useVaultStatus";
 import {
   IDLE_LOCK_OPTIONS,
@@ -29,7 +30,7 @@ import {
   vaultErrorMessage,
 } from "./vault-ui-pure";
 
-type DialogKind = "turnOn" | "changePassword" | "newPhrase" | "turnOff" | null;
+type DialogKind = "turnOn" | "changePassword" | "newPhrase" | "turnOff" | "notesReadable" | null;
 
 export default function EncryptionSettings() {
   const { status, refresh } = useVaultStatus();
@@ -44,7 +45,9 @@ export default function EncryptionSettings() {
 
   const api = vaultApi();
   const prefs: VaultPrefs = { ...status.prefs, ...draft };
-  const disabled = busy || status.migrating !== null;
+  // A running migration locks the controls; one that stopped doesn't (it offers Try again).
+  const stopped = status.migrating?.phase === "error";
+  const disabled = busy || (status.migrating !== null && !stopped);
   const close = () => setDialog(null);
 
   const run = async (patch: Partial<VaultPrefs>, call: () => Promise<VaultResult | VaultFailure>) => {
@@ -68,6 +71,17 @@ export default function EncryptionSettings() {
         <SettingsPanel>
           <SettingsPanelRow>
             <MigrationProgress migration={status.migrating} notesReadable={status.prefs.notesReadable} />
+            {stopped && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                disabled={busy}
+                onClick={() => run({}, () => callVault(api?.vaultRetry))}
+              >
+                Try again
+              </Button>
+            )}
           </SettingsPanelRow>
         </SettingsPanel>
       )}
@@ -113,7 +127,9 @@ export default function EncryptionSettings() {
                 <Toggle
                   checked={prefs.notesReadable}
                   disabled={disabled}
-                  onChange={(notesReadable) => setPref({ notesReadable })}
+                  onChange={(notesReadable) =>
+                    notesReadable ? setDialog("notesReadable") : setPref({ notesReadable: false })
+                  }
                 />
               </SettingsRow>
             </SettingsPanelRow>
@@ -178,6 +194,7 @@ export default function EncryptionSettings() {
       {dialog === "changePassword" && <ChangePasswordDialog onClose={close} />}
       {dialog === "newPhrase" && <NewPhraseDialog status={status} onClose={close} />}
       {dialog === "turnOff" && <TurnOffEncryptionDialog status={status} onClose={close} />}
+      {dialog === "notesReadable" && <NotesReadableDialog status={status} onClose={close} />}
     </div>
   );
 }

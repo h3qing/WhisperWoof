@@ -399,7 +399,7 @@ function setupVault() {
       databaseManager.close();
       appInit().detachDatabase();
     },
-    inboxHandlers: () =>
+    inbox: () =>
       createInboxHandlers({
         databaseManager,
         audioStorageManager: ipcHandlers.audioStorageManager,
@@ -409,10 +409,16 @@ function setupVault() {
         broadcast: (channel, payload) => ipcHandlers.broadcastToWindows(channel, payload),
       }),
   });
+  // Registered after lifecycle.configure, so these run once the databases are open.
   // Calendar accounts and events are in the database: pause while locked.
   vault.onUnlocked(async () => {
     googleCalendarManager?.start();
     meetingDetectionEngine?._schedulePreMeetingNotification?.();
+    try {
+      ipcHandlers.runAudioSweep?.();
+    } catch (err) {
+      debugLogger.error("Audio cleanup after unlock failed", { error: err.message }, "audio-storage");
+    }
   });
   vault.onLocking(async () => googleCalendarManager?.stop());
   vault.addLockBlocker(() => Boolean(ipcHandlers._meetingAudioBuffer?.isActive));

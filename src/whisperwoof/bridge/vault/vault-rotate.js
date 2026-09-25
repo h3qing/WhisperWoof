@@ -22,11 +22,12 @@ const vault = require("./vault-service");
 const migrate = require("./vault-migrate");
 const { sealedPath } = require("./vault-files");
 const { vaultPaths, ensurePrivateDir, writeFileAtomic, removeIfExists } = require("./vault-paths");
+const debugLogger = require("../../../helpers/debugLogger");
 
 const PASSWORD_TTL_MS = 30 * 60 * 1000;
 const LINK_INFO = "whisperwoof/rotate/v1";
 
-let deps = null; // { Database, userData(), notesDir(), closeDatabases(), onProgress(p) }
+let deps = null; // { Database, userData(), notesDir(), closeDatabases(), openDatabases(), onProgress(p) }
 let pending = null; // { password, expires } between "confirm it's you" and "confirm the words"
 
 function configure(nextDeps) {
@@ -125,36 +126,72 @@ function sealedFiles(userData, notesDir) {
   return [...logical, ...inbox].filter((f) => f.endsWith(".wwenc") && fs.existsSync(f));
 }
 
+/**
+ * Move each sealed file to the new key. A file neither key opens (a note
+ * synced from another Mac's vault, a damaged file) is left as it is: it
+ * wasn't readable before either, and it must not stop the rollout.
+ */
 function rewrapFiles(files, oldPrivateKey, newKeys, onProgress) {
+  const skipped = [];
   files.forEach((file, i) => {
     const bytes = fs.readFileSync(file);
-    if (!ww.opensWith(bytes, newKeys.sealPrivateKey)) {
-      writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw));
+    if (ww.opensWith(bytes, newKeys.sealPrivateKey)) return;
+    if (!ww.opensWith(bytes, oldPrivateKey)) {
+      skipped.push(file);
+      return;
     }
+    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw));
     if (i % 10 === 0 || i === files.length - 1) onProgress({ direction: "rotate", phase: "files", done: i + 1, total: files.length });
   });
+  return skipped;
 }
 
-/** Carry out (or resume) a rotation. Needs the old vault unlocked and databases closeable. */
+function finishedAlready(saved) {
+  return saved.next.vaultId === vault.getVault()?.vaultId;
+}
+
+function removeLeftovers() {
+  removeIfExists(vaultPaths.nextVaultFile());
+  removeIfExists(vaultPaths.journal());
+}
+
+/**
+ * Carry out (or resume) a rotation from the old vault, unlocked. Order:
+ * files (skip unreadable) → database → adopt the new vault → delete the link
+ * and the journal. If it stops, the new keys stay accepted for this session
+ * (reads and the database keep working) and the next unlock resumes.
+ */
 async function finish() {
   const d = deps;
   const saved = readNext();
-  if (!saved) throw new Error("There's no new recovery phrase to finish");
+  if (!saved) {
+    removeLeftovers();
+    return;
+  }
+  if (finishedAlready(saved)) {
+    removeLeftovers(); // crashed after adopting, before cleaning up
+    return;
+  }
   const newMasterKey = masterKeyFromLink(saved.next, saved.link);
   const oldKeys = vault.requireKeys();
   const newKeys = vk.deriveKeys(newMasterKey);
-  vault.setRotation({ sealPublic: newKeys.sealPublicRaw, oldPrivateKeys: [oldKeys.sealPrivateKey] });
+  vault.setRotation({
+    sealPublic: newKeys.sealPublicRaw,
+    extraPrivateKeys: [newKeys.sealPrivateKey],
+    extraDbKeys: [newKeys.dbKeyHex],
+  });
   try {
-    await d.closeDatabases();
+    d.onProgress({ direction: "rotate", phase: "files", done: 0, total: 1 });
+    const skipped = rewrapFiles(sealedFiles(d.userData(), d.notesDir()), oldKeys.sealPrivateKey, newKeys, d.onProgress);
+    if (skipped.length > 0) debugLogger.warn("[Vault] Left files no key opens as they are", { count: skipped.length });
     d.onProgress({ direction: "rotate", phase: "db", done: 0, total: 1 });
+    await d.closeDatabases();
     rotateDatabase(d.Database, vaultPaths.dbFile(), oldKeys.dbKeyHex, newKeys.dbKeyHex);
-    rewrapFiles(sealedFiles(d.userData(), d.notesDir()), oldKeys.sealPrivateKey, newKeys, d.onProgress);
-    removeIfExists(vaultPaths.journal());
-    await vault.adoptNewVault(saved.next, newMasterKey); // reopens databases through the unlock steps
-    removeIfExists(vaultPaths.nextVaultFile());
+    vault.replaceVault(saved.next, newMasterKey);
+    removeLeftovers();
     d.onProgress(null);
   } finally {
-    vault.clearRotation();
+    await d.openDatabases?.();
   }
 }
 

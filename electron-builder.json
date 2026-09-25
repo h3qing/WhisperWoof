@@ -93,6 +93,7 @@
     "resources/bin/macos-fast-paste",
     "resources/bin/macos-mic-listener",
     "resources/bin/macos-text-monitor",
+    "resources/bin/macos-vault-helper",
     "resources/bin/macos-media-remote",
     "resources/bin/linux-fast-paste",
     "resources/bin/linux-text-monitor",

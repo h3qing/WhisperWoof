@@ -74,8 +74,11 @@ function saveProjectNote(text) {
 
 /** Record which dictation a note came from; the dictation joins the note's project. */
 function linkNoteToEntry(name, entryId) {
-  if (isLocked()) {
+  const pending = vault.isOn() && !appInit.getWhisperWoofEntryRow(entryId) && require("./vault/vault-inbox").count() > 0;
+  if (isLocked() || pending) {
+    // The entry is still sealed in the inbox: link once it's imported.
     sealForLater("note.linkEntry", { name, entryId });
+    if (!isLocked()) require("./vault/vault-lifecycle").replayInbox().catch(() => {});
     return { name, sealed: true };
   }
   if (!appInit.getWhisperWoofEntryRow(entryId)) throw new Error("Unknown entry");

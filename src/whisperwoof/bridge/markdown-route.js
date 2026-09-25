@@ -58,7 +58,21 @@ function updateSettings(patch) {
   return next;
 }
 
+/**
+ * Encrypted notes stay in the folder they were sealed in: turning encryption
+ * off or making a new recovery phrase only reaches the current folder.
+ */
+function assertNotesDirMovable() {
+  const vault = require("./vault/vault-service");
+  if (vault.sealsNotes()) {
+    throw new Error(
+      "Your notes are encrypted, so they can't move to another folder. Turn on \u201cKeep notes readable by other apps\u201d or turn off encryption first."
+    );
+  }
+}
+
 function setNotesDir(dir) {
+  assertNotesDirMovable();
   updateSettings({ notesDirectory: dir });
   return dir;
 }
@@ -131,4 +145,4 @@ function getNotesDirectory() {
   return getNotesDir();
 }
 
-module.exports = { saveAsMarkdown, getNotesDirectory, setNotesDir, readSettings, updateSettings, DEFAULT_NOTES_DIR };
+module.exports = { saveAsMarkdown, getNotesDirectory, setNotesDir, assertNotesDirMovable, readSettings, updateSettings, DEFAULT_NOTES_DIR };

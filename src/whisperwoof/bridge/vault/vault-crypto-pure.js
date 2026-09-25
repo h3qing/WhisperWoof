@@ -12,9 +12,13 @@ const KEY_LEN = 32;
 const NONCE_LEN = 12;
 const TAG_LEN = 16;
 
-// Minimum scrypt cost we accept from a vault file — stops a tampered vault
-// from downgrading the password KDF to something cheap to brute-force.
+// scrypt costs we accept from a vault file: the floor stops a tampered vault
+// from downgrading the password KDF; the ceiling stops one from hanging the
+// app (1 GiB of memory at most).
 const MIN_SCRYPT_N = 1024;
+const MAX_SCRYPT_N = 2 ** 20;
+const MAX_SCRYPT_R = 16;
+const MAX_SCRYPT_P = 16;
 
 // DER prefixes for raw 32-byte X25519 keys (RFC 8410).
 const X25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b656e04220420", "hex");
@@ -82,7 +86,11 @@ function boxFromJson(json) {
 function assertScryptParams(params) {
   const { N, r, p } = params || {};
   const powerOfTwo = Number.isInteger(N) && N > 1 && (N & (N - 1)) === 0;
-  if (!powerOfTwo || N < MIN_SCRYPT_N || !Number.isInteger(r) || r < 8 || !Number.isInteger(p) || p < 1) {
+  const inRange =
+    powerOfTwo && N >= MIN_SCRYPT_N && N <= MAX_SCRYPT_N &&
+    Number.isInteger(r) && r >= 8 && r <= MAX_SCRYPT_R &&
+    Number.isInteger(p) && p >= 1 && p <= MAX_SCRYPT_P;
+  if (!inRange) {
     throw new VaultCryptoError("Password settings in the vault are invalid");
   }
 }

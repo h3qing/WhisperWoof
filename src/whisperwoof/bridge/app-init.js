@@ -407,7 +407,8 @@ function saveWhisperWoofEntry(entry) {
   const createdAt = entry.createdAt || new Date().toISOString();
 
   if (!whisperwoofDb) {
-    if (!vault.isOn() || vault.isUnlocked()) return null;
+    // Locked, or the database failed to open: keep it sealed rather than drop it.
+    if (!vault.isOn()) return null;
     try {
       require("./vault/vault-inbox").record("entry.save", { entry: { ...entry, id, createdAt } });
       return { id, createdAt, sealed: true };

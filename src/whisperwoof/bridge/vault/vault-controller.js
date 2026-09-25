@@ -51,9 +51,20 @@ async function refreshTouchIdAvailability() {
 function migrationStatus() {
   const progress = lifecycle.getProgress();
   if (progress) return { ...progress, needsUnlock: false };
-  const journal = migrate.readJournal();
-  if (!journal) return null;
-  return { direction: journal.direction, phase: journal.phase, done: 0, total: 0, needsUnlock: !vault.isUnlocked() };
+  const error = lifecycle.getError();
+  const journal = vault.isOn() ? migrate.readJournal() : null;
+  if (journal) {
+    return {
+      direction: journal.direction,
+      phase: error ? "error" : journal.phase,
+      done: 0,
+      total: 0,
+      needsUnlock: !vault.isUnlocked(),
+      ...(error ? { error: error.message } : {}),
+    };
+  }
+  if (error) return { direction: error.direction, phase: "error", done: 0, total: 0, needsUnlock: false, error: error.message };
+  return null;
 }
 
 function getStatus() {
@@ -150,13 +161,20 @@ async function completeSetup({ password, confirmWords, useTouchId, notesReadable
   return guarded(() =>
     vault.exclusive(async () => {
       if (vault.isOn()) return fail("Encryption is already on", "INVALID");
+      if (vault.isLockBlocked()) {
+        return fail("Finish recording the meeting first, then turn on encryption.", "BUSY");
+      }
       const session = takeConfirmedSession("setup", confirmWords);
       const created = vk.createVault({ entropy: session.entropy, password });
       const withPrefs = vk.updatePrefs(created.vault, { notesReadable: Boolean(notesReadable) });
-      // Journal first: the unlock that follows sees it and runs the migration.
-      ensurePrivateDir(vaultPaths.dir());
-      writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("enable")));
-      await vault.adoptNewVault(withPrefs, created.masterKey);
+      // vault.json, then the journal, then the unlock — which sees the journal
+      // and runs the migration. A crash in between never leaves a journal alone.
+      await vault.adoptNewVault(withPrefs, created.masterKey, {
+        beforeUnlock: () => {
+          ensurePrivateDir(vaultPaths.dir());
+          writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("enable")));
+        },
+      });
       let touchIdNote;
       if (useTouchId) {
         await enrollTouchId({ test: true }).catch((err) => {
@@ -271,7 +289,7 @@ async function setTouchIdEnabled(enabled) {
   });
 }
 
-async function setPrefs(prefs) {
+async function setPrefs(prefs, reauth) {
   return guarded(() =>
     vault.exclusive(async () => {
       const current = vault.getVault();
@@ -279,6 +297,8 @@ async function setPrefs(prefs) {
       const next = vk.updatePrefs(current, prefs);
       if (next.prefs.notesReadable !== current.prefs.notesReadable) {
         vault.requireKeys();
+        // Making every note plain on disk is as serious as turning encryption off.
+        if (next.prefs.notesReadable) await reauthenticate(reauth);
         await lifecycle.convertNotes(!next.prefs.notesReadable);
       }
       vault.saveVault(next);
@@ -304,7 +324,7 @@ async function completeNewPhrase({ confirmWords }) {
   return guarded(() =>
     vault.exclusive(async () => {
       const session = takeConfirmedSession("rotate", confirmWords);
-      await rotation.rotate(session.entropy);
+      await lifecycle.runRotation(() => rotation.rotate(session.entropy));
       return ok();
     })
   );
@@ -316,9 +336,9 @@ async function disable(reauth) {
       vault.requireMasterKey();
       await reauthenticate(reauth);
       await lifecycle.replayInbox();
-      if (vaultInbox.count() > 0) {
-        return fail("Some entries saved while locked couldn't be imported yet. Try again in a moment.", "BUSY");
-      }
+      // Anything that still won't import is written out as plain JSON (it's all
+      // going plain now) instead of being lost with the vault.
+      vaultInbox.exportRemaining(require("path").join(vaultPaths.dir(), "..", "unimported-while-locked"));
       ensurePrivateDir(vaultPaths.dir());
       writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("disable")));
       await lifecycle.runMigration("disable");
@@ -328,7 +348,20 @@ async function disable(reauth) {
   );
 }
 
+/** "Try again" after a migration or new phrase stopped. */
+async function retry() {
+  return guarded(() =>
+    vault.exclusive(async () => {
+      vault.requireKeys();
+      await lifecycle.retry();
+      notify();
+      return ok();
+    })
+  );
+}
+
 module.exports = {
+  retry,
   getStatus,
   onStatus,
   refreshTouchIdAvailability,

@@ -43,6 +43,7 @@ interface WhisperWoofSettingsProps {
 
 export default function WhisperWoofSettings({ className }: WhisperWoofSettingsProps) {
   const [state, setState] = useState<SettingsState>(buildInitialState);
+  const [notesDirError, setNotesDirError] = useState<string | null>(null);
   const autoPasteEnabled = useSettingsStore((s) => s.autoPasteEnabled);
   const setAutoPasteEnabled = useSettingsStore((s) => s.setAutoPasteEnabled);
 
@@ -136,9 +137,12 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
                 onClick={async () => {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const api = (window as any).electronAPI;
+                  setNotesDirError(null);
                   const result = await api?.whisperwoofPickNotesDir?.();
                   if (result?.success) {
                     setState((prev) => ({ ...prev, notesDir: result.path }));
+                  } else if (result && !result.canceled && result.error) {
+                    setNotesDirError(result.error);
                   }
                 }}
                 className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
@@ -158,6 +162,7 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
           <p className="text-xs text-muted-foreground/70 font-mono truncate" title={state.notesDir}>
             {state.notesDirLoading ? "Loading..." : state.notesDir}
           </p>
+          {notesDirError && <p className="text-xs text-destructive">{notesDirError}</p>}
         </SettingsGroup>
       </SettingsSection>
 

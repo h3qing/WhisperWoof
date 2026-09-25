@@ -52,23 +52,28 @@ function readItem(file) {
 }
 
 /**
- * Replay every item in order. `handlers[op](data, ctx)` performs one op;
- * ctx.idMap maps provisional transcription ids to real ones across items.
+ * Replay every item in order. `handlers[op](data, ctx)` performs one op.
+ * ctx.idMap maps provisional transcription ids to real ones (seeded from the
+ * database, so it survives a crash between items); ctx.failedPids holds the
+ * provisional ids whose transcription didn't import in this run, so the items
+ * that depend on them wait instead of losing their link.
  * Returns { applied, failed }.
  */
-async function replay(handlers, log = () => {}) {
-  const idMap = new Map();
+async function replay(handlers, { idMap = new Map(), log = () => {} } = {}) {
+  const ctx = { idMap, failedPids: new Set() };
   let applied = 0;
   let failed = 0;
   for (const file of listItemFiles()) {
+    let item = null;
     try {
-      const item = readItem(file);
+      item = readItem(file);
       const handler = handlers[item.op];
       if (!handler) throw new Error(`No handler for ${item.op}`);
-      await handler(item.data, { idMap, item });
+      await handler(item.data, { ...ctx, item });
       removeIfExists(path.join(vaultPaths.inboxDir(), file));
       applied += 1;
     } catch (err) {
+      if (item && item.op === "transcription.save") ctx.failedPids.add(item.data.pid);
       failed += 1;
       log(file, err);
     }
@@ -76,4 +81,20 @@ async function replay(handlers, log = () => {}) {
   return { applied, failed };
 }
 
-module.exports = { record, provisionalTranscriptionId, count, replay, listItemFiles };
+/**
+ * Turning encryption off with items that still won't import: write them out as
+ * plain JSON in `dir` (everything becomes plain anyway) so nothing is lost.
+ */
+function exportRemaining(dir) {
+  const files = listItemFiles();
+  if (files.length === 0) return 0;
+  require("fs").mkdirSync(dir, { recursive: true });
+  for (const file of files) {
+    const item = readItem(file);
+    writeFileAtomic(path.join(dir, `${file.replace(/\.wwenc$/, "")}.json`), JSON.stringify(item, null, 2));
+    removeIfExists(path.join(vaultPaths.inboxDir(), file));
+  }
+  return files.length;
+}
+
+module.exports = { record, provisionalTranscriptionId, count, replay, exportRemaining, listItemFiles };
