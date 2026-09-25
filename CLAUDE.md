@@ -59,7 +59,8 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
 src/helpers/                     ← Meeting safety modules (main process)
     meetingAudioBuffer.js       Local WAV file buffer (5-min rotating segments)
     meetingTranscriptCheckpoint.js  Periodic transcript save to SQLite (60s)
-    meetingSessionManager.js    WebSocket reconnection + session rotation
+    meetingSessionRotation.js   25-min session rotation: which streams, connect new → swap → close old
+    meetingSessionManager.js    Unused wrapper (tests only); live rotation/reconnect is in ipcHandlers.js
     meetingDetectionEngine.js   Orchestrates calendar + process + audio detection
     audioActivityDetector.js    Mic activity detection (event-driven + polling)
     meetingProcessDetector.js   Detects Zoom/Teams/Webex/FaceTime running
@@ -74,8 +75,9 @@ Voice/System Audio Chunks
     │     └── Crash-safe: valid WAV on disk at all times
     │
     ├──► OpenAI Realtime WebSocket (streaming transcription)
-    │     ├── MeetingSessionManager handles reconnection + rotation
-    │     └── If disconnect: auto-reconnect with exponential backoff
+    │     ├── Rotation at 25min (ipcHandlers + meetingSessionRotation.js):
+    │     │   fresh session connects first, swaps in, then the old one closes
+    │     └── If disconnect: auto-reconnect with exponential backoff (fresh token)
     │
     └──► MeetingTranscriptCheckpoint (SQLite every 60s)
           └── At most 60s of transcript lost on crash
