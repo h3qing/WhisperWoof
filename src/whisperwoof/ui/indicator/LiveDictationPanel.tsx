@@ -1,29 +1,37 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Check, Clipboard, FileText, FolderOpen } from 'lucide-react';
 import { MandoSprite } from './MandoSprite';
 import { pickMandoAction } from './mando-sprite';
-import type { LivePanelView } from '../../core/live/live-dictation';
+import type { LiveNotice, LivePanelView } from '../../core/live/live-dictation';
 import type { DictationRoute } from '../../core/router/dictation-route';
-import { RouteChip } from './RouteChip';
 
 // Live dictation panel: replaces the Mando indicator while a live-mode capture
-// runs. Committed text is solid ink; the provisional tail (which the streaming
-// model may still rewrite) sits in frosted caramel glass (`live-words`), the
-// design's one signature element: words are glass until they land. After
-// release the whole draft settles while the final pass + polish run, then the
-// pasted text shows for a beat before the panel collapses.
+// runs. A one-line ticker: Mando on the left with a pill under him (where the
+// words go, then what's happening to them), the words on the right. As you keep
+// talking the line slides left and the oldest words fade off the left edge:
+// you've already read them. Committed text is solid ink; the provisional tail
+// (which the streaming model may still rewrite) sits in frosted caramel glass
+// (`live-words`), the design's one signature element. After release the draft
+// settles while the final pass + polish run, then the pasted text shows for a
+// beat before the panel collapses.
 
-const LINE_HEIGHT_PX = 22;
-const MAX_LINES = 3;
-// Fits WINDOW_SIZES.LIVE_PANEL (112px): 10 + pill row 22 + 3 lines + 12.
-const PANEL_HEIGHT_PX = 112;
+// Fits WINDOW_SIZES.LIVE_PANEL (360 x 72).
+const PANEL_WIDTH_PX = 360;
+const PANEL_HEIGHT_PX = 72;
+const MANDO_SIZE_PX = 36;
+// Mando and the pill under him; fixed so the words don't shift when the pill
+// changes from "Listening" to "Polishing…".
+const SIDE_WIDTH_PX = 76;
+// Room at the right for the cancel button App.jsx lays over the panel.
+const CANCEL_GUTTER_PX = 34;
+const FADE_PX = 28;
 
-const PHASE_PILL: Record<string, string> = {
-  listening: 'bg-mando/15 text-mando-deep',
-  streaming: 'bg-mando/15 text-mando-deep',
-  correcting: 'bg-foreground/8 text-muted-foreground',
-  polishing: 'bg-foreground/8 text-muted-foreground',
-  done: 'bg-success/15 text-success',
-};
+const ROUTE_ICON = {
+  'copy-to-clipboard': Clipboard,
+  'save-as-markdown': FileText,
+  project: FolderOpen,
+} as const;
 
 interface LiveDictationPanelProps {
   view: LivePanelView;
@@ -31,11 +39,13 @@ interface LiveDictationPanelProps {
   celebrating: boolean;
   onCelebrationEnd?: () => void;
   /** The window is exactly this panel and carries macOS vibrancy: fill it and
-   *  add only a light Mando tint. Otherwise the panel draws its own CSS glass. */
+   *  add only light (glass-native). Otherwise the panel draws its own CSS glass. */
   native?: boolean;
-  /** Where this dictation goes; anything but paste shows a chip from the
-   *  moment Fn+letter is pressed, and the done label names the destination. */
+  /** Where this dictation goes; anything but paste tints the pill and shows
+   *  its icon from the moment Fn+letter is pressed. */
   route?: DictationRoute;
+  /** Why no live words will appear this capture; shown in place of the text. */
+  notice?: LiveNotice | null;
 }
 
 export function LiveDictationPanel({
@@ -45,6 +55,7 @@ export function LiveDictationPanel({
   onCelebrationEnd,
   native = false,
   route = 'paste-at-cursor',
+  notice = null,
 }: LiveDictationPanelProps) {
   const { t } = useTranslation();
   const { phase, committed, partial } = view;
@@ -56,73 +67,123 @@ export function LiveDictationPanel({
     processing,
     celebrating,
   });
-  const pillClass = PHASE_PILL[phase] ?? PHASE_PILL.listening;
-  const settled = processing;
+  const showNotice = notice !== null && !committed && !partial && phase !== 'done';
 
+  const routed = route !== 'paste-at-cursor';
+  // The pill is a sign, not prose: English in every UI language.
+  const en = { lng: 'en' } as const;
+  const routeLabel = {
+    'paste-at-cursor': t('app.live.listening', { ...en, defaultValue: 'Listening' }),
+    'copy-to-clipboard': t('app.live.routeCopy', { ...en, defaultValue: 'Copy' }),
+    'save-as-markdown': t('app.live.routeNote', { ...en, defaultValue: 'Note' }),
+    project: t('app.live.routeProject', { ...en, defaultValue: 'Project' }),
+  }[route];
   const label = {
-    listening: t('app.live.listening', { defaultValue: 'Listening' }),
-    streaming: t('app.live.listening', { defaultValue: 'Listening' }),
-    correcting: t('app.live.correcting', { defaultValue: 'Checking…' }),
-    polishing: t('app.live.polishing', { defaultValue: 'Polishing…' }),
+    listening: routeLabel,
+    streaming: routeLabel,
+    correcting: t('app.live.correcting', { ...en, defaultValue: 'Checking…' }),
+    polishing: t('app.live.polishing', { ...en, defaultValue: 'Polishing…' }),
     done: {
-      'paste-at-cursor': t('app.live.done', { defaultValue: 'Pasted' }),
-      'copy-to-clipboard': t('app.live.doneCopied', { defaultValue: 'Copied' }),
-      'save-as-markdown': t('app.live.doneNote', { defaultValue: 'Saved as note' }),
-      project: t('app.live.doneProject', { defaultValue: 'Filed to project' }),
+      'paste-at-cursor': t('app.live.done', { ...en, defaultValue: 'Pasted' }),
+      'copy-to-clipboard': t('app.live.doneCopied', { ...en, defaultValue: 'Copied' }),
+      'save-as-markdown': t('app.live.doneNote', { ...en, defaultValue: 'Saved' }),
+      project: t('app.live.doneProject', { ...en, defaultValue: 'Filed' }),
     }[route],
   }[phase as Exclude<typeof phase, 'hidden'>];
+  // Status colors stay for status: done is success; a routed dictation wears
+  // the accent (as the route chip did) until then.
+  const pillClass =
+    phase === 'done'
+      ? 'bg-success/15 text-success'
+      : routed
+        ? 'bg-primary text-primary-foreground'
+        : processing
+          ? 'bg-foreground/8 text-muted-foreground'
+          : 'bg-mando/15 text-mando-deep';
+  const PillIcon = phase === 'done' ? Check : routed ? ROUTE_ICON[route] : null;
 
+  const noticeText =
+    notice === 'model-missing'
+      ? t('app.live.noticeModelMissing', {
+          defaultValue:
+            "Live preview model isn't downloaded (Settings → Transcription). Your text appears when you let go.",
+        })
+      : t('app.live.noticeUnavailable', {
+          defaultValue: "Live preview didn't start. Your text appears when you let go.",
+        });
 
-  const surface = native
-    ? 'w-[420px] bg-mando/[0.07]'
-    : 'w-[412px] glass glass-rim rounded-[var(--radius-sheet)]';
+  // Keep the end of the line (where new words land) in view: slide the line
+  // left by however much it overflows.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLSpanElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const line = lineRef.current;
+    if (!box || !line) return;
+    setShift(Math.max(0, line.scrollWidth - box.clientWidth));
+  }, [phase, committed, partial, showNotice, native]);
+
+  const surface = native ? 'glass-native' : 'glass glass-rim rounded-[var(--radius-sheet)]';
+  // CSS glass sits 4px inside its (transparent) window so the float shadow has room.
+  const width = native ? PANEL_WIDTH_PX : PANEL_WIDTH_PX - 8;
+  const fade = shift > 0 ? `linear-gradient(to right, transparent 0, black ${FADE_PX}px)` : 'none';
 
   return (
     <div
-      className={`relative flex items-start gap-2.5 text-left text-foreground ${surface}`}
-      style={{ height: `${PANEL_HEIGHT_PX}px`, padding: '10px 14px 12px 10px', cursor: 'inherit' }}
+      className={`relative flex items-center text-left text-foreground ${surface}`}
+      style={{
+        width: `${width}px`,
+        height: `${PANEL_HEIGHT_PX}px`,
+        padding: `0 ${CANCEL_GUTTER_PX}px 0 6px`,
+        cursor: 'inherit',
+      }}
     >
       <style>{`
         @keyframes liveCaret { 50% { opacity: 0; } }
         @keyframes liveSettle { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.8; } }
       `}</style>
-      <MandoSprite
-        action={mando.action}
-        playing={mando.playing}
-        loop={mando.loop}
-        onAnimationEnd={mando.action === 'hop' ? onCelebrationEnd : undefined}
-        size={44}
-        style={{ flexShrink: 0 }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div role="status" aria-live="polite" className="mb-1 flex h-5 items-center gap-2">
-          <span className={`rounded-full px-2 text-[11px] font-semibold leading-[18px] ${pillClass}`}>
-            {label}
-          </span>
-          {phase !== 'done' && <RouteChip route={route} />}
-        </div>
-        <div
-          aria-hidden="true"
-          style={{
-            maxHeight: `${LINE_HEIGHT_PX * MAX_LINES}px`,
-            minHeight: `${LINE_HEIGHT_PX}px`,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-end',
-            // Older lines scroll off the top; fade them instead of a hard cut.
-            maskImage: 'linear-gradient(to bottom, transparent 0, black 14px)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, black 14px)',
-          }}
+      <div
+        className="flex shrink-0 flex-col items-center gap-0.5"
+        style={{ width: `${SIDE_WIDTH_PX}px` }}
+      >
+        <MandoSprite
+          action={mando.action}
+          playing={mando.playing}
+          loop={mando.loop}
+          onAnimationEnd={mando.action === 'hop' ? onCelebrationEnd : undefined}
+          size={MANDO_SIZE_PX}
+        />
+        <span
+          role="status"
+          aria-live="polite"
+          className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 text-[11px] font-semibold leading-[18px] ${pillClass}`}
         >
-          <p
+          {PillIcon && <PillIcon size={11} strokeWidth={2.5} aria-hidden="true" className="shrink-0" />}
+          <span className="truncate">{label}</span>
+        </span>
+      </div>
+      {showNotice ? (
+        <p role="status" className="m-0 ml-2 line-clamp-2 text-[12px] font-medium leading-[16px] text-muted-foreground">
+          {noticeText}
+        </p>
+      ) : (
+        <div
+          ref={boxRef}
+          aria-hidden="true"
+          className="ml-2 min-w-0 flex-1 overflow-hidden"
+          style={{ maskImage: fade, WebkitMaskImage: fade }}
+        >
+          <span
+            ref={lineRef}
             style={{
-              margin: 0,
-              fontSize: '15px',
-              lineHeight: `${LINE_HEIGHT_PX}px`,
-              wordBreak: 'break-word',
-              whiteSpace: 'pre-line', // numbered lists from formatSpokenEnumeration
-              animation: settled ? 'liveSettle 1.6s ease-in-out infinite' : 'none',
+              display: 'inline-block',
+              whiteSpace: 'nowrap', // one line: newlines from formatSpokenEnumeration read as spaces
+              fontSize: '17px',
+              lineHeight: '26px',
+              transform: `translateX(${-shift}px)`,
+              transition: 'transform 180ms ease-out',
+              animation: processing ? 'liveSettle 1.6s ease-in-out infinite' : 'none',
             }}
           >
             {phase === 'listening' ? (
@@ -141,16 +202,16 @@ export function LiveDictationPanel({
                 style={{
                   display: 'inline-block',
                   width: '2px',
-                  height: '16px',
+                  height: '18px',
                   marginLeft: '1px',
                   verticalAlign: '-3px',
                   animation: 'liveCaret 1s steps(1) infinite',
                 }}
               />
             )}
-          </p>
+          </span>
         </div>
-      </div>
+      )}
     </div>
   );
 }

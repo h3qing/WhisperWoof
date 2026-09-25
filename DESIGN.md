@@ -90,6 +90,7 @@ The utilities live in `src/index.css`:
 | `glass` | popovers, toasts, the live panel, capsule groups |
 | `glass-thick` | the sidebar, settings window, menus, anything holding a lot of text |
 | `glass-rim` | adds the specular gradient rim (a positioned element only) |
+| `glass-native` | light over a native macOS material: the live panel's window |
 | `glass-tint` | the one caramel glass action |
 | `sheet` | a solid content surface |
 | `live-words` | the signature: provisional words in frosted caramel |
@@ -191,6 +192,7 @@ only on large type.
 | Sheet | `card`, radius 22, two-part shadow, no border. |
 | Rows | hovered or selected rows become rounded (`rounded-lg`) with `surface-3` or `select`. |
 | Live words | `live-words`: gradient sheen over `live-glass`, 1px inset `live` outline, `box-decoration-break: clone`. Caret in `live`. |
+| Live panel | One-line ticker, 360 × 72 on native glass: Mando (36px) with a capsule sign under him (route, then status; English in every UI language), the words on one line to the right. The line slides left as it grows and the oldest words fade off the left edge. |
 | Status | icon, label and color together, never color alone. |
 
 ## 8. Motion
@@ -221,7 +223,8 @@ The control panel is an opaque window (`backgroundColor` matches
 `--color-background`, pinned by a test) with the Mando backdrop drawn in CSS:
 native vibrancy would take its color from the wallpaper and lose Mando's.
 Floating single-panel windows (the live dictation panel, the agent overlay)
-use Electron `vibrancy` with only a light Mando tint on top. See
+use Electron `vibrancy` with only a light Mando tint on top; the live panel
+uses the translucent `hud` material and `glass-native`. See
 `docs/design/liquid-glass.md`.
 
 ## 11. Words

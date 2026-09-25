@@ -1878,7 +1878,9 @@
       "correcting": "校正中…",
       "polishing": "润色中…",
       "done": "已粘贴",
-      "startTalking": "开始说话吧…"
+      "startTalking": "开始说话吧…",
+      "noticeModelMissing": "实时预览模型还没下载（设置 → 转录）。松开后文字照常出现。",
+      "noticeUnavailable": "实时预览没能启动。松开后文字照常出现。"
     }
   },
   "agentMode": {

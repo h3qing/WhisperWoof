@@ -22,6 +22,7 @@ import {
   punctuateShortCjk,
 } from "../whisperwoof/core/polish/format-dictation";
 import {
+  liveNoticeForError,
   resolveLiveDictationPlan,
   toLiveSegments,
 } from "../whisperwoof/core/live/live-dictation";
@@ -180,6 +181,15 @@ class AudioManager {
         this.onPartialTranscript?.(segments);
       });
     }
+    // The stream can die after it started (socket refused or closed): no more
+    // partials will come, so tell the panel instead of leaving it on "Start talking…".
+    if (!this._localErrorUnsub && window.electronAPI?.onParakeetStreamError) {
+      this._localErrorUnsub = window.electronAPI.onParakeetStreamError((message) => {
+        if (!this._localStreamActive) return;
+        logger.warn("Live stream failed mid-capture", { error: message }, "audio");
+        this.onLiveStreamUnavailable?.(liveNoticeForError(message));
+      });
+    }
 
     try {
       this._localTapCtx = await this._ensureLocalTapContext();
@@ -221,12 +231,12 @@ class AudioManager {
           "audio"
         );
         this._teardownLocalStreamTap();
-        this.onLiveStreamUnavailable?.();
+        this.onLiveStreamUnavailable?.(liveNoticeForError(started?.error));
       }
     } catch (e) {
       logger.warn("Local stream tap setup failed", { error: e.message }, "audio");
       this._teardownLocalStreamTap();
-      this.onLiveStreamUnavailable?.();
+      this.onLiveStreamUnavailable?.(liveNoticeForError(e));
     }
   }
 
@@ -3159,6 +3169,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onPartialTranscript = null;
     this.onLiveStreamUnavailable = null;
     this.onStreamingCommit = null;
+    this._localPartialUnsub?.();
+    this._localErrorUnsub?.();
+    this._localPartialUnsub = null;
+    this._localErrorUnsub = null;
     if (this._onApiKeyChanged) {
       window.removeEventListener("api-key-changed", this._onApiKeyChanged);
     }

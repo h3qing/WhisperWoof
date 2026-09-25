@@ -1878,7 +1878,9 @@
       "correcting": "校正中…",
       "polishing": "潤飾中…",
       "done": "已貼上",
-      "startTalking": "開始說話吧…"
+      "startTalking": "開始說話吧…",
+      "noticeModelMissing": "即時預覽模型尚未下載（設定 → 轉錄）。放開後文字照常出現。",
+      "noticeUnavailable": "即時預覽未能啟動。放開後文字照常出現。"
     }
   },
   "agentMode": {

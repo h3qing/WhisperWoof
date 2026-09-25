@@ -5,6 +5,17 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-25 — Live typing as a one-line ticker
+
+### Changed
+- **Live typing is a one-line ticker.** Mando sits on the left with a small sign under him, your words run along one line to the right, and as you keep talking the line slides left and the oldest words fade off the edge (you've already read them). The panel is 360 × 72 instead of 420 × 112.
+- **The sign under Mando says where your words go, then what's happening.** From the moment you press Fn+N, Fn+P or Fn+T it reads Note, Project or Copy (with its icon), then Checking… / Polishing…, then Pasted, Saved, Filed or Copied. It reads in English in every app language, like the route chip on the regular indicator.
+- **Glassier on macOS.** The panel uses the translucent HUD material, so the app behind it shows through, blurred, instead of a solid grey slab, with a lit top edge and a soft sheen (`glass-native`).
+
+### Fixed
+- **Live typing says why your words aren't appearing.** If the live preview can't run (its model isn't downloaded, or the streaming server didn't start or dropped mid-capture), the panel says so, points to Settings → Transcription when the model is missing, and still shows the pasted text when you let go. Before, it sat on "Start talking…" for the whole dictation, and a stream that failed after starting went unnoticed because nothing listened for its error.
+- **No more frozen "Listening" panel.** With "hide when not recording" on (the default), a live-mode dictation that couldn't stream (for example, a pinned language the preview model doesn't cover) kept the last Listening frame on screen until it finished. It now shows the regular indicator.
+
 ## [2.0.0] - 2026-09-24 — A new look: glass in Mando's colors
 
 ### Changed

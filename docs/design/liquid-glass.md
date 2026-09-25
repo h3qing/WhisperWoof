@@ -71,12 +71,14 @@ to your own translucent background): use the utilities.
 
 Floating windows whose content is a single panel use Electron `vibrancy`
 (real desktop blur, native rounded corners). The window must be the panel's
-size: any transparent margin becomes glass too. CSS then adds only a light
-Mando tint over the native material (`bg-mando/[0.07]`), with no CSS radius:
-the window's native corners are the panel's corners.
+size: any transparent margin becomes glass too. CSS then adds only light
+over the native material (`glass-native`: a 6% coat tint, a lit top edge and
+a sheen near the top), with no CSS radius: the window's native corners are
+the panel's corners.
 
-- Dictation overlay: only `LIVE_PANEL` carries a material (`vibrancyForSize`
-  in `src/helpers/windowConfig.js`). Idle live mode (`LIVE`, same rectangle,
+- Dictation overlay: only `LIVE_PANEL` (360 x 72) carries a material, the
+  translucent `hud` (`vibrancyForSize` in `src/helpers/windowConfig.js`;
+  `popover` read as an opaque grey slab). Idle live mode (`LIVE`, same rectangle,
   just Mando) and the toast/menu sizes stay transparent, and the live panel
   falls back to CSS `glass` there. That transparent window has no desktop to
   blur, so its CSS glass is made nearly opaque (`:root:has(.dictation-window)`).

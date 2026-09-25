@@ -283,6 +283,20 @@
     mask-composite: exclude;
   }
 }
+/* Light over a native macOS material (Electron vibrancy): the window already
+   blurs what's behind it, so CSS adds no tint layer of its own, only a trace
+   of Mando's coat, a lit top edge and a sheen near the top. No radius or
+   ring: the window's native corners are the panel's corners. */
+@utility glass-native {
+  background-color: color-mix(in srgb, var(--color-mando) 6%, transparent);
+  background-image:
+    linear-gradient(90deg, transparent 12%, var(--glass-rim-hi) 50%, transparent 88%),
+    radial-gradient(120% 70% at 30% 0%, var(--glass-inner), transparent 70%);
+  background-size:
+    100% 1px,
+    100% 100%;
+  background-repeat: no-repeat;
+}
 /* A solid content sheet: the surface for anything that has landed. */
 @utility sheet {
   background-color: var(--color-card);

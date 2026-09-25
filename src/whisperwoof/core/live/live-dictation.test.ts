@@ -6,6 +6,7 @@ import {
   toLiveSegments,
   listStreamingModels,
   pickLivePanelFrame,
+  liveNoticeForError,
   type LivePanelView,
   type LivePanelFrameInput,
 } from "./live-dictation";
@@ -253,7 +254,7 @@ describe("pickLivePanelFrame", () => {
   const listening: LivePanelView = { phase: "listening", committed: "", partial: "" };
   const hidden: LivePanelView = { phase: "hidden", committed: "", partial: "" };
   const done: LivePanelView = { phase: "done", committed: "好的", partial: "" };
-  const base: LivePanelFrameInput = { view: hidden, lastFrame: null, isLiveCapture: false, starting: false, liveMode: true, autoHide: true, windowHidden: false };
+  const base: LivePanelFrameInput = { view: hidden, lastFrame: null, isLiveCapture: false, starting: false, captureRunning: false, liveMode: true, autoHide: true, windowHidden: false };
 
   it("shows the live view while a live capture runs", () => {
     const streaming: LivePanelView = { phase: "streaming", committed: "a", partial: "b" };
@@ -277,8 +278,33 @@ describe("pickLivePanelFrame", () => {
     expect(pickLivePanelFrame({ ...base, autoHide: false, starting: true })).toEqual(listening);
   });
 
+  it("gives a capture that isn't live the regular indicator, not a frozen Listening", () => {
+    // Auto-hide on (the default): the held frame used to stay on screen for
+    // the whole capture, reading "Start talking…" while nothing would stream.
+    expect(pickLivePanelFrame({ ...base, captureRunning: true, lastFrame: listening })).toBeNull();
+    expect(pickLivePanelFrame({ ...base, captureRunning: true, lastFrame: done })).toBeNull();
+    expect(pickLivePanelFrame({ ...base, captureRunning: true, starting: true })).toBeNull();
+  });
+
+  it("still shows a live capture while it runs", () => {
+    expect(pickLivePanelFrame({ ...base, captureRunning: true, isLiveCapture: true, view: listening })).toEqual(listening);
+  });
+
   it("does nothing outside live mode", () => {
     expect(pickLivePanelFrame({ ...base, liveMode: false, lastFrame: done })).toBeNull();
     expect(pickLivePanelFrame({ ...base, liveMode: false, starting: true })).toBeNull();
+  });
+});
+
+describe("liveNoticeForError", () => {
+  it("names a missing preview model so the panel can point to Settings", () => {
+    expect(liveNoticeForError('Model "x-asr-zh-en-streaming-160ms" not downloaded')).toBe("model-missing");
+    expect(liveNoticeForError(new Error("Parakeet model not downloaded"))).toBe("model-missing");
+  });
+
+  it("treats anything else as a stream that didn't start", () => {
+    expect(liveNoticeForError("connection closed before transcription completed")).toBe("unavailable");
+    expect(liveNoticeForError(new Error("parakeet WS server binary not found"))).toBe("unavailable");
+    expect(liveNoticeForError(undefined)).toBe("unavailable");
   });
 });
