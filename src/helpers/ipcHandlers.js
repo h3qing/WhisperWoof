@@ -6720,7 +6720,7 @@ class IPCHandlers {
 
   async _checkMeetingSessionRotation() {
     const sources = sourcesToRotate({
-      startedAt: this._meetingStreamingStartedAt,
+      active: Boolean(this._meetingStreamingStartedAt),
       now: Date.now(),
       rotating: this._meetingRotating,
       streams: { mic: this._meetingMicStreaming, system: this._meetingSystemStreaming },
@@ -6740,7 +6740,7 @@ class IPCHandlers {
       if (!win || win.isDestroyed()) return;
 
       debugLogger.log("Meeting session rotation triggered", {
-        ageMs: Date.now() - this._meetingStreamingStartedAt,
+        meetingMs: Date.now() - this._meetingStreamingStartedAt,
         sources,
       });
       this._meetingTranscriptCheckpoint.forceCheckpoint();
@@ -6759,8 +6759,7 @@ class IPCHandlers {
         swapIn: (source, streaming) => this._swapInMeetingStream(source, streaming),
       });
 
-      if (rotated && isCurrent()) {
-        this._meetingStreamingStartedAt = Date.now();
+      if (rotated) {
         debugLogger.log("Meeting session rotated", { sources });
       } else if (error) {
         // The old sessions keep transcribing; the next check retries.

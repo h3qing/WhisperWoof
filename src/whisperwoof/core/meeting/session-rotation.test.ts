@@ -38,8 +38,13 @@ function fakeStream(name: string, log: string[], { failConnect = false, text = "
 }
 
 describe("sourcesToRotate", () => {
-  const streams = { mic: {}, system: {} };
-  const due = { startedAt: START, now: START + SESSION_MAX_AGE_MS, rotating: false, streams };
+  const session = (connectedAt: number | null) => ({ connectedAt });
+  const due = {
+    active: true,
+    now: START + SESSION_MAX_AGE_MS,
+    rotating: false,
+    streams: { mic: session(START), system: session(START) },
+  };
 
   it("rotates 5 minutes before OpenAI's 30 minute session limit", () => {
     expect(SESSION_MAX_AGE_MS).toBe(25 * MIN);
@@ -54,8 +59,20 @@ describe("sourcesToRotate", () => {
     expect(sourcesToRotate({ ...due, now: START + 40 * MIN })).toEqual(["mic", "system"]);
   });
 
+  it("goes by each session's own age, so a stream that reconnected later waits its turn", () => {
+    const streams = { mic: session(START), system: session(START + 10 * MIN) };
+    expect(sourcesToRotate({ ...due, streams })).toEqual(["mic"]);
+    expect(sourcesToRotate({ ...due, streams, now: START + 35 * MIN })).toEqual(["mic", "system"]);
+  });
+
+  it("leaves a session that hasn't connected yet alone", () => {
+    expect(sourcesToRotate({ ...due, streams: { mic: session(null), system: null } })).toEqual([]);
+  });
+
   it("rotates only the mic when there is no system-audio stream", () => {
-    expect(sourcesToRotate({ ...due, streams: { mic: {}, system: null } })).toEqual(["mic"]);
+    expect(sourcesToRotate({ ...due, streams: { mic: session(START), system: null } })).toEqual([
+      "mic",
+    ]);
   });
 
   it("skips a stream that is mid-reconnect, since that opens a fresh session anyway", () => {
@@ -68,7 +85,7 @@ describe("sourcesToRotate", () => {
   });
 
   it("does nothing when no meeting is streaming", () => {
-    expect(sourcesToRotate({ ...due, startedAt: null })).toEqual([]);
+    expect(sourcesToRotate({ ...due, active: false })).toEqual([]);
     expect(sourcesToRotate({ ...due, streams: { mic: null, system: null } })).toEqual([]);
   });
 });
