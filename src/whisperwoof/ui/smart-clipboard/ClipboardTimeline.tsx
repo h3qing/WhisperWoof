@@ -13,6 +13,8 @@ import {
   Check,
   ChevronDown,
   FilePlus2,
+  FileText,
+  FolderOpen,
   Image as ImageIcon,
   Maximize2,
   Pin,
@@ -39,9 +41,12 @@ import {
 import {
   IMAGE_CAP_CHOICES,
   KEEP_DAYS_CHOICES,
+  KEEP_FILES_WARNING,
   clearOptions,
   clearQuestion,
   clipboardHeadline,
+  fileBadge,
+  formatBytes,
   imageCaption,
   relativeTime,
   type ClearChoice,
@@ -51,7 +56,7 @@ import {
   type ClipboardSummary,
 } from "./clipboard-view";
 
-const PAGE = { text: 60, image: 36 } as const;
+const PAGE = { text: 60, image: 36, file: 40 } as const;
 
 type Result<T = object> = Promise<({ success: boolean; error?: string } & Partial<T>) | undefined>;
 
@@ -70,6 +75,8 @@ interface ClipboardApi {
   whisperwoofClipboardClear?: (o: { kind: string; olderThanDays: number }) => Result<{ deleted: number }>;
   whisperwoofClipboardPin?: (id: string, pinned: boolean) => Result;
   whisperwoofClipboardSetRetention?: (r: ClipboardRetention) => Result<{ deleted: number }>;
+  whisperwoofClipboardSetCapture?: (c: { keepFiles: boolean }) => Result;
+  whisperwoofClipboardReveal?: (id: string) => Result;
   onClipboardChanged?: (cb: () => void) => () => void;
   whisperwoofOpenVoiceNote?: (name: string | null) => Promise<unknown>;
 }
@@ -307,6 +314,62 @@ function ImageTile({
   );
 }
 
+function FileRow({
+  item,
+  copied,
+  onReveal,
+  ...actions
+}: { readonly item: ClipboardItem; readonly copied: boolean; readonly onReveal: (item: ClipboardItem) => void } & ItemActions) {
+  const name = item.fileName ?? "File";
+  return (
+    <li className="group relative">
+      <button
+        type="button"
+        onClick={() => actions.onCopy(item)}
+        aria-label={`Copy file ${name}`}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-3 focus-visible:outline-none focus-visible:bg-surface-3"
+      >
+        <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-1 text-muted-foreground">
+          <FileText size={16} aria-hidden="true" />
+          <span className="absolute -bottom-1 rounded-full bg-primary px-1 text-[8px] font-bold leading-[12px] text-primary-foreground">
+            {fileBadge(item.fileName)}
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-foreground" title={name}>
+            {item.pinned && <Pin size={10} className="mr-1 inline text-primary" aria-label="Pinned" />}
+            {name}
+          </span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {[item.bytes != null ? formatBytes(item.bytes) : null, item.sourceApp, relativeTime(item.createdAt)]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </span>
+      </button>
+      <div
+        className={cn(
+          "absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-full bg-card px-0.5 shadow-card transition-opacity",
+          copied ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+        )}
+      >
+        {copied ? (
+          <span className="flex h-7 items-center gap-1 px-2 text-xs font-medium text-success">
+            <Check size={13} aria-hidden="true" /> Copied
+          </span>
+        ) : (
+          <>
+            <ActionButton label="Show in Finder" onClick={() => onReveal(item)}>
+              <FolderOpen size={14} />
+            </ActionButton>
+            <ItemButtons item={item} {...actions} />
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function Lightbox({ item, onClose, ...actions }: { readonly item: ClipboardItem; readonly onClose: () => void } & ItemActions) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -401,9 +464,11 @@ export default function ClipboardTimeline() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pendingClear, setPendingClear] = useState<ClearChoice | null>(null);
+  const [askKeepFiles, setAskKeepFiles] = useState(false);
   const [open, setOpen] = useState<ClipboardItem | null>(null);
   const text = useColumn("text", debounced);
   const images = useColumn("image", debounced);
+  const files = useColumn("file", debounced);
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebounced(query.trim()), 200);
@@ -417,11 +482,13 @@ export default function ClipboardTimeline() {
 
   const { reload: reloadText } = text;
   const { reload: reloadImages } = images;
+  const { reload: reloadFiles } = files;
   const refreshAll = useCallback(() => {
     void reloadText();
     void reloadImages();
+    void reloadFiles();
     void refreshSummary();
-  }, [reloadText, reloadImages, refreshSummary]);
+  }, [reloadText, reloadImages, reloadFiles, refreshSummary]);
 
   useEffect(() => {
     void refreshSummary();
@@ -468,13 +535,32 @@ export default function ClipboardTimeline() {
 
   const onRemove = useCallback(
     async (item: ClipboardItem) => {
-      const column = item.kind === "image" ? images : text;
+      const column = item.kind === "image" ? images : item.kind === "file" ? files : text;
       column.setItems((prev) => prev.filter((i) => i.id !== item.id));
       const res = await api().whisperwoofClipboardRemove?.([item.id]);
       if (!res?.success) fail(res?.error);
     },
-    [images, text]
+    [images, files, text]
   );
+
+  const onReveal = useCallback(async (item: ClipboardItem) => {
+    const res = await api().whisperwoofClipboardReveal?.(item.id);
+    if (!res?.success) fail(res?.error);
+  }, []);
+
+  const keepFiles = summary?.capture?.keepFiles ?? false;
+  const setKeepFiles = async (on: boolean) => {
+    setAskKeepFiles(false);
+    const res = await api().whisperwoofClipboardSetCapture?.({ keepFiles: on });
+    if (!res?.success) return fail(res?.error);
+    setNotice({
+      text: on
+        ? "Copied files are kept from now on."
+        : "New copied files keep only their name. Files already kept stay until you remove them.",
+      tone: "info",
+    });
+    void refreshSummary();
+  };
 
   const confirmClear = async () => {
     if (!pendingClear) return;
@@ -519,9 +605,9 @@ export default function ClipboardTimeline() {
               </Select>
             </label>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              Images up to
+              {keepFiles || (summary.fileCount ?? 0) > 0 ? "Images & files up to" : "Images up to"}
               <Select value={String(summary.retention.maxImageMB)} onValueChange={(v) => setRetention({ maxImageMB: Number(v) })}>
-                <SelectTrigger className={cn(selectClass, "w-[100px]")} aria-label="Space images may use">
+                <SelectTrigger className={cn(selectClass, "w-[100px]")} aria-label="Space images and files may use">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -548,6 +634,31 @@ export default function ClipboardTimeline() {
             className="h-8 w-full rounded-full bg-card pl-8 pr-3 text-sm text-foreground shadow-card placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={keepFiles}
+          onClick={() => (keepFiles ? setKeepFiles(false) : setAskKeepFiles(true))}
+          title="PDFs, documents and other files you copy"
+          className="press flex h-8 items-center gap-2 rounded-full bg-card px-3 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <FileText size={13} aria-hidden="true" />
+          Keep copied files
+          <span
+            aria-hidden="true"
+            className={cn(
+              "relative h-4 w-7 rounded-full transition-colors",
+              keepFiles ? "bg-primary/90" : "bg-foreground/15"
+            )}
+          >
+            <span
+              className={cn(
+                "absolute left-0.5 top-0.5 size-3 rounded-full bg-card shadow-sm transition-transform",
+                keepFiles ? "translate-x-3" : "translate-x-0"
+              )}
+            />
+          </span>
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -561,6 +672,9 @@ export default function ClipboardTimeline() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={() => setPendingClear("text")}>All text</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setPendingClear("image")}>All images</DropdownMenuItem>
+            {(summary?.fileCount ?? 0) > 0 && (
+              <DropdownMenuItem onSelect={() => setPendingClear("file")}>All files</DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => setPendingClear("older")}>Older than a week</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setPendingClear("all")} className="text-destructive focus:text-destructive">
@@ -569,6 +683,26 @@ export default function ClipboardTimeline() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {askKeepFiles && (
+        <div role="alertdialog" className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-1 px-3 py-2 text-sm">
+          <span className="flex-1 text-foreground">{KEEP_FILES_WARNING}</span>
+          <button
+            type="button"
+            onClick={() => setAskKeepFiles(false)}
+            className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => setKeepFiles(true)}
+            className="press rounded-full bg-primary/90 px-3 py-1 text-xs font-semibold text-primary-foreground"
+          >
+            Keep files
+          </button>
+        </div>
+      )}
 
       {pendingClear && summary && (
         <div role="alertdialog" className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-1 px-3 py-2 text-sm">
@@ -625,18 +759,49 @@ export default function ClipboardTimeline() {
           </ul>
         </Column>
         <Column
-          title="Images"
-          count={searching ? images.items.length : (summary?.imageCount ?? images.items.length)}
-          empty={searching ? "No image file names match." : "Screenshots and photos you copy show up here."}
-          showEmpty={images.loaded && images.items.length === 0}
+          title={files.items.length > 0 || keepFiles ? "Images and files" : "Images"}
+          count={
+            searching
+              ? images.items.length + files.items.length
+              : (summary?.imageCount ?? images.items.length) + (summary?.fileCount ?? files.items.length)
+          }
+          empty={
+            searching
+              ? "No image or file names match."
+              : keepFiles
+                ? "Screenshots, photos and files you copy show up here."
+                : "Screenshots and photos you copy show up here."
+          }
+          showEmpty={images.loaded && files.loaded && images.items.length === 0 && files.items.length === 0}
           hasMore={images.hasMore}
           onMore={images.loadMore}
         >
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-2.5 gap-y-3 px-1.5 pt-1">
-            {images.items.map((item) => (
-              <ImageTile key={item.id} item={item} copied={copiedId === item.id} onOpen={setOpen} {...actions} />
-            ))}
-          </ul>
+          {images.items.length > 0 && (
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-2.5 gap-y-3 px-1.5 pt-1">
+              {images.items.map((item) => (
+                <ImageTile key={item.id} item={item} copied={copiedId === item.id} onOpen={setOpen} {...actions} />
+              ))}
+            </ul>
+          )}
+          {files.items.length > 0 && (
+            <>
+              <h3 className="px-3 pb-1 pt-4 text-xs font-semibold text-muted-foreground">Files</h3>
+              <ul className="space-y-0.5">
+                {files.items.map((item) => (
+                  <FileRow key={item.id} item={item} copied={copiedId === item.id} onReveal={onReveal} {...actions} />
+                ))}
+              </ul>
+              {files.hasMore && (
+                <button
+                  type="button"
+                  onClick={files.loadMore}
+                  className="mx-auto mt-2 block rounded-full px-3 py-1 text-xs text-primary transition-colors hover:bg-foreground/[0.05]"
+                >
+                  Show more files
+                </button>
+              )}
+            </>
+          )}
         </Column>
       </div>
 

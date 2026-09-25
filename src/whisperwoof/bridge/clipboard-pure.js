@@ -17,8 +17,14 @@ const IMAGE_EXTENSIONS = new Set([
   ".bmp",
 ]);
 
-/** At most this many photos are captured from one Finder copy. */
+/** At most this many files are kept from one Finder copy. */
 const MAX_FILES_PER_COPY = 10;
+/** Photos copied in Finder are kept up to this size; bigger ones keep only their name. */
+const MAX_PHOTO_FILE_MB = 50;
+/** Other files (PDFs, documents…) are kept only when the user turns it on, up to this size. */
+const MAX_KEPT_FILE_MB = 100;
+/** Files are opt-in: they're kept in full and can take a lot of space. */
+const DEFAULT_CAPTURE = Object.freeze({ keepFiles: false });
 
 const DAY_MS = 86_400_000;
 const MB = 1024 * 1024;
@@ -88,6 +94,37 @@ function isImageMetadata(metadata) {
   return parseMetadata(metadata).type === "image";
 }
 
+function normalizeCapture(raw) {
+  return { keepFiles: Boolean(raw && typeof raw === "object" && raw.keepFiles === true) };
+}
+
+/**
+ * What a Finder copy keeps. `copied`: [{ path, size }]. Photos become images
+ * (up to MAX_PHOTO_FILE_MB); other files are kept only with `keepFiles` on
+ * (up to MAX_KEPT_FILE_MB); anything else is skipped and stays a name in
+ * text. At most MAX_FILES_PER_COPY are kept.
+ */
+function planCopiedFiles(copied, capture) {
+  const plan = { images: [], files: [], skipped: [] };
+  for (const { path: filePath, size } of copied) {
+    const kept = plan.images.length + plan.files.length;
+    if (kept >= MAX_FILES_PER_COPY) {
+      plan.skipped.push(filePath);
+    } else if (isImageFile(filePath)) {
+      (size <= MAX_PHOTO_FILE_MB * MB ? plan.images : plan.skipped).push(filePath);
+    } else if (capture.keepFiles && size <= MAX_KEPT_FILE_MB * MB) {
+      plan.files.push(filePath);
+    } else {
+      plan.skipped.push(filePath);
+    }
+  }
+  return plan;
+}
+
+function isFileMetadata(metadata) {
+  return parseMetadata(metadata).type === "file";
+}
+
 function normalizeRetention(raw) {
   const r = raw && typeof raw === "object" ? raw : {};
   const keepDays = KEEP_DAYS_OPTIONS.includes(r.keepDays) ? r.keepDays : DEFAULT_RETENTION.keepDays;
@@ -99,10 +136,10 @@ function normalizeRetention(raw) {
 
 /**
  * Which clipboard entries retention removes. `entries`: { id, createdAt,
- * favorite, isImage, bytes }. Pinned (favorite) entries are never removed.
- * First anything older than `keepDays`; then, while images use more than
- * `maxImageMB`, the oldest unpinned images. Pinned images still count
- * towards the space, so they are kept by giving up older ones.
+ * favorite, isImage, isFile, bytes }. Pinned (favorite) entries are never
+ * removed. First anything older than `keepDays`; then, while images and kept
+ * files use more than `maxImageMB`, the oldest unpinned of them. Pinned ones
+ * still count towards the space, so they are kept by giving up older ones.
  */
 function pickPruneIds(entries, { now, keepDays, maxImageMB }) {
   const doomed = new Set();
@@ -114,7 +151,7 @@ function pickPruneIds(entries, { now, keepDays, maxImageMB }) {
   }
   if (maxImageMB > 0) {
     const cap = maxImageMB * MB;
-    const images = entries.filter((e) => e.isImage && !doomed.has(e.id));
+    const images = entries.filter((e) => (e.isImage || e.isFile) && !doomed.has(e.id));
     let used = images.filter((e) => e.favorite).reduce((sum, e) => sum + (e.bytes || 0), 0);
     const newestFirst = images
       .filter((e) => !e.favorite)
@@ -127,12 +164,14 @@ function pickPruneIds(entries, { now, keepDays, maxImageMB }) {
   return [...doomed];
 }
 
+const kindOfEntry = (e) => (e.isImage ? "image" : e.isFile ? "file" : "text");
+
 /** Ids a "Clear" action removes: one kind (or all), optionally only older ones; pinned stay. */
 function pickClearIds(entries, { kind = "all", olderThanDays = 0, now }) {
   const cutoff = olderThanDays > 0 ? now - olderThanDays * DAY_MS : Infinity;
   return entries
     .filter((e) => !e.favorite)
-    .filter((e) => kind === "all" || (kind === "image") === e.isImage)
+    .filter((e) => kind === "all" || kindOfEntry(e) === kind)
     .filter((e) => Date.parse(e.createdAt) < cutoff)
     .map((e) => e.id);
 }
@@ -149,6 +188,16 @@ function formatBytes(bytes) {
 function imageEntryText({ width, height, fileName }) {
   const size = `[Image ${width}×${height}]`;
   return fileName ? `${size} ${fileName}` : size;
+}
+
+/** Stored text for a kept file (what search matches). */
+function fileEntryText(fileName) {
+  return `[File] ${fileName}`;
+}
+
+/** Markdown body of a note made from a kept file: a link to its copy in attachments/. */
+function fileNoteBody(fileName, attachment) {
+  return `[${fileName.replace(/[[\]]/g, "")}](${encodeURI(attachment)})`;
 }
 
 /** Markdown body of a note made from a clipboard image (attachment path relative to the note). */
@@ -189,6 +238,14 @@ function isSafeAttachmentRef(ref) {
 module.exports = {
   IMAGE_EXTENSIONS,
   MAX_FILES_PER_COPY,
+  MAX_PHOTO_FILE_MB,
+  MAX_KEPT_FILE_MB,
+  DEFAULT_CAPTURE,
+  normalizeCapture,
+  planCopiedFiles,
+  isFileMetadata,
+  fileEntryText,
+  fileNoteBody,
   KEEP_DAYS_OPTIONS,
   IMAGE_CAP_OPTIONS_MB,
   DEFAULT_RETENTION,

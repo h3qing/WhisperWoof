@@ -10,15 +10,19 @@
 
 const fs = require("fs");
 const path = require("path");
-const { clipboard, nativeImage, BrowserWindow } = require("electron");
+const { pathToFileURL } = require("url");
+const { clipboard, nativeImage, BrowserWindow, shell } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const pure = require("./clipboard-pure");
 
 // Lazy: app-init requires this module too.
 const db = () => require("./app-init").getWhisperWoofDb();
 
-const IMAGE_WHERE = `metadata LIKE '%"type":"image"%'`;
-const TEXT_WHERE = `(metadata IS NULL OR metadata NOT LIKE '%"type":"image"%')`;
+const KIND_WHERE = {
+  image: `metadata LIKE '%"type":"image"%'`,
+  file: `metadata LIKE '%"type":"file"%'`,
+  text: `(metadata IS NULL OR (metadata NOT LIKE '%"type":"image"%' AND metadata NOT LIKE '%"type":"file"%'))`,
+};
 const PREVIEW_WIDTH = 480;
 const LARGE_PREVIEW_WIDTH = 1600;
 const MIME = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
@@ -36,18 +40,23 @@ function clipboardRow(id) {
   return row && row.source === "clipboard" ? row : null;
 }
 
+function kindOf(meta) {
+  return meta.type === "image" ? "image" : meta.type === "file" ? "file" : "text";
+}
+
 function toItem(row) {
   const meta = pure.parseMetadata(row.metadata);
-  const isImage = meta.type === "image";
+  const kind = kindOf(meta);
   return {
     id: row.id,
     createdAt: row.created_at,
     pinned: Boolean(row.favorite),
-    kind: isImage ? "image" : "text",
-    text: isImage ? "" : (row.polished ?? row.raw_text ?? ""),
+    kind,
+    text: kind === "text" ? (row.polished ?? row.raw_text ?? "") : "",
     fileName: meta.fileName ?? null,
     width: meta.width ?? null,
     height: meta.height ?? null,
+    bytes: typeof meta.bytes === "number" ? meta.bytes : null,
     sourceApp: meta.sourceApp?.name ?? null,
   };
 }
@@ -57,7 +66,7 @@ const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 /** One column of the view: text or images, pinned first, then newest. */
 function listClipboard({ kind = "text", limit = 60, offset = 0, query = "" } = {}) {
   if (!db()) return [];
-  const where = ["source = 'clipboard'", kind === "image" ? IMAGE_WHERE : TEXT_WHERE];
+  const where = ["source = 'clipboard'", KIND_WHERE[kind] ?? KIND_WHERE.text];
   const params = [];
   const q = String(query ?? "").trim();
   if (q) {
@@ -91,12 +100,14 @@ function retentionRows() {
     .map((row) => {
       const meta = pure.parseMetadata(row.metadata);
       const isImage = meta.type === "image";
-      const bytes = isImage
-        ? typeof meta.bytes === "number"
-          ? meta.bytes
-          : fileSize(row.audio_path) + fileSize(meta.thumbPath)
-        : 0;
-      return { id: row.id, createdAt: row.created_at, favorite: row.favorite ? 1 : 0, isImage, bytes };
+      const isFile = meta.type === "file";
+      const bytes =
+        isImage || isFile
+          ? typeof meta.bytes === "number"
+            ? meta.bytes
+            : fileSize(row.audio_path) + fileSize(meta.thumbPath)
+          : 0;
+      return { id: row.id, createdAt: row.created_at, favorite: row.favorite ? 1 : 0, isImage, isFile, bytes };
     });
 }
 
@@ -105,26 +116,54 @@ function getRetention() {
   return pure.normalizeRetention(readSettings().clipboardRetention);
 }
 
+function getCapture() {
+  const { readSettings } = require("./markdown-route");
+  return pure.normalizeCapture(readSettings().clipboardCapture);
+}
+
+/** Whether copied files (PDFs, documents…) are kept in full. Off by default. */
+function setCapture(raw) {
+  const { updateSettings } = require("./markdown-route");
+  const capture = pure.normalizeCapture(raw);
+  updateSettings({ clipboardCapture: capture });
+  notifyChanged();
+  return { capture };
+}
+
 function summary() {
   const rows = retentionRows();
   const images = rows.filter((r) => r.isImage);
+  const files = rows.filter((r) => r.isFile);
   return {
-    textCount: rows.length - images.length,
+    textCount: rows.length - images.length - files.length,
     imageCount: images.length,
+    fileCount: files.length,
     pinnedCount: rows.filter((r) => r.favorite).length,
     imageBytes: images.reduce((sum, r) => sum + r.bytes, 0),
+    fileBytes: files.reduce((sum, r) => sum + r.bytes, 0),
     retention: getRetention(),
+    capture: getCapture(),
   };
 }
 
+/** Delete rows and what they stored on disk (image + preview, or a kept file's folder). */
 function deleteIds(ids) {
   if (ids.length === 0) return { deleted: 0 };
-  const sm = require("./storage-manager");
-  sm.setDatabase(db());
-  // Removes the image file and its preview along with the row.
-  const result = sm.deleteEntriesWithCleanup(ids);
+  const { removeClipboardFiles } = require("./app-init");
+  const get = db().prepare("SELECT id, source, audio_path, metadata FROM bf_entries WHERE id = ?");
+  const del = db().prepare("DELETE FROM bf_entries WHERE id = ?");
+  const removed = [];
+  db().transaction(() => {
+    for (const id of ids) {
+      const row = get.get(id);
+      if (!row) continue;
+      del.run(id);
+      removed.push(row);
+    }
+  })();
+  for (const row of removed) removeClipboardFiles(row);
   notifyChanged();
-  return { deleted: result.deleted };
+  return { deleted: removed.length };
 }
 
 /** Remove specific items (clipboard entries only). */
@@ -177,6 +216,14 @@ function copyItem(id) {
     const image = row.audio_path ? nativeImage.createFromPath(row.audio_path) : null;
     if (!image || image.isEmpty()) return { success: false, error: "The image file is missing" };
     clipboard.writeImage(image);
+  } else if (meta.type === "file") {
+    if (!row.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
+    // As a file (Finder, Mail and chat apps paste it as an attachment); its path elsewhere.
+    if (process.platform === "darwin") {
+      clipboard.writeBuffer("public.file-url", Buffer.from(pathToFileURL(row.audio_path).href));
+    } else {
+      clipboard.writeText(row.audio_path);
+    }
   } else {
     const text = row.polished ?? row.raw_text ?? "";
     if (!text) return { success: false, error: "Nothing to copy" };
@@ -185,7 +232,15 @@ function copyItem(id) {
   require("./app-init").adoptCurrentClipboard();
   db().prepare("UPDATE bf_entries SET created_at = ? WHERE id = ?").run(new Date().toISOString(), id);
   notifyChanged();
-  return { success: true, kind: meta.type === "image" ? "image" : "text" };
+  return { success: true, kind: kindOf(meta) };
+}
+
+/** Show a kept image or file in Finder. */
+function reveal(id) {
+  const row = clipboardRow(id);
+  if (!row?.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
+  shell.showItemInFolder(row.audio_path);
+  return { success: true };
 }
 
 /**
@@ -236,6 +291,22 @@ function saveToNote(id) {
   if (!row) return { success: false, error: "Not a clipboard item" };
   const { saveAsMarkdown, getNotesDirectory } = require("./markdown-route");
   const meta = pure.parseMetadata(row.metadata);
+  if (meta.type === "file") {
+    try {
+      if (!row.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
+      const attachDir = path.join(getNotesDirectory(), "attachments");
+      fs.mkdirSync(attachDir, { recursive: true });
+      const target = uniquePath(attachDir, path.basename(row.audio_path));
+      fs.copyFileSync(row.audio_path, target);
+      const name = meta.fileName || path.basename(target);
+      return saveAsMarkdown(pure.fileNoteBody(name, `attachments/${path.basename(target)}`), {
+        source: "clipboard",
+        title: name,
+      });
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
   if (meta.type !== "image") {
     return saveAsMarkdown(row.polished ?? row.raw_text ?? "", { source: "clipboard" });
   }
@@ -269,6 +340,9 @@ module.exports = {
   summary,
   getRetention,
   setRetention,
+  getCapture,
+  setCapture,
+  reveal,
   prune,
   removeItems,
   clearItems,

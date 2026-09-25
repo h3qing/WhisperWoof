@@ -900,6 +900,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofClipboardPin: (id, pinned) => ipcRenderer.invoke("whisperwoof-clipboard-pin", id, pinned),
   whisperwoofClipboardSetRetention: (retention) =>
     ipcRenderer.invoke("whisperwoof-clipboard-set-retention", retention),
+  whisperwoofClipboardSetCapture: (capture) =>
+    ipcRenderer.invoke("whisperwoof-clipboard-set-capture", capture),
+  whisperwoofClipboardReveal: (id) => ipcRenderer.invoke("whisperwoof-clipboard-reveal", id),
   onClipboardChanged: (callback) => {
     const handler = () => callback();
     ipcRenderer.on("whisperwoof-clipboard-changed", handler);

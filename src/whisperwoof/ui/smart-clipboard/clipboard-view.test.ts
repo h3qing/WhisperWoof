@@ -6,6 +6,7 @@ import {
   clearQuestion,
   clearOptions,
   formatBytes,
+  fileBadge,
   type ClipboardSummary,
   type ClipboardItem,
 } from "./clipboard-view";
@@ -30,6 +31,15 @@ describe("clipboardHeadline", () => {
     expect(clipboardHeadline(summary({ textCount: 1 }))).toBe("1 text and 0 images copied.");
     expect(clipboardHeadline(summary({ textCount: 0, imageCount: 1, imageBytes: 2048 }))).toBe(
       "0 texts and 1 image copied. Images take up 2 KB."
+    );
+  });
+
+  it("adds kept files, and what images and files take together", () => {
+    expect(
+      clipboardHeadline(summary({ textCount: 5, imageCount: 2, imageBytes: 10 * 1024 * 1024, fileCount: 3, fileBytes: 20 * 1024 * 1024 }))
+    ).toBe("5 texts, 2 images and 3 files copied. Images and files take up 30 MB.");
+    expect(clipboardHeadline(summary({ textCount: 1, fileCount: 1, fileBytes: 2 * 1024 * 1024 }))).toBe(
+      "1 text, 0 images and 1 file copied. The file takes up 2.0 MB."
     );
   });
 
@@ -78,6 +88,13 @@ describe("clear", () => {
     expect(clearQuestion("image", s)).toBe("Remove 3 images (5.0 MB)?");
     expect(clearQuestion("older", s)).toBe("Remove everything copied more than a week ago?");
     expect(clearQuestion("all", s)).toBe("Remove everything in your clipboard history?");
+  });
+  it("asks about kept files in their own words", () => {
+    expect(clearQuestion("file", summary({ fileCount: 2, fileBytes: 3 * 1024 * 1024 }))).toBe("Remove 2 files (3.0 MB)?");
+    expect(clearOptions("file")).toEqual({ kind: "file", olderThanDays: 0 });
+    expect(fileBadge("Q3 plan.pdf")).toBe("PDF");
+    expect(fileBadge("archive.tar.gz")).toBe("GZ");
+    expect(fileBadge("README")).toBe("FILE");
   });
   it("maps each choice to what the store clears", () => {
     expect(clearOptions("older")).toEqual({ kind: "all", olderThanDays: 7 });

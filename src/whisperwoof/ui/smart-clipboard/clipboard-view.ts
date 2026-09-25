@@ -2,7 +2,7 @@
  * Words and small rules for the Clipboard view (pure, tested).
  */
 
-export type ClipboardKind = "text" | "image";
+export type ClipboardKind = "text" | "image" | "file";
 
 export interface ClipboardItem {
   readonly id: string;
@@ -13,6 +13,8 @@ export interface ClipboardItem {
   readonly fileName: string | null;
   readonly width: number | null;
   readonly height: number | null;
+  /** Size on disk of a kept file. */
+  readonly bytes?: number | null;
   readonly sourceApp: string | null;
 }
 
@@ -21,13 +23,24 @@ export interface ClipboardRetention {
   readonly maxImageMB: number;
 }
 
+export interface ClipboardCapture {
+  readonly keepFiles: boolean;
+}
+
 export interface ClipboardSummary {
   readonly textCount: number;
   readonly imageCount: number;
+  readonly fileCount?: number;
   readonly pinnedCount: number;
   readonly imageBytes: number;
+  readonly fileBytes?: number;
   readonly retention: ClipboardRetention;
+  readonly capture?: ClipboardCapture;
 }
+
+/** Shown before copied files are kept: what it means for the disk. */
+export const KEEP_FILES_WARNING =
+  "Keep PDFs, documents and other files you copy? Each is saved in full, up to 100 MB, so files can take up a lot of space. They count towards the space limit, oldest removed first.";
 
 export const KEEP_DAYS_CHOICES: ReadonlyArray<{ value: number; label: string }> = [
   { value: 0, label: "Forever" },
@@ -56,12 +69,20 @@ export function formatBytes(bytes: number): string {
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
+function joinWords(parts: string[]): string {
+  return parts.length <= 1 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 /** The sentence the view opens with: what's kept, and what it costs on disk. */
 export function clipboardHeadline(s: ClipboardSummary): string {
-  if (s.textCount === 0 && s.imageCount === 0) return "Nothing copied yet.";
+  const files = s.fileCount ?? 0;
+  if (s.textCount === 0 && s.imageCount === 0 && files === 0) return "Nothing copied yet.";
   const parts = [plural(s.textCount, "text", "texts"), plural(s.imageCount, "image", "images")];
-  const disk = s.imageCount > 0 ? ` Images take up ${formatBytes(s.imageBytes)}.` : "";
-  return `${parts.join(" and ")} copied.${disk}`;
+  if (files > 0) parts.push(plural(files, "file", "files"));
+  const bytes = s.imageBytes + (s.fileBytes ?? 0);
+  const what = files > 0 ? (s.imageCount > 0 ? "Images and files take" : files === 1 ? "The file takes" : "Files take") : "Images take";
+  const disk = s.imageCount > 0 || files > 0 ? ` ${what} up ${formatBytes(bytes)}.` : "";
+  return `${joinWords(parts)} copied.${disk}`;
 }
 
 /** How long ago, the way a person says it. */
@@ -87,13 +108,20 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   });
 }
 
+/** "PDF", "DOCX"… for a kept file's badge. */
+export function fileBadge(fileName: string | null): string {
+  const dot = (fileName ?? "").lastIndexOf(".");
+  const ext = dot > 0 ? (fileName ?? "").slice(dot + 1) : "";
+  return ext && ext.length <= 5 ? ext.toUpperCase() : "FILE";
+}
+
 /** Caption under an image: its file name when it came from Finder, else its size. */
 export function imageCaption(item: ClipboardItem): string {
   if (item.fileName) return item.fileName;
   return item.width && item.height ? `${item.width}×${item.height}` : "Image";
 }
 
-export type ClearChoice = "text" | "image" | "older" | "all";
+export type ClearChoice = "text" | "image" | "file" | "older" | "all";
 
 /** What a Clear choice removes, in the confirmation's words (pinned items always stay). */
 export function clearQuestion(choice: ClearChoice, s: ClipboardSummary): string {
@@ -102,6 +130,8 @@ export function clearQuestion(choice: ClearChoice, s: ClipboardSummary): string 
       return `Remove ${plural(s.textCount, "text", "texts")}?`;
     case "image":
       return `Remove ${plural(s.imageCount, "image", "images")} (${formatBytes(s.imageBytes)})?`;
+    case "file":
+      return `Remove ${plural(s.fileCount ?? 0, "file", "files")} (${formatBytes(s.fileBytes ?? 0)})?`;
     case "older":
       return "Remove everything copied more than a week ago?";
     default:
@@ -109,7 +139,7 @@ export function clearQuestion(choice: ClearChoice, s: ClipboardSummary): string 
   }
 }
 
-export function clearOptions(choice: ClearChoice): { kind: "text" | "image" | "all"; olderThanDays: number } {
+export function clearOptions(choice: ClearChoice): { kind: "text" | "image" | "file" | "all"; olderThanDays: number } {
   if (choice === "older") return { kind: "all", olderThanDays: 7 };
   return { kind: choice, olderThanDays: 0 };
 }

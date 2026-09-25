@@ -175,23 +175,37 @@ function readCopiedFiles() {
   return paths;
 }
 
-/** What image the clipboard holds right now, as a cheap comparison key ("" = none). */
+function clipboardCaptureSettings() {
+  try {
+    return clipboardPure.normalizeCapture(require("./markdown-route").readSettings().clipboardCapture);
+  } catch {
+    return { ...clipboardPure.DEFAULT_CAPTURE };
+  }
+}
+
+function statOrNull(file) {
+  try {
+    return fs.statSync(file);
+  } catch {
+    return null;
+  }
+}
+
+/** What image (or kept file) the clipboard holds right now, as a cheap comparison key ("" = none). */
 function readClipboardImage() {
   const copied = readCopiedFiles();
-  // A file copy also carries the Finder icon as image data: only the photos
-  // among the files count. Other files stay text (their names), as before.
-  if (copied.length > 0 && !copied.some(clipboardPure.isImageFile)) return { key: "" };
-  const files = copied.filter(clipboardPure.isImageFile).slice(0, clipboardPure.MAX_FILES_PER_COPY);
-  if (files.length > 0) {
-    const parts = files.map((file) => {
-      try {
-        const stat = fs.statSync(file);
-        return `${file}:${stat.size}:${stat.mtimeMs}`;
-      } catch {
-        return file;
-      }
-    });
-    return { key: `files:${parts.join("|")}`, files };
+  if (copied.length > 0) {
+    // A file copy also carries the Finder icon as image data: never keep that.
+    // Photos are kept; other files only if the user turned files on; the rest
+    // stay text (their names), as before.
+    const stats = copied.map((file) => ({ file, stat: statOrNull(file) }));
+    const plan = clipboardPure.planCopiedFiles(
+      stats.filter((s) => s.stat?.isFile()).map((s) => ({ path: s.file, size: s.stat.size })),
+      clipboardCaptureSettings()
+    );
+    if (plan.images.length === 0 && plan.files.length === 0) return { key: "" };
+    const parts = stats.map((s) => `${s.file}:${s.stat?.size}:${s.stat?.mtimeMs}`);
+    return { key: `files:${parts.join("|")}`, plan };
   }
   const raw = readRawImage();
   if (raw) {
@@ -282,6 +296,41 @@ async function captureCopiedImageFile(filePath) {
   }
 }
 
+/** A copied file kept in full (opt-in), under its own name so pasting it back keeps the name. */
+async function captureCopiedFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const fileName = path.basename(filePath);
+    const fingerprint = `file:${sha1(`${filePath}|${stat.size}|${stat.mtimeMs}`)}`;
+    const existing = whisperwoofDb
+      ?.prepare("SELECT id FROM bf_entries WHERE source = 'clipboard' AND metadata LIKE ? LIMIT 1")
+      .get(`%"fingerprint":"${fingerprint}"%`);
+    if (existing) {
+      bumpClipboardEntry(existing.id);
+      return;
+    }
+    const folder = path.join(clipboardImagesDir(), crypto.randomUUID());
+    fs.mkdirSync(folder, { recursive: true });
+    const storedPath = path.join(folder, fileName);
+    fs.copyFileSync(filePath, storedPath);
+    const sourceApp = await captureSourceApp();
+    saveWhisperWoofEntry({
+      source: "clipboard",
+      rawText: clipboardPure.fileEntryText(fileName),
+      polished: null,
+      routedTo: null,
+      hotkeyUsed: null,
+      durationMs: null,
+      projectId: null,
+      audioPath: storedPath,
+      metadata: { type: "file", fileName, bytes: stat.size, fingerprint, sourceApp },
+    });
+    debugLogger.debug("[WhisperWoof] Copied file kept", { bytes: stat.size });
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Copied file not kept", { error: err.message });
+  }
+}
+
 async function captureClipboardImageData(found) {
   let image;
   let bytes;
@@ -313,8 +362,9 @@ async function pollClipboard() {
     lastImageKey = found.key;
     // The file name or alt text that came with it belongs to this copy.
     lastClipboardText = clipboard.readText() || "";
-    if (found.files) {
-      for (const file of found.files) await captureCopiedImageFile(file);
+    if (found.plan) {
+      for (const file of found.plan.images) await captureCopiedImageFile(file);
+      for (const file of found.plan.files) await captureCopiedFile(file);
     } else {
       await captureClipboardImageData(found);
     }
@@ -600,15 +650,26 @@ function deleteWhisperWoofEntry(id) {
   if (!whisperwoofDb) return;
   const row = whisperwoofDb.prepare("SELECT source, audio_path, metadata FROM bf_entries WHERE id = ?").get(id);
   whisperwoofDb.prepare('DELETE FROM bf_entries WHERE id = ?').run(id);
-  // A clipboard image's files go with it (they used to stay on disk forever).
-  const meta = row ? clipboardPure.parseMetadata(row.metadata) : {};
-  if (row?.source === "clipboard" && meta.type === "image") {
-    for (const file of [row.audio_path, meta.thumbPath]) {
-      try {
-        if (file) fs.rmSync(file, { force: true });
-      } catch {
-        // best effort
-      }
+  // A clipboard image's or kept file's files go with it (they used to stay on disk forever).
+  if (row?.source === "clipboard") removeClipboardFiles(row);
+}
+
+/** Delete what a clipboard entry stored: image + preview, or a kept file and its folder. */
+function removeClipboardFiles(row) {
+  const meta = clipboardPure.parseMetadata(row.metadata);
+  if (meta.type !== "image" && meta.type !== "file") return;
+  for (const file of [row.audio_path, meta.thumbPath]) {
+    try {
+      if (file) fs.rmSync(file, { force: true });
+    } catch {
+      // best effort
+    }
+  }
+  // Kept files live in a folder of their own inside the images folder.
+  if (meta.type === "file" && row.audio_path) {
+    const folder = path.dirname(row.audio_path);
+    if (path.dirname(folder) === path.join(app.getPath("userData"), "whisperwoof-images")) {
+      fs.rmSync(folder, { recursive: true, force: true });
     }
   }
 }
@@ -769,6 +830,7 @@ module.exports = {
   startClipboardMonitor,
   stopClipboardMonitor,
   adoptCurrentClipboard,
+  removeClipboardFiles,
   createWhisperWoofProject,
   getWhisperWoofProjects,
   deleteWhisperWoofProject,

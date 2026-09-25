@@ -152,3 +152,55 @@ describe("note attachments: renderer and main process agree", async () => {
     expect(withoutImageLinks("![Clipboard image](attachments/a.png)")).toBe("Image");
   });
 });
+
+describe("what a Finder copy keeps", () => {
+  const off = clip.normalizeCapture(undefined);
+  const on = clip.normalizeCapture({ keepFiles: true });
+
+  it("keeps files only when the user turns it on", () => {
+    expect(off).toEqual({ keepFiles: false });
+    expect(on).toEqual({ keepFiles: true });
+    expect(clip.normalizeCapture({ keepFiles: "yes" })).toEqual({ keepFiles: false });
+  });
+
+  it("keeps photos, and leaves PDFs as names unless files are on", () => {
+    const copied = [
+      { path: "/x/IMG_1.HEIC", size: 3 * MB },
+      { path: "/x/report.pdf", size: 2 * MB },
+    ];
+    expect(clip.planCopiedFiles(copied, off)).toEqual({ images: ["/x/IMG_1.HEIC"], files: [], skipped: ["/x/report.pdf"] });
+    expect(clip.planCopiedFiles(copied, on)).toEqual({ images: ["/x/IMG_1.HEIC"], files: ["/x/report.pdf"], skipped: [] });
+  });
+
+  it("skips very large photos and files (they'd fill the disk)", () => {
+    const copied = [
+      { path: "/x/huge.tiff", size: 51 * MB },
+      { path: "/x/movie.mov", size: 101 * MB },
+      { path: "/x/ok.mov", size: 100 * MB },
+    ];
+    expect(clip.planCopiedFiles(copied, on)).toEqual({ images: [], files: ["/x/ok.mov"], skipped: ["/x/huge.tiff", "/x/movie.mov"] });
+  });
+
+  it("keeps at most 10 from one copy", () => {
+    const copied = Array.from({ length: 12 }, (_, i) => ({ path: `/x/${i}.png`, size: 1 }));
+    const plan = clip.planCopiedFiles(copied, off);
+    expect(plan.images).toHaveLength(10);
+    expect(plan.skipped).toEqual(["/x/10.png", "/x/11.png"]);
+  });
+
+  it("counts kept files towards the space limit and clears them as their own kind", () => {
+    const entries = [
+      { id: "img", createdAt: daysAgo(1), favorite: 0, isImage: true, isFile: false, bytes: 150 * MB },
+      { id: "pdf", createdAt: daysAgo(2), favorite: 0, isImage: false, isFile: true, bytes: 80 * MB },
+      { id: "txt", createdAt: daysAgo(3), favorite: 0, isImage: false, isFile: false, bytes: 0 },
+    ];
+    expect(clip.pickPruneIds(entries, { now: NOW, keepDays: 0, maxImageMB: 200 })).toEqual(["pdf"]);
+    expect(clip.pickClearIds(entries, { kind: "file", now: NOW })).toEqual(["pdf"]);
+    expect(clip.pickClearIds(entries, { kind: "text", now: NOW })).toEqual(["txt"]);
+  });
+
+  it("links a kept file from its note", () => {
+    expect(clip.fileEntryText("Q3 plan.pdf")).toBe("[File] Q3 plan.pdf");
+    expect(clip.fileNoteBody("Q3 [draft].pdf", "attachments/Q3 plan.pdf")).toBe("[Q3 draft.pdf](attachments/Q3%20plan.pdf)");
+  });
+});

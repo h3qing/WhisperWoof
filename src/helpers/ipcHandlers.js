@@ -3264,6 +3264,11 @@ class IPCHandlers {
       "whisperwoof-clipboard-set-retention",
       clipboardCall((retention) => clipboardStore().setRetention(retention))
     );
+    ipcMain.handle(
+      "whisperwoof-clipboard-set-capture",
+      clipboardCall((capture) => clipboardStore().setCapture(capture))
+    );
+    ipcMain.handle("whisperwoof-clipboard-reveal", clipboardCall((id) => clipboardStore().reveal(id)));
 
     // WhisperWoof: Toggle clipboard monitoring on/off
     ipcMain.handle("whisperwoof-clipboard-toggle", async (_event, enabled) => {
