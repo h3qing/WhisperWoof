@@ -8,6 +8,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Fixed
 - **Deleting an imported recording no longer deletes your audio file.** An import remembers where your original file lives, and deleting the entry in Storage (selected entries, or "older than N days") also deleted that original from your disk. Deleting an entry now only removes files WhisperWoof made itself (clipboard images and their thumbnails in its own folder), never anything outside it.
 - **The app only opens its own images.** Showing a clipboard image in History read whatever file path it was handed. It now reads only from WhisperWoof's image folder, and a saved entry can only point at files inside the app's own folders.
+- **Settings export and import pick their file themselves.** WhisperWoof now shows its own Save and Open dialogs, limited to `.json`, instead of trusting a file path from the app window. Before, a compromised window could have overwritten any file (like `~/.zshrc`) or read any file back. Import also refuses JSON that isn't a WhisperWoof export, never echoes file content in its "Invalid JSON" error, and export writes only WhisperWoof's own settings fields.
 
 ## [2.3.0] - 2026-09-25 — Encryption: your notes and recordings, locked
 

@@ -2583,20 +2583,22 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-save-export-file", async (_event, filePath, bundle) => {
+    // The main process picks the file with a native dialog; the renderer
+    // never supplies a path to write to or read from.
+    ipcMain.handle("whisperwoof-save-export-file", async (_event, bundle) => {
       try {
         const { saveExportFile } = require("../whisperwoof/bridge/settings-export");
-        return saveExportFile(filePath, bundle);
+        return await saveExportFile(bundle);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] save-export-file failed: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
 
-    ipcMain.handle("whisperwoof-load-import-file", async (_event, filePath) => {
+    ipcMain.handle("whisperwoof-load-import-file", async () => {
       try {
         const { loadImportFile } = require("../whisperwoof/bridge/settings-export");
-        return loadImportFile(filePath);
+        return await loadImportFile();
       } catch (error) {
         debugLogger.log(`[WhisperWoof] load-import-file failed: ${error.message}`);
         return { success: false, error: error.message };

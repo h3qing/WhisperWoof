@@ -824,8 +824,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // WhisperWoof: Settings export/import
   whisperwoofExportSettings: (options) => ipcRenderer.invoke("whisperwoof-export-settings", options),
   whisperwoofImportSettings: (bundle, options) => ipcRenderer.invoke("whisperwoof-import-settings", bundle, options),
-  whisperwoofSaveExportFile: (filePath, bundle) => ipcRenderer.invoke("whisperwoof-save-export-file", filePath, bundle),
-  whisperwoofLoadImportFile: (filePath) => ipcRenderer.invoke("whisperwoof-load-import-file", filePath),
+  whisperwoofSaveExportFile: (bundle) => ipcRenderer.invoke("whisperwoof-save-export-file", bundle),
+  whisperwoofLoadImportFile: () => ipcRenderer.invoke("whisperwoof-load-import-file"),
 
   // WhisperWoof: Custom vocabulary
   whisperwoofGetVocabulary: (options) => ipcRenderer.invoke("whisperwoof-get-vocabulary", options),

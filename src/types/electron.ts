@@ -1378,8 +1378,8 @@ declare global {
       // WhisperWoof — Settings export/import
       whisperwoofExportSettings: (options?: { appPresetMap?: Record<string, string>; localStorageKeys?: Record<string, string> }) => Promise<{ bundle: any; stats: Record<string, number>; error?: string }>;
       whisperwoofImportSettings: (bundle: any, options?: { merge?: boolean }) => Promise<{ success: boolean; imported: Record<string, any>; errors: string[]; appPresetMap?: Record<string, string>; preferences?: Record<string, string> }>;
-      whisperwoofSaveExportFile: (filePath: string, bundle: any) => Promise<{ success: boolean; path?: string; sizeBytes?: number; error?: string }>;
-      whisperwoofLoadImportFile: (filePath: string) => Promise<{ success: boolean; bundle?: any; error?: string }>;
+      whisperwoofSaveExportFile: (bundle: any) => Promise<{ success: boolean; canceled?: boolean; path?: string; sizeBytes?: number; error?: string }>;
+      whisperwoofLoadImportFile: () => Promise<{ success: boolean; canceled?: boolean; bundle?: any; error?: string }>;
 
       // WhisperWoof — Usage analytics
       whisperwoofGetAnalytics: (options?: { days?: number }) => Promise<{

@@ -11,7 +11,17 @@
  * that could drift silently.
  */
 
+const path = require("path");
+
 const EXPORT_VERSION = 1;
+
+// Save/open dialogs only offer .json, and the main process re-checks the
+// chosen path — settings files are never written over, or read from,
+// anything else (e.g. ~/.zshrc).
+const SETTINGS_FILE_FILTERS = [{ name: "WhisperWoof Settings", extensions: ["json"] }];
+
+// Everything exportSettings can put under `data`.
+const EXPORT_DATA_KEYS = ["vocabulary", "styleExamples", "plugins", "appPresetMap", "preferences"];
 
 // Lowercase substrings that mark a field as secret. We lowercase the key
 // before matching so camelCase (openaiApiKey) and kebab-case
@@ -82,11 +92,67 @@ function mergeArrays(existing, incoming) {
   return { merged: [...existingList, ...newItems], added: newItems.length };
 }
 
+/**
+ * True if the path names a .json file. A dotfile literally called ".json"
+ * has no extension, so it doesn't count.
+ */
+function isJsonFilePath(filePath) {
+  return typeof filePath === "string" && path.extname(filePath).toLowerCase() === ".json";
+}
+
+/**
+ * Default export file name, dated with the local day.
+ */
+function exportFileName(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `whisperwoof-settings-${day}.json`;
+}
+
+/**
+ * Parse an import file's text. The parse error is dropped on purpose:
+ * JSON.parse messages quote the offending text, which would leak file
+ * content back to the renderer. JSON that isn't a WhisperWoof export
+ * (a credentials file, say) is refused rather than handed back.
+ */
+function parseImportFile(content) {
+  let bundle;
+  try {
+    bundle = JSON.parse(content);
+  } catch {
+    return { success: false, error: "Invalid JSON" };
+  }
+  const invalid = validateBundle(bundle);
+  return invalid ? { success: false, error: invalid } : { success: true, bundle };
+}
+
+/**
+ * Rebuild a renderer-supplied bundle from the export's own fields before it
+ * is written, so the file can't gain top-level keys another app would act
+ * on (e.g. `hooks` in a settings.json the user is tricked into overwriting),
+ * and API keys are stripped even if the renderer skipped exportSettings.
+ * Assumes validateBundle already passed. Returns a new object.
+ */
+function toExportBundle(bundle) {
+  const data = Object.fromEntries(
+    EXPORT_DATA_KEYS.filter((key) => bundle.data[key] !== undefined).map((key) => [
+      key,
+      key === "preferences" ? stripApiKeys(bundle.data[key]) : bundle.data[key],
+    ]),
+  );
+  return { version: EXPORT_VERSION, exportedAt: bundle.exportedAt, appName: "WhisperWoof", data };
+}
+
 module.exports = {
   EXPORT_VERSION,
   API_KEY_MARKERS,
+  SETTINGS_FILE_FILTERS,
   stripApiKeys,
   validateBundle,
   itemIdentity,
   mergeArrays,
+  isJsonFilePath,
+  exportFileName,
+  parseImportFile,
+  toExportBundle,
 };

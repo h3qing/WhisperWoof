@@ -15,13 +15,18 @@
 
 const fs = require("fs");
 const path = require("path");
-const { app } = require("electron");
+const { app, dialog } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const {
   EXPORT_VERSION,
+  SETTINGS_FILE_FILTERS,
   stripApiKeys,
   validateBundle,
   mergeArrays,
+  isJsonFilePath,
+  exportFileName,
+  parseImportFile,
+  toExportBundle,
 } = require("./settings-export-pure");
 
 const USER_DATA = app.getPath("userData");
@@ -168,28 +173,43 @@ function importSettings(bundle, options = {}) {
   };
 }
 
+const NOT_JSON_ERROR = "Settings files must be .json";
+
 /**
- * Save exported bundle to a file on disk.
+ * Ask the user where to save, then write the exported bundle there.
+ * The path always comes from the main-process dialog, never the renderer.
  */
-function saveExportFile(filePath, bundle) {
-  fs.writeFileSync(filePath, JSON.stringify(bundle, null, 2), "utf-8");
+async function saveExportFile(bundle) {
+  const invalid = validateBundle(bundle);
+  if (invalid) return { success: false, error: invalid };
+
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: "Export WhisperWoof Settings",
+    defaultPath: path.join(app.getPath("documents"), exportFileName(new Date())),
+    filters: SETTINGS_FILE_FILTERS,
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  if (!isJsonFilePath(filePath)) return { success: false, error: NOT_JSON_ERROR };
+
+  fs.writeFileSync(filePath, JSON.stringify(toExportBundle(bundle), null, 2), "utf-8");
   return { success: true, path: filePath, sizeBytes: fs.statSync(filePath).size };
 }
 
 /**
- * Load an import file from disk.
+ * Ask the user for a settings file, then read and parse it.
+ * The path always comes from the main-process dialog, never the renderer.
  */
-function loadImportFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return { success: false, error: "File not found" };
-  }
-  try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    const bundle = JSON.parse(content);
-    return { success: true, bundle };
-  } catch (err) {
-    return { success: false, error: `Invalid JSON: ${err.message}` };
-  }
+async function loadImportFile() {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: "Import WhisperWoof Settings",
+    properties: ["openFile"],
+    filters: SETTINGS_FILE_FILTERS,
+  });
+  if (canceled || filePaths.length === 0) return { success: false, canceled: true };
+
+  const [filePath] = filePaths;
+  if (!isJsonFilePath(filePath)) return { success: false, error: NOT_JSON_ERROR };
+  return parseImportFile(fs.readFileSync(filePath, "utf-8"));
 }
 
 module.exports = {
