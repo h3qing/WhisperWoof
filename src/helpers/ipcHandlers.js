@@ -13,6 +13,13 @@ const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
 const MeetingAudioBuffer = require("./meetingAudioBuffer");
 const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
+const {
+  normalizeAudioRetentionDays,
+  audioRetentionCutoffMs,
+  shouldStoreAudio,
+  shouldKeepMeetingAudio,
+  chunkMissedTranscriber,
+} = require("../whisperwoof/bridge/audio-retention-pure");
 const { getModelRuntime } = require("./parakeetModelInfo");
 const vault = require("../whisperwoof/bridge/vault/vault-service");
 const vaultInbox = require("../whisperwoof/bridge/vault/vault-inbox");
@@ -140,7 +147,14 @@ class IPCHandlers {
     });
     this._meetingSessionRotationTimer = null;
     this._meetingReconnecting = {};
+    // Set when buffered meeting audio never reached the transcriber (stream
+    // dropped, rotated out, mid-reconnect): that stretch exists only in the
+    // buffer, so the buffer outlives the meeting.
+    this._meetingAudioUntranscribed = false;
     this._audioCleanupInterval = null;
+    // Audio Retention days from the renderer (sync-startup-preferences);
+    // null until the first sync, which runs the first dictation-audio sweep.
+    this._audioRetentionDays = null;
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
     this.setupHandlers();
@@ -203,36 +217,63 @@ class IPCHandlers {
   }
 
   _setupAudioCleanup() {
-    const DEFAULT_RETENTION_DAYS = 30;
     const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
-    // The sweep also clears has_audio flags in the database, so it waits while
-    // encryption has the database closed; main.js runs it again after each unlock.
-    const sweep = () => {
-      if (!this.databaseManager.db) return;
-      this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
-    };
-    this.runAudioSweep = sweep;
-
-    // Run initial cleanup with default retention
-    try {
-      sweep();
-    } catch (error) {
-      debugLogger.error("Initial audio cleanup failed", { error: error.message }, "audio-storage");
-    }
+    // Meeting crash buffers left by a crash or an abnormal end. Dictation audio
+    // waits for the renderer's retention setting: sweeping here with a default
+    // would delete audio a user chose to keep for 60/90 days.
+    this._meetingAudioBuffer.sweepStaleSessions();
+    // main.js runs the dictation sweep again after each unlock.
+    this.runAudioSweep = () => this._sweepExpiredAudio();
 
     // Set up periodic cleanup every 6 hours
     this._audioCleanupInterval = setInterval(() => {
-      try {
-        sweep();
-      } catch (error) {
-        debugLogger.error(
-          "Periodic audio cleanup failed",
-          { error: error.message },
-          "audio-storage"
-        );
-      }
+      this._sweepExpiredAudio();
+      this._meetingAudioBuffer.sweepStaleSessions();
     }, SIX_HOURS_MS);
+  }
+
+  _sweepExpiredAudio() {
+    // The sweep also clears has_audio flags in the database, so it waits while
+    // encryption has the database closed.
+    if (!this.databaseManager.db) return;
+    const cutoffMs = audioRetentionCutoffMs(this._audioRetentionDays, Date.now());
+    if (cutoffMs === null) return;
+    try {
+      this.audioStorageManager.cleanupExpiredAudio(cutoffMs, this.databaseManager);
+    } catch (error) {
+      debugLogger.error("Audio cleanup failed", { error: error.message }, "audio-storage");
+    }
+  }
+
+  /**
+   * Adopt the renderer's Audio Retention setting. The first sync and every
+   * change sweep right away; a repeat of the same value (every window syncs)
+   * does nothing.
+   */
+  _applyAudioRetentionDays(value) {
+    const days = normalizeAudioRetentionDays(value);
+    if (days === null || days === this._audioRetentionDays) return;
+    this._audioRetentionDays = days;
+    this._sweepExpiredAudio();
+  }
+
+  /**
+   * Delete a finished meeting's crash buffer unless it ended abnormally with
+   * audio on disk; the saved transcript is the record from then on.
+   * @returns {boolean} true when the folder was kept
+   */
+  _releaseMeetingAudio(audioResult, endedCleanly) {
+    if (!audioResult?.dir) return false;
+    if (shouldKeepMeetingAudio({ endedCleanly, files: audioResult.files })) {
+      debugLogger.log("Meeting audio kept for recovery", {
+        dir: audioResult.dir,
+        files: audioResult.files.length,
+      });
+      return true;
+    }
+    this._meetingAudioBuffer.cleanupFiles(audioResult.dir);
+    return false;
   }
 
   _setupTextEditMonitor() {
@@ -568,6 +609,7 @@ class IPCHandlers {
 
     // Audio storage handlers
     ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
+      if (!shouldStoreAudio(this._audioRetentionDays)) return { success: false, skipped: true };
       // A stand-in id (the transcription was sealed while locked) also goes
       // through the inbox, even if WhisperWoof was unlocked in between.
       if (vault.isOn() && (!this.databaseManager.db || isProvisionalId(id))) {
@@ -1990,6 +2032,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("sync-startup-preferences", async (event, prefs) => {
+      this._applyAudioRetentionDays(prefs.audioRetentionDays);
       const setVars = {};
       const clearVars = [];
 
@@ -4748,6 +4791,7 @@ class IPCHandlers {
 
       meetingTranscriptionStartInProgress = true;
       meetingSegmentCounter = 0;
+      this._meetingAudioUntranscribed = false;
       try {
         const systemAudioMode = getMeetingSystemAudioMode();
 
@@ -4787,7 +4831,7 @@ class IPCHandlers {
         return { success: true, systemAudioMode };
       } catch (error) {
         await rollbackMeetingTranscriptionStart();
-        this._meetingAudioBuffer.stop({ keepFiles: true }); // keep files for recovery
+        this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
         debugLogger.error("Meeting transcription start error", { error: error.message });
@@ -4806,13 +4850,17 @@ class IPCHandlers {
         this._meetingAudioBuffer.writeChunk(buf, source);
       }
 
+      const sent = streaming ? streaming.sendAudio(buf) : false;
+      if (this._meetingAudioBuffer.isActive && chunkMissedTranscriber(streaming, sent)) {
+        this._meetingAudioUntranscribed = true;
+      }
+
       if (!streaming) {
         if (meetingSendCounts[source] === 0) {
           debugLogger.error("Meeting audio send: no streaming instance", { source });
         }
         return;
       }
-      const sent = streaming.sendAudio(buf);
       meetingSendCounts[source]++;
       if (meetingSendCounts[source] <= 5 || meetingSendCounts[source] % 100 === 0) {
         debugLogger.debug("Meeting audio send", {
@@ -4857,9 +4905,12 @@ class IPCHandlers {
 
         const results = await disconnectMeetingStreaming();
 
-        // Stop audio buffer — keep files until cleanup is explicitly requested
         const audioResult = this._meetingAudioBuffer.stop({ keepFiles: true });
         const checkpointResult = this._meetingTranscriptCheckpoint.stop();
+        const audioKept = this._releaseMeetingAudio(
+          audioResult,
+          checkpointResult.persisted && !this._meetingAudioUntranscribed
+        );
         // A lock that waited for this meeting happens once the renderer has
         // saved the transcript and notes (they go to the database).
         setTimeout(() => vault.releaseDeferredLock().catch(() => {}), 60000).unref?.();
@@ -4867,14 +4918,14 @@ class IPCHandlers {
         return {
           success: true,
           transcript: [results[0]?.text, results[1]?.text].filter(Boolean).join(" "),
-          audioBufferDir: audioResult.dir,
-          audioFiles: audioResult.files,
+          audioBufferDir: audioKept ? audioResult.dir : undefined,
+          audioFiles: audioKept ? audioResult.files : [],
           checkpointedSegments: checkpointResult.savedSegments,
         };
       } catch (error) {
         debugLogger.error("Meeting transcription stop error", { error: error.message });
-        // Still try to stop buffer/checkpoint on error
-        this._meetingAudioBuffer.stop({ keepFiles: true });
+        // Still try to stop buffer/checkpoint on error; keep the audio for recovery
+        this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
         return { success: false, error: error.message };

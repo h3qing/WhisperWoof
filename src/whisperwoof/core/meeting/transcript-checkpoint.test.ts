@@ -171,14 +171,14 @@ describe('MeetingTranscriptCheckpoint', () => {
       const result = checkpoint.stop();
 
       expect(databaseManager.updateNote).toHaveBeenCalledTimes(1);
-      expect(result).toEqual({ savedSegments: 1, noteId: 'note-1' });
+      expect(result).toEqual({ savedSegments: 1, noteId: 'note-1', persisted: true });
       expect(checkpoint.isActive).toBe(false);
     });
 
     it('returns zero counts when called without starting', () => {
       const result = checkpoint.stop();
 
-      expect(result).toEqual({ savedSegments: 0, noteId: null });
+      expect(result).toEqual({ savedSegments: 0, noteId: null, persisted: true });
       expect(databaseManager.updateNote).not.toHaveBeenCalled();
     });
 
@@ -355,6 +355,34 @@ describe('MeetingTranscriptCheckpoint', () => {
       checkpoint.addSegment({ id: 'seg-1', text: 'boom', source: 'mic' });
 
       expect(() => checkpoint.stop()).not.toThrow();
+    });
+
+    it('reports persisted: false when the final save fails', () => {
+      databaseManager.updateNote.mockImplementation(() => {
+        throw new Error('read only');
+      });
+
+      checkpoint.start('note-1');
+      checkpoint.addSegment({ id: 'seg-1', text: 'lost', source: 'mic' });
+
+      expect(checkpoint.stop().persisted).toBe(false);
+    });
+
+    it('reports persisted: true when a later save catches up after a failure', () => {
+      databaseManager.updateNote.mockImplementationOnce(() => {
+        throw new Error('transient failure');
+      });
+
+      checkpoint.start('note-1');
+      checkpoint.addSegment({ id: 'seg-1', text: 'retry me', source: 'mic' });
+      vi.advanceTimersByTime(60_000);
+
+      expect(checkpoint.stop().persisted).toBe(true);
+    });
+
+    it('reports persisted: true for a meeting with no segments', () => {
+      checkpoint.start('note-1');
+      expect(checkpoint.stop().persisted).toBe(true);
     });
 
     it('does not update the checkpoint index when a save fails, allowing retry', () => {

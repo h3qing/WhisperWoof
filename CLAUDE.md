@@ -79,7 +79,8 @@ src/helpers/                     ← Meeting safety modules (main process)
 Voice/System Audio Chunks
     │
     ├──► MeetingAudioBuffer        (local WAV files, 5-min segments)
-    │     └── Crash-safe: valid WAV on disk at all times
+    │     ├── Crash-safe: valid WAV on disk at all times
+    │     └── Deleted on a clean stop; kept only after an abnormal end, swept after 24h
     │
     ├──► OpenAI Realtime WebSocket (streaming transcription)
     │     ├── MeetingSessionManager handles reconnection + rotation

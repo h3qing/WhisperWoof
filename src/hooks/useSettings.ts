@@ -158,6 +158,7 @@ function useSettingsInternal() {
     useReasoningModel,
     dictationMode,
     livePreviewModel,
+    audioRetentionDays,
   } = store;
 
   useEffect(() => {
@@ -176,6 +177,7 @@ function useSettingsInternal() {
         reasoningModel: reasoningPrefs.reasoningModel,
         useReasoningModel,
         livePreviewModel: dictationMode === "live" ? livePreviewModel : undefined,
+        audioRetentionDays,
       })
       .catch((err) =>
         logger.warn(
@@ -194,6 +196,7 @@ function useSettingsInternal() {
     useReasoningModel,
     dictationMode,
     livePreviewModel,
+    audioRetentionDays,
   ]);
 
   return {

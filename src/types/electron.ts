@@ -570,6 +570,7 @@ declare global {
         reasoningModel?: string;
         useReasoningModel?: boolean;
         livePreviewModel?: string;
+        audioRetentionDays?: number;
       }) => Promise<void>;
 
       // Clipboard operations

@@ -359,6 +359,58 @@ describe("MeetingAudioBuffer", () => {
     });
   });
 
+  describe("sweepStaleSessions()", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const OLD_UUID = "0b6e3a52-9d1c-4f0e-8a51-3c2f7d9e1a44";
+    const NEW_UUID = "c2d4f6a8-1b3d-4e5f-9a7b-8c6d4e2f0a1b";
+
+    function makeSessionDir(name: string, ageMs: number) {
+      const dir = path.join(tmpDir, name);
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, "mic-0000.wav"), "audio");
+      const mtime = new Date(Date.now() - ageMs);
+      fs.utimesSync(dir, mtime, mtime);
+      return dir;
+    }
+
+    it("deletes buffer folders older than 24 hours", () => {
+      const stale = makeSessionDir(`meeting-audio-${OLD_UUID}`, 2 * DAY_MS);
+
+      const deleted = buffer.sweepStaleSessions();
+
+      expect(deleted).toEqual([stale]);
+      expect(fs.existsSync(stale)).toBe(false);
+    });
+
+    it("keeps recent folders and anything that is not a meeting buffer", () => {
+      const recent = makeSessionDir(`meeting-audio-${NEW_UUID}`, 60 * 60 * 1000);
+      const unrelated = makeSessionDir("meeting-audio-notes", 2 * DAY_MS);
+      const file = path.join(tmpDir, `meeting-audio-${OLD_UUID}`);
+      fs.writeFileSync(file, "not a folder");
+
+      expect(buffer.sweepStaleSessions()).toEqual([]);
+      expect(fs.existsSync(recent)).toBe(true);
+      expect(fs.existsSync(unrelated)).toBe(true);
+      expect(fs.existsSync(file)).toBe(true);
+    });
+
+    it("never deletes the meeting being recorded", () => {
+      buffer.start();
+      buffer.writeChunk(makePcmChunk(100), "mic");
+      const active = buffer.getSessionDir()!;
+      const old = new Date(Date.now() - 2 * DAY_MS);
+      fs.utimesSync(active, old, old);
+
+      expect(buffer.sweepStaleSessions()).toEqual([]);
+      expect(fs.existsSync(active)).toBe(true);
+    });
+
+    it("does not throw when the temp directory is missing", () => {
+      const missing = new MeetingAudioBuffer(path.join(tmpDir, "gone"));
+      expect(missing.sweepStaleSessions()).toEqual([]);
+    });
+  });
+
   describe("multiple sources", () => {
     it("creates separate WAV files for mic and system", () => {
       buffer.start();
