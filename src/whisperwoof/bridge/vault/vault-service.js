@@ -108,6 +108,12 @@ function removeStaleLeftovers() {
   }
   if (!journal || journal.direction !== "rotate") removeIfExists(vaultPaths.nextVaultFile());
   if (journal && !isOn()) removeIfExists(vaultPaths.journal());
+  emptyTmp();
+}
+
+/** Plaintext handed out for a moment (a kept file pasted back) lives only here. */
+function emptyTmp() {
+  fs.rmSync(vaultPaths.tmpDir(), { recursive: true, force: true });
 }
 
 /** Do these keys open the encrypted data on disk? No data at all counts as yes. */
@@ -290,6 +296,7 @@ async function lock({ force = false } = {}) {
     return { locked: false, deferred: true };
   }
   await runHooks(lockingHooks, "lock");
+  emptyTmp();
   vc.wipe(masterKey);
   masterKey = null;
   keys = null;

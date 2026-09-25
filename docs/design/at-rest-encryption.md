@@ -1,6 +1,6 @@
 # At-rest encryption: design proposal
 
-Status: **approved 2026-09-25, shipped in v2.2.0.** The owner chose the recommended option on all four decisions (section 9) and made no changes to the defaults (section 8). While reviewing the running build, the owner added two things: a one-click copy for the recovery phrase (4.7) and a real "I don't need encryption" answer on Home (5). Section 11 lists what the end-to-end run found.
+Status: **approved 2026-09-25, shipped in v2.3.0.** The owner chose the recommended option on all four decisions (section 9) and made no changes to the defaults (section 8). While reviewing the running build, the owner added two things: a one-click copy for the recovery phrase (4.7) and a real "I don't need encryption" answer on Home (5). Section 11 lists what the end-to-end run found.
 Date: 2026-09-25. Scope: macOS (the only platform we ship).
 
 ## 1. In one paragraph

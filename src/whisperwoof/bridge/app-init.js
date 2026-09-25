@@ -18,6 +18,7 @@ const debugLogger = require("../../helpers/debugLogger");
 const vault = require("./vault/vault-service");
 const vaultFiles = require("./vault/vault-files");
 const { openDatabase } = require("./vault/vault-db");
+const clipboardPure = require("./clipboard-pure");
 
 let initialized = false;
 let whisperwoofDb = null;
@@ -122,101 +123,357 @@ async function captureSourceApp() {
   }
 }
 
-function startClipboardMonitor() {
-  // Poll every 500ms for clipboard changes
-  lastClipboardText = clipboard.readText() || "";
+// ── Clipboard monitor ─────────────────────────────────────────────────────
+// Polls every 500ms. Text is cheap to read. Images are noticed by a key made
+// from the pasteboard's raw bytes, so an image that sits on the clipboard is
+// never decoded again (reading it as a NativeImage every tick decoded e.g. a
+// 5K screenshot twice a second for as long as it stayed there). A Finder copy
+// of photos is captured as the photos themselves, not as their file names and
+// Finder icon. Copying something again moves its entry to the top instead of
+// adding a duplicate.
 
-  clipboardInterval = setInterval(async () => {
+const CLIPBOARD_POLL_MS = 500;
+const IMAGE_KEY_SAMPLE_BYTES = 256 * 1024;
+const THUMB_WIDTH = 480;
+const MAX_CAPTURED_FILE_BYTES = 200 * 1024 * 1024;
+let lastImageKey = "";
+
+const sha1 = (buf) => crypto.createHash("sha1").update(buf).digest("hex");
+
+function clipboardImagesDir() {
+  const dir = path.join(app.getPath("userData"), "whisperwoof-images");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/** Image bytes as the copying app put them on the pasteboard, without decoding (macOS). */
+function readRawImage() {
+  for (const format of ["public.png", "public.tiff"]) {
     try {
-      // Check for image on clipboard FIRST (image copy may also have text)
-      const img = clipboard.readImage();
-      if (!img.isEmpty()) {
-        const imgSize = img.getSize();
-        // Dedup by dimensions (reuse lastClipboardText variable)
-        const imgKey = `img_${imgSize.width}x${imgSize.height}`;
-        if (imgKey !== lastClipboardText) {
-          lastClipboardText = imgKey;
+      const bytes = clipboard.readBuffer(format);
+      if (bytes && bytes.length > 0) return { bytes, format };
+    } catch {
+      // format not on the pasteboard
+    }
+  }
+  return null;
+}
 
-          // Save image to disk
-          const imgId = crypto.randomUUID();
-          const imgDir = path.join(app.getPath("userData"), "whisperwoof-images");
-          if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
+/** Files copied in Finder, in copy order ([] when the copy isn't files). */
+function readCopiedFiles() {
+  let paths = [];
+  try {
+    paths = clipboardPure.parseFilenamesPlist(clipboard.read("NSFilenamesPboardType"));
+  } catch {
+    // not a file copy
+  }
+  if (paths.length === 0) {
+    try {
+      const one = clipboardPure.fileUrlToPath(clipboard.read("public.file-url"));
+      if (one) paths = [one];
+    } catch {
+      // not a file copy
+    }
+  }
+  return paths;
+}
 
-          const imgPath = path.join(imgDir, `${imgId}.png`);
-          vaultFiles.writeFile(imgPath, img.toPNG(), { kind: "image" });
+function clipboardCaptureSettings() {
+  try {
+    return clipboardPure.normalizeCapture(require("./markdown-route").readSettings().clipboardCapture);
+  } catch {
+    return { ...clipboardPure.DEFAULT_CAPTURE };
+  }
+}
 
-          // Create a thumbnail (max 200px wide)
-          const thumb = img.resize({ width: Math.min(200, imgSize.width) });
-          const thumbPath = path.join(imgDir, `${imgId}_thumb.png`);
-          vaultFiles.writeFile(thumbPath, thumb.toPNG(), { kind: "image" });
+function statOrNull(file) {
+  try {
+    return fs.statSync(file);
+  } catch {
+    return null;
+  }
+}
 
-          const sourceApp = await captureSourceApp();
-          saveWhisperWoofEntry({
-            source: "clipboard",
-            rawText: `[Image ${imgSize.width}\u00d7${imgSize.height}]`,
-            polished: null,
-            routedTo: null,
-            hotkeyUsed: null,
-            durationMs: null,
-            projectId: null,
-            audioPath: imgPath,
-            metadata: { type: "image", width: imgSize.width, height: imgSize.height, thumbPath, sourceApp },
-          });
+/** What image (or kept file) the clipboard holds right now, as a cheap comparison key ("" = none). */
+function readClipboardImage() {
+  const copied = readCopiedFiles();
+  if (copied.length > 0) {
+    // A file copy also carries the Finder icon as image data: never keep that.
+    // Photos are kept; other files only if the user turned files on; the rest
+    // stay text (their names), as before.
+    const stats = copied.map((file) => ({ file, stat: statOrNull(file) }));
+    const plan = clipboardPure.planCopiedFiles(
+      stats.filter((s) => s.stat?.isFile()).map((s) => ({ path: s.file, size: s.stat.size })),
+      clipboardCaptureSettings()
+    );
+    if (plan.images.length === 0 && plan.files.length === 0) return { key: "" };
+    const parts = stats.map((s) => `${s.file}:${s.stat?.size}:${s.stat?.mtimeMs}`);
+    return { key: `files:${parts.join("|")}`, plan };
+  }
+  const raw = readRawImage();
+  if (raw) {
+    return { key: `raw:${raw.bytes.length}:${sha1(raw.bytes.subarray(0, IMAGE_KEY_SAMPLE_BYTES))}`, raw };
+  }
+  // Other platforms (or unusual pasteboard types): only the decoded image is readable.
+  const formats = clipboard.availableFormats();
+  if (formats.some((f) => f.startsWith("image/"))) {
+    return { key: `formats:${formats.join(",")}:${clipboard.readText() || ""}`, decode: true };
+  }
+  return { key: "" };
+}
 
-          debugLogger.debug("[WhisperWoof] Clipboard image captured", {
-            width: imgSize.width,
-            height: imgSize.height,
-          });
-          return; // Image handled — skip text check this cycle
-        }
-      }
+/** Take whatever is on the clipboard now as already seen (startup, and after the app writes it). */
+function adoptCurrentClipboard() {
+  lastClipboardText = clipboard.readText() || "";
+  lastImageKey = readClipboardImage().key;
+}
 
-      const currentText = clipboard.readText() || "";
+function bumpClipboardEntry(id) {
+  whisperwoofDb?.prepare("UPDATE bf_entries SET created_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
 
-      // Skip if same as last capture
-      if (currentText === lastClipboardText) return;
-      // Skip if empty
-      if (!currentText.trim()) return;
-      // Skip very short text (likely accidental)
-      if (currentText.trim().length < 2) return;
-      // WhisperWoof dedup: skip if this text was just voice-transcribed
-      // (pasting voice text puts it on clipboard — don't double-capture)
-      if (recentVoiceTexts.has(currentText.trim())) {
-        lastClipboardText = currentText;
-        return;
-      }
+/** Same pixels regardless of how an app encoded them: size plus a tiny downscaled bitmap. */
+function imageFingerprint(image) {
+  const { width, height } = image.getSize();
+  return `${width}x${height}:${sha1(image.resize({ width: 32 }).toBitmap())}`;
+}
 
-      lastClipboardText = currentText;
+async function storeClipboardImage({ image, bytes, ext, fileName }) {
+  if (!whisperwoofDb || image.isEmpty()) return;
+  const fingerprint = imageFingerprint(image);
+  const existing = whisperwoofDb
+    .prepare("SELECT id FROM bf_entries WHERE source = 'clipboard' AND metadata LIKE ? LIMIT 1")
+    .get(`%"fingerprint":"${fingerprint}"%`);
+  if (existing) {
+    bumpClipboardEntry(existing.id);
+    return;
+  }
 
-      // Save to bf_entries
-      const sourceApp = await captureSourceApp();
-      saveWhisperWoofEntry({
-        source: "clipboard",
-        rawText: currentText,
-        polished: null,
-        routedTo: null,
-        hotkeyUsed: null,
-        durationMs: null,
-        projectId: null,
-        audioPath: null,
-        metadata: { sourceApp },
-      });
+  const { width, height } = image.getSize();
+  const id = crypto.randomUUID();
+  const dir = clipboardImagesDir();
+  const imagePath = path.join(dir, `${id}${ext}`);
+  vaultFiles.writeFile(imagePath, bytes, { kind: "image" });
+  const thumb = width > THUMB_WIDTH ? image.resize({ width: THUMB_WIDTH }) : image;
+  const thumbBytes = thumb.toPNG();
+  const thumbPath = path.join(dir, `${id}_thumb.png`);
+  vaultFiles.writeFile(thumbPath, thumbBytes, { kind: "image" });
 
-      debugLogger.debug("[WhisperWoof] Clipboard entry captured", {
-        length: currentText.length,
-      });
+  const sourceApp = await captureSourceApp();
+  saveWhisperWoofEntry({
+    source: "clipboard",
+    rawText: clipboardPure.imageEntryText({ width, height, fileName }),
+    polished: null,
+    routedTo: null,
+    hotkeyUsed: null,
+    durationMs: null,
+    projectId: null,
+    audioPath: imagePath,
+    metadata: {
+      type: "image",
+      width,
+      height,
+      thumbPath,
+      sourceApp,
+      fingerprint,
+      bytes: bytes.length + thumbBytes.length,
+      ...(fileName ? { fileName } : {}),
+    },
+  });
+  debugLogger.debug("[WhisperWoof] Clipboard image captured", { width, height, fromFile: Boolean(fileName) });
+}
+
+async function captureCopiedImageFile(filePath) {
+  try {
+    if (fs.statSync(filePath).size > MAX_CAPTURED_FILE_BYTES) return;
+    const image = nativeImage.createFromPath(filePath);
+    if (image.isEmpty()) return; // a format macOS can't read
+    await storeClipboardImage({
+      image,
+      bytes: fs.readFileSync(filePath),
+      ext: clipboardPure.extensionOf(filePath) || ".png",
+      fileName: path.basename(filePath),
+    });
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Copied photo not captured", { error: err.message });
+  }
+}
+
+/** A copied file kept in full (opt-in), under its own name so pasting it back keeps the name. */
+async function captureCopiedFile(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const fileName = path.basename(filePath);
+    const fingerprint = `file:${sha1(`${filePath}|${stat.size}|${stat.mtimeMs}`)}`;
+    const existing = whisperwoofDb
+      ?.prepare("SELECT id FROM bf_entries WHERE source = 'clipboard' AND metadata LIKE ? LIMIT 1")
+      .get(`%"fingerprint":"${fingerprint}"%`);
+    if (existing) {
+      bumpClipboardEntry(existing.id);
+      return;
+    }
+    const folder = path.join(clipboardImagesDir(), crypto.randomUUID());
+    fs.mkdirSync(folder, { recursive: true });
+    const storedPath = path.join(folder, fileName);
+    if (vault.isOn()) vaultFiles.writeFile(storedPath, fs.readFileSync(filePath), { kind: "file" });
+    else fs.copyFileSync(filePath, storedPath);
+    const sourceApp = await captureSourceApp();
+    saveWhisperWoofEntry({
+      source: "clipboard",
+      rawText: clipboardPure.fileEntryText(fileName),
+      polished: null,
+      routedTo: null,
+      hotkeyUsed: null,
+      durationMs: null,
+      projectId: null,
+      audioPath: storedPath,
+      metadata: { type: "file", fileName, bytes: stat.size, fingerprint, sourceApp },
+    });
+    debugLogger.debug("[WhisperWoof] Copied file kept", { bytes: stat.size });
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Copied file not kept", { error: err.message });
+  }
+}
+
+async function captureClipboardImageData(found) {
+  let image;
+  let bytes;
+  if (found.raw?.format === "public.png") {
+    bytes = found.raw.bytes; // stored as the app wrote it: no re-encode
+    image = nativeImage.createFromBuffer(bytes);
+  } else {
+    image = found.raw ? nativeImage.createFromBuffer(found.raw.bytes) : clipboard.readImage();
+    if (image.isEmpty()) image = clipboard.readImage();
+    bytes = image.toPNG();
+  }
+  await storeClipboardImage({ image, bytes, ext: ".png", fileName: null });
+}
+
+function afterClipboardChange({ imageAdded = false } = {}) {
+  try {
+    const store = require("./clipboard-store");
+    if (imageAdded) store.prune();
+    store.notifyChanged();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Clipboard follow-up failed", { error: err.message });
+  }
+}
+
+// Copies that ask not to be remembered: password managers mark them concealed,
+// and WhisperWoof's own recovery-phrase copy is concealed + transient
+// (nspasteboard.org). They're never captured.
+const PRIVATE_PASTEBOARD_TYPES = [
+  "org.nspasteboard.ConcealedType",
+  "org.nspasteboard.TransientType",
+  "org.nspasteboard.AutoGeneratedType",
+];
+
+function isPrivateCopy() {
+  if (process.platform !== "darwin" || typeof clipboard.has !== "function") return false;
+  return PRIVATE_PASTEBOARD_TYPES.some((type) => {
+    try {
+      return clipboard.has(type);
+    } catch {
+      return false;
+    }
+  });
+}
+
+// Texts WhisperWoof itself just put on the clipboard and must not record.
+const skippedTexts = new Set();
+
+async function pollClipboard() {
+  if (isPrivateCopy()) {
+    adoptCurrentClipboard();
+    return;
+  }
+  const found = readClipboardImage();
+  if (found.key) {
+    if (found.key === lastImageKey) return;
+    lastImageKey = found.key;
+    // The file name or alt text that came with it belongs to this copy.
+    lastClipboardText = clipboard.readText() || "";
+    if (found.plan) {
+      for (const file of found.plan.images) await captureCopiedImageFile(file);
+      for (const file of found.plan.files) await captureCopiedFile(file);
+    } else {
+      await captureClipboardImageData(found);
+    }
+    afterClipboardChange({ imageAdded: true });
+    return;
+  }
+  lastImageKey = "";
+
+  const currentText = clipboard.readText() || "";
+  if (currentText === lastClipboardText) return;
+  lastClipboardText = currentText;
+  // Skip empty and very short text (likely accidental)
+  if (currentText.trim().length < 2) return;
+  // WhisperWoof dedup: skip if this text was just voice-transcribed
+  // (pasting voice text puts it on clipboard — don't double-capture)
+  if (recentVoiceTexts.has(currentText.trim())) return;
+  if (skippedTexts.has(currentText)) return;
+  if (!whisperwoofDb) {
+    // Locked (encryption on): seal it into the inbox; it joins the history on unlock.
+    if (vault.isOn()) {
+      saveWhisperWoofEntry({ source: "clipboard", rawText: currentText, polished: null, routedTo: null, hotkeyUsed: null, durationMs: null, projectId: null, audioPath: null, metadata: {} });
+    }
+    return;
+  }
+
+  const existing = whisperwoofDb
+    .prepare(
+      "SELECT id FROM bf_entries WHERE source = 'clipboard' AND raw_text = ? ORDER BY created_at DESC LIMIT 1"
+    )
+    .get(currentText);
+  if (existing) {
+    bumpClipboardEntry(existing.id);
+  } else {
+    const sourceApp = await captureSourceApp();
+    saveWhisperWoofEntry({
+      source: "clipboard",
+      rawText: currentText,
+      polished: null,
+      routedTo: null,
+      hotkeyUsed: null,
+      durationMs: null,
+      projectId: null,
+      audioPath: null,
+      metadata: { sourceApp },
+    });
+    debugLogger.debug("[WhisperWoof] Clipboard entry captured", { length: currentText.length });
+  }
+  afterClipboardChange();
+}
+
+function startClipboardMonitor() {
+  if (clipboardInterval) return;
+  adoptCurrentClipboard();
+  let polling = false;
+  clipboardInterval = setInterval(async () => {
+    if (polling) return; // a slow capture (big photo) must not overlap the next tick
+    polling = true;
+    try {
+      await pollClipboard();
     } catch (err) {
       // Never crash the poll loop
       debugLogger.debug("[WhisperWoof] Clipboard poll error", { error: err.message });
+    } finally {
+      polling = false;
     }
-  }, 500);
+  }, CLIPBOARD_POLL_MS);
 
   debugLogger.log("[WhisperWoof] Clipboard monitoring started");
 }
 
-/** Don't record this text as a clipboard entry (e.g. a recovery phrase being copied). */
+/**
+ * Don't record this text as a clipboard entry (e.g. a recovery phrase being
+ * copied). Held for two minutes, so a poll that lands before the copy does
+ * can't record it either.
+ */
 function skipClipboardCapture(text) {
-  lastClipboardText = text;
+  skippedTexts.add(text);
+  setTimeout(() => skippedTexts.delete(text), 120000).unref?.();
 }
 
 function stopClipboardMonitor() {
@@ -337,6 +594,14 @@ function attachDatabase() {
     setDatabase(whisperwoofDb);
   } catch (err) {
     debugLogger.debug("[WhisperWoof] Analytics init skipped", { error: err.message });
+  }
+
+  // Apply the clipboard retention the user chose (images over the space cap, old items).
+  // It needs the database, so it runs whenever the database attaches (startup, unlock).
+  try {
+    require("./clipboard-store").prune();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Clipboard retention skipped", { error: err.message });
   }
   return true;
 }
@@ -488,7 +753,30 @@ function searchWhisperWoofEntries(query, limit = 50) {
 
 function deleteWhisperWoofEntry(id) {
   if (!whisperwoofDb) return;
+  const row = whisperwoofDb.prepare("SELECT source, audio_path, metadata FROM bf_entries WHERE id = ?").get(id);
   whisperwoofDb.prepare('DELETE FROM bf_entries WHERE id = ?').run(id);
+  // A clipboard image's or kept file's files go with it (they used to stay on disk forever).
+  if (row?.source === "clipboard") removeClipboardFiles(row);
+}
+
+/** Delete what a clipboard entry stored: image + preview, or a kept file and its folder. */
+function removeClipboardFiles(row) {
+  const meta = clipboardPure.parseMetadata(row.metadata);
+  if (meta.type !== "image" && meta.type !== "file") return;
+  for (const file of [row.audio_path, meta.thumbPath]) {
+    try {
+      if (file) vaultFiles.unlink(file);
+    } catch {
+      // best effort
+    }
+  }
+  // Kept files live in a folder of their own inside the images folder.
+  if (meta.type === "file" && row.audio_path) {
+    const folder = path.dirname(row.audio_path);
+    if (path.dirname(folder) === path.join(app.getPath("userData"), "whisperwoof-images")) {
+      fs.rmSync(folder, { recursive: true, force: true });
+    }
+  }
 }
 
 function toggleWhisperWoofFavorite(id) {
@@ -649,6 +937,8 @@ module.exports = {
   startClipboardMonitor,
   stopClipboardMonitor,
   skipClipboardCapture,
+  adoptCurrentClipboard,
+  removeClipboardFiles,
   createWhisperWoofProject,
   getWhisperWoofProjects,
   deleteWhisperWoofProject,

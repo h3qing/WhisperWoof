@@ -140,6 +140,26 @@ describe("turning encryption on", () => {
     db.close();
   });
 
+  it("seals note attachments with the notes, and kept clipboard files in their folders", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    fs.mkdirSync(path.join(notesDir, "attachments"));
+    fs.writeFileSync(path.join(notesDir, "attachments", "clip-1.png"), Buffer.from(`png ${SECRET}`));
+    const kept = path.join(userData, "whisperwoof-images", "0b8f7c52-8d0a-4f8e-9b1e-2f6c1f0a9d11");
+    fs.mkdirSync(kept);
+    fs.writeFileSync(path.join(kept, "report.pdf"), Buffer.from(`pdf ${SECRET}`));
+    await turnOn(m);
+    expect(leaks(userData)).toEqual([]);
+    expect(leaks(notesDir)).toEqual([]);
+    expect(m.files.readText(path.join(notesDir, "attachments", "clip-1.png"))).toBe(`png ${SECRET}`);
+    expect(m.files.readText(path.join(kept, "report.pdf"))).toBe(`pdf ${SECRET}`);
+
+    await m.migrate.run("disable", { Database, userData, notesDir, sealNotes: true });
+    await m.vault.forgetVault();
+    expect(fs.readFileSync(path.join(notesDir, "attachments", "clip-1.png"), "utf8")).toBe(`png ${SECRET}`);
+    expect(fs.readFileSync(path.join(kept, "report.pdf"), "utf8")).toBe(`pdf ${SECRET}`);
+  });
+
   it("keeps notes readable when asked to", async () => {
     const m = freshModules();
     seedPlainData().live.close();

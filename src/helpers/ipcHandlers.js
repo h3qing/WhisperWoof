@@ -3005,6 +3005,13 @@ class IPCHandlers {
       const error = await notesFolder().openNotesFolder();
       return error ? { success: false, error } : { success: true };
     });
+    ipcMain.handle("whisperwoof-notes-attachment", async (_event, ref) => {
+      try {
+        return { success: true, ...notesFolder().readAttachment(ref) };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
     // Notes ↔ projects ↔ recordings (bridge/project-notes.js).
     const projectNotes = () => require("../whisperwoof/bridge/project-notes");
     const settle = async (fn) => {
@@ -3305,6 +3312,44 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
+
+    // WhisperWoof: Clipboard view (bridge/clipboard-store.js). Items are
+    // addressed by entry id; file paths stay in the main process.
+    const clipboardStore = () => require("../whisperwoof/bridge/clipboard-store");
+    const clipboardCall = (fn) => async (_event, ...args) => {
+      try {
+        return { success: true, ...(await fn(...args)) };
+      } catch (error) {
+        debugLogger.log(`[WhisperWoof] clipboard store failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    };
+    ipcMain.handle(
+      "whisperwoof-clipboard-list",
+      clipboardCall((options) => ({ items: clipboardStore().listClipboard(options) }))
+    );
+    ipcMain.handle("whisperwoof-clipboard-summary", clipboardCall(() => clipboardStore().summary()));
+    ipcMain.handle("whisperwoof-clipboard-copy", clipboardCall((id) => clipboardStore().copyItem(id)));
+    ipcMain.handle(
+      "whisperwoof-clipboard-preview",
+      clipboardCall((id, options) => clipboardStore().preview(id, options))
+    );
+    ipcMain.handle("whisperwoof-clipboard-to-note", clipboardCall((id) => clipboardStore().saveToNote(id)));
+    ipcMain.handle("whisperwoof-clipboard-remove", clipboardCall((ids) => clipboardStore().removeItems(ids)));
+    ipcMain.handle("whisperwoof-clipboard-clear", clipboardCall((options) => clipboardStore().clearItems(options)));
+    ipcMain.handle(
+      "whisperwoof-clipboard-pin",
+      clipboardCall((id, pinned) => clipboardStore().setPinned(id, pinned))
+    );
+    ipcMain.handle(
+      "whisperwoof-clipboard-set-retention",
+      clipboardCall((retention) => clipboardStore().setRetention(retention))
+    );
+    ipcMain.handle(
+      "whisperwoof-clipboard-set-capture",
+      clipboardCall((capture) => clipboardStore().setCapture(capture))
+    );
+    ipcMain.handle("whisperwoof-clipboard-reveal", clipboardCall((id) => clipboardStore().reveal(id)));
 
     // WhisperWoof: Toggle clipboard monitoring on/off
     ipcMain.handle("whisperwoof-clipboard-toggle", async (_event, enabled) => {

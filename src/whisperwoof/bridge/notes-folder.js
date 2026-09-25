@@ -117,4 +117,43 @@ function watchNotesFolder(onChange) {
   };
 }
 
-module.exports = { listNotes, readNote, updateNoteBody, setNoteFields, trashNote, revealNote, openNotesFolder, watchNotesFolder };
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_MIME = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+/**
+ * An image a note links to, as `attachments/<file>` inside the notes folder
+ * (clipboard images saved as notes). Nothing outside that folder is read.
+ */
+function readAttachment(ref) {
+  const { isSafeAttachmentRef, extensionOf } = require("./clipboard-pure");
+  if (!isSafeAttachmentRef(ref)) throw new Error("Invalid attachment");
+  const mime = ATTACHMENT_MIME[extensionOf(ref)];
+  if (!mime) throw new Error("Unsupported image type");
+  const attachDir = path.join(getNotesDirectory(), "attachments");
+  const file = path.join(attachDir, ref.slice("attachments/".length));
+  // The file on disk may be the sealed form ("x.png.wwenc") when notes are encrypted.
+  const physical = vaultFiles.physicalPath(file);
+  if (!physical) throw new Error("Attachment not found");
+  const real = fs.realpathSync(physical);
+  if (path.dirname(real) !== fs.realpathSync(attachDir)) throw new Error("Invalid attachment");
+  if (fs.statSync(real).size > MAX_ATTACHMENT_BYTES) throw new Error("Image too large to show");
+  return { mime, data: vaultFiles.readFile(file).toString("base64") };
+}
+
+module.exports = {
+  listNotes,
+  readNote,
+  updateNoteBody,
+  setNoteFields,
+  trashNote,
+  revealNote,
+  openNotesFolder,
+  watchNotesFolder,
+  readAttachment,
+};

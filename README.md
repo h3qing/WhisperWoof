@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.2.0-C87B3A?style=flat-square" alt="v2.2.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.3.0-C87B3A?style=flat-square" alt="v2.3.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1197%20passing-brightgreen?style=flat-square" alt="1197 tests passing">
+  <img src="https://img.shields.io/badge/tests-1401%20passing-brightgreen?style=flat-square" alt="1401 tests passing">
 </p>
 
 <p align="center">
@@ -99,7 +99,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 - **Hotkey-driven routing** — Different combos send voice to different destinations. Explicit, not magic.
 
 ### Capture & History
-- **Clipboard timeline** — A condensed, card-based timeline of everything you copy: grouped by day, click to re-copy, with the source app (Messages, Chrome…) and image thumbnails.
+- **Clipboard** *(new in 2.2)* — Everything you copy, text on one side and images on the other. Click to copy again (images paste as images), save any item to Notes, pin what matters, and choose how long history is kept and how much space images may use.
 - **Voice history + audio playback** — Tap any entry to replay the original recording.
 - **Full-text search** — SQLite FTS5 across all your voice and clipboard entries.
 
@@ -124,7 +124,7 @@ Voice ──▶ Local STT (Whisper / Parakeet / Distil-Whisper)
 - **Graceful degradation** — No reasoning model? You still get a clean raw transcript. Selected model missing? It falls back to the best one on disk.
 
 ### Privacy & Design
-- **Encryption** *(new in 2.2)* — Opt-in. History, notes, recordings, clipboard images and Memory are encrypted on your Mac and unlock with Touch ID (Secure Enclave) or your password; a 12-word recovery phrase opens them on any Mac. No back door: lose both and the data is gone. Dictation keeps working while it's locked. ([Design](docs/design/at-rest-encryption.md).)
+- **Encryption** *(new in 2.3)* — Opt-in. History, notes, recordings, clipboard images and Memory are encrypted on your Mac and unlock with Touch ID (Secure Enclave) or your password; a 12-word recovery phrase opens them on any Mac. No back door: lose both and the data is gone. Dictation keeps working while it's locked. ([Design](docs/design/at-rest-encryption.md).)
 - **Privacy lock** — One toggle blocks ALL cloud access. Bundled local STT + local LLM only, zero network.
 - **MCP plugins** — Route voice to Todoist, Notion, Slack. Any MCP server works as a plugin.
 - **Glass in Mando's colors** *(new in 2.0)* — Liquid glass only for what's still moving (the sidebar, menus, the dictation overlay), solid sheets for what has landed, pill-shaped controls, the rounded Nunito font, and a brown-black dark mode. Design rules live in [DESIGN.md](DESIGN.md).

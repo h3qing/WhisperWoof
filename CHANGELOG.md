@@ -5,11 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
-## [2.2.0] - 2026-09-25 — Encryption: your notes and recordings, locked
+## [2.3.0] - 2026-09-25 — Encryption: your notes and recordings, locked
 
 ### Added
 - **Encrypt everything WhisperWoof keeps about you.** Settings → Encryption turns it on. Your history (search still works), notes, recordings, clipboard images, Memory and meeting audio are then stored encrypted on this Mac. It unlocks with Touch ID or your password, and a 12-word recovery phrase opens your data on any Mac if you forget the password. There's no back door: if you lose both the password and the phrase, the data is gone, and the setup screen says so before you start. It's off until you turn it on.
-- **Dictation keeps working while WhisperWoof is locked.** It locks when your Mac locks or sleeps (and, if you like, after you've been idle). Anything you dictate, save as a note (Fn+N, Fn+P) or copy while it's locked is sealed so nobody can read it, and joins your history, at the time you said it, when you unlock.
+- **Dictation keeps working while WhisperWoof is locked.** It locks when your Mac locks or sleeps (and, if you like, after you've been idle). Anything you dictate, save as a note (Fn+N, Fn+P) or copy as text while it's locked is sealed so nobody can read it, and joins your history, at the time you said it, when you unlock. (Images copied while it's locked aren't kept.)
 - **Touch ID really holds the key.** It uses the Mac's Secure Enclave, so the key can't be read without your finger, even by someone who knows your Mac password. If you add a fingerprint, Touch ID turns off until you enter your password once.
 - **Copy the recovery phrase in one click**, straight into your password manager. WhisperWoof keeps it out of clipboard history, marks it so clipboard managers skip it, and clears it from the clipboard after a minute.
 - **Notes can stay readable by other apps.** Turn on "Keep notes readable by other apps" to keep them as plain Markdown for Obsidian or iCloud.
@@ -22,7 +22,24 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Resetting WhisperWoof asks you to turn off encryption first**, so encrypted notes in your notes folder can't become unreadable.
 
 ### Fixed
+- **Passwords copied from a password manager really aren't captured now.** The clipboard history skips anything marked concealed or transient (1Password, Bitwarden and other password managers mark what they copy), as Settings already said it did.
 - **Telegram notes that failed to import are tried again** instead of being marked done. With encryption on, imported notes are removed from the plain inbox file.
+
+## [2.2.0] - 2026-09-25 — A clipboard you can actually use
+
+### Added
+- **Clipboard: text on one side, images on the other.** Each image shows a preview; "Look closer" opens it large. Search covers text and photo file names.
+- **Images copy back as images.** Click any item to put it back on your clipboard: a screenshot or photo pastes into chats and documents as the picture, not as its file name. It moves to the top of its list instead of being saved twice.
+- **Photos copied in Finder are kept as the photos.** Copying a photo file used to save only its name (and the Finder icon); now the photo itself is kept, up to 10 per copy and 50 MB each, HEIC included.
+- **Other files are opt-in.** PDFs, documents, videos and other files keep only their name unless you turn on **Keep copied files**, which first explains that files are saved in full (up to 100 MB each) and count towards the space limit. Kept files paste back as files, show in Finder, and can be saved to Notes (as a link to a copy in `attachments/`).
+- **Save to Notes.** Any item becomes a note in your notes folder. An image goes into `attachments/` and the note links to it, so it shows in Notes (and in Obsidian).
+- **Pin, remove, clear.** Pinned items are never cleaned up. Remove one item from its row, or clear all text, all images, everything older than a week, or everything, after a confirmation that says how much goes.
+- **You decide how much it keeps.** The Clipboard view says how many things are kept and how much space images and files take. Choose how long history is kept (forever, 90, 30 or 7 days) and how much space images and files may use (up to 2 GB, or no limit); past the limit the oldest go first. The default keeps all text and caps images at 1 GB.
+
+### Fixed
+- **Images in the Clipboard view had no preview**, and clicking one copied the text "[Image 1024×1024]": the view never recognised an image.
+- **Deleted clipboard images stayed on disk.** Removing an image (from Clipboard or History) now deletes its file and preview too.
+- **An image sitting on the clipboard was decoded twice a second** for as long as it stayed there. The monitor now compares the clipboard's raw bytes and only reads an image when it changes. Copying the same thing again no longer adds a duplicate.
 
 ## [2.1.1] - 2026-09-25 — Live typing and Parakeet actually ship
 

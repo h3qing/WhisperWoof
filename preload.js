@@ -911,6 +911,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetFavorites: (limit) => ipcRenderer.invoke("whisperwoof-get-favorites", limit),
   whisperwoofGetImage: (imagePath) => ipcRenderer.invoke("whisperwoof-get-image", imagePath),
   whisperwoofClipboardToggle: (enabled) => ipcRenderer.invoke("whisperwoof-clipboard-toggle", enabled),
+  // Clipboard view (items by id; see bridge/clipboard-store.js)
+  whisperwoofClipboardList: (options) => ipcRenderer.invoke("whisperwoof-clipboard-list", options),
+  whisperwoofClipboardSummary: () => ipcRenderer.invoke("whisperwoof-clipboard-summary"),
+  whisperwoofClipboardCopy: (id) => ipcRenderer.invoke("whisperwoof-clipboard-copy", id),
+  whisperwoofClipboardPreview: (id, options) =>
+    ipcRenderer.invoke("whisperwoof-clipboard-preview", id, options),
+  whisperwoofClipboardToNote: (id) => ipcRenderer.invoke("whisperwoof-clipboard-to-note", id),
+  whisperwoofClipboardRemove: (ids) => ipcRenderer.invoke("whisperwoof-clipboard-remove", ids),
+  whisperwoofClipboardClear: (options) => ipcRenderer.invoke("whisperwoof-clipboard-clear", options),
+  whisperwoofClipboardPin: (id, pinned) => ipcRenderer.invoke("whisperwoof-clipboard-pin", id, pinned),
+  whisperwoofClipboardSetRetention: (retention) =>
+    ipcRenderer.invoke("whisperwoof-clipboard-set-retention", retention),
+  whisperwoofClipboardSetCapture: (capture) =>
+    ipcRenderer.invoke("whisperwoof-clipboard-set-capture", capture),
+  whisperwoofClipboardReveal: (id) => ipcRenderer.invoke("whisperwoof-clipboard-reveal", id),
+  onClipboardChanged: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("whisperwoof-clipboard-changed", handler);
+    return () => ipcRenderer.removeListener("whisperwoof-clipboard-changed", handler);
+  },
+  whisperwoofNotesAttachment: (ref) => ipcRenderer.invoke("whisperwoof-notes-attachment", ref),
   // WhisperWoof: Regenerate an entry from its stored audio (History → Regenerate)
   whisperwoofRegenerateOptions: (id) => ipcRenderer.invoke("whisperwoof-regenerate-options", id),
   whisperwoofRegenerateStt: (id, request) => ipcRenderer.invoke("whisperwoof-regenerate-stt", id, request),

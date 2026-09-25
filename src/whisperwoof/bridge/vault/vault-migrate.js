@@ -201,20 +201,53 @@ function isNoteName(name) {
   return name.endsWith(".md") && !name.startsWith(".") && !name.includes("/");
 }
 
+/** Logical names of the regular files (not folders) in `dir`, sealed or plain. */
+function filesIn(dir) {
+  return listNames(dir).filter((name) => {
+    if (name.startsWith(".")) return false;
+    const plain = path.join(dir, name);
+    for (const candidate of [plain, sealedPath(plain)]) {
+      try {
+        if (fs.statSync(candidate).isFile()) return true;
+      } catch {
+        // not this form
+      }
+    }
+    return false;
+  });
+}
+
+function subfolders(dir) {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+      .map((d) => path.join(dir, d.name));
+  } catch {
+    return [];
+  }
+}
+
+/** Notes, and the images and files they link to in `attachments/`. */
 function noteTargets(notesDir) {
   if (!notesDir || !fs.existsSync(notesDir)) return [];
-  return listNames(notesDir)
+  const notes = filesIn(notesDir)
     .filter(isNoteName)
     .map((name) => ({ file: path.join(notesDir, name), kind: "note", mode: 0o644 }));
+  const attachDir = path.join(notesDir, "attachments");
+  const attachments = filesIn(attachDir).map((name) => ({ file: path.join(attachDir, name), kind: "attachment", mode: 0o644 }));
+  return [...notes, ...attachments];
 }
 
 function userDataTargets(userData) {
   const jsons = JSON_STORES.map((name) => ({ file: path.join(userData, name), kind: "json", mode: 0o600 }));
-  const dirs = DIR_STORES.flatMap(({ dir, kind }) =>
-    listNames(path.join(userData, dir))
-      .filter((name) => !name.startsWith("."))
-      .map((name) => ({ file: path.join(userData, dir, name), kind, mode: 0o600 }))
-  );
+  const dirs = DIR_STORES.flatMap(({ dir, kind }) => {
+    const base = path.join(userData, dir);
+    // Kept clipboard files live one folder down (whisperwoof-images/<id>/<name>).
+    return [base, ...subfolders(base)].flatMap((folder) =>
+      filesIn(folder).map((name) => ({ file: path.join(folder, name), kind, mode: 0o600 }))
+    );
+  });
   return [...jsons, ...dirs];
 }
 
