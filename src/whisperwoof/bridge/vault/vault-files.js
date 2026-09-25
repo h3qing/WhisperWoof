@@ -58,8 +58,12 @@ function readText(p) {
 /**
  * Write a file. `seal` defaults to "encryption is on". Writes are atomic and
  * remove the other form, so a path never has both a plain and a sealed copy.
+ * `requireUnlocked` refuses the write while WhisperWoof is locked.
  */
-function writeFile(p, data, { kind = "blob", seal = vault.isOn() } = {}) {
+function writeFile(p, data, { kind = "blob", seal = vault.isOn(), requireUnlocked = false } = {}) {
+  // Stores that rewrite their whole file from a fresh read must not write while
+  // locked: their read came back empty, and the write would drop the rest.
+  if (requireUnlocked && vault.isOn() && !vault.isUnlocked()) throw new vault.VaultLockedError();
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data, "utf8");
   fs.mkdirSync(path.dirname(p), { recursive: true });
   if (seal) {

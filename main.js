@@ -319,6 +319,10 @@ function initializeCoreManagers() {
     debugLogger.debug("Sidecar reap failed (non-fatal)", { error: err.message });
   });
 
+  // Encryption: read vault.json before anything opens the database. When it's
+  // on, the database stays closed until unlock.
+  require("./src/whisperwoof/bridge/vault/vault-service").load();
+
   environmentManager = new EnvironmentManager();
   const uiLanguage = environmentManager.getUiLanguage();
   process.env.UI_LANGUAGE = uiLanguage;
@@ -372,6 +376,42 @@ function initializeCoreManagers() {
     audioTapManager,
     getTrayManager: () => trayManager,
   });
+}
+
+// Encryption: how the vault opens/closes the app's databases, replays what was
+// saved while locked, and which work holds a lock off (a recording meeting).
+function setupVault() {
+  const vault = require("./src/whisperwoof/bridge/vault/vault-service");
+  const lifecycle = require("./src/whisperwoof/bridge/vault/vault-lifecycle");
+  const controller = require("./src/whisperwoof/bridge/vault/vault-controller");
+  const { createInboxHandlers } = require("./src/whisperwoof/bridge/vault/vault-inbox-handlers");
+  const appInit = () => require("./src/whisperwoof/bridge/app-init");
+
+  lifecycle.configure({
+    Database: require("better-sqlite3-multiple-ciphers"),
+    userData: () => app.getPath("userData"),
+    notesDir: () => require("./src/whisperwoof/bridge/markdown-route").getNotesDirectory(),
+    openDatabases: async () => {
+      if (!databaseManager.db) databaseManager.initDatabase();
+      appInit().attachDatabase();
+    },
+    closeDatabases: async () => {
+      databaseManager.close();
+      appInit().detachDatabase();
+    },
+    inboxHandlers: () =>
+      createInboxHandlers({
+        databaseManager,
+        audioStorageManager: ipcHandlers.audioStorageManager,
+        appInit: appInit(),
+        projectNotes: require("./src/whisperwoof/bridge/project-notes"),
+        learnCorrections: (data) => ipcHandlers.replayLearnCorrections(data),
+        broadcast: (channel, payload) => ipcHandlers.broadcastToWindows(channel, payload),
+      }),
+  });
+  vault.addLockBlocker(() => Boolean(ipcHandlers._meetingAudioBuffer?.isActive));
+  controller.onStatus(() => trayManager?.updateTrayMenu?.());
+  controller.refreshTouchIdAvailability().catch(() => {});
 }
 
 // Phase 2: Non-critical setup after windows are visible
@@ -579,6 +619,7 @@ function startAuthBridgeServer() {
 async function startApp() {
   // Phase 1: Core managers + IPC handlers before windows
   initializeCoreManagers();
+  setupVault();
   startAuthBridgeServer();
 
   // WhisperWoof: Auto-download whisper-server binary if missing

@@ -13,6 +13,8 @@ const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const { withFields } = require("./notes-folder-pure");
+const vault = require("./vault/vault-service");
+const vaultFiles = require("./vault/vault-files");
 
 const DEFAULT_NOTES_DIR = path.join(
   app.getPath("documents"),
@@ -104,7 +106,8 @@ function saveAsMarkdown(text, fields = {}) {
     ].join("\n");
 
     const content = withFields(frontmatter + text.trim() + "\n", fields);
-    fs.writeFileSync(filePath, content, "utf-8");
+    // Sealed (".md.wwenc") when encryption is on — works while locked too.
+    vaultFiles.writeText(filePath, content, { kind: "note", seal: vault.sealsNotes() });
 
     debugLogger.info("[WhisperWoof] Saved markdown note", {
       filePath,

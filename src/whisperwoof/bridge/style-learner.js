@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
 const {
   editDistance,
   shouldRecordStyleExample,
@@ -31,8 +32,8 @@ const MAX_EXAMPLES = 50;
  */
 function loadExamples() {
   try {
-    if (fs.existsSync(STYLE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(STYLE_FILE, "utf-8"));
+    if (vaultFiles.exists(STYLE_FILE)) {
+      const data = vaultFiles.readJson(STYLE_FILE, []);
       return Array.isArray(data) ? data : [];
     }
   } catch (err) {
@@ -46,7 +47,7 @@ function loadExamples() {
  */
 function saveExamples(examples) {
   try {
-    fs.writeFileSync(STYLE_FILE, JSON.stringify(examples, null, 2), "utf-8");
+    vaultFiles.writeJson(STYLE_FILE, examples, { requireUnlocked: true });
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to save style examples", { error: err.message });
   }

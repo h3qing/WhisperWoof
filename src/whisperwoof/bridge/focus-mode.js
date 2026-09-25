@@ -22,6 +22,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
 const {
   SPRINT_PRESETS,
   validateDuration,
@@ -128,8 +129,8 @@ function isSessionActive() {
 
 function loadSessions() {
   try {
-    if (fs.existsSync(SESSIONS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
+    if (vaultFiles.exists(SESSIONS_FILE)) {
+      const data = vaultFiles.readJson(SESSIONS_FILE, []);
       return Array.isArray(data) ? data : [];
     }
   } catch (err) {
@@ -142,7 +143,7 @@ function saveSessions(sessions) {
   try {
     const dir = path.dirname(SESSIONS_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2), "utf-8");
+    vaultFiles.writeJson(SESSIONS_FILE, sessions, { requireUnlocked: true });
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to save focus sessions", { error: err.message });
   }

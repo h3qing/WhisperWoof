@@ -15,6 +15,9 @@ const { app, clipboard, nativeImage } = require("electron");
 const Database = require("better-sqlite3-multiple-ciphers");
 const path = require("path");
 const debugLogger = require("../../helpers/debugLogger");
+const vault = require("./vault/vault-service");
+const vaultFiles = require("./vault/vault-files");
+const { openDatabase } = require("./vault/vault-db");
 
 let initialized = false;
 let whisperwoofDb = null;
@@ -140,12 +143,12 @@ function startClipboardMonitor() {
           if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
 
           const imgPath = path.join(imgDir, `${imgId}.png`);
-          fs.writeFileSync(imgPath, img.toPNG());
+          vaultFiles.writeFile(imgPath, img.toPNG(), { kind: "image" });
 
           // Create a thumbnail (max 200px wide)
           const thumb = img.resize({ width: Math.min(200, imgSize.width) });
           const thumbPath = path.join(imgDir, `${imgId}_thumb.png`);
-          fs.writeFileSync(thumbPath, thumb.toPNG());
+          vaultFiles.writeFile(thumbPath, thumb.toPNG(), { kind: "image" });
 
           const sourceApp = await captureSourceApp();
           saveWhisperWoofEntry({
@@ -224,13 +227,47 @@ async function initializeWhisperWoof() {
 
   debugLogger.log("[WhisperWoof] Initializing...");
 
-  // Open the same database that OpenWhispr uses
+  // Open the same database that OpenWhispr uses (waits for unlock when encrypted)
+  attachDatabase();
+
+  // TODO: Start OllamaService (detect, auto-start)
+  // TODO: Register WhisperWoof hotkey routes
+
+  startClipboardMonitor();
+
+  // Start Telegram companion sync (polls inbox file for mobile-captured entries)
+  try {
+    const { startTelegramSync } = require("./telegram-sync");
+    startTelegramSync(saveWhisperWoofEntry);
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Telegram sync init skipped", { error: err.message });
+  }
+
+  initialized = true;
+  debugLogger.log("[WhisperWoof] Initialized (Phase 1a — StorageProvider ready, clipboard monitoring active)");
+}
+
+/**
+ * Open the WhisperWoof connection and hand it to the modules that share it.
+ * Returns false while WhisperWoof is locked (called again after unlock).
+ */
+function attachDatabase() {
+  if (whisperwoofDb) return true;
   try {
     const dbFileName =
       process.env.NODE_ENV === "development" ? "transcriptions-dev.db" : "transcriptions.db";
     const dbPath = path.join(app.getPath("userData"), dbFileName);
 
-    const db = new Database(dbPath);
+    let db;
+    try {
+      db = openDatabase(Database, dbPath);
+    } catch (err) {
+      if (err.code === "LOCKED") {
+        debugLogger.log("[WhisperWoof] Database waits for unlock");
+        return false;
+      }
+      throw err;
+    }
     db.pragma("journal_mode = WAL");
 
     createWhisperWoofTables(db);
@@ -289,19 +326,6 @@ async function initializeWhisperWoof() {
     throw error;
   }
 
-  // TODO: Start OllamaService (detect, auto-start)
-  // TODO: Register WhisperWoof hotkey routes
-
-  startClipboardMonitor();
-
-  // Start Telegram companion sync (polls inbox file for mobile-captured entries)
-  try {
-    const { startTelegramSync } = require("./telegram-sync");
-    startTelegramSync(saveWhisperWoofEntry);
-  } catch (err) {
-    debugLogger.debug("[WhisperWoof] Telegram sync init skipped", { error: err.message });
-  }
-
   // Initialize analytics with database reference
   try {
     const { setDatabase } = require("./analytics");
@@ -309,9 +333,25 @@ async function initializeWhisperWoof() {
   } catch (err) {
     debugLogger.debug("[WhisperWoof] Analytics init skipped", { error: err.message });
   }
+  return true;
+}
 
-  initialized = true;
-  debugLogger.log("[WhisperWoof] Initialized (Phase 1a — StorageProvider ready, clipboard monitoring active)");
+/** Close the connection and take it back from the modules that share it (lock, migration). */
+function detachDatabase() {
+  for (const mod of ["./entry-tags", "./entry-chains", "./analytics"]) {
+    try {
+      require(mod).setDatabase(null);
+    } catch {
+      // Module not loaded or has no database yet.
+    }
+  }
+  if (!whisperwoofDb) return;
+  try {
+    whisperwoofDb.close();
+  } catch (error) {
+    debugLogger.log(`[WhisperWoof] Database close failed: ${error.message}`);
+  }
+  whisperwoofDb = null;
 }
 
 async function shutdownWhisperWoof() {
@@ -344,8 +384,13 @@ async function shutdownWhisperWoof() {
   debugLogger.log("[WhisperWoof] Shutdown complete");
 }
 
-function saveWhisperWoofEntry({ source, rawText, polished, routedTo, hotkeyUsed, durationMs, projectId, audioPath, metadata }) {
-  if (!whisperwoofDb) return null;
+/**
+ * Save an entry. `id`/`createdAt` are passed only when replaying the sealed
+ * inbox (INSERT OR IGNORE makes a repeated replay harmless). While
+ * WhisperWoof is locked the entry is sealed into the inbox instead.
+ */
+function saveWhisperWoofEntry(entry) {
+  const { source, rawText, polished, routedTo, hotkeyUsed, durationMs, projectId, audioPath, metadata } = entry;
 
   // Dedup: mark voice text so clipboard monitor skips it
   if (source === "voice") {
@@ -353,15 +398,27 @@ function saveWhisperWoofEntry({ source, rawText, polished, routedTo, hotkeyUsed,
     if (rawText) markAsVoiceTranscription(rawText);
   }
 
-  const id = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
+  const id = entry.id || crypto.randomUUID();
+  const createdAt = entry.createdAt || new Date().toISOString();
+
+  if (!whisperwoofDb) {
+    if (!vault.isOn() || vault.isUnlocked()) return null;
+    try {
+      require("./vault/vault-inbox").record("entry.save", { entry: { ...entry, id, createdAt } });
+      return { id, createdAt, sealed: true };
+    } catch (error) {
+      debugLogger.log(`[WhisperWoof] Failed to seal entry: ${error.message}`);
+      return null;
+    }
+  }
 
   try {
     const insertEntry = whisperwoofDb.prepare(`
-      INSERT INTO bf_entries (id, created_at, source, raw_text, polished, routed_to, hotkey_used, duration_ms, project_id, audio_path, metadata)
+      INSERT OR IGNORE INTO bf_entries (id, created_at, source, raw_text, polished, routed_to, hotkey_used, duration_ms, project_id, audio_path, metadata)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    insertEntry.run(id, createdAt, source, rawText, polished, routedTo, hotkeyUsed, durationMs, projectId, audioPath, JSON.stringify(metadata ?? {}));
+    const inserted = insertEntry.run(id, createdAt, source, rawText, polished, routedTo, hotkeyUsed, durationMs, projectId, audioPath, JSON.stringify(metadata ?? {}));
+    if (inserted.changes === 0) return { id, createdAt };
 
     const insertAudit = whisperwoofDb.prepare(`
       INSERT INTO bf_audit_log (action, entity_id, detail)
@@ -570,6 +627,8 @@ function getProjectIntegrations() {
 module.exports = {
   initializeWhisperWoof,
   shutdownWhisperWoof,
+  attachDatabase,
+  detachDatabase,
   saveWhisperWoofEntry,
   getWhisperWoofEntries,
   getWhisperWoofEntriesBySource,

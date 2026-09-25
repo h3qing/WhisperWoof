@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");
 const { app } = require("electron");
+const { openDatabase } = require("../whisperwoof/bridge/vault/vault-db");
 
 class DatabaseManager {
   constructor() {
@@ -17,7 +18,9 @@ class DatabaseManager {
 
       const dbPath = path.join(app.getPath("userData"), dbFileName);
 
-      this.db = new Database(dbPath);
+      // Keyed when encryption is on; throws VaultLockedError while locked
+      // (the vault calls initDatabase() again after unlock).
+      this.db = openDatabase(Database, dbPath);
       this.db.pragma("journal_mode = WAL");
 
       this.db.exec(`
@@ -341,9 +344,25 @@ class DatabaseManager {
 
       return true;
     } catch (error) {
+      if (error.code === "LOCKED") {
+        this.db = null;
+        debugLogger.info("Database waits for unlock", {}, "database");
+        return false;
+      }
       debugLogger.error("Database initialization failed", { error: error.message }, "database");
       throw error;
     }
+  }
+
+  /** Close the connection (WhisperWoof locking, or a migration about to convert the file). */
+  close() {
+    if (!this.db) return;
+    try {
+      this.db.close();
+    } catch (closeError) {
+      debugLogger.error("Error closing database", { error: closeError.message }, "database");
+    }
+    this.db = null;
   }
 
   saveTranscription(text, rawText = null, { status = "completed", errorMessage = null } = {}) {

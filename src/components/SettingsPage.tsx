@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 const VoicePolishSettings = React.lazy(() => import("../whisperwoof/ui/settings/WhisperWoofSettings"));
+const EncryptionSettings = React.lazy(() => import("../whisperwoof/ui/vault/EncryptionSettings"));
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -97,6 +98,7 @@ export type SettingsSectionType =
   | "transcription"
   | "intelligence"
   | "privacyData"
+  | "encryption"
   | "system"
   | "aiModels"
   | "agentConfig"
@@ -1205,6 +1207,16 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       title: t("settingsPage.account.deleteAccount.title"),
       description: t("settingsPage.account.deleteAccount.description"),
       onConfirm: async () => {
+        // Deleting the account also resets this Mac, which isn't allowed while
+        // encryption is on (encrypted notes would become unreadable). Check first.
+        const vaultStatus = await window.electronAPI?.vaultGetStatus?.().catch(() => null);
+        if (vaultStatus && vaultStatus.status !== "off") {
+          showAlertDialog({
+            title: t("settingsPage.account.deleteAccount.failedTitle"),
+            description: "Turn off encryption in Settings before deleting your account.",
+          });
+          return;
+        }
         setIsDeletingAccount(true);
         try {
           // Best-effort cloud cleanup (needs session cookies before sign-out)
@@ -3673,7 +3685,14 @@ EOF`,
                                 try {
                                   await signOut();
                                 } catch {}
-                                await window.electronAPI?.cleanupApp();
+                                const reset = await window.electronAPI?.cleanupApp();
+                                if (reset && reset.success === false && reset.message) {
+                                  showAlertDialog({
+                                    title: t("settingsPage.developer.resetAll.failedTitle"),
+                                    description: reset.message,
+                                  });
+                                  return;
+                                }
                                 showAlertDialog({
                                   title: t("settingsPage.developer.resetAll.successTitle"),
                                   description: t(
@@ -3717,6 +3736,13 @@ EOF`,
         return (
           <React.Suspense fallback={<div className="p-8 text-muted-foreground">Loading...</div>}>
             <VoicePolishSettings />
+          </React.Suspense>
+        );
+
+      case "encryption":
+        return (
+          <React.Suspense fallback={null}>
+            <EncryptionSettings />
           </React.Suspense>
         );
 

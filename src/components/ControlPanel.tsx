@@ -45,6 +45,8 @@ const StorageManager = React.lazy(() => import("../whisperwoof/ui/storage/Storag
 const CommandBar = React.lazy(() => import("../whisperwoof/ui/command-bar/CommandBar"));
 
 import { MeetingRecordingPill } from "../whisperwoof/ui/indicator/MeetingRecordingPill";
+import { useVaultGate } from "../whisperwoof/ui/vault/useVaultStatus";
+import VaultLockScreen from "../whisperwoof/ui/vault/VaultLockScreen";
 
 export default function ControlPanel() {
   const { t } = useTranslation();
@@ -82,6 +84,7 @@ export default function ControlPanel() {
     useReasoningModel,
   } = useSettings();
   const { isSignedIn, isLoaded: authLoaded, user } = useAuth();
+  const vaultGate = useVaultGate();
 
   const {
     status: updateStatus,
@@ -515,6 +518,20 @@ export default function ControlPanel() {
       /* IPC failure surfaces via main-process logging */
     }
   }, []);
+
+  // WhisperWoof: while encryption has WhisperWoof locked, the whole panel is
+  // the lock screen. Wait for the first vault status so history never flashes
+  // up before the lock does.
+  if (vaultGate.pending) {
+    return (
+      <div className="relative h-screen">
+        <div className="mando-field" aria-hidden />
+      </div>
+    );
+  }
+  if (vaultGate.locked && vaultGate.status) {
+    return <VaultLockScreen status={vaultGate.status} onUnlocked={vaultGate.refresh} />;
+  }
 
   return (
     <div className="relative h-screen flex flex-col">

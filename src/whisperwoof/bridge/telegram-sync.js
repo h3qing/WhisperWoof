@@ -59,7 +59,8 @@ function importPendingEntries() {
 
   for (const entry of pending) {
     try {
-      saveEntryFn(transformEntry(entry));
+      // Saved, or sealed into the vault inbox while WhisperWoof is locked.
+      if (!saveEntryFn(transformEntry(entry))) continue;
       entry.imported = true;
       imported++;
     } catch (err) {
@@ -71,7 +72,9 @@ function importPendingEntries() {
   }
 
   if (imported > 0) {
-    writeInbox(entries);
+    // With encryption on, imported notes leave this plaintext file for good.
+    const { isOn } = require("./vault/vault-service");
+    writeInbox(isOn() ? entries.filter((e) => !e.imported) : entries);
     debugLogger.info("[WhisperWoof] Telegram sync: imported entries", { count: imported });
   }
 

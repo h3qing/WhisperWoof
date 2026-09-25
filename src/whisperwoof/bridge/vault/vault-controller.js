@@ -29,7 +29,7 @@ const ok = (extra = {}) => ({ success: true, ...extra });
 const fail = (error, code) => ({ success: false, error, code });
 
 function errorResult(err) {
-  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY"];
+  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY", "INVALID"];
   return fail(err.message, known.includes(err.code) ? err.code : undefined);
 }
 

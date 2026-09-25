@@ -1,6 +1,22 @@
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
+const { redactContent } = require("../whisperwoof/bridge/vault/log-redact-pure");
+
+/**
+ * With encryption on, the log file must not become a plaintext copy of what
+ * the user said or typed: content fields are replaced by their length. If the
+ * vault can't be asked yet (early startup), redact to be safe.
+ */
+function redactForFile(meta) {
+  try {
+    const vault = require("../whisperwoof/bridge/vault/vault-service");
+    if (typeof vault.isOn === "function" && !vault.isOn()) return meta;
+  } catch {
+    // fall through: redact
+  }
+  return redactContent(meta);
+}
 
 const LOG_LEVELS = {
   trace: 10,
@@ -175,7 +191,7 @@ class DebugLogger {
     const sourceTag = source ? `[${source}]` : "";
     const levelTag = `[${normalized.toUpperCase()}]`;
     const baseLine = `[${timestamp}] ${levelTag}${scopeTag}${sourceTag} ${message}`;
-    const metaText = this.formatMeta(meta);
+    const metaText = this.formatMeta(this.logStream ? redactForFile(meta) : meta);
     const logLine = metaText ? `${baseLine} ${metaText}\n` : `${baseLine}\n`;
 
     const consoleFn =

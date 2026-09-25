@@ -325,6 +325,62 @@ export interface ReferralItem {
   first_payment_at: string | null;
 }
 
+// WhisperWoof — at-rest encryption (docs/design/at-rest-encryption.md).
+// The renderer never sees keys: it only drives the vault through these calls.
+export type VaultPrefs = {
+  touchId: boolean;
+  lockOnSleep: boolean;
+  idleMinutes: 0 | 15 | 60;
+  notesReadable: boolean;
+};
+
+export type VaultMigrationDirection = "enable" | "disable" | "rotate" | "notes";
+
+export type VaultMigration = {
+  direction: VaultMigrationDirection;
+  phase: string; // "db" | "files" | "cleanup" | "done"
+  done: number;
+  total: number;
+  needsUnlock: boolean; // an interrupted migration waits for unlock
+  error?: string;
+};
+
+export type VaultTouchIdState = {
+  available: boolean;
+  reason?: "notEnrolled" | "unavailable" | "lockout";
+};
+
+export type VaultStatus = {
+  status: "off" | "locked" | "unlocked";
+  migrating: null | VaultMigration;
+  prefs: VaultPrefs;
+  touchId: VaultTouchIdState;
+  inboxCount: number; // entries saved while locked, waiting for unlock
+  lockDeferred: boolean; // a meeting is recording; WhisperWoof locks when it ends
+  platformSupported: boolean; // false off macOS: the Encryption UI is hidden
+};
+
+export type VaultErrorCode =
+  | "WRONG_PASSWORD"
+  | "WRONG_PHRASE"
+  | "LOCKED"
+  | "CANCELLED"
+  | "FALLBACK"
+  | "INVALIDATED"
+  | "LOCKOUT"
+  | "UNAVAILABLE"
+  | "BUSY"
+  | "INVALID";
+
+export type VaultFailure = { success: false; error: string; code?: VaultErrorCode };
+export type VaultResult = { success: true } | VaultFailure;
+export type VaultReauth = { password: string } | { touchId: true };
+export type VaultNewPhraseResult =
+  | { success: true; words: string[]; confirmIndexes: number[] }
+  | VaultFailure;
+// Setup still succeeds when only the Touch ID enrollment failed; it says so here.
+export type VaultSetupResult = { success: true; touchIdError?: string } | VaultFailure;
+
 declare global {
   interface Window {
     electronAPI: {
@@ -1480,6 +1536,28 @@ declare global {
       whisperwoofUpdateProjectIntegration: (projectId: string, pluginId: string | null) => Promise<any>;
       whisperwoofGetProjectIntegrations: () => Promise<Record<string, string | null>>;
       whisperwoofDispatchEntry: (entryId: string, pluginId: string, text: string) => Promise<{ success: boolean; message?: string; error?: string }>;
+
+      // WhisperWoof — at-rest encryption (vault). Status is pushed on every
+      // change, including migration progress.
+      vaultGetStatus?: () => Promise<VaultStatus>;
+      onVaultStatus?: (callback: (status: VaultStatus) => void) => () => void;
+      vaultBeginSetup?: () => Promise<VaultNewPhraseResult>;
+      vaultCompleteSetup?: (args: {
+        password: string;
+        confirmWords: Record<number, string>;
+        useTouchId: boolean;
+        notesReadable: boolean;
+      }) => Promise<VaultSetupResult>;
+      vaultUnlockWithTouchId?: () => Promise<VaultResult>;
+      vaultUnlockWithPassword?: (password: string) => Promise<VaultResult>;
+      vaultRecover?: (args: { phrase: string; newPassword: string }) => Promise<VaultResult>;
+      vaultLock?: () => Promise<VaultResult>;
+      vaultChangePassword?: (args: { currentPassword: string; newPassword: string }) => Promise<VaultResult>;
+      vaultSetTouchId?: (enabled: boolean) => Promise<VaultResult>;
+      vaultSetPrefs?: (prefs: Partial<Omit<VaultPrefs, "touchId">>) => Promise<VaultResult>;
+      vaultBeginNewPhrase?: (reauth: VaultReauth) => Promise<VaultNewPhraseResult>;
+      vaultCompleteNewPhrase?: (args: { confirmWords: Record<number, string> }) => Promise<VaultResult>;
+      vaultDisable?: (reauth: VaultReauth) => Promise<VaultResult>;
     };
 
     api?: {

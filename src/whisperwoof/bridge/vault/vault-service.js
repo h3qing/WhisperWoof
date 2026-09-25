@@ -81,6 +81,11 @@ function getPrefs() {
   return vault ? vault.prefs : { ...vk.DEFAULT_PREFS };
 }
 
+/** Whether notes are written sealed (encryption on, "keep notes readable" off). */
+function sealsNotes() {
+  return isOn() && !getPrefs().notesReadable;
+}
+
 function saveVault(next) {
   ensurePrivateDir(vaultPaths.dir());
   const json = JSON.stringify(next, null, 2);
@@ -273,6 +278,7 @@ module.exports = {
   status,
   getVault,
   getPrefs,
+  sealsNotes,
   saveVault,
   sealPublicRaw,
   openSealed,

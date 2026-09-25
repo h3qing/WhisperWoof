@@ -2,6 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
+const vaultFiles = require("../whisperwoof/bridge/vault/vault-files");
+
+// With encryption on, recordings are sealed as "<name>.webm.wwenc"; paths
+// handed around stay the logical "<name>.webm".
+const isAudioFile = (f) => f.endsWith(".webm") || f.endsWith(".webm.wwenc");
+const logicalName = (f) => vaultFiles.logicalName(f);
 
 class AudioStorageManager {
   constructor() {
@@ -38,7 +44,7 @@ class AudioStorageManager {
     try {
       const filename = this._buildFilename(transcriptionId, timestamp);
       const filePath = path.join(this.audioDir, filename);
-      fs.writeFileSync(filePath, audioBuffer);
+      vaultFiles.writeFile(filePath, audioBuffer, { kind: "audio" });
       debugLogger.debug(
         "Audio saved",
         { transcriptionId, filename, size: audioBuffer.length },
@@ -57,7 +63,7 @@ class AudioStorageManager {
 
   getAudioPath(transcriptionId) {
     try {
-      const files = fs.readdirSync(this.audioDir);
+      const files = fs.readdirSync(this.audioDir).map(logicalName);
       const match = files.find(
         (f) => f.endsWith(`-${transcriptionId}.webm`) || f === `${transcriptionId}.webm`
       );
@@ -70,7 +76,7 @@ class AudioStorageManager {
     const filePath = this.getAudioPath(transcriptionId);
     if (!filePath) return null;
     try {
-      return fs.readFileSync(filePath);
+      return vaultFiles.readFile(filePath);
     } catch (error) {
       debugLogger.error(
         "Failed to read audio",
@@ -85,7 +91,7 @@ class AudioStorageManager {
     try {
       const filePath = this.getAudioPath(transcriptionId);
       if (filePath) {
-        fs.unlinkSync(filePath);
+        vaultFiles.unlink(filePath);
         debugLogger.debug("Audio deleted", { transcriptionId }, "audio-storage");
       }
       return { success: true };
@@ -102,7 +108,7 @@ class AudioStorageManager {
   cleanupExpiredAudio(retentionDays, databaseManager) {
     try {
       const cutoffMs = Date.now() - retentionDays * 86400000;
-      const files = fs.readdirSync(this.audioDir).filter((f) => f.endsWith(".webm"));
+      const files = fs.readdirSync(this.audioDir).filter(isAudioFile);
       const expiredIds = [];
       let kept = 0;
 
@@ -113,7 +119,7 @@ class AudioStorageManager {
           if (stats.mtimeMs < cutoffMs) {
             fs.unlinkSync(filePath);
             // Extract ID from "OpenWhispr-...-{id}.webm" or legacy "{id}.webm"
-            const basename = path.basename(file, ".webm");
+            const basename = path.basename(logicalName(file), ".webm");
             const lastDash = basename.lastIndexOf("-");
             const id = lastDash !== -1 ? basename.slice(lastDash + 1) : basename;
             expiredIds.push(id);
@@ -147,7 +153,7 @@ class AudioStorageManager {
 
   deleteAllAudio() {
     try {
-      const files = fs.readdirSync(this.audioDir).filter((f) => f.endsWith(".webm"));
+      const files = fs.readdirSync(this.audioDir).filter(isAudioFile);
       for (const file of files) {
         try {
           fs.unlinkSync(path.join(this.audioDir, file));
@@ -169,7 +175,7 @@ class AudioStorageManager {
 
   getStorageUsage() {
     try {
-      const files = fs.readdirSync(this.audioDir).filter((f) => f.endsWith(".webm"));
+      const files = fs.readdirSync(this.audioDir).filter(isAudioFile);
       let totalBytes = 0;
       for (const file of files) {
         try {
