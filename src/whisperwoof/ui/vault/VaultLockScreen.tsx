@@ -30,13 +30,15 @@ const linkClass =
 
 function UnlockForm({
   status,
-  prompted,
+  wasPrompted,
+  markPrompted,
   onUnlocked,
   onForgot,
 }: {
   status: VaultStatus;
   /** Shared with the parent so the recovery view and back never re-prompts. */
-  prompted: React.MutableRefObject<boolean>;
+  wasPrompted: () => boolean;
+  markPrompted: () => void;
   onUnlocked: () => void;
   onForgot: () => void;
 }) {
@@ -67,16 +69,16 @@ function UnlockForm({
   // user (not behind the Mac's own lock screen), and never again after a
   // cancel: the button is there for that.
   useEffect(() => {
-    if (!canUseTouchId || prompted.current) return;
+    if (!canUseTouchId || wasPrompted()) return;
     const prompt = () => {
-      if (prompted.current) return;
-      prompted.current = true;
+      if (wasPrompted()) return;
+      markPrompted();
       void unlockWithTouchId();
     };
     if (document.hasFocus()) return prompt();
     window.addEventListener("focus", prompt, { once: true });
     return () => window.removeEventListener("focus", prompt);
-  }, [canUseTouchId, prompted, unlockWithTouchId]);
+  }, [canUseTouchId, wasPrompted, markPrompted, unlockWithTouchId]);
 
   const unlockWithPassword = async () => {
     if (!password || busy) return;
@@ -230,7 +232,12 @@ function RecoverForm({ onBack, onUnlocked }: { onBack: () => void; onUnlocked: (
 export default function VaultLockScreen({ status, onUnlocked }: { status: VaultStatus; onUnlocked: () => void }) {
   const view = lockScreenView(status);
   const [screen, setScreen] = useState<"unlock" | "recover">("unlock");
+  // Shared by the unlock and recovery views, so going back never re-prompts.
   const touchIdPrompted = useRef(false);
+  const wasTouchIdPrompted = useCallback(() => touchIdPrompted.current, []);
+  const markTouchIdPrompted = useCallback(() => {
+    touchIdPrompted.current = true;
+  }, []);
 
   return (
     <div className="relative h-screen flex flex-col">
@@ -259,7 +266,8 @@ export default function VaultLockScreen({ status, onUnlocked }: { status: VaultS
             {screen === "unlock" ? (
               <UnlockForm
                 status={status}
-                prompted={touchIdPrompted}
+                wasPrompted={wasTouchIdPrompted}
+                markPrompted={markTouchIdPrompted}
                 onUnlocked={onUnlocked}
                 onForgot={() => setScreen("recover")}
               />

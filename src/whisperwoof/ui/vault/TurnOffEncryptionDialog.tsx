@@ -1,7 +1,7 @@
 // "Turn off encryption…": confirm it's you, then decrypt everything back to
 // plain files. The only destructive action in the encryption UI.
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Button } from "../../../components/ui/button";
 import {
   Dialog,
@@ -34,12 +34,10 @@ const HEADINGS: Record<Step, { title: string; description: string }> = {
 
 export default function TurnOffEncryptionDialog({ status, onClose }: { status: VaultStatus; onClose: () => void }) {
   const reauth = useReauth(status);
-  const [step, setStep] = useState<Step>("confirm");
+  const [started, setStarted] = useState<Step>("confirm");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (step === "working" && operationFinished("disable", status)) setStep("done");
-  }, [step, status]);
+  // "done" follows from the status main pushes; no state to keep in sync.
+  const step: Step = started === "working" && operationFinished("disable", status) ? "done" : started;
 
   const turnOff = async () => {
     if (busy || !reauth.ready) return;
@@ -48,7 +46,7 @@ export default function TurnOffEncryptionDialog({ status, onClose }: { status: V
     setBusy(false);
     if (isVaultFailure(result)) return reauth.fail(result);
     reauth.setPassword("");
-    setStep("working");
+    setStarted("working");
   };
 
   const { title, description } = HEADINGS[step];

@@ -1,6 +1,6 @@
 # At-rest encryption: design proposal
 
-Status: **approved 2026-09-25.** The owner chose the recommended option on all four decisions (section 9) and made no changes to the defaults (section 8).
+Status: **approved 2026-09-25, shipped in v2.2.0.** The owner chose the recommended option on all four decisions (section 9) and made no changes to the defaults (section 8). While reviewing the running build, the owner added two things: a one-click copy for the recovery phrase (4.7) and a real "I don't need encryption" answer on Home (5). Section 11 lists what the end-to-end run found.
 Date: 2026-09-25. Scope: macOS (the only platform we ship).
 
 ## 1. In one paragraph
@@ -136,7 +136,7 @@ Touch ID is optional. It's on by default when the Mac has it; Macs without it us
 **Turning it on** is a sheet with five steps:
 1. It explains what's encrypted and what isn't, with the no-back-door warning. You tick "I understand my data is gone if I lose both".
 2. Set a password, twice.
-3. The 12 words are shown once. There's no copy button, because the clipboard monitor would save them into history.
+3. The 12 words are shown once, with a **Copy** button (the owner asked for one-click copy). Copying goes through main: WhisperWoof's clipboard monitor skips the phrase, the clipboard entry is marked `org.nspasteboard.ConcealedType` + `TransientType` (clipboard managers that follow nspasteboard.org don't keep it), and it's cleared after 60 seconds if it's still there. The words can't be selected, so ⌘C can't bypass this.
 4. You type 3 of the words to confirm.
 5. You choose whether to use Touch ID, with one test touch.
 
@@ -217,6 +217,7 @@ These follow `DESIGN.md`: plain words in sentence case, capsule controls, tokens
 - **The turn-on warning, in full:**
   > "If you forget your password and lose your recovery phrase, your data is gone. Nobody can recover it, including us."
 - **Tray:** Lock WhisperWoof / Unlock….
+- **Home, once:** "Encrypt your notes and recordings?" with [Turn on encryption…] and [I don't need encryption]. The "no" is answered with "OK. You can always turn it on later in Settings → Encryption." and the card never shows again (remembered on this Mac).
 
 ## 6. Build, release, tests
 
@@ -282,3 +283,13 @@ These follow `DESIGN.md`: plain words in sentence case, capsule controls, tokens
 - `storage-manager.js:55` measures a `database.sqlite` that doesn't exist.
 - The `cleanup-app` reset closes only one of the two connections before deleting the database.
 - `extraResources` ships the repo-root `.env`.
+- Two notes saved within the same second get the same file name (`YYYY-MM-DD-HHMMSS.md`), so the second overwrites the first.
+
+## 11. What the end-to-end run found (fixed before release)
+
+The feature was run in the real app on an isolated profile (staging channel, scratch notes and temp folders), driven over the DevTools protocol: turn on, lock, dictate while locked, unlock, new recovery phrase, turn off, and the Home offer.
+
+- **Pooled Buffer leak.** `get-audio-buffer` returned `buffer.buffer`. Once audio came from decryption (a small `Buffer.concat`), that was Node's whole shared 8 KB pool slab, holding other decrypted text and key-derivation labels. Fixed: the handler returns exactly the bytes, and secrets and plaintext are built with `unpooledConcat` so they never sit in the shared pool.
+- **Crash at startup while locked.** Google Calendar read accounts from the closed database and `startApp` failed. The calendar now waits for the unlock, and pauses when WhisperWoof locks.
+- Verified on disk: with encryption on, a marker string was found nowhere under `userData` or the notes folder: not in the database, the WAL, recordings, notes, the inbox or the logs. Locked dictation replayed with its original time, the real transcription id, its audio, and the fn+P note filed into the default project.
+- Not run automatically: the Touch ID prompt itself (it needs a finger). The Secure Enclave math was checked against Node (identical ECDH secret), and the helper's `status`/`create`/`copy` commands were run.
