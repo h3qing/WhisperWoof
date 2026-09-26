@@ -73,11 +73,13 @@ class MeetingTranscriptCheckpoint {
 
   /**
    * Stop checkpointing and do a final save.
-   * @returns {{ savedSegments: number, noteId: string }}
+   * `persisted` is false when a segment never reached the database (the final
+   * save failed), so the caller keeps the meeting's audio buffer.
+   * @returns {{ savedSegments: number, noteId: string, persisted: boolean }}
    */
   stop() {
     if (!this._started) {
-      return { savedSegments: 0, noteId: null };
+      return { savedSegments: 0, noteId: null, persisted: true };
     }
 
     if (this._timer) {
@@ -91,6 +93,7 @@ class MeetingTranscriptCheckpoint {
     const result = {
       savedSegments: this._segments.length,
       noteId: this._noteId,
+      persisted: this._lastCheckpointIndex === this._segments.length,
     };
 
     debugLogger.log("[Checkpoint] Stopped", result);

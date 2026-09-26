@@ -13,6 +13,19 @@ const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
 const MeetingAudioBuffer = require("./meetingAudioBuffer");
 const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
+const {
+  normalizeAudioRetentionDays,
+  audioRetentionCutoffMs,
+  shouldStoreAudio,
+  shouldKeepMeetingAudio,
+  chunkMissedTranscriber,
+} = require("../whisperwoof/bridge/audio-retention-pure");
+const {
+  sourcesToRotate,
+  meetingConnectOptions,
+  rotateMeetingStreams,
+  meetingTranscriptText,
+} = require("./meetingSessionRotation");
 const { getModelRuntime } = require("./parakeetModelInfo");
 const vault = require("../whisperwoof/bridge/vault/vault-service");
 const vaultInbox = require("../whisperwoof/bridge/vault/vault-inbox");
@@ -25,6 +38,9 @@ function replaySoon() {
   require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox().catch(() => {});
 }
 
+// A lock that waited for a meeting happens this long after it ends, once the
+// renderer has saved the transcript and notes (they go to the database).
+const DEFERRED_LOCK_AFTER_MEETING_MS = 60 * 1000;
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
 // Debounce delay: wait for user to stop typing before processing corrections
@@ -140,7 +156,21 @@ class IPCHandlers {
     });
     this._meetingSessionRotationTimer = null;
     this._meetingReconnecting = {};
+    // Set when buffered meeting audio never reached the transcriber (stream
+    // dropped, rotated out, mid-reconnect): that stretch exists only in the
+    // buffer, so the buffer outlives the meeting.
+    this._meetingAudioUntranscribed = false;
+    this._meetingRotating = false;
+    // Bumped whenever a meeting starts or stops, so a rotation or reconnect
+    // that finishes late can tell its meeting is gone.
+    this._meetingStreamingGeneration = 0;
+    // Sessions rotated out or lost mid-meeting: their text is the start of
+    // the meeting's transcript.
+    this._meetingRetiredStreams = { mic: [], system: [] };
     this._audioCleanupInterval = null;
+    // Audio Retention days from the renderer (sync-startup-preferences);
+    // null until the first sync, which runs the first dictation-audio sweep.
+    this._audioRetentionDays = null;
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
     this.setupHandlers();
@@ -203,36 +233,73 @@ class IPCHandlers {
   }
 
   _setupAudioCleanup() {
-    const DEFAULT_RETENTION_DAYS = 30;
     const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
-    // The sweep also clears has_audio flags in the database, so it waits while
-    // encryption has the database closed; main.js runs it again after each unlock.
-    const sweep = () => {
-      if (!this.databaseManager.db) return;
-      this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
-    };
-    this.runAudioSweep = sweep;
-
-    // Run initial cleanup with default retention
-    try {
-      sweep();
-    } catch (error) {
-      debugLogger.error("Initial audio cleanup failed", { error: error.message }, "audio-storage");
-    }
+    // Meeting crash buffers left by a crash or an abnormal end. Dictation audio
+    // waits for the renderer's retention setting: sweeping here with a default
+    // would delete audio a user chose to keep for 60/90 days.
+    this._meetingAudioBuffer.sweepStaleSessions();
+    // main.js runs the dictation sweep again after each unlock.
+    this.runAudioSweep = () => this._sweepExpiredAudio();
 
     // Set up periodic cleanup every 6 hours
     this._audioCleanupInterval = setInterval(() => {
-      try {
-        sweep();
-      } catch (error) {
-        debugLogger.error(
-          "Periodic audio cleanup failed",
-          { error: error.message },
-          "audio-storage"
-        );
-      }
+      this._sweepExpiredAudio();
+      this._meetingAudioBuffer.sweepStaleSessions();
     }, SIX_HOURS_MS);
+  }
+
+  _sweepExpiredAudio() {
+    // The sweep also clears has_audio flags in the database, so it waits while
+    // encryption has the database closed.
+    if (!this.databaseManager.db) return;
+    const cutoffMs = audioRetentionCutoffMs(this._audioRetentionDays, Date.now());
+    if (cutoffMs === null) return;
+    try {
+      this.audioStorageManager.cleanupExpiredAudio(cutoffMs, this.databaseManager);
+    } catch (error) {
+      debugLogger.error("Audio cleanup failed", { error: error.message }, "audio-storage");
+    }
+  }
+
+  /**
+   * Adopt the renderer's Audio Retention setting. The first sync and every
+   * change sweep right away; a repeat of the same value (every window syncs)
+   * does nothing.
+   */
+  _applyAudioRetentionDays(value) {
+    const days = normalizeAudioRetentionDays(value);
+    if (days === null || days === this._audioRetentionDays) return;
+    this._audioRetentionDays = days;
+    this._sweepExpiredAudio();
+  }
+
+  /** With encryption on, a lock asked for while this is true waits until the meeting ends. */
+  isMeetingRecording() {
+    return Boolean(this._meetingAudioBuffer?.isActive);
+  }
+
+  /** A meeting ended (stopped, failed to stop, or failed to start): run a lock that waited for it. */
+  _afterMeetingStopped() {
+    setTimeout(() => vault.releaseDeferredLock().catch(() => {}), DEFERRED_LOCK_AFTER_MEETING_MS).unref?.();
+  }
+
+  /**
+   * Delete a finished meeting's crash buffer unless it ended abnormally with
+   * audio on disk; the saved transcript is the record from then on.
+   * @returns {boolean} true when the folder was kept
+   */
+  _releaseMeetingAudio(audioResult, endedCleanly) {
+    if (!audioResult?.dir) return false;
+    if (shouldKeepMeetingAudio({ endedCleanly, files: audioResult.files })) {
+      debugLogger.log("Meeting audio kept for recovery", {
+        dir: audioResult.dir,
+        files: audioResult.files.length,
+      });
+      return true;
+    }
+    this._meetingAudioBuffer.cleanupFiles(audioResult.dir);
+    return false;
   }
 
   _setupTextEditMonitor() {
@@ -568,6 +635,7 @@ class IPCHandlers {
 
     // Audio storage handlers
     ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
+      if (!shouldStoreAudio(this._audioRetentionDays)) return { success: false, skipped: true };
       // A stand-in id (the transcription was sealed while locked) also goes
       // through the inbox, even if WhisperWoof was unlocked in between.
       if (vault.isOn() && (!this.databaseManager.db || isProvisionalId(id))) {
@@ -1990,6 +2058,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("sync-startup-preferences", async (event, prefs) => {
+      this._applyAudioRetentionDays(prefs.audioRetentionDays);
       const setVars = {};
       const clearVars = [];
 
@@ -2583,20 +2652,22 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-save-export-file", async (_event, filePath, bundle) => {
+    // The main process picks the file with a native dialog; the renderer
+    // never supplies a path to write to or read from.
+    ipcMain.handle("whisperwoof-save-export-file", async (_event, bundle) => {
       try {
         const { saveExportFile } = require("../whisperwoof/bridge/settings-export");
-        return saveExportFile(filePath, bundle);
+        return await saveExportFile(bundle);
       } catch (error) {
         debugLogger.log(`[WhisperWoof] save-export-file failed: ${error.message}`);
         return { success: false, error: error.message };
       }
     });
 
-    ipcMain.handle("whisperwoof-load-import-file", async (_event, filePath) => {
+    ipcMain.handle("whisperwoof-load-import-file", async () => {
       try {
         const { loadImportFile } = require("../whisperwoof/bridge/settings-export");
-        return loadImportFile(filePath);
+        return await loadImportFile();
       } catch (error) {
         debugLogger.log(`[WhisperWoof] load-import-file failed: ${error.message}`);
         return { success: false, error: error.message };
@@ -2866,15 +2937,24 @@ class IPCHandlers {
     // WhisperWoof: Save entry to bf_entries table
     ipcMain.handle("whisperwoof-save-entry", async (event, entry) => {
       try {
+        const fs = require("fs");
         const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
+        const { appFileDirs } = require("../whisperwoof/bridge/app-file-paths-pure");
+        const { resolveAppFile } = require("../whisperwoof/bridge/app-files");
+        // audio_path is read and deleted later, so the renderer may only point it
+        // at a file inside the app's own folders (plain or sealed); anything else is dropped.
+        const audioPath = entry?.audioPath == null ? null : resolveAppFile(entry.audioPath, appFileDirs(app.getPath("userData")));
+        if (entry?.audioPath != null && !audioPath) {
+          debugLogger.log("[WhisperWoof] save-entry: dropped audioPath outside app folders");
+        }
         if (vault.isOn() && vault.isUnlocked() && isProvisionalId(entry?.metadata?.transcriptionId)) {
           // Its transcription was sealed while locked: import both in order.
-          const sealed = { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+          const sealed = { ...entry, audioPath, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
           vaultInbox.record("entry.save", { entry: sealed });
           await require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox();
           return { success: true, id: sealed.id, createdAt: sealed.createdAt };
         }
-        const result = saveWhisperWoofEntry(entry);
+        const result = saveWhisperWoofEntry({ ...entry, audioPath });
         if (result) {
           // Memory: track vocabulary usage from this transcription
           try {
@@ -3307,10 +3387,14 @@ class IPCHandlers {
     });
 
     // WhisperWoof: Read image file as base64 (for History view)
+    // Only files inside userData/whisperwoof-images — the path comes from the renderer.
     ipcMain.handle("whisperwoof-get-image", async (_event, imagePath) => {
       try {
-        if (!vaultFiles.exists(imagePath)) return { success: false, error: "File not found" };
-        const data = vaultFiles.readFile(imagePath);
+        const { resolveAppFile } = require("../whisperwoof/bridge/app-files");
+        const imagesDir = path.join(app.getPath("userData"), "whisperwoof-images");
+        const safePath = resolveAppFile(imagePath, [imagesDir]);
+        if (!safePath) return { success: false, error: "File not found" };
+        const data = vaultFiles.readFile(safePath);
         return { success: true, data: data.toString("base64") };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-image failed: ${error.message}`);
@@ -3673,7 +3757,7 @@ class IPCHandlers {
         if (!pluginId || !text) {
           return { success: false, error: "Missing pluginId or text" };
         }
-        const { getPlugins } = require("../whisperwoof/bridge/plugin-bridge");
+        const { getPlugins, authorizePluginCommand } = require("../whisperwoof/bridge/plugin-bridge");
         const plugins = getPlugins();
         const plugin = plugins.find((p) => p.id === pluginId);
         if (!plugin) {
@@ -3682,13 +3766,17 @@ class IPCHandlers {
         if (!plugin.enabled) {
           return { success: false, error: `Plugin "${plugin.name}" is not enabled` };
         }
+        // The stored command is renderer-writable; the main process decides what runs.
+        const authorized = await authorizePluginCommand(plugin);
+        if (!authorized.ok) {
+          return { success: false, error: authorized.error };
+        }
 
         // Use dynamic import for MCP SDK (ESM module)
         const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
         const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js");
 
-        const [command, ...args] = plugin.command.split(/\s+/);
-        const transport = new StdioClientTransport({ command, args });
+        const transport = new StdioClientTransport({ command: authorized.command, args: authorized.args });
         const client = new Client({ name: "whisperwoof", version: "0.9.0" }, { capabilities: {} });
 
         await client.connect(transport);
@@ -4474,6 +4562,8 @@ class IPCHandlers {
     this._attachMeetingStreamingHandlers = (streaming, win, source) => {
       attachMeetingStreamingHandlers(streaming, win, source);
     };
+    this._fetchMeetingRealtimeToken = (event, options, opts) =>
+      fetchRealtimeToken(event, options, opts);
 
     const attachMeetingStreamingHandlers = (streaming, win, source) => {
       const send = (channel, data) => {
@@ -4627,6 +4717,7 @@ class IPCHandlers {
     const resetMeetingStreamingState = () => {
       this._meetingMicStreaming = null;
       this._meetingSystemStreaming = null;
+      this._meetingRetiredStreams = { mic: [], system: [] };
       meetingSendCounts = { mic: 0, system: 0 };
     };
 
@@ -4729,6 +4820,8 @@ class IPCHandlers {
 
       meetingTranscriptionStartInProgress = true;
       meetingSegmentCounter = 0;
+      this._meetingAudioUntranscribed = false;
+      this._meetingRetiredStreams = { mic: [], system: [] };
       try {
         const systemAudioMode = getMeetingSystemAudioMode();
 
@@ -4768,9 +4861,10 @@ class IPCHandlers {
         return { success: true, systemAudioMode };
       } catch (error) {
         await rollbackMeetingTranscriptionStart();
-        this._meetingAudioBuffer.stop({ keepFiles: true }); // keep files for recovery
+        this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
+        this._afterMeetingStopped();
         debugLogger.error("Meeting transcription start error", { error: error.message });
         return { success: false, error: error.message };
       } finally {
@@ -4787,13 +4881,17 @@ class IPCHandlers {
         this._meetingAudioBuffer.writeChunk(buf, source);
       }
 
+      const sent = streaming ? streaming.sendAudio(buf) : false;
+      if (this._meetingAudioBuffer.isActive && chunkMissedTranscriber(streaming, sent)) {
+        this._meetingAudioUntranscribed = true;
+      }
+
       if (!streaming) {
         if (meetingSendCounts[source] === 0) {
           debugLogger.error("Meeting audio send: no streaming instance", { source });
         }
         return;
       }
-      const sent = streaming.sendAudio(buf);
       meetingSendCounts[source]++;
       if (meetingSendCounts[source] <= 5 || meetingSendCounts[source] % 100 === 0) {
         debugLogger.debug("Meeting audio send", {
@@ -4836,38 +4934,31 @@ class IPCHandlers {
         // Force a final transcript checkpoint before disconnecting
         this._meetingTranscriptCheckpoint.forceCheckpoint();
 
+        const retired = this._meetingRetiredStreams;
         const results = await disconnectMeetingStreaming();
 
-        // Stop audio buffer — keep files until cleanup is explicitly requested
         const audioResult = this._meetingAudioBuffer.stop({ keepFiles: true });
         const checkpointResult = this._meetingTranscriptCheckpoint.stop();
-        // A lock that waited for this meeting happens once the renderer has
-        // saved the transcript and notes (they go to the database).
-        setTimeout(() => vault.releaseDeferredLock().catch(() => {}), 60000).unref?.();
+        const audioKept = this._releaseMeetingAudio(
+          audioResult,
+          checkpointResult.persisted && !this._meetingAudioUntranscribed
+        );
+        this._afterMeetingStopped();
 
         return {
           success: true,
-          transcript: [results[0]?.text, results[1]?.text].filter(Boolean).join(" "),
-          audioBufferDir: audioResult.dir,
-          audioFiles: audioResult.files,
+          transcript: meetingTranscriptText(retired, results),
+          audioBufferDir: audioKept ? audioResult.dir : undefined,
+          audioFiles: audioKept ? audioResult.files : [],
           checkpointedSegments: checkpointResult.savedSegments,
         };
       } catch (error) {
         debugLogger.error("Meeting transcription stop error", { error: error.message });
-        // Still try to stop buffer/checkpoint on error
-        this._meetingAudioBuffer.stop({ keepFiles: true });
+        // Still try to stop buffer/checkpoint on error; keep the audio for recovery
+        this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
-        return { success: false, error: error.message };
-      }
-    });
-
-    // Cleanup audio buffer files after they're no longer needed
-    ipcMain.handle("meeting-audio-cleanup", async (_event, dir) => {
-      try {
-        this._meetingAudioBuffer.cleanupFiles(dir);
-        return { success: true };
-      } catch (error) {
+        this._afterMeetingStopped();
         return { success: false, error: error.message };
       }
     });
@@ -6636,53 +6727,83 @@ class IPCHandlers {
     this._meetingStreamingEvent = null;
     this._meetingStreamingOptions = null;
     this._meetingReconnecting = {};
+    this._meetingRotating = false;
+    this._meetingStreamingGeneration += 1;
   }
 
   async _checkMeetingSessionRotation() {
-    if (!this._meetingStreamingStartedAt) return;
-
-    const SESSION_MAX_AGE_MS = 25 * 60 * 1000; // 25min (5min before OpenAI's ~30min limit)
-    const age = Date.now() - this._meetingStreamingStartedAt;
-
-    if (age < SESSION_MAX_AGE_MS) return;
-
-    debugLogger.log("Meeting session rotation triggered", { ageMs: age });
+    const sources = sourcesToRotate({
+      active: Boolean(this._meetingStreamingStartedAt),
+      now: Date.now(),
+      rotating: this._meetingRotating,
+      streams: { mic: this._meetingMicStreaming, system: this._meetingSystemStreaming },
+      reconnecting: this._meetingReconnecting,
+    });
+    if (sources.length === 0) return;
 
     const event = this._meetingStreamingEvent;
     const options = this._meetingStreamingOptions;
     if (!event || !options) return;
 
+    const generation = this._meetingStreamingGeneration;
+    const isCurrent = () => this._meetingStreamingGeneration === generation;
+    this._meetingRotating = true;
     try {
-      // Force checkpoint before rotation
-      this._meetingTranscriptCheckpoint.forceCheckpoint();
-
-      // Disconnect old streams
-      const oldMicStreaming = this._meetingMicStreaming;
-      const oldSystemStreaming = this._meetingSystemStreaming;
-
-      // Create new connections
       const win = BrowserWindow.fromWebContents(event.sender);
       if (!win || win.isDestroyed()) return;
 
-      // Fetch new tokens and reconnect
-      // (reuse the existing connectRealtimeStreaming which is closure-scoped in setupHandlers)
-      // Instead, we'll use the reconnect method which has access to the closures
-      this._meetingStreamingStartedAt = Date.now();
+      debugLogger.log("Meeting session rotation triggered", {
+        meetingMs: Date.now() - this._meetingStreamingStartedAt,
+        sources,
+      });
+      this._meetingTranscriptCheckpoint.forceCheckpoint();
 
-      // Notify renderer about rotation
-      win.webContents.send("meeting-transcription-error", "Session rotating for stability...");
+      const { rotated, error } = await rotateMeetingStreams({
+        sources,
+        fetchTokens: async (count) =>
+          count === 2
+            ? this._fetchMeetingRealtimeToken(event, options, { streams: 2 })
+            : [await this._fetchMeetingRealtimeToken(event, options)],
+        createStreaming: () => new OpenAIRealtimeStreaming(),
+        attachHandlers: (streaming, source) =>
+          this._attachMeetingStreamingHandlers(streaming, win, source),
+        connectOptions: meetingConnectOptions(options),
+        isCurrent,
+        swapIn: (source, streaming) => this._swapInMeetingStream(source, streaming),
+      });
 
-      // Disconnect old streams gracefully (they'll produce final transcript)
-      if (oldMicStreaming) await oldMicStreaming.disconnect().catch(() => {});
-      if (oldSystemStreaming) await oldSystemStreaming.disconnect().catch(() => {});
-
-      // The onSessionEnd handler will trigger reconnection automatically
+      if (rotated) {
+        debugLogger.log("Meeting session rotated", { sources });
+      } else if (error) {
+        // The old sessions keep transcribing; the next check retries.
+        debugLogger.error("Meeting session rotation failed", { error: error.message });
+      }
     } catch (err) {
       debugLogger.error("Meeting session rotation failed", { error: err.message });
+    } finally {
+      if (isCurrent()) this._meetingRotating = false;
     }
   }
 
-  async _attemptMeetingReconnect(source, win, _oldStreaming) {
+  /**
+   * Make `streaming` the live meeting stream for `source` and return the one
+   * it replaced, which the caller closes. The replaced one's text stays in
+   * the transcript meeting-transcription-stop returns.
+   */
+  _swapInMeetingStream(source, streaming) {
+    const ref = source === "mic" ? "_meetingMicStreaming" : "_meetingSystemStreaming";
+    const replaced = this[ref];
+    this[ref] = streaming;
+    if (replaced) {
+      this._meetingRetiredStreams = {
+        ...this._meetingRetiredStreams,
+        [source]: [...this._meetingRetiredStreams[source], replaced],
+      };
+    }
+    return replaced;
+  }
+
+  async _attemptMeetingReconnect(source, win, droppedStreaming) {
     const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
 
     if (this._meetingReconnecting[source]) return;
@@ -6697,6 +6818,15 @@ class IPCHandlers {
       this._meetingReconnecting[source] = false;
       return;
     }
+    // Once this meeting stops, the streams and these flags belong to the next one.
+    const generation = this._meetingStreamingGeneration;
+    const isCurrent = () => this._meetingStreamingGeneration === generation;
+    // A rotation that swapped in a fresh session meanwhile already recovered the stream.
+    const stillNeeded = () => {
+      if (!isCurrent() || !this._meetingAudioBuffer.isActive) return false;
+      const live = source === "mic" ? this._meetingMicStreaming : this._meetingSystemStreaming;
+      return !droppedStreaming || live === droppedStreaming;
+    };
 
     for (let attempt = 0; attempt < RECONNECT_DELAYS.length; attempt++) {
       const delay = RECONNECT_DELAYS[attempt];
@@ -6704,46 +6834,27 @@ class IPCHandlers {
 
       await new Promise((resolve) => setTimeout(resolve, delay));
 
-      if (!this._meetingAudioBuffer.isActive) {
-        debugLogger.log("Meeting stopped during reconnect, aborting", { source });
-        break;
-      }
+      if (!stillNeeded()) break;
 
       try {
-        const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
         const streaming = new OpenAIRealtimeStreaming();
 
-        // Fetch a fresh token
-        let token;
-        if (options.mode === "byok") {
-          token = this.environmentManager.getOpenAIKey();
-        } else {
-          const apiUrl = this.environmentManager.getApiUrl?.() || "";
-          const cookieHeader = await this._getSessionCookiesForEvent?.(event);
-          // Simplified: reuse existing token fetch via IPC re-invocation pattern
-          // For byok mode, just use the stored key
-          token = this.environmentManager.getOpenAIKey();
-        }
-
-        if (!token) {
-          debugLogger.error("Meeting reconnect: no token available", { source });
-          continue;
-        }
+        // Cloud sessions need a fresh ephemeral secret from the OpenWhispr API,
+        // BYOK the stored key: the same path the meeting started with.
+        const token = await this._fetchMeetingRealtimeToken(event, options);
 
         this._attachMeetingStreamingHandlers(streaming, win, source);
 
-        await streaming.connect({
-          apiKey: token,
-          model: options.model || "gpt-4o-mini-transcribe",
-          preconfigured: options.mode !== "byok",
-        });
+        await streaming.connect({ apiKey: token, ...meetingConnectOptions(options) });
 
-        // Swap the streaming instance
-        if (source === "mic") {
-          this._meetingMicStreaming = streaming;
-        } else {
-          this._meetingSystemStreaming = streaming;
+        if (!stillNeeded()) {
+          await streaming.disconnect().catch(() => {});
+          break;
         }
+
+        this._swapInMeetingStream(source, streaming)
+          ?.disconnect()
+          .catch(() => {});
 
         debugLogger.log("Meeting reconnected", { source, attempt });
 
@@ -6762,6 +6873,16 @@ class IPCHandlers {
       }
     }
 
+    if (!isCurrent()) {
+      debugLogger.log("Meeting stopped during reconnect, aborting", { source });
+      return;
+    }
+    this._meetingReconnecting[source] = false;
+    if (!stillNeeded()) {
+      debugLogger.log("Meeting reconnect no longer needed", { source });
+      return;
+    }
+
     debugLogger.error("Meeting reconnect exhausted all attempts", { source });
     if (win && !win.isDestroyed()) {
       win.webContents.send(
@@ -6769,7 +6890,6 @@ class IPCHandlers {
         `${source} connection lost. Audio is saved locally for recovery.`
       );
     }
-    this._meetingReconnecting[source] = false;
   }
 }
 

@@ -105,9 +105,8 @@ class AudioStorageManager {
     }
   }
 
-  cleanupExpiredAudio(retentionDays, databaseManager) {
+  cleanupExpiredAudio(cutoffMs, databaseManager) {
     try {
-      const cutoffMs = Date.now() - retentionDays * 86400000;
       const files = fs.readdirSync(this.audioDir).filter(isAudioFile);
       const expiredIds = [];
       let kept = 0;
@@ -141,7 +140,7 @@ class AudioStorageManager {
 
       debugLogger.info(
         "Audio cleanup complete",
-        { deleted: expiredIds.length, kept, retentionDays },
+        { deleted: expiredIds.length, kept, cutoff: new Date(cutoffMs).toISOString() },
         "audio-storage"
       );
       return { deleted: expiredIds.length, kept };

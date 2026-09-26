@@ -2,6 +2,11 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const debugLogger = require("./debugLogger");
+const {
+  isMeetingAudioDirName,
+  isRemovableMeetingAudioDir,
+  findStaleMeetingAudioDirs,
+} = require("../whisperwoof/bridge/audio-retention-pure");
 
 const SAMPLE_RATE = 24000;
 const BITS_PER_SAMPLE = 16;
@@ -57,6 +62,14 @@ function patchWavHeader(fd, dataSize) {
 function writeInitialWavHeader(fd) {
   const header = buildWavHeader(0);
   fs.writeSync(fd, header);
+}
+
+function mtimeMsOrNaN(filePath) {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {
+    return NaN; // vanished since readdir; the sweep skips it
+  }
 }
 
 /**
@@ -183,10 +196,23 @@ class MeetingAudioBuffer {
   /**
    * Clean up temporary audio files from disk.
    * Call after batch re-transcription is complete or when files are no longer needed.
+   * Only deletes a finished session folder of this buffer; any other path is refused.
    */
   cleanupFiles(dir) {
     const targetDir = dir || this._pendingCleanupDir;
     if (!targetDir) return;
+
+    if (
+      !isRemovableMeetingAudioDir(targetDir, {
+        baseDir: this._baseDir,
+        activeDir: this._sessionDir,
+      })
+    ) {
+      debugLogger.error("[AudioBuffer] Refused cleanup of a folder it doesn't own", {
+        dir: targetDir,
+      });
+      return;
+    }
 
     try {
       if (fs.existsSync(targetDir)) {
@@ -200,6 +226,46 @@ class MeetingAudioBuffer {
     if (targetDir === this._pendingCleanupDir) {
       this._pendingCleanupDir = null;
     }
+  }
+
+  /**
+   * Delete buffer folders from earlier sessions (left by a crash, a quit
+   * mid-meeting, or kept after an abnormal end) once they are stale. Never
+   * touches the live session.
+   * @returns {string[]} Deleted folder paths
+   */
+  sweepStaleSessions(nowMs = Date.now()) {
+    let entries;
+    try {
+      entries = fs
+        .readdirSync(this._baseDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && isMeetingAudioDirName(d.name))
+        .map((d) => ({
+          name: d.name,
+          isDirectory: true,
+          mtimeMs: mtimeMsOrNaN(path.join(this._baseDir, d.name)),
+        }));
+    } catch (err) {
+      debugLogger.error("[AudioBuffer] Stale sweep failed", { error: err.message });
+      return [];
+    }
+
+    const activeName = this._sessionDir ? path.basename(this._sessionDir) : null;
+    const stale = findStaleMeetingAudioDirs(entries, { nowMs, activeName });
+    const deleted = [];
+    for (const name of stale) {
+      const dir = path.join(this._baseDir, name);
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+        deleted.push(dir);
+      } catch (err) {
+        debugLogger.error("[AudioBuffer] Stale cleanup failed", { dir, error: err.message });
+      }
+    }
+    if (deleted.length > 0) {
+      debugLogger.log("[AudioBuffer] Swept stale sessions", { count: deleted.length });
+    }
+    return deleted;
   }
 
   /**

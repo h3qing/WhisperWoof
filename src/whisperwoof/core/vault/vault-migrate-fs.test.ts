@@ -182,6 +182,29 @@ describe("turning encryption on", () => {
   });
 });
 
+describe("file dates", () => {
+  // Audio Retention ages recordings by their modified time, and the Notes
+  // list sorts by it: converting a file must not make it look new.
+  it("keep their modified time through turning on and off", async () => {
+    const m = freshModules();
+    const { live } = seedPlainData();
+    live.close();
+    const audio = path.join(userData, "audio", "OpenWhispr-2026-09-25-1.webm");
+    const note = path.join(notesDir, "2026-09-25-101500.md");
+    const old = new Date("2026-09-01T10:00:00Z");
+    fs.utimesSync(audio, old, old);
+    fs.utimesSync(note, old, old);
+
+    await turnOn(m);
+    expect(fs.statSync(`${audio}.wwenc`).mtimeMs).toBe(old.getTime());
+    expect(fs.statSync(`${note}.wwenc`).mtimeMs).toBe(old.getTime());
+
+    await m.migrate.run("disable", { Database, userData, notesDir, sealNotes: true });
+    expect(fs.statSync(audio).mtimeMs).toBe(old.getTime());
+    expect(fs.statSync(note).mtimeMs).toBe(old.getTime());
+  });
+});
+
 describe("interrupted migration resumes", () => {
   async function prepared() {
     const m = freshModules();

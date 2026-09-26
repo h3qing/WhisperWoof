@@ -140,7 +140,7 @@ function rewrapFiles(files, oldPrivateKey, newKeys, onProgress) {
       skipped.push(file);
       return;
     }
-    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw));
+    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, fs.statSync(file));
     if (i % 10 === 0 || i === files.length - 1) onProgress({ direction: "rotate", phase: "files", done: i + 1, total: files.length });
   });
   return skipped;

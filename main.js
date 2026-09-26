@@ -421,7 +421,7 @@ function setupVault() {
     }
   });
   vault.onLocking(async () => googleCalendarManager?.stop());
-  vault.addLockBlocker(() => Boolean(ipcHandlers._meetingAudioBuffer?.isActive));
+  vault.addLockBlocker(() => ipcHandlers.isMeetingRecording());
   controller.onStatus(() => trayManager?.updateTrayMenu?.());
   controller.refreshTouchIdAvailability().catch(() => {});
 }

@@ -15,6 +15,8 @@ const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 // Entries keep logical paths; with encryption on the bytes are in "<path>.wwenc".
 const vaultFiles = require("./vault/vault-files");
+const { appFileDirs } = require("./app-file-paths-pure");
+const { resolveAppFile } = require("./app-files");
 
 let db = null;
 
@@ -162,6 +164,19 @@ function getEntriesForStorageView(options = {}) {
 
 // --- Batch Delete with File Cleanup ---
 
+// Only files inside the app's own folders are deleted. An import's audio_path
+// is the user's original file — deleting the entry must never delete it.
+function removeAppFile(filePath) {
+  const safePath = resolveAppFile(filePath, appFileDirs(app.getPath("userData")));
+  if (!safePath) return false;
+  try {
+    vaultFiles.unlink(safePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function deleteEntriesWithCleanup(ids) {
   if (!db || !Array.isArray(ids) || ids.length === 0) return { deleted: 0, filesRemoved: 0 };
 
@@ -174,19 +189,11 @@ function deleteEntriesWithCleanup(ids) {
       if (!entry) continue;
 
       // Delete associated files
-      if (entry.audio_path) {
-        try {
-          if (vaultFiles.exists(entry.audio_path)) { vaultFiles.unlink(entry.audio_path); filesRemoved++; }
-        } catch { /* */ }
-      }
+      if (entry.audio_path && removeAppFile(entry.audio_path)) filesRemoved++;
 
       // Delete thumbnail if it's an image entry
       const meta = entry.metadata ? JSON.parse(entry.metadata) : {};
-      if (meta.thumbPath) {
-        try {
-          if (vaultFiles.exists(meta.thumbPath)) { vaultFiles.unlink(meta.thumbPath); filesRemoved++; }
-        } catch { /* */ }
-      }
+      if (meta.thumbPath && removeAppFile(meta.thumbPath)) filesRemoved++;
 
       // Delete the database entry
       db.prepare("DELETE FROM bf_entries WHERE id = ?").run(id);
