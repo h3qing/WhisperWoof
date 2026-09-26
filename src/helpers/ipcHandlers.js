@@ -4802,6 +4802,30 @@ class IPCHandlers {
       return meetingTranscriptionPreparePromise;
     });
 
+    // The window that starts a meeting owns it. If that window closes or reloads,
+    // its renderer (mic capture, segment listeners, saving to the note) is gone,
+    // so the meeting stops here instead of streaming on unseen.
+    let releaseMeetingOwner = () => {};
+    const watchMeetingOwner = (webContents) => {
+      releaseMeetingOwner();
+      const ownerGone = () => {
+        debugLogger.log("Meeting window closed or reloaded, stopping the meeting");
+        void stopMeetingTranscription();
+      };
+      const onNavigation = (details) => {
+        if (details?.isMainFrame && !details.isSameDocument) ownerGone();
+      };
+      webContents.on("destroyed", ownerGone);
+      webContents.on("render-process-gone", ownerGone);
+      webContents.on("did-start-navigation", onNavigation);
+      releaseMeetingOwner = () => {
+        releaseMeetingOwner = () => {};
+        webContents.removeListener("destroyed", ownerGone);
+        webContents.removeListener("render-process-gone", ownerGone);
+        webContents.removeListener("did-start-navigation", onNavigation);
+      };
+    };
+
     ipcMain.handle("meeting-transcription-start", async (event, options = {}) => {
       // A meeting saves its transcript to the encrypted database as it goes.
       if (vault.isOn() && !vault.isUnlocked()) {
@@ -4837,6 +4861,7 @@ class IPCHandlers {
 
         // Start session rotation timer (rotate at 25min to avoid OpenAI's 30min limit)
         this._startMeetingSessionRotation(event, options);
+        watchMeetingOwner(event.sender);
 
         // If already prepared (warm connections from prepare), just re-attach handlers
         if (isMeetingStreamingConnected()) {
@@ -4860,6 +4885,7 @@ class IPCHandlers {
         }
         return { success: true, systemAudioMode };
       } catch (error) {
+        releaseMeetingOwner();
         await rollbackMeetingTranscriptionStart();
         this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
@@ -4923,7 +4949,8 @@ class IPCHandlers {
       sendMeetingAudio(audioBuffer, source);
     });
 
-    ipcMain.handle("meeting-transcription-stop", async () => {
+    const stopMeetingTranscription = async () => {
+      releaseMeetingOwner();
       try {
         this._stopMeetingSessionRotation();
 
@@ -4961,7 +4988,9 @@ class IPCHandlers {
         this._afterMeetingStopped();
         return { success: false, error: error.message };
       }
-    });
+    };
+
+    ipcMain.handle("meeting-transcription-stop", () => stopMeetingTranscription());
 
     // Start transcript checkpoint for a meeting note
     ipcMain.handle("meeting-checkpoint-start", async (_event, noteId) => {
