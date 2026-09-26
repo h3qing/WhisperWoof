@@ -5,6 +5,11 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-09-26 — Fn+T says what it does
+
+### Fixed
+- **The shortcut list in Settings says Fn+T copies to the clipboard.** It called Fn+T "Route to todo", but Fn+T puts the cleaned-up text on your clipboard instead of pasting it; there is no todo route. The same label is fixed in the keybinding list, and a test now fails if the list in Settings drifts from the real shortcuts again.
+
 ## [2.3.1] - 2026-09-26 — Your files stay yours
 
 ### Fixed
