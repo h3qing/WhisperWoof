@@ -30,7 +30,7 @@
 
 ## The Problem
 
-Voice transcription tools turn speech into text, then stop. You still copy-paste into apps, switch windows, route output manually.
+Voice transcription tools turn speech into text — then stop. You still copy-paste into apps, switch windows, route output manually.
 
 The open-source world has two mature, disconnected layers:
 - **Voice/STT:** OpenWhispr, Whispering, VoiceInk
