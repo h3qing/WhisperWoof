@@ -23,7 +23,7 @@ function boot() {
     exports: { app: { getPath: () => userData, isReady: () => false }, dialog: {} },
   } as unknown as NodeJS.Module;
   for (const key of Object.keys(require.cache)) {
-    if (key.includes(`${path.sep}bridge${path.sep}vault${path.sep}`) || key.endsWith("debugLogger.js") || key.endsWith("settings-export.js")) {
+    if (key.includes(`${path.sep}bridge${path.sep}vault${path.sep}`) || /(debugLogger|settings-export|vocabulary)\.js$/.test(key)) {
       delete require.cache[key];
     }
   }
@@ -32,6 +32,7 @@ function boot() {
     keys: require("../../bridge/vault/vault-keys-pure.js"),
     files: require("../../bridge/vault/vault-files.js"),
     settings: require("../../bridge/settings-export.js"),
+    vocabulary: require("../../bridge/vocabulary.js"),
   };
 }
 
@@ -65,5 +66,18 @@ describe("settings export/import with encryption on", () => {
     expect(result.success).toBe(true);
     expect(fs.existsSync(path.join(userData, "whisperwoof-vocabulary.json"))).toBe(false);
     expect(m.files.readJson(path.join(userData, "whisperwoof-vocabulary.json"), null)).toEqual([{ word: "Woof" }]);
+  });
+
+  it("an import shows up in Memory right away, and the next Memory change keeps it", async () => {
+    const m = await encrypted();
+    expect(m.vocabulary.getVocabulary().map((w: { word: string }) => w.word)).toEqual(["Mando"]); // Memory loaded (cached)
+    const { bundle } = m.settings.exportSettings({});
+    m.settings.importSettings({ ...bundle, data: { vocabulary: [{ word: "Woof" }] } }, { merge: true });
+    expect(m.vocabulary.getVocabulary().map((w: { word: string }) => w.word).sort()).toEqual(["Mando", "Woof"]);
+
+    m.vocabulary.addWord("Bark");
+    m.vocabulary.flushToDisk();
+    const saved = m.files.readJson(path.join(userData, "whisperwoof-vocabulary.json"), []);
+    expect(saved.map((w: { word: string }) => w.word).sort()).toEqual(["Bark", "Mando", "Woof"]);
   });
 });

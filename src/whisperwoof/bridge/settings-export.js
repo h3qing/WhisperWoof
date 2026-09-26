@@ -143,6 +143,11 @@ function importSettings(bundle, options = {}) {
 
   const { data } = bundle;
 
+  // Memory keeps a copy in memory: save its pending changes before the merge
+  // reads the file, and drop it afterwards so the imported words are seen.
+  const vocabulary = require("./vocabulary");
+  if (data.vocabulary !== undefined) vocabulary.invalidateCache();
+
   // Import config files
   for (const [key, filePath] of Object.entries(CONFIG_FILES)) {
     if (data[key] === undefined) continue;
@@ -163,6 +168,8 @@ function importSettings(bundle, options = {}) {
       errors.push(`Failed to import ${key}: ${err.message}`);
     }
   }
+
+  if (data.vocabulary !== undefined) vocabulary.invalidateCache();
 
   // App-preset map import (returned to caller to apply in memory)
   if (data.appPresetMap) {
