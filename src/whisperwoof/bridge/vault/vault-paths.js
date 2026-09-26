@@ -42,6 +42,15 @@ function writeFileAtomic(file, data, mode = 0o600) {
   syncDir(path.dirname(file));
 }
 
+/**
+ * Give a converted file its original's dates. Audio Retention ages recordings
+ * by modified time and the Notes list sorts by it, so a conversion must not
+ * make a file look new.
+ */
+function keepTimes(file, original) {
+  fs.utimesSync(file, original.atime, original.mtime);
+}
+
 function syncDir(dir) {
   try {
     const fd = fs.openSync(dir, "r");
@@ -71,4 +80,4 @@ function removeStaleTemps(dir) {
   }
 }
 
-module.exports = { vaultPaths, ensurePrivateDir, writeFileAtomic, syncDir, removeIfExists, removeStaleTemps };
+module.exports = { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, syncDir, removeIfExists, removeStaleTemps };

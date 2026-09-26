@@ -17,7 +17,7 @@ const plan = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const { applyKey } = require("./vault-db");
 const { SEALED_EXT, sealedPath, listNames } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, removeIfExists, removeStaleTemps } = require("./vault-paths");
+const { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, removeIfExists, removeStaleTemps } = require("./vault-paths");
 
 const WORK_EXT = ".vault-work";
 const OLD_EXT = ".vault-old";
@@ -165,16 +165,20 @@ function migrateFile(direction, { file, kind, mode }) {
   const step = plan.planFileStep(direction, { plain: fs.existsSync(file), sealed: fs.existsSync(sealed) });
   if (step === "done") return false;
   if (direction === "enable") {
+    const original = fs.statSync(file);
     const plain = fs.readFileSync(file);
     if (step === "convert") writeFileAtomic(sealed, sealBytes(plain, kind));
     if (!sha256(openBytes(fs.readFileSync(sealed))).equals(sha256(plain))) {
       writeFileAtomic(sealed, sealBytes(plain, kind));
       if (!sha256(openBytes(fs.readFileSync(sealed))).equals(sha256(plain))) throw new Error(`Couldn't verify ${file}`);
     }
+    keepTimes(sealed, original);
     removeIfExists(file);
   } else {
+    const original = fs.statSync(sealed);
     const plain = openBytes(fs.readFileSync(sealed));
     if (step === "convert" || !sha256(fs.readFileSync(file)).equals(sha256(plain))) writeFileAtomic(file, plain, mode);
+    keepTimes(file, original);
     removeIfExists(sealed);
   }
   return true;

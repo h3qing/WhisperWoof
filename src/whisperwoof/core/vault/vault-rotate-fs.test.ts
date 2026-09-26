@@ -117,6 +117,16 @@ describe("new recovery phrase", () => {
     expectEverythingOpens(again);
   });
 
+  it("keeps each file's modified time", async () => {
+    const { m } = await encryptedSetup();
+    const audio = path.join(userData, "audio", "a.webm.wwenc");
+    const old = new Date("2026-09-01T10:00:00Z");
+    fs.utimesSync(audio, old, old);
+    m.rotation.rememberPassword(PASSWORD);
+    await m.rotation.rotate(crypto.randomBytes(16));
+    expect(fs.statSync(audio).mtimeMs).toBe(old.getTime());
+  });
+
   it("resumes after a crash half-way through, on the next unlock", async () => {
     const { m } = await encryptedSetup();
     const newEntropy = crypto.randomBytes(16);
