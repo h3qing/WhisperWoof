@@ -1,7 +1,8 @@
 /* WhisperWoof site theme: Mando glass (see DESIGN.md), shared by every page.
 
    Glassfolio's roles in Mando's coat:
-   - .lg        glass, only for things that float over the page (the nav):
+   - .lg        glass, only for things that float over the page (the nav, and
+                the app's lock card shown as the app draws it):
                 tint + blur, a specular rim, a top sheen, a float shadow.
    - .sheet     a solid surface for anything people read. Radius 22, no border.
    - .well      a nested panel inside a sheet (sheet 2, radius 14).

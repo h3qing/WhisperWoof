@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WhisperWoof — voice dictation that types as you speak</title>
-  <meta name="description" content="Talk and watch the words appear. WhisperWoof transcribes Chinese, English, or both at once, cleans it up, and pastes it at your cursor — entirely on your Mac. Free and open source.">
+  <meta name="description" content="Talk and watch the words appear. WhisperWoof transcribes Chinese, English, or both at once, cleans it up, and pastes it at your cursor, entirely on your Mac. Keeps your clipboard, locks with Touch ID. Free and open source.">
   <meta name="theme-color" content="#ebe4dc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#120e0b" media="(prefers-color-scheme: dark)">
   <meta property="og:title" content="WhisperWoof — voice dictation that types as you speak">
-  <meta property="og:description" content="Local voice dictation for macOS. Live typing, Chinese + English, polished on-device. Nothing leaves your Mac.">
+  <meta property="og:description" content="Local voice dictation for macOS. Live typing, Chinese + English, polished on-device, encrypted with Touch ID if you like. Nothing leaves your Mac.">
   <meta property="og:image" content="https://h3qing.github.io/WhisperWoof/social-preview.png">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
@@ -166,6 +166,50 @@
     @media(max-width:900px){ .how{ grid-template-columns:1fr; } .demo{ order:-1; } }
     @media(max-width:520px){ .demo{ padding:20px 16px 8px; } }
 
+    /* CLIPBOARD: a still picture of the Clipboard view (text | images), then four facts */
+    .clip{ display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(0, 1fr); padding:10px; }
+    .clip-col{ padding:14px 16px 18px; min-width:0; }
+    .clip-col + .clip-col{ border-left:1px solid var(--sheet-line); }
+    .clip-head{ margin:0 0 8px; padding:0 12px; font-size:15px; font-weight:700; display:flex; gap:8px; align-items:baseline; }
+    .clip-head span{ color:var(--ink-3); font-weight:600; font-variant-numeric:tabular-nums; }
+    .clip-row{ position:relative; display:flex; justify-content:space-between; gap:14px; align-items:center; padding:11px 12px; border-radius:12px; font-size:16px; }
+    .clip-row + .clip-row::before{ content:""; position:absolute; top:0; left:12px; right:12px; height:1px; background:var(--sheet-line); }
+    .clip-row.on{ background:var(--select); }
+    .clip-row.on::before, .clip-row.on + .clip-row::before{ display:none; }
+    .clip-row .txt{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .clip-row .meta{ flex:none; font-size:13px; color:var(--ink-3); }
+    .clip-tiles{ display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr; gap:10px; }
+    .clip-tile{ position:relative; min-height:112px; border-radius:12px; background:var(--sheet-2); display:grid; place-items:center; overflow:hidden; }
+    .clip-tile img{ width:64%; height:78%; object-fit:contain; }
+    .clip-tile .tag{ position:absolute; left:8px; top:8px; }
+    .clip-tile.warm{ grid-row:span 2; background:color-mix(in srgb, var(--accent) 16%, var(--sheet-2)); }
+    .shot{ width:74%; height:66%; background:var(--sheet); border-radius:8px; box-shadow:var(--sheet-shadow); padding:9% 9%; display:grid; gap:9%; align-content:start; }
+    .shot i{ display:block; height:6px; border-radius:3px; background:var(--sheet-line); }
+    .shot i:first-child{ width:46%; background:color-mix(in srgb, var(--accent) 45%, transparent); }
+    .shot i:nth-child(3){ width:78%; }
+    .shot i:nth-child(4){ width:58%; }
+    .facts{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:16px; margin-top:16px; }
+    .fact{ padding:20px 22px; }
+    .fact h3{ margin:0 0 4px; font-size:18px; font-weight:700; }
+    .fact p{ margin:0; font-size:15px; color:var(--ink-2); }
+    @media(max-width:900px){
+      .clip{ grid-template-columns:1fr; }
+      .clip-col + .clip-col{ border-left:0; border-top:1px solid var(--sheet-line); }
+      .facts{ grid-template-columns:1fr 1fr; }
+    }
+    @media(max-width:520px){ .facts{ grid-template-columns:1fr; } .clip-row .meta{ display:none; } }
+
+    /* ENCRYPTION: the app's lock screen as it looks (one glass card on the backdrop), then three facts */
+    .vault{ display:grid; grid-template-columns:minmax(0, 0.9fr) minmax(0, 1.1fr); gap:28px; align-items:center; }
+    .lockcard{ width:100%; max-width:420px; justify-self:center; padding:40px 32px 30px; text-align:center; display:grid; justify-items:center; gap:10px; }
+    .lockcard img{ width:76px; height:76px; }
+    .lockcard h3{ margin:6px 0 0; font-size:26px; line-height:1.15; font-weight:800; letter-spacing:-0.022em; }
+    .lockcard p{ margin:0 0 12px; max-width:30ch; font-size:16px; color:var(--ink-2); }
+    .lockcard .btn{ width:100%; justify-content:center; pointer-events:none; }
+    .lockcard .alt{ margin-top:4px; font-size:14px; font-weight:600; color:var(--accent); }
+    .vault .fine{ margin:14px 0 0; }
+    @media(max-width:900px){ .vault{ grid-template-columns:1fr; } }
+
     /* The scroll-along companion: a small Mando runs along the bottom edge as
        you read (right going down, left going up) and sits when you stop. */
     .buddy{ position:fixed; bottom:10px; left:0; width:78px; height:84px; z-index:15; pointer-events:none;
@@ -188,8 +232,9 @@
     <a class="brand" href="#top"><img src="mando-head.svg" alt=""> WhisperWoof</a>
     <div class="nav-links">
       <a href="#modes">Live typing</a>
-      <a href="#how">How it works</a>
       <a href="#keys">Hotkeys</a>
+      <a href="#clipboard">Clipboard</a>
+      <a href="#how">How it works</a>
       <a href="#local">Privacy</a>
       <a href="https://github.com/h3qing/whisperwoof">GitHub</a>
       <a class="btn btn-primary" href="#download">Download</a>
@@ -305,6 +350,38 @@
     </div>
   </section>
 
+  <!-- CLIPBOARD -->
+  <section class="block" id="clipboard" style="padding-top:24px;">
+    <div class="wrap">
+      <h2 class="h2">Everything you copy, kept</h2>
+      <p class="lede">WhisperWoof keeps what you copy, text on one side and images on the other. Click anything to put it back on your clipboard: a screenshot pastes as the picture, not as its file name.</p>
+      <div class="clip sheet" role="img" aria-label="The Clipboard view: copied text on the left, copied images on the right">
+        <div class="clip-col" aria-hidden="true">
+          <p class="clip-head">Text <span>5</span></p>
+          <div class="clip-row on"><span class="txt">Flight UA 857, seat 34K, boards at 11:40</span><span class="tag memory">Copied</span></div>
+          <div class="clip-row"><span class="txt">Let's meet at three tomorrow, I'll book the room.</span><span class="meta">fn+T</span></div>
+          <div class="clip-row"><span class="txt">brew install ffmpeg</span><span class="tag no">Pinned</span></div>
+          <div class="clip-row"><span class="txt">github.com/h3qing/whisperwoof</span><span class="meta">1 h</span></div>
+          <div class="clip-row"><span class="txt han" lang="zh">周四下午三点见，改到二楼会议室</span><span class="meta">Yesterday</span></div>
+        </div>
+        <div class="clip-col" aria-hidden="true">
+          <p class="clip-head">Images <span>3</span></p>
+          <div class="clip-tiles">
+            <div class="clip-tile warm"><img src="mando-sit.svg" alt="" loading="lazy"><span class="tag no">Pinned</span></div>
+            <div class="clip-tile"><div class="shot"><i></i><i></i><i></i><i></i></div></div>
+            <div class="clip-tile"><img src="mando-head-side.svg" alt="" loading="lazy"></div>
+          </div>
+        </div>
+      </div>
+      <div class="facts">
+        <div class="fact sheet"><h3>Copy it back</h3><p>Images paste as images. Photos copied in Finder are kept as the photos, HEIC included.</p></div>
+        <div class="fact sheet"><h3>Save it to Notes</h3><p>Any item becomes a note. Images go into the note's attachments, so Obsidian shows them too.</p></div>
+        <div class="fact sheet"><h3>Keep what you want</h3><p>Pin what matters. Keep history forever or for 90, 30 or 7 days, and cap how much space images use.</p></div>
+        <div class="fact sheet"><h3>Passwords stay out</h3><p>Whatever 1Password or another password manager copies is never saved.</p></div>
+      </div>
+    </div>
+  </section>
+
   <!-- HOW IT WORKS -->
   <section class="block" id="how" style="padding-top:24px;">
     <div class="wrap">
@@ -365,8 +442,45 @@
           <div role="row"><span role="cell">Live preview</span><b role="cell">X-ASR, Chinese + English, 134 MB</b></div>
           <div role="row"><span role="cell">Transcription</span><b role="cell">Whisper large-v3 turbo, 1.6 GB</b></div>
           <div role="row"><span role="cell">Cleanup</span><b role="cell">Qwen3.5 2B, 1.3 GB</b></div>
-          <div role="row"><span role="cell">History and search</span><b role="cell">SQLite, in your home folder</b></div>
+          <div role="row"><span role="cell">History and search</span><b role="cell">SQLite on your Mac, encrypted if you like</b></div>
           <div role="row" class="zero"><span role="cell">Network requests while you dictate</span><b role="cell">0</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENCRYPTION -->
+  <section class="block" id="lock" style="padding-top:24px;">
+    <div class="wrap">
+      <h2 class="h2">Lock it with Touch ID</h2>
+      <p class="lede">Turn on encryption and everything WhisperWoof keeps about you is stored encrypted on your Mac: your history (search still works), notes, recordings, clipboard images and Memory. It stays off until you turn it on in Settings.</p>
+      <div class="vault">
+        <div class="lockcard lg" role="img" aria-label="WhisperWoof's lock screen: WhisperWoof is locked. Dictation still works.">
+          <img src="mando-head.svg" alt="">
+          <h3>WhisperWoof is locked</h3>
+          <p>Dictation still works. New entries are saved sealed until you unlock.</p>
+          <span class="btn btn-primary" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            Unlock with Touch ID
+          </span>
+          <span class="alt" aria-hidden="true">Forgot your password? Use your recovery phrase</span>
+        </div>
+        <div>
+          <div class="levers">
+            <div class="lever sheet">
+              <h3>Touch ID holds the key</h3>
+              <p>The key sits in your Mac's Secure Enclave, so it can't be read without your finger, even by someone who knows your Mac password. A password works too.</p>
+            </div>
+            <div class="lever sheet">
+              <h3>Twelve words open it anywhere</h3>
+              <p>A recovery phrase opens your data on any Mac. There is no back door: lose both the password and the phrase and the data is gone, and setup says so before you start.</p>
+            </div>
+            <div class="lever sheet">
+              <h3>It keeps listening while locked</h3>
+              <p>WhisperWoof locks when your Mac locks or sleeps. Whatever you dictate meanwhile is sealed right away and joins your history when you unlock.</p>
+            </div>
+          </div>
+          <p class="fine">Want your notes as plain Markdown for Obsidian or iCloud? Keep them readable and encrypt everything else.</p>
         </div>
       </div>
     </div>
