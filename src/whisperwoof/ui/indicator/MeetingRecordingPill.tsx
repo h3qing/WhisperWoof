@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Mic, Square } from "lucide-react";
+import { recordingPillState, type ActiveRecording } from "../notes/meeting-recording";
 
 export interface MeetingState {
   isRecording: boolean;
@@ -65,6 +66,8 @@ export function MeetingRecordingPillView({
 }
 
 export interface MeetingRecordingPillProps {
+  /** A recording running outside meeting mode (e.g. a note, or after leaving the Notes view). */
+  recording?: ActiveRecording | null;
   onJumpToNote?: (noteId: number) => void;
   onStopMeeting?: () => void;
 }
@@ -76,6 +79,7 @@ function defaultSubscribe(callback: (state: MeetingState) => void): () => void {
 }
 
 export function MeetingRecordingPill({
+  recording = null,
   onJumpToNote,
   onStopMeeting,
 }: MeetingRecordingPillProps) {
@@ -87,7 +91,7 @@ export function MeetingRecordingPill({
 
   return (
     <MeetingRecordingPillView
-      state={state}
+      state={recordingPillState(state, recording)}
       onJumpToNote={onJumpToNote}
       onStopMeeting={onStopMeeting}
     />

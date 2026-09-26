@@ -7,6 +7,7 @@
  * setupHandlers() runs against a fake ipcMain that records the handlers;
  * the audio buffer and checkpoint are stubs (they have their own tests).
  */
+import { EventEmitter } from "events";
 import { createRequire } from "module";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMMIT_TRANSCRIPT, FakeWebSocket, injectModule, sockets } from "./fake-realtime-socket";
@@ -32,7 +33,9 @@ injectModule("electron", {
 const IPCHandlers = require("../../../helpers/ipcHandlers");
 
 const MIN = 60 * 1000;
-const event = { sender: {} };
+// The control panel's webContents: it can close, reload, or navigate in-page.
+const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false });
+const event = { sender };
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 const finals = () =>
@@ -46,6 +49,7 @@ describe("a meeting through the IPC handlers", () => {
   let handlers: any;
 
   beforeEach(() => {
+    sender.removeAllListeners();
     ipc.clear();
     sent.length = 0;
     sockets.length = 0;
@@ -162,5 +166,42 @@ describe("a meeting through the IPC handlers", () => {
     await handlers._checkMeetingSessionRotation();
     expect(sockets).toHaveLength(2);
     expect(handlers._meetingMicStreaming.isConnected).toBe(true);
+  });
+
+  it("stops the meeting when the window that runs it closes", async () => {
+    const first = await startMeeting();
+
+    sender.emit("destroyed");
+    await flush();
+
+    expect(first.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(handlers._meetingMicStreaming).toBeNull();
+    expect(handlers._meetingStreamingStartedAt).toBeNull(); // no more rotation checks
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+  });
+
+  it("stops it when that window reloads, but not for navigation within the page", async () => {
+    const first = await startMeeting();
+
+    sender.emit("did-start-navigation", { isMainFrame: true, isSameDocument: true });
+    sender.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false });
+    await flush();
+    expect(handlers._meetingMicStreaming.isConnected).toBe(true);
+
+    sender.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false });
+    await flush();
+    expect(first.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(handlers._meetingMicStreaming).toBeNull();
+  });
+
+  it("stops watching the window once the meeting is stopped", async () => {
+    await startMeeting();
+    expect(sender.listenerCount("destroyed")).toBe(1);
+
+    await ipc.get("meeting-transcription-stop")!();
+
+    expect(sender.listenerCount("destroyed")).toBe(0);
+    expect(sender.listenerCount("did-start-navigation")).toBe(0);
+    expect(sender.listenerCount("render-process-gone")).toBe(0);
   });
 });
