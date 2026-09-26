@@ -39,11 +39,17 @@ const CONFIG_FILES = {
   plugins: path.join(USER_DATA, "whisperwoof-plugins.json"),
 };
 
+// Memory and style examples hold what you said, so with encryption on they
+// are sealed ("<name>.wwenc"); the plugins config stays a plain file.
+const vaultFiles = require("./vault/vault-files");
+const SEALED_CONFIG = new Set([CONFIG_FILES.vocabulary, CONFIG_FILES.styleExamples]);
+
 /**
- * Read a JSON config file. Returns null if not found or invalid.
+ * Read a JSON config file. Returns null if not found or invalid (or sealed while locked).
  */
 function readConfigFile(filePath) {
   try {
+    if (SEALED_CONFIG.has(filePath)) return vaultFiles.readJson(filePath, null);
     if (fs.existsSync(filePath)) {
       return JSON.parse(fs.readFileSync(filePath, "utf-8"));
     }
@@ -57,6 +63,10 @@ function readConfigFile(filePath) {
  * Write a JSON config file.
  */
 function writeConfigFile(filePath, data) {
+  if (SEALED_CONFIG.has(filePath)) {
+    vaultFiles.writeJson(filePath, data, { requireUnlocked: true });
+    return;
+  }
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
