@@ -1,0 +1,56 @@
+<svg width="1280" height="1280" viewBox="0 0 1280 1280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="1280">
+      <stop offset="0%" stop-color="#0F0D0B"/>
+      <stop offset="100%" stop-color="#1A1612"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="1280" fill="url(#bg)"/>
+
+  <!-- Subtle accent glow -->
+  <ellipse cx="640" cy="640" rx="500" ry="300" fill="rgba(200, 123, 58, 0.08)"/>
+
+  <!-- Title -->
+  <text x="640" y="560" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-weight="900" font-size="72" fill="#F0E6DA" letter-spacing="-3">
+    Whisper<tspan fill="#E8A060">Woof</tspan>
+  </text>
+
+  <!-- Subtitle -->
+  <text x="640" y="620" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-weight="500" font-size="24" fill="#B8A898">
+    Voice-first personal automation for macOS
+  </text>
+
+  <!-- Tagline -->
+  <text x="640" y="670" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-weight="400" font-size="18" fill="#6E6258">
+    Speak &#x2192; Transcribe &#x2192; Polish &#x2192; Route — All local AI
+  </text>
+
+  <!-- Waveform bars -->
+  <g transform="translate(540, 720)" opacity="0.5">
+    <rect x="0" y="18" width="8" rx="4" height="14" fill="#C87B3A"/>
+    <rect x="16" y="12" width="8" rx="4" height="26" fill="#C87B3A"/>
+    <rect x="32" y="6" width="8" rx="4" height="38" fill="#C87B3A"/>
+    <rect x="48" y="0" width="8" rx="4" height="50" fill="#E8A060"/>
+    <rect x="64" y="4" width="8" rx="4" height="42" fill="#E8A060"/>
+    <rect x="80" y="0" width="8" rx="4" height="50" fill="#E8A060"/>
+    <rect x="96" y="4" width="8" rx="4" height="42" fill="#E8A060"/>
+    <rect x="112" y="0" width="8" rx="4" height="50" fill="#E8A060"/>
+    <rect x="128" y="6" width="8" rx="4" height="38" fill="#C87B3A"/>
+    <rect x="144" y="12" width="8" rx="4" height="26" fill="#C87B3A"/>
+    <rect x="160" y="18" width="8" rx="4" height="14" fill="#C87B3A"/>
+    <rect x="176" y="12" width="8" rx="4" height="26" fill="#C87B3A"/>
+    <rect x="192" y="18" width="8" rx="4" height="14" fill="#C87B3A"/>
+  </g>
+
+  <!-- Paw print -->
+  <g transform="translate(610, 810) scale(1.5)" opacity="0.15">
+    <path d="M12 16.5c-2.5 0-4.5 1.5-4.5 3.5 0 1.5 2 2 4.5 2s4.5-.5 4.5-2c0-2-2-3.5-4.5-3.5zm-5-5a2 2 0 100-4 2 2 0 000 4zm3-3a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm4 0a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm3 3a2 2 0 100-4 2 2 0 000 4z" fill="#C87B3A"/>
+  </g>
+
+  <!-- Bottom tagline -->
+  <text x="640" y="900" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-weight="500" font-size="14" fill="#6E6258">
+    Named after Mando, a good dog who always listens.
+  </text>
+</svg>

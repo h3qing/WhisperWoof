@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>How Mando Listens</title>
+  <meta name="description" content="How WhisperWoof turns speech into text: the speech models, how Memory, the Dictionary and Word Packs reach them, and how Memory learns from your fixes.">
+  <meta name="theme-color" content="#ebe4dc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#120e0b" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="mando-head.svg">
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    .wrap{ max-width:1080px; margin:0 auto; padding-inline:24px; }
+    .prose{ max-width:700px; display:grid; gap:14px; }
+    .prose p, .prose ul{ margin:0; }
+    .note{ margin:0; color:var(--ink-2); font-size:15px; }
+    h1, h2, h3{ font-family:var(--sans); text-wrap:balance; margin:0; }
+    h1{ font-weight:800; letter-spacing:-0.03em; font-size:clamp(44px, 7.4vw, 88px); line-height:1; }
+    h2{ font-weight:800; letter-spacing:-0.02em; font-size:clamp(30px, 4.2vw, 48px); line-height:1.08; max-width:20ch; }
+    h3{ font-weight:700; font-size:20px; }
+    /* Section numbers read as a plain sentence-case line, not a letter-spaced eyebrow. */
+    .kicker{ font-size:15px; font-weight:700; line-height:1.3; color:var(--accent); }
+
+    .hero{ padding-block:56px 8px; display:grid; grid-template-columns:1fr auto; gap:28px; align-items:end; }
+    .hero .copy{ display:grid; gap:20px; }
+    .hero .lede{ margin:0; font-size:21px; color:var(--ink-2); max-width:58ch; }
+    .hero img{ width:190px; height:206px; object-fit:contain; }
+    .toc{ display:flex; flex-wrap:wrap; gap:8px; }
+    .toc .btn{ padding:9px 15px; font-size:14px; }
+    @media(max-width:720px){ .hero{ grid-template-columns:1fr; } .hero img{ order:-1; width:110px; height:120px; } }
+
+    section{ padding-block:84px 0; display:grid; gap:24px; scroll-margin-top:84px; }
+    .panel{ padding:28px; display:grid; gap:18px; }
+    .panel > h3{ font-size:19px; }
+    .controls{ display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; }
+    .ctl-label{ font-size:14px; font-weight:600; color:var(--ink-2); margin-right:8px; }
+    .line{ margin:0; font-size:20px; font-weight:700; }
+
+    .models{ display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
+    .model{ padding:26px; display:grid; gap:12px; align-content:start; }
+    .model p{ margin:0; font-size:16px; }
+    .model .arch{ font:500 13px/1.3 var(--mono); color:var(--ink-2); }
+    .facts{ display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:15px; margin:4px 0 0; padding-top:12px; border-top:1px solid var(--sheet-line); }
+    .facts dt{ color:var(--ink-2); }
+    .facts dd{ margin:0; }
+    .yes{ color:var(--pass); font-weight:700; }
+    .noo{ color:var(--ink-2); font-weight:700; }
+    .part{ color:var(--warn); font-weight:700; }
+
+    .strip{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; font:500 13px/1 var(--mono); }
+    .tok{ padding:8px 11px; border-radius:999px; background:var(--sheet-2); }
+    .tok.special{ color:var(--accent); background:var(--select); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+    .tok.prompt{ color:var(--accent); background:var(--select); }
+    .tok.out{ color:var(--pass); background:color-mix(in srgb, var(--pass) 15%, transparent); }
+    .arrow{ color:var(--ink-2); }
+
+    /* Tables sit on a sheet, never on glass. */
+    .table-pane{ overflow:hidden; }
+    .scroll{ overflow-x:auto; }
+    table{ border-collapse:collapse; width:100%; min-width:640px; font-size:15px; }
+    th, td{ text-align:left; padding:14px 18px; border-bottom:1px solid var(--sheet-line); vertical-align:top; }
+    tr:last-child td{ border-bottom:0; }
+    th{ font-size:13px; font-weight:700; line-height:1.3; color:var(--ink-2); background:var(--sheet-2); }
+    td .sub{ display:block; color:var(--ink-2); font-size:13px; margin-top:3px; font-weight:400; }
+
+    .window{ display:flex; flex-wrap:wrap; gap:5px; }
+    .chip{ font:500 13px/1.25 var(--mono); padding:5px 10px; border-radius:999px; white-space:nowrap; }
+    .chip.memory{ color:var(--accent); background:var(--select); }
+    .chip.dictionary{ color:var(--mauve); background:color-mix(in srgb, var(--mauve) 16%, transparent); }
+    .chip.pack{ color:var(--ink-2); background:var(--sheet-2); box-shadow:inset 0 0 0 1px var(--sheet-line); }
+    .chip.alt{ color:var(--fail); background:color-mix(in srgb, var(--fail) 13%, transparent); }
+    .chip.dropped{ opacity:0.4; text-decoration:line-through; box-shadow:inset 0 0 0 1px currentColor; }
+    .meter{ display:grid; gap:6px; }
+    .meter .bar{ position:relative; height:16px; border-radius:999px; background:var(--sheet-2); box-shadow:inset 0 0 0 1px var(--sheet-line); overflow:hidden; }
+    .meter .bar .fill{ position:absolute; inset:0 auto 0 0; background:var(--accent); }
+    .meter .bar .cut{ position:absolute; inset:0 auto 0 0; background:repeating-linear-gradient(135deg, var(--fail) 0 6px, transparent 6px 11px); opacity:0.75; }
+    .meter .bar .limit{ position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--ink); }
+    .meter-labels{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font:500 13px/1.3 var(--mono); font-variant-numeric:tabular-nums; color:var(--ink-2); }
+    .verdict{ margin:0; font-size:16px; }
+    .legend{ display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+
+    .fields{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; }
+    label.field{ display:grid; gap:6px; font-size:14px; font-weight:600; color:var(--ink-2); }
+    textarea, input[type="text"]{ font:400 14px/1.5 var(--mono); color:var(--ink); background:var(--sheet-2); border:1px solid var(--sheet-line); border-radius:12px; padding:11px 13px; width:100%; resize:vertical; }
+    input[type="text"]{ border-radius:999px; padding-inline:16px; }
+    .row{ display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; }
+    .chip-btn{ font:600 14px/1 var(--sans); color:var(--ink); background:var(--sheet-2); box-shadow:inset 0 0 0 1px var(--sheet-line); border:0; border-radius:999px; padding:10px 15px; cursor:pointer;
+      transition:transform .2s var(--press), background-color .18s ease, color .18s ease; }
+    .chip-btn:hover{ background:var(--select); color:var(--accent); }
+    .chip-btn:active{ transform:scale(.96); }
+    .rules{ display:grid; gap:8px; }
+    .rule{ display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; background:var(--sheet-2); border-radius:var(--r-nested); padding:12px 15px; }
+    .rule .pair{ font:14px/1.5 var(--mono); overflow-wrap:anywhere; }
+    .rule .why{ grid-column:1 / -1; color:var(--ink-2); font-size:14px; }
+    .rule .always{ padding:8px 14px; font-size:13px; }
+    .empty{ margin:0; color:var(--ink-2); font-size:15px; font-style:italic; }
+
+    .flow{ display:grid; gap:10px; }
+    .step{ border-radius:var(--r-nested); padding:14px 17px; background:var(--sheet-2); display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline; transition:background-color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+    .step .q{ font:700 12px/1 var(--mono); color:var(--ink-2); }
+    .step .res{ grid-column:2; color:var(--ink-2); font-size:15px; }
+    .step.on{ background:var(--select); box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 40%, transparent); }
+    .step.off{ opacity:0.45; }
+
+    ul.clean{ margin:0; padding-left:1.1em; display:grid; gap:8px; }
+    .callout{ margin:0; max-width:760px; padding:20px 24px; font-size:16px; }
+    .callout strong{ font-weight:800; }
+    footer.notes{ margin-top:72px; padding:28px; display:grid; gap:10px; font-size:14px; color:var(--ink-2); }
+    footer.notes strong{ color:var(--ink); }
+    .site-foot{ padding-block:40px 56px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-size:15px; color:var(--ink-2); }
+    .site-foot a{ text-decoration:none; }
+    .site-foot a:hover{ color:var(--ink); }
+    @media(max-width:520px){ body{ font-size:16px; } .panel, .model{ padding:18px; } .wrap{ padding-inline:16px; } }
+  </style>
+</head>
+<body>
+<div class="mando-field" aria-hidden="true"></div>
+<div class="page">
+
+<nav class="site-nav" aria-label="Main">
+  <div class="bar lg">
+    <a class="brand" href="index.html"><img src="mando-head.svg" alt=""> WhisperWoof</a>
+    <div class="nav-links">
+      <a href="index.html#how">How it works</a>
+      <a href="https://github.com/h3qing/whisperwoof">GitHub</a>
+      <a class="btn btn-primary" href="index.html#download">Download</a>
+    </div>
+  </div>
+</nav>
+
+<main class="wrap">
+  <header class="hero">
+    <div class="copy">
+      <span class="kicker">WhisperWoof · The full guide</span>
+      <h1>How Mando listens</h1>
+      <p class="lede">What happens between you speaking and text landing in your app: what each speech model actually does, where your own words get in, and how Memory learns from the fixes you make.</p>
+      <nav class="toc" aria-label="Contents">
+        <a class="btn btn-glass" href="#pipeline">The pipeline</a>
+        <a class="btn btn-glass" href="#models">The models</a>
+        <a class="btn btn-glass" href="#libraries">Your two libraries</a>
+        <a class="btn btn-glass" href="#levers">Three ways in</a>
+        <a class="btn btn-glass" href="#window">The 224-token window</a>
+        <a class="btn btn-glass" href="#learning">How Memory learns</a>
+        <a class="btn btn-glass" href="#auto">Auto language mode</a>
+      </nav>
+    </div>
+    <img src="mando/hd/think.webp" alt="Mando thinking" width="190" height="206">
+  </header>
+
+  <section id="pipeline" aria-labelledby="h-pipeline">
+    <div class="prose">
+      <span class="kicker">01 · Follow one sentence through</span>
+      <h2 id="h-pipeline">The pipeline, one sentence at a time</h2>
+      <p>Pick an engine, and whether Memory already knows your words. The transcripts are real outputs from the local engines, fed synthetic speech from macOS <code>say</code>.</p>
+    </div>
+    <div class="panel sheet" data-pipeline>
+      <p class="line">“Please deploy the dashboard to Supabase and ping Kubernetes on Vercel.”</p>
+      <div class="controls">
+        <div><span class="ctl-label">Engine</span>
+          <div class="seg" data-seg="engine" role="group" aria-label="Speech engine">
+            <button type="button" data-v="whisper" aria-pressed="true">Whisper (base)</button>
+            <button type="button" data-v="parakeet" aria-pressed="false">Parakeet TDT</button>
+          </div>
+        </div>
+        <div><span class="ctl-label">Memory</span>
+          <div class="seg" data-seg="mem" role="group" aria-label="Memory">
+            <button type="button" data-v="new" aria-pressed="true">First time</button>
+            <button type="button" data-v="learned" aria-pressed="false">After your fixes</button>
+          </div>
+        </div>
+      </div>
+      <div class="stages" data-stages></div>
+    </div>
+  </section>
+
+  <!-- 2. Models -->
+  <section id="models" aria-labelledby="h-models">
+    <div class="prose">
+      <span class="kicker">02 · What's inside the engines</span>
+      <h2 id="h-models">Two families of speech models</h2>
+      <p>Every engine turns sound into text, but they're built very differently, and that difference decides whether your words can be “suggested” to it before it listens.</p>
+    </div>
+    <div class="models">
+      <article class="model sheet">
+        <h3>Whisper</h3>
+        <span class="arch">encoder → decoder that writes text</span>
+        <p>Chops audio into 30-second windows, turns each into a spectrogram, and an <strong>encoder</strong> summarises it. A <strong>decoder</strong>, a small language model, then writes the transcript one token at a time, each guess conditioned on the text before it.</p>
+        <dl class="facts">
+          <dt>Takes hints?</dt><dd><span class="yes">Yes.</span> “Previous text” can be pre-filled: that's the prompt.</dd>
+          <dt>Languages</dt><dd>~100, detected per recording</dd>
+          <dt>Runs as</dt><dd><code>whisper-server</code> (whisper.cpp), or cloud APIs</dd>
+          <dt>Streaming?</dt><dd>No: waits for the whole recording</dd>
+        </dl>
+      </article>
+      <article class="model sheet">
+        <h3>Transducers: Parakeet, X-ASR</h3>
+        <span class="arch">encoder → frame-by-frame token predictor</span>
+        <p>Walks through the audio frame by frame and, at each step, emits a token or moves on. Parakeet's <em>TDT</em> also predicts how many frames to skip, which is why it's fast. There is no “previous text” input, so there's nowhere to put a prompt.</p>
+        <dl class="facts">
+          <dt>Takes hints?</dt><dd><span class="noo">No.</span> sherpa “hotwords” exist but had no effect on Parakeet (measured, below).</dd>
+          <dt>Languages</dt><dd>Parakeet v3: 25 European · X-ASR: Chinese + English</dd>
+          <dt>Runs as</dt><dd><code>sherpa-onnx</code> websocket servers (offline, and online for live typing)</dd>
+          <dt>Streaming?</dt><dd>X-ASR yes (160 / 480 ms chunks) · Parakeet whole recording</dd>
+        </dl>
+      </article>
+      <article class="model sheet">
+        <h3>SenseVoice</h3>
+        <span class="arch">encoder → all tokens at once (non-autoregressive)</span>
+        <p>Predicts the whole transcript in one pass rather than word by word, with language set to <code>auto</code> and number formatting (“twenty” → 20) built in. Very fast; like the transducers, it has no text context to steer.</p>
+        <dl class="facts">
+          <dt>Takes hints?</dt><dd><span class="noo">No.</span></dd>
+          <dt>Languages</dt><dd>Chinese, Cantonese, English, Japanese, Korean</dd>
+          <dt>Runs as</dt><dd><code>sherpa-onnx</code> offline server</dd>
+          <dt>Streaming?</dt><dd>No</dd>
+        </dl>
+      </article>
+    </div>
+    <div class="panel sheet">
+      <h3>Why a prompt works on Whisper: it's just “text that came before”</h3>
+      <div class="strip" aria-label="Whisper decoder input">
+        <span class="tok special">&lt;|startofprev|&gt;</span>
+        <span class="tok prompt">Mando, Kubernetes, Supabase</span>
+        <span class="tok special">&lt;|startoftranscript|&gt;</span>
+        <span class="tok special">&lt;|en|&gt;</span>
+        <span class="tok special">&lt;|transcribe|&gt;</span>
+        <span class="arrow">→</span>
+        <span class="tok out">Please deploy … Supabase …</span>
+      </div>
+      <p class="note">The decoder has just “read” your words, so when the audio sounds like “super base”, the spelling it saw a moment ago is the likely next token. The language token (<code>&lt;|en|&gt;</code>) is guessed <em>before</em> your words are added, so hints don't sway language detection: we measured the same 0.998 “Chinese” confidence with and without a prompt. Hints can still pull the <em>writing</em> toward English, which is what section 07 guards against.</p>
+    </div>
+  </section>
+
+  <!-- 3. Libraries -->
+  <section id="libraries" aria-labelledby="h-libraries">
+    <div class="prose">
+      <span class="kicker">03 · Model files and word lists</span>
+      <h2 id="h-libraries">Your two libraries</h2>
+      <p><strong>The model library</strong> is the set of downloaded model files: Whisper's <code>ggml-*.bin</code> in <code>~/.cache/openwhispr/whisper-models/</code>, and Parakeet, X-ASR and SenseVoice under <code>parakeet-models/</code>. They never change as you use the app. Everything personal lives in the <strong>word library</strong>, which has three shelves:</p>
+    </div>
+    <div class="sheet table-pane"><div class="scroll">
+      <table>
+        <thead><tr><th>Shelf</th><th>Who fills it</th><th>Stored in</th><th>What it holds</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="tag memory">Memory</span></td>
+            <td>Learned from your fixes, or added in the Memory view</td>
+            <td><code>whisperwoof-vocabulary.json</code></td>
+            <td>The right spelling <em>and</em> how it was misheard (“alternatives”), how often each fix happened, and which apps you use it in.</td>
+          </tr>
+          <tr>
+            <td><span class="tag dictionary">Dictionary</span></td>
+            <td>You (Settings → Dictionary); auto-learn also adds new words</td>
+            <td>SQLite <code>custom_dictionary</code></td>
+            <td>Plain words. Also shown to the polish model.</td>
+          </tr>
+          <tr>
+            <td><span class="tag pack">Word Packs</span></td>
+            <td>Curated lists shipped with the app. <strong>Off by default</strong> since 1.22.0.</td>
+            <td><code>resources/vocabulary-packs/</code></td>
+            <td>Brands &amp; Products, Everyday Essentials, Food &amp; Drink (266 words).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+    <p class="note">With encryption on (Settings → Encryption), Memory is stored encrypted as <code>whisperwoof-vocabulary.json.wwenc</code> and the SQLite database is encrypted too. Word Packs ship with the app and hold nothing personal.</p>
+    <p class="callout sheet"><strong>Why packs are off now.</strong> Generic words in every prompt pull Whisper toward them. With Brands &amp; Products on, “Vercel” came out as <em>“Versacell”</em> (from “Versace”). Turn on the packs you actually talk about.</p>
+  </section>
+
+  <!-- 4. Levers -->
+  <section id="levers" aria-labelledby="h-levers">
+    <div class="prose">
+      <span class="kicker">04 · Hints, swaps, polish</span>
+      <h2 id="h-levers">Three ways your words reach the text</h2>
+      <ul class="clean">
+        <li><strong>Hints</strong> go <em>into</em> the model before it listens (Whisper's prompt). Best result, but only Whisper accepts them.</li>
+        <li><strong>Swaps</strong> happen <em>after</em> the model: Memory replaces a mishearing you've approved (“super base” → Supabase). Works with every engine.</li>
+        <li><strong>Polish</strong> is the local LLM clean-up pass; it sees your Dictionary words as a list and can fix obvious near-misses.</li>
+      </ul>
+    </div>
+    <div class="sheet table-pane"><div class="scroll">
+      <table>
+        <thead><tr><th>Engine</th><th>Hints</th><th>Swaps</th><th>Polish</th></tr></thead>
+        <tbody>
+          <tr><td>Whisper, local<span class="sub">whisper-server</span></td><td class="yes">Yes<span class="sub">pinned language, or Auto with the guard in 07</span></td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>Parakeet TDT</td><td class="noo">No<span class="sub">hotwords measured: no effect</span></td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>X-ASR (live typing), SenseVoice</td><td class="noo">No</td><td class="yes">Yes<span class="sub">on the final text</span></td><td class="yes">Yes</td></tr>
+          <tr><td>Cloud, batch<span class="sub">OpenAI · Groq · Mistral</span></td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><td>OpenWhispr Cloud, streaming providers</td><td class="part">Partly<span class="sub">streaming gets the Dictionary only</span></td><td class="noo">Not yet</td><td class="yes">Yes</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <!-- 5. Token window -->
+  <section id="window" aria-labelledby="h-window">
+    <div class="prose">
+      <span class="kicker">05 · The most important number: 224</span>
+      <h2 id="h-window">The 224-token window</h2>
+      <p>Whisper reads at most <strong>224 tokens</strong> of prompt and keeps the <strong>last</strong> 224, silently dropping the start. A token is a word-piece; for these word lists it's about 3 characters. Token counts below come from whisper.cpp's own tokenizer run on the real word lists.</p>
+    </div>
+    <div class="panel sheet">
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Prompt version" id="seg-window">
+          <button type="button" data-v="old" aria-pressed="true">Before (≤ 1.21.1)</button>
+          <button type="button" data-v="now" aria-pressed="false">Now (1.22.0)</button>
+        </div>
+        <div class="legend">
+          <span class="tag memory">Memory</span><span class="tag dictionary">Dictionary</span><span class="tag pack">Word Pack</span><span class="tag alt">misheard spelling</span>
+        </div>
+      </div>
+      <div class="meter" aria-live="polite">
+        <div class="bar" id="bar"><div class="cut" id="bar-cut"></div><div class="fill" id="bar-fill"></div><div class="limit" id="bar-limit"></div></div>
+        <div class="meter-labels"><span id="meter-left"></span><span id="meter-right"></span></div>
+      </div>
+      <p class="verdict" id="verdict"></p>
+      <div class="window" id="window-chips"></div>
+    </div>
+  </section>
+
+  <!-- 6. Learning -->
+  <section id="learning" aria-labelledby="h-learning">
+    <div class="prose">
+      <span class="kicker">06 · From your fix to a rule</span>
+      <h2 id="h-learning">How Memory learns</h2>
+      <ul class="clean">
+        <li><strong>Watch.</strong> After a paste, a small native helper (<code>macos-text-monitor</code>, needs Accessibility) watches that text field for 30 seconds.</li>
+        <li><strong>Compare.</strong> Each time you pause typing (1.5 s), the field is compared word by word with what was pasted. Each changed stretch is trimmed to the part that sounds alike, giving a pair: <em>misheard → corrected</em>. Words you typed next to the fix (“Supabase <u>today</u>”) aren't part of it.</li>
+        <li><strong>Filter.</strong> Rewrites (more than half the words changed), unrelated swaps (the words don't sound alike) and fixes under 3 letters are ignored.</li>
+        <li><strong>Remember.</strong> The pair is saved on the Memory word, tagged with the app you were in. A half-typed fix is replaced by the finished one, and new words also go into the Dictionary (so Whisper gets them as hints).</li>
+        <li><strong>Ask.</strong> Once you've made the same fix twice, and the misheard text couldn't be something you really said, Memory asks: “Always change super base to Supabase?” Say <em>Always</em> and every engine gets it right from then on. Say <em>Not now</em>, or change a swapped word back, and Memory never asks again.</li>
+      </ul>
+    </div>
+    <div class="panel sheet">
+      <div class="row">
+        <span class="ctl-label">Examples</span>
+        <button type="button" class="chip-btn" data-ex="0">super base → Supabase</button>
+        <button type="button" class="chip-btn" data-ex="1">Superbase → Supabase</button>
+        <button type="button" class="chip-btn" data-ex="2">their → there</button>
+        <button type="button" class="chip-btn" data-ex="3">shunade → Sinead</button>
+        <button type="button" class="chip-btn" data-ex="4">a team → Adam</button>
+      </div>
+      <div class="fields">
+        <label class="field" for="pg-heard">What the engine wrote (pasted)
+          <textarea id="pg-heard" rows="2">please deploy to super base and ask shunade</textarea>
+        </label>
+        <label class="field" for="pg-fixed">What you corrected it to
+          <textarea id="pg-fixed" rows="2">please deploy to Supabase and ask Sinead</textarea>
+        </label>
+      </div>
+      <div class="row">
+        <button type="button" class="btn btn-primary" id="pg-teach">Teach Memory this fix</button>
+        <button type="button" class="chip-btn" id="pg-reset">Forget everything</button>
+        <span class="note" id="pg-status" aria-live="polite"></span>
+      </div>
+      <div class="rules" id="pg-rules"></div>
+      <label class="field" for="pg-next">Next thing the engine writes
+        <input type="text" id="pg-next" value="super base is down again, ask shunade about Superbase logs">
+      </label>
+      <div class="utter" id="pg-out" aria-live="polite"></div>
+    </div>
+    <p class="callout sheet"><strong>Why ask?</strong> A swap edits every future transcript, so one wrong rule does damage everywhere. Memory only offers a swap when it's a pattern (the same fix twice) and the misheard text couldn't be something you really said: “Superbase” and “shunade” aren't words, while “their”, “bills”, “10” and “a team” are, so those are never offered, though the fixed word still goes into your Dictionary and hints. And even then, nothing is swapped until you say so. The app checks single words against the Mac's 235,000-word dictionary; this demo uses a small built-in list.</p>
+  </section>
+
+  <!-- 7. Auto -->
+  <section id="auto" aria-labelledby="h-auto">
+    <div class="prose">
+      <span class="kicker">07 · Bilingual dictation</span>
+      <h2 id="h-auto">Hints in Auto language mode</h2>
+      <p>With the dictation language on Auto, an English word list once turned Chinese speech into an English <em>translation</em>: a clip of “现在天气很好” came out as “Now the time is good”. So hints used to be switched off entirely in Auto mode. Now they're on, with a guard that uses the one thing hints can't sway: Whisper's language detection.</p>
+    </div>
+    <div class="panel sheet">
+      <div class="seg" role="group" aria-label="Scenario" id="seg-auto">
+        <button type="button" data-v="en" aria-pressed="true">English dictation</button>
+        <button type="button" data-v="mixed" aria-pressed="false">把项目 deploy 到 Supabase</button>
+        <button type="button" data-v="hijack" aria-pressed="false">现在天气很好 → English</button>
+      </div>
+      <div class="flow" id="flow"></div>
+    </div>
+  </section>
+
+  <!-- 8. Code -->
+  <section id="code" aria-labelledby="h-code">
+    <div class="prose">
+      <span class="kicker">08 · For developers</span>
+      <h2 id="h-code">Where it lives in the code</h2>
+    </div>
+    <div class="sheet table-pane"><div class="scroll">
+      <table>
+        <thead><tr><th>Piece</th><th>File</th></tr></thead>
+        <tbody>
+          <tr><td>Every transcript goes through here: swaps, then polish</td><td><code>src/helpers/audioManager.js</code> · <code>processTranscription</code></td></tr>
+          <tr><td>Hint prompt: priority, 560-char budget, your words last</td><td><code>src/whisperwoof/core/vocabulary/pack-manager-pure.js</code> · <code>buildSttPrompt</code></td></tr>
+          <tr><td>Swap rules and applying them</td><td><code>src/whisperwoof/core/vocabulary/memory-replacements.js</code></td></tr>
+          <tr><td>Finding misheard → corrected pairs</td><td><code>src/utils/correctionLearner.js</code> · <code>extractCorrectionPairs</code></td></tr>
+          <tr><td>Memory storage (learn, undo, delete)</td><td><code>src/whisperwoof/bridge/vocabulary.js</code> + <code>vocabulary-pure.js</code></td></tr>
+          <tr><td>Watching the pasted field</td><td><code>src/helpers/textEditMonitor.js</code> + <code>resources/macos-text-monitor.swift</code></td></tr>
+          <tr><td>Auto-mode guard</td><td><code>src/whisperwoof/core/language/auto-hints.ts</code></td></tr>
+          <tr><td>Learning glue, undo, delete sync</td><td><code>src/helpers/ipcHandlers.js</code> · <code>_learnCorrections</code>, <code>_getSttHintPrompt</code></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <footer class="notes sheet">
+    <strong>How these numbers were measured</strong>
+    <ul class="clean">
+      <li>Whisper prompt tokens counted with whisper.cpp's tokenizer on the ggml-base vocabulary: about 2.97 characters per token for these word lists.</li>
+      <li>Transcripts from <code>whisper-server</code> (ggml-base, Auto language) and <code>sherpa-onnx</code> 1.13.4 (Parakeet TDT 0.6B v3), fed macOS <code>say</code> audio. Real voices vary more; the patterns hold.</li>
+      <li>Parakeet with <code>--decoding-method=modified_beam_search --hotwords-file</code>, score up to 5: “Superbase” unchanged.</li>
+    </ul>
+  </footer>
+</main>
+
+<div class="wrap site-foot">
+  <span>WhisperWoof, built on <a href="https://github.com/OpenWhispr/openwhispr">OpenWhispr</a>. Named after a good dog.</span>
+  <span><a href="index.html">Home</a> · <a href="https://github.com/h3qing/whisperwoof">GitHub</a></span>
+</div>
+</div>
+
+<script src="pipeline.js" defer></script>
+<script src="glass.js" defer></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function wireSeg(el, onChange) {
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-v]");
+      if (!b) return;
+      el.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      onChange(b.dataset.v);
+    });
+  }
+  const segValue = (el) => el.querySelector('button[aria-pressed="true"]').dataset.v;
+
+  /* ---------- 05 token window (real per-word token counts, whisper.cpp tokenizer) ---------- */
+  const CHIPS = {"old":[["WhisperWoof","memory",5],["whisper woof","alt",4],["Heqing","memory",3],["he ching","alt",4],["Ollama","memory",3],["oh llama","alt",3],["Tailwind","memory",3],["Kubernetes","memory",2],["koo ber net eez","alt",7],["Supabase","memory",4],["super base","alt",3],["Hermès","pack",3],["air mez","alt",3],["her meez","alt",4],["hermes","alt",3],["Louis Vuitton","pack",5],["loo ee vwee tahn","alt",10],["loo ee vuh ton","alt",8],["Givenchy","pack",3],["jhee von shee","alt",6],["given chee","alt",4],["Versace","pack",3],["vur sah chay","alt",5],["ver sayss","alt",4],["Yves Saint Laurent","pack",5],["eve sanh la rahn","alt",7],["eve san lah ron","alt",6],["Balenciaga","pack",4],["bah len see ah gah","alt",7],["Moschino","pack",4],["moss kee no","alt",5],["Moët & Chandon","pack",7],["mo wet shon don","alt",6],["mow et","alt",4],["Comme des Garçons","pack",5],["comb day gar son","alt",5],["com day gar sons","alt",5],["Balmain","pack",3],["bal mahn","alt",4],["ball main","alt",3],["L'Occitane","pack",7],["lock si tahn","alt",5],["lox ih tane","alt",5],["Loewe","pack",4],["loh eh vay","alt",5],["low ee","alt",4],["Chanel","pack",2],["shuh nel","alt",4],["Cartier","pack",3],["car tee ay","alt",4],["Bulgari","pack",3],["buhl guh ree","alt",6],["bull gary","alt",4],["Hyundai","pack",2],["hun day","alt",3],["high un dye","alt",4],["Porsche","pack",2],["poor shuh","alt",4],["porsh","alt",3],["Volkswagen","pack",2],["folks vah gen","alt",5],["volks wagon","alt",4],["Peugeot","pack",4],["poo zhow","alt",4],["pew joe","alt",4],["Maserati","pack",4],["mah zuh rah tee","alt",6],["Lamborghini","pack",3],["lam bor gee nee","alt",5],["Audi","pack",2],["ow dee","alt",4],["BMW","pack",2],["B M W","alt",4],["bee em double you","alt",5],["Mercedes-Benz","pack",5]],"now":[["Anthropic","pack",3],["Instacart","pack",4],["Uber Eats","pack",4],["DoorDash","pack",4],["Whole Foods","pack",3],["Trader Joe's","pack",5],["In-N-Out","pack",6],["Chick-fil-A","pack",6],["Häagen-Dazs","pack",7],["Chipotle","pack",3],["Lululemon","pack",4],["Uniqlo","pack",4],["Fjällräven","pack",6],["Sephora","pack",3],["Shein","pack",3],["Tag Heuer","pack",4],["Adobe","pack",2],["Adidas","pack",3],["Nike","pack",2],["IKEA","pack",2],["Huawei","pack",2],["Rivian","pack",3],["Tesla","pack",2],["Mercedes-Benz","pack",5],["BMW","pack",2],["Audi","pack",2],["Lamborghini","pack",3],["Maserati","pack",4],["Peugeot","pack",4],["Volkswagen","pack",2],["Porsche","pack",2],["Hyundai","pack",2],["Bulgari","pack",3],["Cartier","pack",3],["Chanel","pack",2],["Loewe","pack",4],["L'Occitane","pack",7],["Balmain","pack",3],["Comme des Garçons","pack",5],["Moët & Chandon","pack",7],["Moschino","pack",4],["Balenciaga","pack",4],["Yves Saint Laurent","pack",5],["Versace","pack",3],["Givenchy","pack",3],["Louis Vuitton","pack",5],["Hermès","pack",3],["Mando","dictionary",3],["LGTM","dictionary",3],["WhisperWoof","memory",5],["Heqing","memory",3],["Ollama","memory",3],["Tailwind","memory",3],["Kubernetes","memory",2],["Supabase","memory",4]]};
+  const LIMIT = 224;
+
+  function renderWindow() {
+    const mode = segValue($("seg-window"));
+    const items = CHIPS[mode];
+    const total = items.reduce((n, c) => n + c[2], 0);
+    const dropBefore = Math.max(0, total - LIMIT);
+    let run = 0;
+    const html = items.map(([w, src, t]) => {
+      const start = run;
+      run += t;
+      const dropped = start < dropBefore;
+      return `<span class="chip ${src}${dropped ? " dropped" : ""}" title="${t} tokens${dropped ? " · Whisper never sees this" : ""}">${esc(w)}</span>`;
+    }).join("");
+    $("window-chips").innerHTML = html;
+    const scale = Math.max(total, 330);
+    $("bar-fill").style.left = (dropBefore / scale) * 100 + "%";
+    $("bar-fill").style.width = ((total - dropBefore) / scale) * 100 + "%";
+    $("bar-cut").style.width = (dropBefore / scale) * 100 + "%";
+    $("bar-limit").style.left = (Math.min(total, LIMIT) / scale) * 100 + "%";
+    $("bar-limit").style.display = total > LIMIT ? "none" : "block";
+    $("meter-left").textContent = `${total} tokens in the prompt`;
+    $("meter-right").textContent = total > LIMIT ? `first ${dropBefore} dropped · last ${LIMIT} kept` : `limit ${LIMIT} · all kept`;
+    $("verdict").innerHTML = mode === "old"
+      ? `<strong>Before:</strong> your Memory words came <em>first</em>, mixed with their misheard spellings, then pack words with theirs. At ${total} tokens, Whisper dropped the first ${dropBefore}, which is <strong>every one of your own words</strong>, and kept a wall of phonetic noise that nudged it toward “air mez” and “loo ee vwee tahn”. The Dictionary wasn't even included.`
+      : `<strong>Now</strong> (all three packs switched on, the worst case): correct spellings only, cut to fit before Whisper has to. Pack words go first and are the first to be cut; your Dictionary and Memory words sit at the <strong>end</strong>, closest to your voice, newest last. ${total} tokens: everything is seen.`;
+  }
+  wireSeg($("seg-window"), renderWindow);
+  renderWindow();
+
+  /* ---------- 06 playground (same rules as correctionLearner.js + memory-replacements.js) ---------- */
+  const tokenize = (t) => t.split(/\s+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")).filter(Boolean);
+  function editDistance(a, b) {
+    const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+    for (let i = 1; i <= a.length; i++)
+      for (let j = 1; j <= b.length; j++)
+        dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    return dp[a.length][b.length];
+  }
+  function blocks(o, e) {
+    const m = o.length, n = e.length, eq = (x, y) => x.toLowerCase() === y.toLowerCase();
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+      dp[i][j] = eq(o[i - 1], e[j - 1]) ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    const al = []; let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && eq(o[i - 1], e[j - 1])) { al.unshift([o[i - 1], e[j - 1]]); i--; j--; }
+      else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { al.unshift([null, e[j - 1]]); j--; }
+      else { al.unshift([o[i - 1], null]); i--; }
+    }
+    const subs = []; let f = [], t = [];
+    const flush = () => { if (f.length && t.length) subs.push([f.join(" "), t.join(" ")]); f = []; t = []; };
+    for (const [a, b] of al) { if (a !== null && b !== null) { flush(); continue; } if (a !== null) f = [...f, a]; if (b !== null) t = [...t, b]; }
+    flush();
+    return subs;
+  }
+  const phraseDistance = (a, b) => {
+    const x = a.replace(/\s+/g, "").toLowerCase(), y = b.replace(/\s+/g, "").toLowerCase();
+    return editDistance(x, y) / Math.max(x.length, y.length, 1);
+  };
+  const spans = (w) => { const o = []; for (let i = 0; i < w.length; i++) for (let j = i + 1; j <= w.length; j++) o.push(w.slice(i, j).join(" ")); return o; };
+  function resolveBlock(from, to) {
+    const fw = from.split(" "), tw = to.split(" ");
+    if (fw.length === tw.length && fw.length > 1) {
+      const pairs = fw.map((f, i) => [f, tw[i]]);
+      if (pairs.every(([f, t]) => phraseDistance(f, t) <= 0.65)) return pairs;
+    }
+    if (fw.length > 6 || tw.length > 6) return [];
+    let best = null;
+    for (const f of spans(fw)) for (const t of spans(tw)) { const d = phraseDistance(f, t); if (!best || d < best.d) best = { f, t, d }; }
+    return best ? [[best.f, best.t]] : [];
+  }
+  function extractPairs(heard, fixed) {
+    const o = tokenize(heard), e = tokenize(fixed);
+    if (!o.length || !e.length || heard === fixed) return { pairs: [], skipped: [] };
+    const subs = blocks(o, e);
+    const changed = subs.reduce((n, [a, b]) => n + Math.min(a.split(" ").length, b.split(" ").length), 0);
+    if (changed > o.length * 0.5) return { pairs: [], skipped: [["whole edit", "more than half the words changed: a rewrite, not a fix"]] };
+    const pairs = [], skipped = [];
+    for (const [from, to] of subs.flatMap(([a, b]) => resolveBlock(a, b))) {
+      const fk = from.replace(/\s+/g, "").toLowerCase(), tk = to.replace(/\s+/g, "").toLowerCase();
+      if (fk === tk) continue;
+      if (tk.length < 3) { skipped.push([`${from} → ${to}`, "too short to learn"]); continue; }
+      if (phraseDistance(from, to) > 0.65) { skipped.push([`${from} → ${to}`, "doesn't sound alike: a different word, not a mishearing"]); continue; }
+      pairs.push({ from, to });
+    }
+    return { pairs, skipped };
+  }
+  const TERM_RE = /[A-Z0-9]|[^\x00-\x7F]/;
+  const STOP = new Set("a an the and or but nor so yet if then than as of in on at to for from by with into onto about over under up down out off i me my mine you your yours he him his she her hers it its we us our ours they them their theirs this that these those is am are was were be been being do does did have has had will would shall should can could may might must not no yes oh um uh".split(" "));
+  // Stand-in for the Mac's word list: the real app checks ~235,000 words.
+  const KNOWN = new Set("their there ill well monday tuesday team adam andy ana super base every day deploy please ask about today put over by the door sent thanks check before lunch logs down again is are what cafe".split(" "));
+  let learned = new Map(); // "from\u0000to" -> count
+  let approved = new Set(); // "from\u0000to" the reader said Always to
+  let lastSkipped = [];
+
+  function ruleStatus(from, to, count) {
+    const fk = from.toLowerCase().split(/[\s-]+/).join(" "), fc = fk.replace(/ /g, ""), tc = to.toLowerCase().replace(/[\s-]+/g, "");
+    if (tc.includes(fc) || fc.includes(tc)) return ["no", "never swapped", "The fix only extends or trims the text, which is an edit, not a mishearing."];
+    const words = fk.split(" ");
+    if (words.length === 1) {
+      if (/^\d+$/.test(fk)) return ["no", "never swapped", "Numbers are real text; swapping them would change what you meant."];
+      if (KNOWN.has(fk)) return ["no", "never swapped", `“${from}” is a real word you might really say, so swapping it everywhere would break correct text. “${to}” still goes into your Dictionary and hints.`];
+    } else {
+      if (words.some((w) => STOP.has(w))) return ["no", "never swapped", `“${from}” contains everyday words, so it can appear in normal speech. “${to}” still goes into your Dictionary and hints.`];
+      if (!TERM_RE.test(to)) return ["no", "never swapped", `“${to}” is a plain lowercase word, so this looks like an edit, not a name or term.`];
+    }
+    if (approved.has(`${from}\u0000${to}`)) return ["good", "swaps now", "You said Always, so every engine gets this right from now on."];
+    if (count >= 2) return ["ask", "Memory asks", `Fixed ${count} times, and “${from}” isn't something you'd really say. Memory asks before it swaps anything.`];
+    return ["wait", "needs 1 more fix", "Memory waits for the same fix twice: one fix could be a one-off edit."];
+  }
+  const activeRules = () =>
+    [...learned.entries()]
+      .map(([k, c]) => { const [from, to] = k.split("\u0000"); return { from, to, c }; })
+      .filter((r) => ruleStatus(r.from, r.to, r.c)[0] === "good")
+      .sort((a, b) => b.from.length - a.from.length);
+
+  function applyRules(text) {
+    const rules = activeRules();
+    if (!rules.length || !text) return esc(text);
+    const norm = (s) => s.toLowerCase().split(/[\s-]+/).filter(Boolean).join(" ");
+    const byKey = new Map(rules.map((r) => [norm(r.from), r.to]));
+    const alt = rules.map((r) => r.from.trim().split(/[\s-]+/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s-]+")).join("|");
+    const W = "(?![\\p{sc=Han}\\p{sc=Hiragana}\\p{sc=Katakana}\\p{sc=Hangul}])[\\p{L}\\p{N}]";
+    let re;
+    try { re = new RegExp(`(?<!${W}|['’_]|[\\p{L}\\p{N}]\\.)(?:${alt})(?!${W}|['’_]|\\.[\\p{L}\\p{N}])`, "giu"); } catch { return esc(text); }
+    let out = "", last = 0;
+    for (const m of text.matchAll(re)) {
+      const to = byKey.get(norm(m[0]));
+      if (to === undefined) continue;
+      out += esc(text.slice(last, m.index)) + `<mark class="fix" title="was “${esc(m[0])}”">${esc(to)}</mark>`;
+      last = m.index + m[0].length;
+    }
+    return out + esc(text.slice(last));
+  }
+
+  function renderRules() {
+    const rows = [...learned.entries()].map(([k, c]) => {
+      const [from, to] = k.split("\u0000");
+      const [cls, label, why] = ruleStatus(from, to, c);
+      const badge = cls === "ask"
+        ? `<button type="button" class="btn btn-primary always" data-key="${encodeURIComponent(k)}">Always change</button>`
+        : `<span class="tag ${cls}">${label}</span>`;
+      return `<div class="rule"><span class="pair">${esc(from)} → <strong>${esc(to)}</strong> <span class="note">· learned ${c}×</span></span>${badge}<span class="why">${esc(why)}</span></div>`;
+    });
+    const skipped = lastSkipped.map(([what, why]) => `<div class="rule"><span class="pair">${esc(what)}</span><span class="tag no">ignored</span><span class="why">${esc(why)}</span></div>`);
+    $("pg-rules").innerHTML = rows.length || skipped.length ? [...rows, ...skipped].join("") : `<p class="empty">Memory hasn't learned anything yet. Press “Teach Memory this fix”.</p>`;
+    $("pg-rules").querySelectorAll("button.always").forEach((b) => b.addEventListener("click", () => {
+      approved = new Set([...approved, decodeURIComponent(b.dataset.key)]);
+      $("pg-status").textContent = "Approved: Memory now swaps this with every engine.";
+      renderRules();
+    }));
+    $("pg-out").innerHTML = applyRules($("pg-next").value) || "&nbsp;";
+  }
+
+  $("pg-teach").addEventListener("click", () => {
+    const { pairs, skipped } = extractPairs($("pg-heard").value.trim(), $("pg-fixed").value.trim());
+    lastSkipped = skipped;
+    const next = new Map(learned);
+    for (const p of pairs) { const k = `${p.from}\u0000${p.to}`; next.set(k, (next.get(k) || 0) + 1); }
+    learned = next;
+    const asks = pairs.filter((p) => ruleStatus(p.from, p.to, next.get(`${p.from}\u0000${p.to}`))[0] === "ask");
+    $("pg-status").textContent = asks.length
+      ? `Memory asks: always change “${asks[0].from}” to “${asks[0].to}”?`
+      : pairs.length ? `Learned ${pairs.length} pair${pairs.length > 1 ? "s" : ""}.` : "Nothing learned from that edit.";
+    renderRules();
+  });
+  $("pg-reset").addEventListener("click", () => { learned = new Map(); approved = new Set(); lastSkipped = []; $("pg-status").textContent = "Memory is empty."; renderRules(); });
+  $("pg-next").addEventListener("input", renderRules);
+  const EXAMPLES = [
+    ["please deploy to super base and ask shunade", "please deploy to Supabase and ask Sinead", "super base is down again, ask shunade about Superbase logs"],
+    ["the logs are in Superbase today", "the logs are in Supabase today", "check Superbase before lunch"],
+    ["put it over their by the door", "put it over there by the door", "their team said it's over their"],
+    ["can you ask shunade for the deck", "can you ask Sinead for the deck", "shunade sent it, thanks shunade"],
+    ["we need a team to review this", "we need Adam to review this", "we need a team for this"],
+  ];
+  document.querySelectorAll("[data-ex]").forEach((b) => b.addEventListener("click", () => {
+    const [h, f, n] = EXAMPLES[+b.dataset.ex];
+    $("pg-heard").value = h; $("pg-fixed").value = f; $("pg-next").value = n;
+    $("pg-status").textContent = "Example loaded. Press “Teach Memory this fix” twice.";
+    renderRules();
+  }));
+  renderRules();
+
+  /* ---------- 07 auto-mode guard ---------- */
+  const FLOW = [
+    ["Is a language pinned?", { en: "No, Auto", mixed: "No, Auto", hijack: "No, Auto" }],
+    ["Were hints held back after a hijack?", { en: "No: send your words as the prompt", mixed: "No: send your words as the prompt", hijack: "No: send your words as the prompt" }],
+    ["Whisper detects the language (hints can't sway this)", { en: "english", mixed: "chinese", hijack: "chinese" }],
+    ["Detected Chinese, Japanese or Korean, but the text has none of those characters?", { en: "Not a CJK language: keep the text. Hints stay on.", mixed: "Text has Chinese characters: keep it. Hints stay on, so “Supabase” gets its hint.", hijack: "Yes: “Now the time is good” has no Chinese. The prompt hijacked the decode." }],
+    ["Redo without hints, then hold hints until a non-CJK dictation", { en: null, mixed: null, hijack: "Second pass → 现在天气很好. Next English dictation turns hints back on." }],
+  ];
+  function renderFlow() {
+    const s = segValue($("seg-auto"));
+    $("flow").innerHTML = FLOW.map(([q, res], i) => {
+      const r = res[s];
+      return `<div class="step ${r ? "on" : "off"}"><span class="q">${i + 1}</span><strong>${esc(q)}</strong><span class="res">${r ? esc(r) : "Skipped"}</span></div>`;
+    }).join("");
+  }
+  wireSeg($("seg-auto"), renderFlow);
+  renderFlow();
+})();
+</script>
+</body>
+</html>
