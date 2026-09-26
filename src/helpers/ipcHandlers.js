@@ -38,9 +38,9 @@ function replaySoon() {
   require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox().catch(() => {});
 }
 
-// How long after a meeting stops the renderer gets to save its transcript
-// before a waiting encryption lock closes the database.
-const MEETING_SAVE_GRACE_MS = 60 * 1000;
+// A lock that waited for a meeting happens this long after it ends, once the
+// renderer has saved the transcript and notes (they go to the database).
+const DEFERRED_LOCK_AFTER_MEETING_MS = 60 * 1000;
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
 // Debounce delay: wait for user to stop typing before processing corrections
@@ -160,8 +160,6 @@ class IPCHandlers {
     // dropped, rotated out, mid-reconnect): that stretch exists only in the
     // buffer, so the buffer outlives the meeting.
     this._meetingAudioUntranscribed = false;
-    // When the last meeting stopped; see isMeetingActiveOrSaving.
-    this._meetingStoppedAt = null;
     this._meetingRotating = false;
     // Bumped whenever a meeting starts or stops, so a rotation or reconnect
     // that finishes late can tell its meeting is gone.
@@ -276,20 +274,14 @@ class IPCHandlers {
     this._sweepExpiredAudio();
   }
 
-  /**
-   * With encryption on, a lock waits while this is true: during a meeting, and
-   * for a minute after it stops, while the renderer saves the transcript and
-   * notes to the database (the crash buffer is already gone by then).
-   */
-  isMeetingActiveOrSaving(now = Date.now()) {
-    if (this._meetingAudioBuffer?.isActive) return true;
-    return this._meetingStoppedAt != null && now - this._meetingStoppedAt < MEETING_SAVE_GRACE_MS;
+  /** With encryption on, a lock asked for while this is true waits until the meeting ends. */
+  isMeetingRecording() {
+    return Boolean(this._meetingAudioBuffer?.isActive);
   }
 
-  /** A meeting stopped (cleanly or not): a lock that waited for it happens after the grace minute. */
+  /** A meeting ended (stopped, failed to stop, or failed to start): run a lock that waited for it. */
   _afterMeetingStopped() {
-    this._meetingStoppedAt = Date.now();
-    setTimeout(() => vault.releaseDeferredLock().catch(() => {}), MEETING_SAVE_GRACE_MS + 1000).unref?.();
+    setTimeout(() => vault.releaseDeferredLock().catch(() => {}), DEFERRED_LOCK_AFTER_MEETING_MS).unref?.();
   }
 
   /**
@@ -4872,6 +4864,7 @@ class IPCHandlers {
         this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
+        this._afterMeetingStopped();
         debugLogger.error("Meeting transcription start error", { error: error.message });
         return { success: false, error: error.message };
       } finally {

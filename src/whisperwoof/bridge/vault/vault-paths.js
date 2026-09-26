@@ -28,8 +28,11 @@ function ensurePrivateDir(dir) {
   return dir;
 }
 
-/** Write via a temp file + fsync + rename, so a crash leaves the old or the new file, never half. */
-function writeFileAtomic(file, data, mode = 0o600) {
+/**
+ * Write via a temp file + fsync + rename, so a crash leaves the old or the new
+ * file, never half. `times` (a Stats) gives the new file those dates first.
+ */
+function writeFileAtomic(file, data, mode = 0o600, times = null) {
   const tmp = `${file}.tmp-${crypto.randomBytes(4).toString("hex")}`;
   const fd = fs.openSync(tmp, "w", mode);
   try {
@@ -38,6 +41,7 @@ function writeFileAtomic(file, data, mode = 0o600) {
   } finally {
     fs.closeSync(fd);
   }
+  if (times) keepTimes(tmp, times);
   fs.renameSync(tmp, file);
   syncDir(path.dirname(file));
 }

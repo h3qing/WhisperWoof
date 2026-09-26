@@ -8,6 +8,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { createRequire } from "module";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const load = async (p: string) => {
@@ -17,6 +18,8 @@ const load = async (p: string) => {
 const IPCHandlers = await load("../../../helpers/ipcHandlers");
 const MeetingAudioBuffer = await load("../../../helpers/meetingAudioBuffer");
 const AudioStorageManager = await load("../../../helpers/audioStorage");
+// The instance ipcHandlers itself required (CommonJS cache), not a fresh import.
+const vaultService = createRequire(import.meta.url)("../../bridge/vault/vault-service.js");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_UUID = "0b6e3a52-9d1c-4f0e-8a51-3c2f7d9e1a44";
@@ -119,26 +122,29 @@ describe("main-process audio retention", () => {
   });
 
   describe("encryption lock around a meeting", () => {
-    // Stopping deletes the crash buffer before the renderer saves the
-    // transcript, so the database must stay open until that save is done.
-    it("holds a lock while recording and for a minute after stop", () => {
+    // A lock asked for during a meeting waits; it happens a minute after the
+    // meeting ends (cleanly or not), once the renderer has saved the transcript.
+    it("releases a waiting lock a minute after the meeting ends", () => {
       vi.useFakeTimers();
+      const release = vi.spyOn(vaultService, "releaseDeferredLock").mockResolvedValue(undefined);
       try {
-        handlers._meetingAudioBuffer.start();
-        expect(handlers.isMeetingActiveOrSaving()).toBe(true);
-
-        handlers._meetingAudioBuffer.stop();
         handlers._afterMeetingStopped();
-        const stoppedAt = Date.now();
-        expect(handlers.isMeetingActiveOrSaving(stoppedAt + 30_000)).toBe(true);
-        expect(handlers.isMeetingActiveOrSaving(stoppedAt + 61_000)).toBe(false);
+        vi.advanceTimersByTime(59_000);
+        expect(release).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(2_000);
+        expect(release).toHaveBeenCalledTimes(1);
       } finally {
+        release.mockRestore();
         vi.useRealTimers();
       }
     });
 
-    it("doesn't hold a lock when no meeting has run", () => {
-      expect(handlers.isMeetingActiveOrSaving()).toBe(false);
+    it("blocks a lock only while recording: Mac sleep right after a meeting still locks", () => {
+      handlers._meetingAudioBuffer.start();
+      expect(handlers.isMeetingRecording()).toBe(true);
+      handlers._meetingAudioBuffer.stop();
+      handlers._afterMeetingStopped();
+      expect(handlers.isMeetingRecording()).toBe(false);
     });
   });
 

@@ -21,7 +21,7 @@ const planPure = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const migrate = require("./vault-migrate");
 const { sealedPath } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, removeIfExists } = require("./vault-paths");
+const { vaultPaths, ensurePrivateDir, writeFileAtomic, removeIfExists } = require("./vault-paths");
 const debugLogger = require("../../../helpers/debugLogger");
 
 const PASSWORD_TTL_MS = 30 * 60 * 1000;
@@ -140,9 +140,7 @@ function rewrapFiles(files, oldPrivateKey, newKeys, onProgress) {
       skipped.push(file);
       return;
     }
-    const original = fs.statSync(file);
-    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw));
-    keepTimes(file, original);
+    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, fs.statSync(file));
     if (i % 10 === 0 || i === files.length - 1) onProgress({ direction: "rotate", phase: "files", done: i + 1, total: files.length });
   });
   return skipped;
