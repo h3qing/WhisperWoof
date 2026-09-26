@@ -25,7 +25,9 @@ const DEFAULT_KEYBINDINGS = Object.freeze({
   // Routing
   "save-markdown": { key: "Fn+N", label: "Save as Markdown", category: "routing" },
   "route-project": { key: "Fn+P", label: "Route to project", category: "routing" },
-  "route-todo": { key: "Fn+T", label: "Route to todo", category: "routing" },
+  // Fn+T copies the dictation to the clipboard. The id is older than that
+  // and stays, since saved overrides are keyed by it.
+  "route-todo": { key: "Fn+T", label: "Copy to clipboard", category: "routing" },
 
   // Navigation
   "open-history": { key: "CommandOrControl+H", label: "Open history", category: "navigation" },

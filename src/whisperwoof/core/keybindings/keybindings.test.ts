@@ -23,6 +23,7 @@ import {
   detectConflict,
   validateKeybindingBundle,
 } from "../../bridge/keybindings-pure";
+import { ROUTED_HOTKEYS, routeForHotkey } from "../router/dictation-route";
 
 interface MergedBinding {
   actionId: string;
@@ -187,5 +188,19 @@ describe("DEFAULT_KEYBINDINGS integrity", () => {
 
   it("is frozen so runtime mutation can't corrupt the default list", () => {
     expect(Object.isFrozen(DEFAULT_KEYBINDINGS)).toBe(true);
+  });
+
+  // The label is what Settings shows; the route is what dictation actually does.
+  it("names where each Fn combo really sends the dictation", () => {
+    const LABEL_FOR_ROUTE: Record<string, string> = {
+      "copy-to-clipboard": "Copy to clipboard",
+      "save-as-markdown": "Save as Markdown",
+      project: "Route to project",
+    };
+    const bindings = Object.values(DEFAULT_KEYBINDINGS) as { key: string; label: string }[];
+    for (const hotkey of ROUTED_HOTKEYS) {
+      const binding = bindings.find((b) => b.key === hotkey);
+      expect(binding?.label, hotkey).toBe(LABEL_FOR_ROUTE[routeForHotkey(hotkey)]);
+    }
   });
 });
