@@ -19,6 +19,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
 const {
   isValidTime,
   parseTime,
@@ -38,8 +39,8 @@ let notifyCallback = null; // Set by app-init to show notifications
 
 function loadSchedules() {
   try {
-    if (fs.existsSync(SCHEDULES_FILE)) {
-      return JSON.parse(fs.readFileSync(SCHEDULES_FILE, "utf-8"));
+    if (vaultFiles.exists(SCHEDULES_FILE)) {
+      return vaultFiles.readJson(SCHEDULES_FILE, []);
     }
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to load schedules", { error: err.message });
@@ -51,7 +52,7 @@ function saveSchedules(schedules) {
   try {
     const dir = path.dirname(SCHEDULES_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(SCHEDULES_FILE, JSON.stringify(schedules, null, 2), "utf-8");
+    vaultFiles.writeJson(SCHEDULES_FILE, schedules, { requireUnlocked: true });
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to save schedules", { error: err.message });
   }

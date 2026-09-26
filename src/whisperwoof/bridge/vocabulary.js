@@ -15,6 +15,8 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
+const vault = require("./vault/vault-service");
 const {
   MAX_ENTRIES,
   filterVocabulary,
@@ -65,12 +67,15 @@ let _cacheDirty = false;
 function loadVocabulary() {
   if (_vocabCache !== null) return _vocabCache;
   try {
-    if (fs.existsSync(VOCAB_FILE)) {
-      const data = JSON.parse(fs.readFileSync(VOCAB_FILE, "utf-8"));
+    if (vaultFiles.exists(VOCAB_FILE)) {
+      const data = vaultFiles.readJson(VOCAB_FILE, []);
       _vocabCache = Array.isArray(data) ? data : [];
       return _vocabCache;
     }
   } catch (err) {
+    // Locked after a restart: dictation runs without Memory until unlock.
+    // Not cached, so the first read after unlock loads the real list.
+    if (err.code === "LOCKED") return [];
     debugLogger.warn("[WhisperWoof] Failed to load vocabulary", { error: err.message });
   }
   _vocabCache = [];
@@ -78,6 +83,8 @@ function loadVocabulary() {
 }
 
 function saveVocabulary(entries) {
+  // `entries` came from an empty locked read: writing it would erase Memory.
+  if (_vocabCache === null && vault.isOn() && !vault.isUnlocked()) throw new vault.VaultLockedError();
   _vocabCache = entries;
   _cacheDirty = true;
   flushToDisk();
@@ -86,7 +93,7 @@ function saveVocabulary(entries) {
 function flushToDisk() {
   if (!_cacheDirty || _vocabCache === null) return;
   try {
-    fs.writeFileSync(VOCAB_FILE, JSON.stringify(_vocabCache, null, 2), "utf-8");
+    vaultFiles.writeJson(VOCAB_FILE, _vocabCache);
     _cacheDirty = false;
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to save vocabulary", { error: err.message });

@@ -9,6 +9,12 @@ const NUM_CHANNELS = 1;
 const BYTES_PER_SAMPLE = BITS_PER_SAMPLE / 8;
 const SEGMENT_DURATION_MS = 5 * 60 * 1000; // 5 minutes per file
 const WAV_HEADER_SIZE = 44;
+// Encryption on: segments are sealed streams (WWENC1) of raw PCM, written in
+// ~1 s chunks so a crash loses at most about a second. The vault's public key
+// is enough to write them, so recording keeps going while WhisperWoof is locked.
+const SEALED_CHUNK_BYTES = SAMPLE_RATE * BYTES_PER_SAMPLE * NUM_CHANNELS; // 1 s
+const vaultService = () => require("../whisperwoof/bridge/vault/vault-service");
+const wwenc = () => require("../whisperwoof/bridge/vault/wwenc-pure");
 
 /**
  * Build a WAV header buffer for the given data size.
@@ -119,7 +125,11 @@ class MeetingAudioBuffer {
       this._openSegment(sourceState, source);
     }
 
-    fs.writeSync(sourceState.fd, buf, 0, buf.length);
+    if (sourceState.sealed) {
+      this._appendSealed(sourceState, buf);
+    } else {
+      fs.writeSync(sourceState.fd, buf, 0, buf.length);
+    }
     sourceState.dataSize += buf.length;
     sourceState.totalBytes += buf.length;
   }
@@ -235,11 +245,22 @@ class MeetingAudioBuffer {
   }
 
   _openSegment(state, source) {
-    const fileName = `${source}-${String(state.segmentIndex).padStart(4, "0")}.wav`;
+    const sealed = vaultService().isOn();
+    const base = `${source}-${String(state.segmentIndex).padStart(4, "0")}`;
+    const fileName = sealed ? `${base}.pcm.wwenc` : `${base}.wav`;
     const filePath = path.join(this._sessionDir, fileName);
 
-    const fd = fs.openSync(filePath, "w");
-    writeInitialWavHeader(fd); // placeholder header, advances file offset to 44
+    const fd = fs.openSync(filePath, "w", 0o600);
+    if (sealed) {
+      const stream = wwenc().createStream(vaultService().sealPublicRaw(), { kind: "meeting-pcm" });
+      fs.writeSync(fd, stream.header);
+      state.stream = stream.state;
+      state.chunkIndex = 0;
+      state.pending = Buffer.alloc(0);
+    } else {
+      writeInitialWavHeader(fd); // placeholder header, advances file offset to 44
+    }
+    state.sealed = sealed;
 
     state.fd = fd;
     state.filePath = filePath;
@@ -253,8 +274,14 @@ class MeetingAudioBuffer {
     if (state.fd === null) return;
 
     try {
-      // Patch WAV header with actual data size (pwrite — doesn't move offset)
-      patchWavHeader(state.fd, state.dataSize);
+      if (state.sealed) {
+        // The last chunk carries the "end" flag; without it a reader knows the file was cut short.
+        this._writeSealedChunk(state, state.pending, true);
+        state.pending = Buffer.alloc(0);
+      } else {
+        // Patch WAV header with actual data size (pwrite — doesn't move offset)
+        patchWavHeader(state.fd, state.dataSize);
+      }
       fs.closeSync(state.fd);
 
       if (state.dataSize > 0) {
@@ -280,6 +307,22 @@ class MeetingAudioBuffer {
     state.filePath = null;
     state.segmentIndex++;
     state.dataSize = 0;
+    state.sealed = false;
+    state.stream = null;
+  }
+
+  _appendSealed(state, buf) {
+    let pending = Buffer.concat([state.pending, buf]);
+    while (pending.length >= SEALED_CHUNK_BYTES) {
+      this._writeSealedChunk(state, pending.subarray(0, SEALED_CHUNK_BYTES), false);
+      pending = pending.subarray(SEALED_CHUNK_BYTES);
+    }
+    state.pending = Buffer.from(pending);
+  }
+
+  _writeSealedChunk(state, plain, last) {
+    fs.writeSync(state.fd, wwenc().sealChunk(state.stream, state.chunkIndex, plain, last));
+    state.chunkIndex++;
   }
 }
 

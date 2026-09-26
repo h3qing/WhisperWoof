@@ -5,6 +5,26 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-09-25 — Encryption: your notes and recordings, locked
+
+### Added
+- **Encrypt everything WhisperWoof keeps about you.** Settings → Encryption turns it on. Your history (search still works), notes, recordings, clipboard images, Memory and meeting audio are then stored encrypted on this Mac. It unlocks with Touch ID or your password, and a 12-word recovery phrase opens your data on any Mac if you forget the password. There's no back door: if you lose both the password and the phrase, the data is gone, and the setup screen says so before you start. It's off until you turn it on.
+- **Dictation keeps working while WhisperWoof is locked.** It locks when your Mac locks or sleeps (and, if you like, after you've been idle). Anything you dictate, save as a note (Fn+N, Fn+P) or copy as text while it's locked is sealed so nobody can read it, and joins your history, at the time you said it, when you unlock. (Images copied while it's locked aren't kept.)
+- **Touch ID really holds the key.** It uses the Mac's Secure Enclave, so the key can't be read without your finger, even by someone who knows your Mac password. If you add a fingerprint, Touch ID turns off until you enter your password once.
+- **Copy the recovery phrase in one click**, straight into your password manager. WhisperWoof keeps it out of clipboard history, marks it so clipboard managers skip it, and clears it from the clipboard after a minute.
+- **Notes can stay readable by other apps.** Turn on "Keep notes readable by other apps" to keep them as plain Markdown for Obsidian or iCloud.
+- **Home asks once.** A small card offers encryption. "I don't need encryption" hides it for good, and you can always turn it on later in Settings → Encryption.
+- From Settings you can change your password, make a new recovery phrase (the old one stops working), lock right away, or turn encryption off again.
+
+### Changed
+- **Your recordings no longer pass through the temp folder.** Converting audio for speech-to-text now happens in memory.
+- **The debug log leaves out what you said or typed** while encryption is on.
+- **Resetting WhisperWoof asks you to turn off encryption first**, so encrypted notes in your notes folder can't become unreadable.
+
+### Fixed
+- **Passwords copied from a password manager really aren't captured now.** The clipboard history skips anything marked concealed or transient (1Password, Bitwarden and other password managers mark what they copy), as Settings already said it did.
+- **Telegram notes that failed to import are tried again** instead of being marked done. With encryption on, imported notes are removed from the plain inbox file.
+
 ## [2.2.0] - 2026-09-25 — A clipboard you can actually use
 
 ### Added

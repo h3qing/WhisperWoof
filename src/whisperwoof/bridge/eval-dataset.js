@@ -13,6 +13,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
 
 const EVAL_FILE = path.join(app.getPath("userData"), "eval-dataset.json");
 const EVAL_AUDIO_DIR = path.join(app.getPath("userData"), "eval-audio");
@@ -25,8 +26,8 @@ function ensureDir() {
 
 function loadDataset() {
   try {
-    if (fs.existsSync(EVAL_FILE)) {
-      return JSON.parse(fs.readFileSync(EVAL_FILE, "utf-8"));
+    if (vaultFiles.exists(EVAL_FILE)) {
+      return vaultFiles.readJson(EVAL_FILE, null);
     }
   } catch (err) {
     debugLogger.warn("[EvalDataset] Failed to load", { error: err.message });
@@ -36,7 +37,7 @@ function loadDataset() {
 
 function saveDataset(data) {
   try {
-    fs.writeFileSync(EVAL_FILE, JSON.stringify(data, null, 2), "utf-8");
+    vaultFiles.writeJson(EVAL_FILE, data, { requireUnlocked: true });
   } catch (err) {
     debugLogger.warn("[EvalDataset] Failed to save", { error: err.message });
   }
@@ -76,7 +77,7 @@ function rateTranscription({
   if (audioBuffer) {
     savedAudioPath = path.join(EVAL_AUDIO_DIR, `${id}.webm`);
     try {
-      fs.writeFileSync(savedAudioPath, Buffer.from(audioBuffer));
+      vaultFiles.writeFile(savedAudioPath, Buffer.from(audioBuffer), { kind: "audio" });
     } catch (err) {
       debugLogger.warn("[EvalDataset] Failed to save audio", { error: err.message });
       savedAudioPath = null;
@@ -84,7 +85,7 @@ function rateTranscription({
   } else if (audioSourcePath && fs.existsSync(audioSourcePath)) {
     savedAudioPath = path.join(EVAL_AUDIO_DIR, `${id}.webm`);
     try {
-      fs.copyFileSync(audioSourcePath, savedAudioPath);
+      vaultFiles.writeFile(savedAudioPath, fs.readFileSync(audioSourcePath), { kind: "audio" });
     } catch (err) {
       debugLogger.warn("[EvalDataset] Failed to copy audio", { error: err.message });
       savedAudioPath = null;
@@ -133,7 +134,7 @@ function getEvalStats() {
   const total = dataset.entries.length;
   const good = dataset.entries.filter((e) => e.rating === 1).length;
   const bad = dataset.entries.filter((e) => e.rating === -1).length;
-  const withAudio = dataset.entries.filter((e) => e.audioPath && fs.existsSync(e.audioPath)).length;
+  const withAudio = dataset.entries.filter((e) => e.audioPath && vaultFiles.exists(e.audioPath)).length;
 
   return { total, good, bad, withAudio };
 }
@@ -144,8 +145,8 @@ function getEvalStats() {
 function deleteEvalEntry(id) {
   const dataset = loadDataset();
   const entry = dataset.entries.find((e) => e.id === id);
-  if (entry?.audioPath && fs.existsSync(entry.audioPath)) {
-    try { fs.unlinkSync(entry.audioPath); } catch { /* */ }
+  if (entry?.audioPath && vaultFiles.exists(entry.audioPath)) {
+    try { vaultFiles.unlink(entry.audioPath); } catch { /* */ }
   }
   dataset.entries = dataset.entries.filter((e) => e.id !== id);
   saveDataset(dataset);

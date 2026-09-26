@@ -14,6 +14,33 @@ const { pathToFileURL } = require("url");
 const { clipboard, nativeImage, BrowserWindow, shell } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const pure = require("./clipboard-pure");
+const vault = require("./vault/vault-service");
+const vaultFiles = require("./vault/vault-files");
+
+/** An image from a stored path; sealed images are decrypted in memory. */
+function loadImage(filePath) {
+  if (!filePath || !vaultFiles.exists(filePath)) return null;
+  const physical = vaultFiles.physicalPath(filePath);
+  return physical === filePath
+    ? nativeImage.createFromPath(filePath)
+    : nativeImage.createFromBuffer(vaultFiles.readFile(filePath));
+}
+
+/**
+ * A kept file to paste back as a file. A sealed one is decrypted into the
+ * vault's private temp folder (emptied on lock and at startup) for 10 minutes,
+ * long enough to paste it somewhere.
+ */
+function pasteablePath(filePath) {
+  if (vaultFiles.physicalPath(filePath) === filePath) return filePath;
+  const crypto = require("crypto");
+  const { vaultPaths, ensurePrivateDir, writeFileAtomic } = require("./vault/vault-paths");
+  const dir = ensurePrivateDir(path.join(vaultPaths.tmpDir(), crypto.randomUUID()));
+  const target = path.join(dir, path.basename(filePath));
+  writeFileAtomic(target, vaultFiles.readFile(filePath));
+  setTimeout(() => fs.rmSync(dir, { recursive: true, force: true }), 10 * 60 * 1000).unref?.();
+  return target;
+}
 
 // Lazy: app-init requires this module too.
 const db = () => require("./app-init").getWhisperWoofDb();
@@ -85,7 +112,7 @@ function listClipboard({ kind = "text", limit = 60, offset = 0, query = "" } = {
 
 function fileSize(filePath) {
   try {
-    return filePath ? fs.statSync(filePath).size : 0;
+    return filePath ? vaultFiles.statFile(filePath)?.size ?? 0 : 0;
   } catch {
     return 0;
   }
@@ -213,16 +240,17 @@ function copyItem(id) {
   if (!row) return { success: false, error: "Not a clipboard item" };
   const meta = pure.parseMetadata(row.metadata);
   if (meta.type === "image") {
-    const image = row.audio_path ? nativeImage.createFromPath(row.audio_path) : null;
+    const image = loadImage(row.audio_path);
     if (!image || image.isEmpty()) return { success: false, error: "The image file is missing" };
     clipboard.writeImage(image);
   } else if (meta.type === "file") {
-    if (!row.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
+    if (!row.audio_path || !vaultFiles.exists(row.audio_path)) return { success: false, error: "The file is missing" };
+    const filePath = pasteablePath(row.audio_path);
     // As a file (Finder, Mail and chat apps paste it as an attachment); its path elsewhere.
     if (process.platform === "darwin") {
-      clipboard.writeBuffer("public.file-url", Buffer.from(pathToFileURL(row.audio_path).href));
+      clipboard.writeBuffer("public.file-url", Buffer.from(pathToFileURL(filePath).href));
     } else {
-      clipboard.writeText(row.audio_path);
+      clipboard.writeText(filePath);
     }
   } else {
     const text = row.polished ?? row.raw_text ?? "";
@@ -238,8 +266,8 @@ function copyItem(id) {
 /** Show a kept image or file in Finder. */
 function reveal(id) {
   const row = clipboardRow(id);
-  if (!row?.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
-  shell.showItemInFolder(row.audio_path);
+  if (!row?.audio_path || !vaultFiles.exists(row.audio_path)) return { success: false, error: "The file is missing" };
+  shell.showItemInFolder(vaultFiles.physicalPath(row.audio_path));
   return { success: true };
 }
 
@@ -254,11 +282,11 @@ function preview(id, { size = "thumb" } = {}) {
   if (meta.type !== "image") return { success: false, error: "Not an image" };
   const maxWidth = size === "large" ? LARGE_PREVIEW_WIDTH : PREVIEW_WIDTH;
   try {
-    if (size !== "large" && meta.thumbPath && fs.existsSync(meta.thumbPath)) {
+    if (size !== "large" && meta.thumbPath && vaultFiles.exists(meta.thumbPath)) {
       const mime = MIME[pure.extensionOf(meta.thumbPath)] ?? "image/png";
-      return { success: true, mime, data: fs.readFileSync(meta.thumbPath).toString("base64") };
+      return { success: true, mime, data: vaultFiles.readFile(meta.thumbPath).toString("base64") };
     }
-    const image = row.audio_path ? nativeImage.createFromPath(row.audio_path) : null;
+    const image = loadImage(row.audio_path);
     if (!image || image.isEmpty()) return { success: false, error: "The image file is missing" };
     const { width } = image.getSize();
     const scaled = width > maxWidth ? image.resize({ width: maxWidth }) : image;
@@ -272,7 +300,7 @@ function uniquePath(dir, fileName) {
   const ext = path.extname(fileName);
   const stem = fileName.slice(0, fileName.length - ext.length);
   let candidate = path.join(dir, fileName);
-  for (let n = 1; fs.existsSync(candidate); n++) candidate = path.join(dir, `${stem}-${n}${ext}`);
+  for (let n = 1; vaultFiles.exists(candidate); n++) candidate = path.join(dir, `${stem}-${n}${ext}`);
   return candidate;
 }
 
@@ -293,11 +321,12 @@ function saveToNote(id) {
   const meta = pure.parseMetadata(row.metadata);
   if (meta.type === "file") {
     try {
-      if (!row.audio_path || !fs.existsSync(row.audio_path)) return { success: false, error: "The file is missing" };
+      if (!row.audio_path || !vaultFiles.exists(row.audio_path)) return { success: false, error: "The file is missing" };
       const attachDir = path.join(getNotesDirectory(), "attachments");
       fs.mkdirSync(attachDir, { recursive: true });
       const target = uniquePath(attachDir, path.basename(row.audio_path));
-      fs.copyFileSync(row.audio_path, target);
+      // Attachments are sealed exactly when notes are.
+      vaultFiles.writeFile(target, vaultFiles.readFile(row.audio_path), { kind: "attachment", seal: vault.sealsNotes() });
       const name = meta.fileName || path.basename(target);
       return saveAsMarkdown(pure.fileNoteBody(name, `attachments/${path.basename(target)}`), {
         source: "clipboard",
@@ -312,18 +341,19 @@ function saveToNote(id) {
   }
   try {
     const source = row.audio_path;
-    if (!source || !fs.existsSync(source)) return { success: false, error: "The image file is missing" };
+    if (!source || !vaultFiles.exists(source)) return { success: false, error: "The image file is missing" };
     const attachDir = path.join(getNotesDirectory(), "attachments");
     fs.mkdirSync(attachDir, { recursive: true });
     const ext = pure.extensionOf(source) || ".png";
     const convert = CONVERT_FOR_NOTES.has(ext);
     const target = uniquePath(attachDir, pure.attachmentFileName(timestampStem(), convert ? ".png" : ext));
+    const seal = vault.sealsNotes();
     if (convert) {
-      const image = nativeImage.createFromPath(source);
-      if (image.isEmpty()) return { success: false, error: "The image couldn't be read" };
-      fs.writeFileSync(target, image.toPNG());
+      const image = loadImage(source);
+      if (!image || image.isEmpty()) return { success: false, error: "The image couldn't be read" };
+      vaultFiles.writeFile(target, image.toPNG(), { kind: "attachment", seal });
     } else {
-      fs.copyFileSync(source, target);
+      vaultFiles.writeFile(target, vaultFiles.readFile(source), { kind: "attachment", seal });
     }
     const title = meta.fileName || `Image ${meta.width ?? "?"}×${meta.height ?? "?"}`;
     return saveAsMarkdown(pure.imageNoteBody(`attachments/${path.basename(target)}`), {

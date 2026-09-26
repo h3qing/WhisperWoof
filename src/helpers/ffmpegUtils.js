@@ -110,6 +110,75 @@ function isWavFormat(buffer) {
   );
 }
 
+/** Raw s16le PCM → a WAV file in memory. */
+function pcmToWav(pcm, { sampleRate = 16000, channels = 1 } = {}) {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "latin1");
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVEfmt ", 8, "latin1");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * channels * 2, 28);
+  header.writeUInt16LE(channels * 2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "latin1");
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+/**
+ * Convert audio bytes to WAV through ffmpeg's stdin/stdout, so the user's
+ * voice never lands in the temp folder. Formats that need to seek (an mp4
+ * with its index at the end) fail here; callers fall back to convertToWav.
+ */
+function convertBufferToWav(inputBuffer, options = {}) {
+  const { sampleRate = 16000, channels = 1 } = options;
+  return new Promise((resolve, reject) => {
+    const ffmpegPath = getFFmpegPath();
+    if (!ffmpegPath) {
+      reject(new Error("FFmpeg not found"));
+      return;
+    }
+    const args = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-i",
+      "pipe:0",
+      "-ar",
+      String(sampleRate),
+      "-ac",
+      String(channels),
+      "-f",
+      "s16le",
+      "-acodec",
+      "pcm_s16le",
+      "pipe:1",
+    ];
+    const proc = spawn(ffmpegPath, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const out = [];
+    let stderr = "";
+    proc.stdout.on("data", (chunk) => out.push(chunk));
+    proc.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+    proc.on("error", (error) => reject(new Error(`FFmpeg process error: ${error.message}`)));
+    proc.on("close", (code) => {
+      const pcm = Buffer.concat(out);
+      if (code !== 0 || pcm.length === 0) {
+        reject(new Error(`FFmpeg pipe conversion failed (${code})${stderr ? `: ${stderr.slice(-300).trim()}` : ""}`));
+        return;
+      }
+      resolve(pcmToWav(pcm, { sampleRate, channels }));
+    });
+    // ffmpeg may stop reading early on bad input; that's reported by "close".
+    proc.stdin.on("error", () => {});
+    proc.stdin.end(inputBuffer);
+  });
+}
+
 function convertToWav(inputPath, outputPath, options = {}) {
   const { sampleRate = 16000, channels = 1 } = options;
 
@@ -459,6 +528,8 @@ module.exports = {
   isWavFormat,
   parseWavFormat,
   convertToWav,
+  convertBufferToWav,
+  pcmToWav,
   splitAudioFile,
   parseFfmpegDuration,
   wavToFloat32Samples,

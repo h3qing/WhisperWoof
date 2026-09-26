@@ -8,7 +8,7 @@ const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const { killProcess } = require("../utils/process");
 const { getSafeTempDir } = require("./safeTempDir");
-const { convertToWav } = require("./ffmpegUtils");
+const { convertToWav, convertBufferToWav } = require("./ffmpegUtils");
 
 const PORT_RANGE_START = 8178;
 const PORT_RANGE_END = 8199;
@@ -561,6 +561,12 @@ class WhisperServerManager extends EventEmitter {
   }
 
   async _convertToWav(audioBuffer) {
+    // In memory first: the recording never touches the temp folder.
+    try {
+      return await convertBufferToWav(audioBuffer, { sampleRate: 16000, channels: 1 });
+    } catch (err) {
+      debugLogger.debug("Pipe conversion failed, using temp files", { error: err.message });
+    }
     const tempDir = getSafeTempDir();
     const timestamp = Date.now();
     const tempInputPath = path.join(tempDir, `whisper-input-${timestamp}.webm`);

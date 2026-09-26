@@ -251,6 +251,7 @@ class TrayManager {
           await this.showControlPanelFromTray();
         },
       },
+      ...this.buildVaultMenuItems(),
       { type: "separator" },
       {
         label: i18nMain.t("tray.quit"),
@@ -260,6 +261,16 @@ class TrayManager {
         },
       },
     ];
+  }
+
+  /** "Lock WhisperWoof" / "Unlock WhisperWoof…" when encryption is on. */
+  buildVaultMenuItems() {
+    const vault = require("../whisperwoof/bridge/vault/vault-service");
+    if (!vault.isOn()) return [];
+    if (vault.isUnlocked()) {
+      return [{ label: "Lock WhisperWoof", click: () => vault.lock().catch(() => {}) }];
+    }
+    return [{ label: "Unlock WhisperWoof…", click: () => this.showControlPanelFromTray() }];
   }
 
   updateTrayMenu() {

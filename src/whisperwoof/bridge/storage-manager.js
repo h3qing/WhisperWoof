@@ -13,6 +13,8 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+// Entries keep logical paths; with encryption on the bytes are in "<path>.wwenc".
+const vaultFiles = require("./vault/vault-files");
 
 let db = null;
 
@@ -174,7 +176,7 @@ function deleteEntriesWithCleanup(ids) {
       // Delete associated files
       if (entry.audio_path) {
         try {
-          if (fs.existsSync(entry.audio_path)) { fs.unlinkSync(entry.audio_path); filesRemoved++; }
+          if (vaultFiles.exists(entry.audio_path)) { vaultFiles.unlink(entry.audio_path); filesRemoved++; }
         } catch { /* */ }
       }
 
@@ -182,7 +184,7 @@ function deleteEntriesWithCleanup(ids) {
       const meta = entry.metadata ? JSON.parse(entry.metadata) : {};
       if (meta.thumbPath) {
         try {
-          if (fs.existsSync(meta.thumbPath)) { fs.unlinkSync(meta.thumbPath); filesRemoved++; }
+          if (vaultFiles.exists(meta.thumbPath)) { vaultFiles.unlink(meta.thumbPath); filesRemoved++; }
         } catch { /* */ }
       }
 
@@ -281,7 +283,8 @@ function cleanupOrphanedFiles() {
     const files = fs.readdirSync(imagesDir);
     for (const file of files) {
       const fullPath = path.join(imagesDir, file);
-      if (!referencedPaths.has(fullPath)) {
+      // "x.png.wwenc" is the sealed form of "x.png", which is what entries reference.
+      if (!referencedPaths.has(path.join(imagesDir, vaultFiles.logicalName(file)))) {
         try {
           const stat = fs.statSync(fullPath);
           fs.unlinkSync(fullPath);

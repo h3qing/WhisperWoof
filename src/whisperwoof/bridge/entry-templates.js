@@ -21,6 +21,7 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
+const vaultFiles = require("./vault/vault-files");
 const { BUILT_IN_TEMPLATES, MAX_TEMPLATES, renderTemplateFromObject, getNextSectionFromObject } = require("./entry-templates-pure");
 
 const TEMPLATES_FILE = path.join(app.getPath("userData"), "whisperwoof-templates.json");
@@ -29,8 +30,8 @@ const TEMPLATES_FILE = path.join(app.getPath("userData"), "whisperwoof-templates
 
 function loadCustomTemplates() {
   try {
-    if (fs.existsSync(TEMPLATES_FILE)) {
-      return JSON.parse(fs.readFileSync(TEMPLATES_FILE, "utf-8"));
+    if (vaultFiles.exists(TEMPLATES_FILE)) {
+      return vaultFiles.readJson(TEMPLATES_FILE, []);
     }
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to load templates", { error: err.message });
@@ -42,7 +43,7 @@ function saveCustomTemplates(templates) {
   try {
     const dir = path.dirname(TEMPLATES_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(templates, null, 2), "utf-8");
+    vaultFiles.writeJson(TEMPLATES_FILE, templates, { requireUnlocked: true });
   } catch (err) {
     debugLogger.warn("[WhisperWoof] Failed to save templates", { error: err.message });
   }

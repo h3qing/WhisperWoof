@@ -93,10 +93,10 @@ function main() {
 
   let Database;
   try {
-    Database = require("better-sqlite3");
+    Database = require("better-sqlite3-multiple-ciphers");
   } catch {
     console.error(
-      "better-sqlite3 not found. Run from the project root:\n  node scripts/bench-latency.js"
+      "better-sqlite3-multiple-ciphers not found. Run from the project root:\n  node scripts/bench-latency.js"
     );
     process.exit(1);
   }

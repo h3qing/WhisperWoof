@@ -11,9 +11,12 @@ import {
   Shield,
   MessageSquare,
   Sparkles,
+  Lock,
 } from "lucide-react";
 import SidebarModal, { SidebarItem } from "./ui/SidebarModal";
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
+import { useVaultStatus } from "../whisperwoof/ui/vault/useVaultStatus";
+import { settingsMode } from "../whisperwoof/ui/vault/vault-ui-pure";
 
 export type { SettingsSectionType };
 
@@ -36,6 +39,8 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ open, onOpenChange, initialSection }: SettingsModalProps) {
   const { t } = useTranslation();
+  // WhisperWoof: the Encryption tab exists only where the vault does (macOS).
+  const showEncryption = settingsMode(useVaultStatus().status) !== "hidden";
   const sidebarItems: SidebarItem<SettingsSectionType>[] = useMemo(
     () => [
       // WhisperWoof: account and billing sections hidden — local-first, no cloud subscriptions
@@ -102,6 +107,17 @@ export default function SettingsModal({ open, onOpenChange, initialSection }: Se
         description: t("settingsModal.sections.privacyData.description"),
         group: t("settingsModal.groups.system"),
       },
+      ...(showEncryption
+        ? [
+            {
+              id: "encryption" as SettingsSectionType,
+              label: "Encryption",
+              icon: Lock,
+              description: "Lock your history, notes and recordings with a password",
+              group: t("settingsModal.groups.system"),
+            },
+          ]
+        : []),
       {
         id: "system",
         label: t("settingsModal.sections.system.label"),
@@ -110,7 +126,7 @@ export default function SettingsModal({ open, onOpenChange, initialSection }: Se
         group: t("settingsModal.groups.system"),
       },
     ],
-    [t]
+    [t, showEncryption]
   );
 
   // WhisperWoof: default to "general" since account section is hidden
