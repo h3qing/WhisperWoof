@@ -34,6 +34,7 @@
     "!**/node_modules/electron/**",
     "!**/node_modules/electron-builder/**",
     "!**/node_modules/app-builder-bin/**",
+    "!**/node_modules/better-sqlite3/**",
     "!**/node_modules/app-builder-lib/**",
     "!**/node_modules/builder-util/**",
     "!**/node_modules/dmg-builder/**",
@@ -83,7 +84,7 @@
     "!**/node_modules/**/CHANGELOG*",
     "!**/node_modules/**/.github/**"
   ],
-  "asarUnpack": ["**/node_modules/ffmpeg-static/**/*", "**/node_modules/better-sqlite3/**/*"],
+  "asarUnpack": ["**/node_modules/ffmpeg-static/**/*", "**/node_modules/better-sqlite3-multiple-ciphers/**/*"],
   "extraResources": [
     ".env",
     "src/assets/**/*",
@@ -92,6 +93,7 @@
     "resources/bin/macos-fast-paste",
     "resources/bin/macos-mic-listener",
     "resources/bin/macos-text-monitor",
+    "resources/bin/macos-vault-helper",
     "resources/bin/macos-media-remote",
     "resources/bin/linux-fast-paste",
     "resources/bin/linux-text-monitor",

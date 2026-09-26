@@ -194,6 +194,9 @@ only on large type.
 | Live words | `live-words`: gradient sheen over `live-glass`, 1px inset `live` outline, `box-decoration-break: clone`. Caret in `live`. |
 | Live panel | One-line ticker, 360 × 72 on native glass: Mando (36px) with a capsule sign under him (route, then status; English in every UI language), the words on one line to the right. The line slides left as it grows and the oldest words fade off the left edge. |
 | Status | icon, label and color together, never color alone. |
+| Lock screen | Replaces the whole control panel while encryption has WhisperWoof locked: one glass card (Mando head, the headline "WhisperWoof is locked", one sentence saying dictation still works), a primary Touch ID capsule when it's on, else the password field; a text link to the recovery phrase. Nothing behind it renders. |
+| Recovery phrase | A numbered 3 × 4 grid on `surface-1`, words semibold. Not selectable; the only way to copy is the outline Copy capsule under it, which goes through main (kept out of history, concealed on the clipboard, cleared after a minute) and says so in one line. |
+| One-time offer | A sheet on Home with an icon chip, a question, one sentence, a primary capsule and an outline capsule that is a real "no" ("I don't need encryption"). A "no" is answered in place with where to find it later, then never shown again. |
 
 ## 8. Motion
 
@@ -262,6 +265,7 @@ grid (824 on a 1024 canvas) so macOS 26 doesn't put it in a gray tile. Source
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-09-25 | Encryption UI: lock screen replaces the panel; the phrase copies only through its Copy button; Home offers encryption once with a real "no" | Owner asked for one-click copy and an explicit opt-out that says it can be turned on later |
 | 2026-09-24 | Adopt the Glassfolio system in Mando's colors | The user's own Glassfolio design language; palette re-derived from photos of Mando instead of copying Glassfolio's blues |
 | 2026-09-24 | Glass means "not landed yet"; `live-words` is the signature | WhisperWoof's own reason for glass, as Glassfolio's glass bar means "held through funds" |
 | 2026-09-24 | Nunito instead of Noto Sans / SF Pro | User asked for a cuter font; SF Pro Rounded is not reachable from Chromium; Nunito stays legible at 13px |

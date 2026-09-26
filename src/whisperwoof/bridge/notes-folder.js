@@ -10,17 +10,22 @@ const path = require("path");
 const { shell } = require("electron");
 const { getNotesDirectory } = require("./markdown-route");
 const pure = require("./notes-folder-pure");
+const vault = require("./vault/vault-service");
+const vaultFiles = require("./vault/vault-files");
 
 const MAX_NOTES = 500;
 const MAX_NOTE_BYTES = 512 * 1024;
+// A sealed note is a little bigger than its text (header + 20 bytes per 64 KiB).
+const SEALED_OVERHEAD = 4096;
 
 function notePath(name) {
   if (!pure.isSafeNoteName(name)) throw new Error("Invalid note name");
   const dir = getNotesDirectory();
   const file = path.join(dir, name);
   // A *.md symlink inside the folder must not lead outside it.
-  if (fs.existsSync(file)) {
-    const real = fs.realpathSync(file);
+  const physical = vaultFiles.physicalPath(file);
+  if (physical) {
+    const real = fs.realpathSync(physical);
     if (path.dirname(real) !== fs.realpathSync(dir)) throw new Error("Invalid note name");
   }
   return file;
@@ -29,24 +34,24 @@ function notePath(name) {
 function listNotes() {
   const dir = getNotesDirectory();
   if (!fs.existsSync(dir)) return { dir, notes: [] };
-  const entries = fs
-    .readdirSync(dir)
+  const entries = vaultFiles
+    .listNames(dir)
     .filter(pure.isSafeNoteName)
     .map((name) => {
       // Broken symlinks, or files iCloud/Obsidian replace mid-scan, are skipped.
       try {
-        return { name, stat: fs.statSync(path.join(dir, name)) };
+        return { name, stat: vaultFiles.statFile(path.join(dir, name)) };
       } catch {
         return null;
       }
     })
-    .filter((entry) => entry && entry.stat.isFile() && entry.stat.size <= MAX_NOTE_BYTES);
+    .filter((entry) => entry && entry.stat && entry.stat.isFile() && entry.stat.size <= MAX_NOTE_BYTES + SEALED_OVERHEAD);
   const newest = pure
     .sortNewestFirst(entries.map(({ name, stat }) => ({ name, mtimeMs: stat.mtimeMs })))
     .slice(0, MAX_NOTES);
   const notes = newest.flatMap(({ name, mtimeMs }) => {
     try {
-      const note = pure.parseNote(fs.readFileSync(path.join(dir, name), "utf-8"));
+      const note = pure.parseNote(vaultFiles.readText(path.join(dir, name)));
       return [{ ...note, name, title: note.title || name.replace(/\.md$/, ""), mtimeMs }];
     } catch {
       return [];
@@ -56,31 +61,37 @@ function listNotes() {
 }
 
 function readNote(name) {
-  return fs.readFileSync(notePath(name), "utf-8");
+  return vaultFiles.readText(notePath(name));
+}
+
+function writeNote(file, text) {
+  vaultFiles.writeText(file, text, { kind: "note", seal: vault.sealsNotes() });
 }
 
 /** Replace the body, keeping the file's frontmatter. */
 function updateNoteBody(name, body) {
   const file = notePath(name);
-  const next = pure.withBody(fs.readFileSync(file, "utf-8"), body);
-  fs.writeFileSync(file, next, "utf-8");
+  const next = pure.withBody(vaultFiles.readText(file), body);
+  writeNote(file, next);
   return pure.parseNote(next);
 }
 
 /** Set (string) or remove (null) frontmatter fields; returns the parsed note. */
 function setNoteFields(name, fields) {
   const file = notePath(name);
-  const next = pure.withFields(fs.readFileSync(file, "utf-8"), fields);
-  fs.writeFileSync(file, next, "utf-8");
+  const next = pure.withFields(vaultFiles.readText(file), fields);
+  writeNote(file, next);
   return pure.parseNote(next);
 }
 
 async function trashNote(name) {
-  await shell.trashItem(notePath(name));
+  const file = notePath(name);
+  await shell.trashItem(vaultFiles.physicalPath(file) || file);
 }
 
 function revealNote(name) {
-  shell.showItemInFolder(notePath(name));
+  const file = notePath(name);
+  shell.showItemInFolder(vaultFiles.physicalPath(file) || file);
 }
 
 function openNotesFolder() {
@@ -125,10 +136,14 @@ function readAttachment(ref) {
   const mime = ATTACHMENT_MIME[extensionOf(ref)];
   if (!mime) throw new Error("Unsupported image type");
   const attachDir = path.join(getNotesDirectory(), "attachments");
-  const real = fs.realpathSync(path.join(attachDir, ref.slice("attachments/".length)));
+  const file = path.join(attachDir, ref.slice("attachments/".length));
+  // The file on disk may be the sealed form ("x.png.wwenc") when notes are encrypted.
+  const physical = vaultFiles.physicalPath(file);
+  if (!physical) throw new Error("Attachment not found");
+  const real = fs.realpathSync(physical);
   if (path.dirname(real) !== fs.realpathSync(attachDir)) throw new Error("Invalid attachment");
   if (fs.statSync(real).size > MAX_ATTACHMENT_BYTES) throw new Error("Image too large to show");
-  return { mime, data: fs.readFileSync(real).toString("base64") };
+  return { mime, data: vaultFiles.readFile(file).toString("base64") };
 }
 
 module.exports = {

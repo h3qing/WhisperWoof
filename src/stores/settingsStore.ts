@@ -31,6 +31,34 @@ let _ReasoningService: typeof import("../services/ReasoningService").default | n
 
 const isBrowser = typeof window !== "undefined";
 
+// With encryption on, personal words live only in the encrypted database —
+// never in localStorage, which Chromium keeps as plaintext on disk.
+let keepDictionaryInLocalStorage = true;
+
+function persistDictionary(words: string[]) {
+  if (!isBrowser) return;
+  if (keepDictionaryInLocalStorage) localStorage.setItem("customDictionary", JSON.stringify(words));
+  else localStorage.removeItem("customDictionary");
+}
+
+let lastVaultStatus: string | null = null;
+
+function followEncryption(status: { status: string } | null | undefined) {
+  if (!status) return;
+  keepDictionaryInLocalStorage = status.status === "off";
+  if (!keepDictionaryInLocalStorage && isBrowser) localStorage.removeItem("customDictionary");
+  // A window that started while locked read an empty dictionary: load it now.
+  if (status.status === "unlocked" && lastVaultStatus === "locked") {
+    window.electronAPI
+      ?.getDictionary?.()
+      .then((words) => {
+        if (Array.isArray(words)) useSettingsStore.setState({ customDictionary: words });
+      })
+      .catch(() => {});
+  }
+  lastVaultStatus = status.status;
+}
+
 function readString(key: string, fallback: string): string {
   if (!isBrowser) return fallback;
   return localStorage.getItem(key) ?? fallback;
@@ -417,7 +445,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setReasoningProvider: createStringSetter("reasoningProvider"),
 
   setCustomDictionary: (words: string[]) => {
-    if (isBrowser) localStorage.setItem("customDictionary", JSON.stringify(words));
+    persistDictionary(words);
     set({ customDictionary: words });
     window.electronAPI?.setDictionary(words).catch((err) => {
       logger.warn(
@@ -735,6 +763,9 @@ export async function initializeSettings(): Promise<void> {
 
   if (!isBrowser) return;
 
+  followEncryption(await window.electronAPI?.vaultGetStatus?.().catch(() => null));
+  window.electronAPI?.onVaultStatus?.(followEncryption);
+
   const state = useSettingsStore.getState();
 
   // Sync API keys from main process (if localStorage is empty, read from .env via IPC)
@@ -864,7 +895,7 @@ export async function initializeSettings(): Promise<void> {
         if (dbWords.length === 0 && currentDictionary.length > 0) {
           await window.electronAPI.setDictionary(currentDictionary);
         } else if (dbWords.length > 0 && currentDictionary.length === 0) {
-          if (isBrowser) localStorage.setItem("customDictionary", JSON.stringify(dbWords));
+          persistDictionary(dbWords);
           useSettingsStore.setState({ customDictionary: dbWords });
         }
       }

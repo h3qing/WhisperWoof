@@ -21,6 +21,16 @@ const {
   meetingTranscriptText,
 } = require("./meetingSessionRotation");
 const { getModelRuntime } = require("./parakeetModelInfo");
+const vault = require("../whisperwoof/bridge/vault/vault-service");
+const vaultInbox = require("../whisperwoof/bridge/vault/vault-inbox");
+const vaultFiles = require("../whisperwoof/bridge/vault/vault-files");
+const { isProvisionalId } = require("../whisperwoof/bridge/vault/inbox-pure");
+
+/** Import sealed items now if WhisperWoof is unlocked (they arrived after the unlock). */
+function replaySoon() {
+  if (!vault.isUnlocked()) return;
+  require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox().catch(() => {});
+}
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 // A stalled token request would otherwise hold a meeting's session rotation for minutes.
@@ -212,9 +222,17 @@ class IPCHandlers {
     const DEFAULT_RETENTION_DAYS = 30;
     const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
+    // The sweep also clears has_audio flags in the database, so it waits while
+    // encryption has the database closed; main.js runs it again after each unlock.
+    const sweep = () => {
+      if (!this.databaseManager.db) return;
+      this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
+    };
+    this.runAudioSweep = sweep;
+
     // Run initial cleanup with default retention
     try {
-      this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
+      sweep();
     } catch (error) {
       debugLogger.error("Initial audio cleanup failed", { error: error.message }, "audio-storage");
     }
@@ -222,7 +240,7 @@ class IPCHandlers {
     // Set up periodic cleanup every 6 hours
     this._audioCleanupInterval = setInterval(() => {
       try {
-        this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
+        sweep();
       } catch (error) {
         debugLogger.error(
           "Periodic audio cleanup failed",
@@ -313,6 +331,16 @@ class IPCHandlers {
    * the Dictionary are added there and announced with the undo toast.
    */
   _learnCorrections(originalText, newFieldValue, bundleId) {
+    if (vault.isOn() && (!vault.isUnlocked() || !this.databaseManager.db)) {
+      // Memory and the Dictionary are encrypted: learn this edit after unlock.
+      vaultInbox.record("vocab.correction", {
+        originalText,
+        newFieldValue,
+        bundleId,
+        swaps: this._autoLearnSession.swaps,
+      });
+      return;
+    }
     const { extractCorrectionPairs, newDictionaryWords } = require("../utils/correctionLearner");
     const { splitReversals } = require("../whisperwoof/core/vocabulary/memory-replacements");
 
@@ -359,6 +387,17 @@ class IPCHandlers {
     }
     // Memory never swaps by itself: it asks "Always change X to Y?".
     if (offers.length > 0) this.broadcastToWindows("memory-swap-offer", offers[0]);
+  }
+
+  /** Learn an edit that was sealed into the inbox while WhisperWoof was locked. */
+  replayLearnCorrections({ originalText, newFieldValue, bundleId, swaps }) {
+    const current = this._autoLearnSession;
+    this._autoLearnSession = { pairs: new Map(), dictWords: new Set(), swaps: swaps || [], bundleId };
+    try {
+      this._learnCorrections(originalText, newFieldValue, bundleId);
+    } finally {
+      this._autoLearnSession = current;
+    }
   }
 
   /**
@@ -419,6 +458,7 @@ class IPCHandlers {
   }
 
   setupHandlers() {
+    require("../whisperwoof/bridge/vault/vault-ipc").registerVaultIpc(ipcMain);
     ipcMain.handle("window-minimize", () => {
       if (this.windowManager.controlPanelWindow) {
         this.windowManager.controlPanelWindow.minimize();
@@ -499,6 +539,12 @@ class IPCHandlers {
     });
 
     ipcMain.handle("db-save-transcription", async (event, text, rawText, options) => {
+      if (vault.isOn() && !this.databaseManager.db) {
+        // Sealed until unlock; the renderer gets a stand-in id for the audio that follows.
+        const pid = vaultInbox.provisionalTranscriptionId();
+        vaultInbox.record("transcription.save", { pid, text, rawText, options: options ?? null });
+        return { success: true, id: pid };
+      }
       const result = this.databaseManager.saveTranscription(text, rawText, options);
       if (result?.success && result?.transcription) {
         setImmediate(() => {
@@ -538,6 +584,17 @@ class IPCHandlers {
 
     // Audio storage handlers
     ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
+      // A stand-in id (the transcription was sealed while locked) also goes
+      // through the inbox, even if WhisperWoof was unlocked in between.
+      if (vault.isOn() && (!this.databaseManager.db || isProvisionalId(id))) {
+        vaultInbox.record("transcription.audio", {
+          pid: id,
+          audio: Buffer.from(audioBuffer).toString("base64"),
+          metadata: metadata ?? null,
+        });
+        replaySoon();
+        return { success: true };
+      }
       const transcription = this.databaseManager.getTranscriptionById(id);
       const timestamp = transcription?.timestamp || null;
       const result = this.audioStorageManager.saveAudio(id, Buffer.from(audioBuffer), timestamp);
@@ -559,13 +616,14 @@ class IPCHandlers {
     ipcMain.handle("show-audio-in-folder", async (event, id) => {
       const filePath = this.audioStorageManager.getAudioPath(id);
       if (!filePath) return { success: false };
-      shell.showItemInFolder(filePath);
+      shell.showItemInFolder(vaultFiles.physicalPath(filePath) || filePath);
       return { success: true };
     });
 
     ipcMain.handle("get-audio-buffer", async (event, id) => {
       const buffer = this.audioStorageManager.getAudioBuffer(id);
-      return buffer ? buffer.buffer : null;
+      // Exactly these bytes: a pooled Buffer's .buffer would carry its whole slab.
+      return buffer ? buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) : null;
     });
 
     ipcMain.handle("delete-transcription-audio", async (event, id) => {
@@ -1431,6 +1489,12 @@ class IPCHandlers {
     });
 
     ipcMain.handle("cleanup-app", async (event) => {
+      // Resetting would delete the vault key while encrypted notes stay in the
+      // notes folder — unreadable for good. Turning encryption off comes first.
+      if (vault.isOn()) {
+        const error = "Turn off encryption in Settings before resetting WhisperWoof.";
+        return { success: false, message: error, errors: [error] };
+      }
       const fs = require("fs");
       const os = require("os");
       const errors = [];
@@ -2556,7 +2620,10 @@ class IPCHandlers {
     });
 
     // WhisperWoof: Custom vocabulary
+    // Memory stays in memory while locked (dictation uses it) but isn't handed out.
+    const memoryLocked = () => vault.isOn() && !vault.isUnlocked();
     ipcMain.handle("whisperwoof-get-vocabulary", async (_event, options) => {
+      if (memoryLocked()) return [];
       try {
         const { getVocabulary } = require("../whisperwoof/bridge/vocabulary");
         return getVocabulary(options || {});
@@ -2621,6 +2688,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-get-vocabulary-stats", async () => {
+      if (memoryLocked()) return {};
       try {
         const { getVocabularyStats } = require("../whisperwoof/bridge/vocabulary");
         return getVocabularyStats();
@@ -2729,6 +2797,7 @@ class IPCHandlers {
 
     // Memory: approved swaps, for the Memory view
     ipcMain.handle("whisperwoof-get-memory-swaps", async () => {
+      if (memoryLocked()) return [];
       try {
         return require("../whisperwoof/bridge/vocabulary").getMemorySwaps();
       } catch (error) {
@@ -2767,6 +2836,7 @@ class IPCHandlers {
 
     // Memory: context-aware vocabulary
     ipcMain.handle("whisperwoof-get-vocabulary-for-app", async (_event, bundleId) => {
+      if (memoryLocked()) return [];
       try {
         const { getVocabularyForApp } = require("../whisperwoof/bridge/vocabulary");
         return getVocabularyForApp(bundleId);
@@ -2813,6 +2883,13 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-save-entry", async (event, entry) => {
       try {
         const { saveWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
+        if (vault.isOn() && vault.isUnlocked() && isProvisionalId(entry?.metadata?.transcriptionId)) {
+          // Its transcription was sealed while locked: import both in order.
+          const sealed = { ...entry, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+          vaultInbox.record("entry.save", { entry: sealed });
+          await require("../whisperwoof/bridge/vault/vault-lifecycle").replayInbox();
+          return { success: true, id: sealed.id, createdAt: sealed.createdAt };
+        }
         const result = saveWhisperWoofEntry(entry);
         if (result) {
           // Memory: track vocabulary usage from this transcription
@@ -2875,6 +2952,11 @@ class IPCHandlers {
 
     ipcMain.handle("whisperwoof-set-notes-dir", async (_event, dir) => {
       try {
+        require("../whisperwoof/bridge/markdown-route").assertNotesDirMovable();
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+      try {
         const { setNotesDir } = require("../whisperwoof/bridge/markdown-route");
         const result = setNotesDir(dir);
         return { success: true, path: result };
@@ -2884,6 +2966,11 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-pick-notes-dir", async () => {
+      try {
+        require("../whisperwoof/bridge/markdown-route").assertNotesDirMovable();
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
       try {
         const { dialog } = require("electron");
         const result = await dialog.showOpenDialog({
@@ -3238,9 +3325,8 @@ class IPCHandlers {
     // WhisperWoof: Read image file as base64 (for History view)
     ipcMain.handle("whisperwoof-get-image", async (_event, imagePath) => {
       try {
-        const fs = require("fs");
-        if (!fs.existsSync(imagePath)) return { success: false, error: "File not found" };
-        const data = fs.readFileSync(imagePath);
+        if (!vaultFiles.exists(imagePath)) return { success: false, error: "File not found" };
+        const data = vaultFiles.readFile(imagePath);
         return { success: true, data: data.toString("base64") };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] get-image failed: ${error.message}`);
@@ -3647,7 +3733,7 @@ class IPCHandlers {
           .map((c) => c.text ?? "")
           .join("\n");
 
-        debugLogger.log(`[WhisperWoof] Dispatched entry ${entryId} to plugin ${pluginId}: ${textContent.slice(0, 100)}`);
+        debugLogger.log(`[WhisperWoof] Dispatched entry ${entryId} to plugin ${pluginId} (${textContent.length} chars)`);
         return { success: true, message: textContent || "Dispatched successfully" };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] dispatch-entry failed: ${error.message}`);
@@ -4677,6 +4763,10 @@ class IPCHandlers {
     };
 
     ipcMain.handle("meeting-transcription-start", async (event, options = {}) => {
+      // A meeting saves its transcript to the encrypted database as it goes.
+      if (vault.isOn() && !vault.isUnlocked()) {
+        return { success: false, error: "Unlock WhisperWoof to record a meeting." };
+      }
       // Wait for any in-flight prepare to finish before starting
       if (meetingTranscriptionPreparePromise) {
         debugLogger.debug("Meeting transcription start: waiting for in-flight prepare");
@@ -4807,6 +4897,9 @@ class IPCHandlers {
         // Stop audio buffer — keep files until cleanup is explicitly requested
         const audioResult = this._meetingAudioBuffer.stop({ keepFiles: true });
         const checkpointResult = this._meetingTranscriptCheckpoint.stop();
+        // A lock that waited for this meeting happens once the renderer has
+        // saved the transcript and notes (they go to the database).
+        setTimeout(() => vault.releaseDeferredLock().catch(() => {}), 60000).unref?.();
 
         return {
           success: true,

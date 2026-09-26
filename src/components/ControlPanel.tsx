@@ -48,6 +48,8 @@ import {
   ActiveRecordingPill,
   MeetingTranscriptionProvider,
 } from "./notes/MeetingTranscriptionProvider";
+import { useVaultGate } from "../whisperwoof/ui/vault/useVaultStatus";
+import VaultLockScreen from "../whisperwoof/ui/vault/VaultLockScreen";
 
 // Recordings live above the views so switching views doesn't end them.
 export default function ControlPanel() {
@@ -94,6 +96,7 @@ function ControlPanelViews() {
     useReasoningModel,
   } = useSettings();
   const { isSignedIn, isLoaded: authLoaded, user } = useAuth();
+  const vaultGate = useVaultGate();
 
   const {
     status: updateStatus,
@@ -530,6 +533,20 @@ function ControlPanelViews() {
     }
     if (isMeetingMode) handleExitMeetingMode();
   }, [isMeetingMode, handleExitMeetingMode]);
+
+  // WhisperWoof: while encryption has WhisperWoof locked, the whole panel is
+  // the lock screen. Wait for the first vault status so history never flashes
+  // up before the lock does.
+  if (vaultGate.pending) {
+    return (
+      <div className="relative h-screen">
+        <div className="mando-field" aria-hidden />
+      </div>
+    );
+  }
+  if (vaultGate.locked && vaultGate.status) {
+    return <VaultLockScreen status={vaultGate.status} onUnlocked={vaultGate.refresh} />;
+  }
 
   return (
     <div className="relative h-screen flex flex-col">

@@ -21,7 +21,13 @@ class GoogleCalendarManager {
     this._lastFocusSync = 0;
   }
 
+  /** Calendar data lives in the app database, which stays closed while WhisperWoof is locked. */
+  _databaseOpen() {
+    return Boolean(this.databaseManager?.db);
+  }
+
   start() {
+    if (!this._databaseOpen()) return; // started again after unlock
     this._loadAccounts();
     if (this.accounts.size === 0) return;
 
@@ -146,6 +152,7 @@ class GoogleCalendarManager {
   }
 
   async syncEvents() {
+    if (!this._databaseOpen()) return;
     const selectedCalendars = this.databaseManager.getSelectedCalendars();
     if (selectedCalendars.length === 0) return;
 
@@ -241,6 +248,7 @@ class GoogleCalendarManager {
       clearTimeout(this.nextMeetingTimer);
       this.nextMeetingTimer = null;
     }
+    if (!this._databaseOpen()) return;
 
     const upcoming = this.databaseManager.getUpcomingEvents(1440);
     const next = upcoming.find((e) => !this.notifiedMeetings.has(e.id));
@@ -319,6 +327,7 @@ class GoogleCalendarManager {
   }
 
   onWakeFromSleep() {
+    if (!this._databaseOpen()) return;
     const activeEvents = this.databaseManager.getActiveEvents();
     if (activeEvents.length > 0 && !this.activeMeeting) {
       this.onMeetingStart(activeEvents[0]);
@@ -353,6 +362,7 @@ class GoogleCalendarManager {
   }
 
   getActiveMeetingState() {
+    if (!this._databaseOpen()) return { activeMeeting: this.activeMeeting, activeEvents: [], upcomingEvents: [] };
     return {
       activeMeeting: this.activeMeeting,
       activeEvents: this.databaseManager.getActiveEvents(),

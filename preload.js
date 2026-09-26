@@ -868,6 +868,29 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofOpenVoiceNote: (name) => ipcRenderer.invoke("whisperwoof-open-voice-note", name),
   whisperwoofSaveProjectNote: (text) => ipcRenderer.invoke("whisperwoof-save-project-note", text),
   whisperwoofNotesLinkEntry: (name, entryId) => ipcRenderer.invoke("whisperwoof-notes-link-entry", name, entryId),
+
+  // At-rest encryption (vault). Keys stay in the main process; only
+  // passwords and the recovery phrase flow in, and status flows out.
+  vaultGetStatus: () => ipcRenderer.invoke("vault-get-status"),
+  onVaultStatus: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on("vault-status", listener);
+    return () => ipcRenderer.removeListener("vault-status", listener);
+  },
+  vaultBeginSetup: () => ipcRenderer.invoke("vault-begin-setup"),
+  vaultCopyPhrase: () => ipcRenderer.invoke("vault-copy-phrase"),
+  vaultCompleteSetup: (args) => ipcRenderer.invoke("vault-complete-setup", args),
+  vaultUnlockWithTouchId: () => ipcRenderer.invoke("vault-unlock-touchid"),
+  vaultUnlockWithPassword: (password) => ipcRenderer.invoke("vault-unlock-password", password),
+  vaultRecover: (args) => ipcRenderer.invoke("vault-recover", args),
+  vaultLock: () => ipcRenderer.invoke("vault-lock"),
+  vaultChangePassword: (args) => ipcRenderer.invoke("vault-change-password", args),
+  vaultSetTouchId: (enabled) => ipcRenderer.invoke("vault-set-touchid", enabled),
+  vaultSetPrefs: (prefs, reauth) => ipcRenderer.invoke("vault-set-prefs", prefs, reauth),
+  vaultRetry: () => ipcRenderer.invoke("vault-retry"),
+  vaultBeginNewPhrase: (reauth) => ipcRenderer.invoke("vault-begin-new-phrase", reauth),
+  vaultCompleteNewPhrase: (args) => ipcRenderer.invoke("vault-complete-new-phrase", args),
+  vaultDisable: (reauth) => ipcRenderer.invoke("vault-disable", reauth),
   whisperwoofNotesSetProject: (name, projectId) =>
     ipcRenderer.invoke("whisperwoof-notes-set-project", name, projectId),
   whisperwoofGetDefaultProject: () => ipcRenderer.invoke("whisperwoof-get-default-project"),

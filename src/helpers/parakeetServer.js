@@ -7,6 +7,7 @@ const {
   isWavFormat,
   parseWavFormat,
   convertToWav,
+  convertBufferToWav,
   wavToFloat32Samples,
   computeFloat32RMS,
 } = require("./ffmpegUtils");
@@ -80,6 +81,14 @@ class ParakeetServerManager {
       throw new Error(
         "FFmpeg not found - required for audio conversion. Please ensure FFmpeg is installed."
       );
+    }
+
+    // In memory first: the recording never touches the temp folder.
+    try {
+      const wavBuffer = await convertBufferToWav(audioBuffer, { sampleRate: 16000, channels: 1 });
+      return { wavBuffer, filesToCleanup: [] };
+    } catch (err) {
+      debugLogger.debug("Pipe conversion failed, using temp files", { error: err.message });
     }
 
     const tempDir = getSafeTempDir();

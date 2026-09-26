@@ -13,6 +13,16 @@ const { saveAsMarkdown, readSettings, updateSettings } = require("./markdown-rou
 const notesFolder = require("./notes-folder");
 const { pickDefaultProject, checkProjectName } = require("./project-notes-pure");
 const { resolveAudioSource } = require("./regenerate-entry-pure");
+const vault = require("./vault/vault-service");
+
+// Projects live in the encrypted database, so while WhisperWoof is locked a
+// fn+P note is written right away and filed into the project after unlock.
+const isLocked = () => vault.isOn() && !vault.isUnlocked();
+let lastDefaultProject = null;
+
+function sealForLater(op, data) {
+  require("./vault/vault-inbox").record(op, data);
+}
 
 function findProject(id) {
   return appInit.getWhisperWoofProjects().find((p) => p.id === id) ?? null;
@@ -24,11 +34,15 @@ function getDefaultProject() {
     appInit.getWhisperWoofProjects(),
     readSettings().defaultProjectId ?? null
   );
-  if (project) return { id: project.id, name: project.name };
+  if (project) {
+    lastDefaultProject = { id: project.id, name: project.name };
+    return lastDefaultProject;
+  }
   const created = appInit.createWhisperWoofProject(create);
   if (!created) throw new Error("WhisperWoof database not initialized");
   updateSettings({ defaultProjectId: created.id });
-  return { id: created.id, name: created.name };
+  lastDefaultProject = { id: created.id, name: created.name };
+  return lastDefaultProject;
 }
 
 /** The current default without creating anything (for display); null if none yet. */
@@ -48,6 +62,11 @@ function setDefaultProject(projectId) {
 
 /** fn+P: save the text as a note in the default project. */
 function saveProjectNote(text) {
+  if (isLocked()) {
+    const result = saveAsMarkdown(text);
+    if (result.success) sealForLater("note.fileInDefaultProject", { name: result.name });
+    return { ...result, project: lastDefaultProject ?? { id: null, name: "your project" } };
+  }
   const project = getDefaultProject();
   const result = saveAsMarkdown(text, { project: project.name, project_id: project.id });
   return { ...result, project };
@@ -55,6 +74,13 @@ function saveProjectNote(text) {
 
 /** Record which dictation a note came from; the dictation joins the note's project. */
 function linkNoteToEntry(name, entryId) {
+  const pending = vault.isOn() && !appInit.getWhisperWoofEntryRow(entryId) && require("./vault/vault-inbox").count() > 0;
+  if (isLocked() || pending) {
+    // The entry is still sealed in the inbox: link once it's imported.
+    sealForLater("note.linkEntry", { name, entryId });
+    if (!isLocked()) require("./vault/vault-lifecycle").replayInbox().catch(() => {});
+    return { name, sealed: true };
+  }
   if (!appInit.getWhisperWoofEntryRow(entryId)) throw new Error("Unknown entry");
   const note = notesFolder.setNoteFields(name, { entry: entryId });
   if (note.projectId && findProject(note.projectId)) appInit.setEntryProject(entryId, note.projectId);
