@@ -19,6 +19,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Dropped meeting connections reconnect when you're signed in.** A lost meeting connection used to reconnect with your own OpenAI key, which signed-in users usually don't have, so it never recovered. It now gets a new session the same way the meeting started.
 - **Locking and unlocking no longer log an error.** Each reload of the WhisperWoof window threw a harmless error in the downloaded app (it had no dev-server address to compare against). Encryption reloads the window on every lock and unlock, so it showed up often.
 - **Turning encryption on or off no longer makes old recordings and notes look new.** Converting a file gave it today's date, so Audio Retention started counting again (a 7-day setting could keep a recording for two weeks) and the Notes list moved old notes to the top. Files now keep their original dates, including when you make a new recovery phrase.
+- **A meeting's transcript is saved even if your Mac locks right after you stop.** Encryption now waits a minute after a meeting ends before locking, so the transcript and notes reach your history first. It also locks afterwards when stopping the meeting hit an error; before, it waited forever.
 - **Stopping kept no text when OpenAI hung up at that moment.** If the connection closed while a meeting (or OpenAI live dictation) was saving its last words, the stop came back empty for that whole session. Its text is kept now.
 
 ### Security

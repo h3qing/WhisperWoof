@@ -118,6 +118,30 @@ describe("main-process audio retention", () => {
     });
   });
 
+  describe("encryption lock around a meeting", () => {
+    // Stopping deletes the crash buffer before the renderer saves the
+    // transcript, so the database must stay open until that save is done.
+    it("holds a lock while recording and for a minute after stop", () => {
+      vi.useFakeTimers();
+      try {
+        handlers._meetingAudioBuffer.start();
+        expect(handlers.isMeetingActiveOrSaving()).toBe(true);
+
+        handlers._meetingAudioBuffer.stop();
+        handlers._afterMeetingStopped();
+        const stoppedAt = Date.now();
+        expect(handlers.isMeetingActiveOrSaving(stoppedAt + 30_000)).toBe(true);
+        expect(handlers.isMeetingActiveOrSaving(stoppedAt + 61_000)).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("doesn't hold a lock when no meeting has run", () => {
+      expect(handlers.isMeetingActiveOrSaving()).toBe(false);
+    });
+  });
+
   describe("meeting crash buffer", () => {
     function recordMeeting() {
       handlers._meetingAudioBuffer.start();
