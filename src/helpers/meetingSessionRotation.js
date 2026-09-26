@@ -10,30 +10,47 @@
  */
 
 const SESSION_MAX_AGE_MS = 25 * 60 * 1000; // 5min before OpenAI's ~30min limit
+// Due sessions wait for a quiet moment (no turn in flight) until this age.
+const SESSION_HARD_MAX_AGE_MS = 28 * 60 * 1000;
+// A session that drops sooner than this after opening doesn't reconnect at once.
+const MIN_SESSION_LIFE_MS = 60 * 1000;
 const MEETING_SOURCES = ["mic", "system"];
 
 /**
  * The streams to rotate now: none while no meeting is streaming or a rotation
- * is under way; otherwise each stream whose session went live maxAgeMs ago or
- * more, except one mid-reconnect (a reconnect opens a fresh session anyway).
+ * is under way; otherwise each stream whose session is gone (its reconnect
+ * gave up), or went live SESSION_MAX_AGE_MS ago and is between turns, or went
+ * live SESSION_HARD_MAX_AGE_MS ago. A stream mid-reconnect is left alone (a
+ * reconnect opens a fresh session anyway).
  *
  * Age is per session (connectedAt), not per meeting: meeting mode pre-warms
  * sessions before recording starts, and a stream that reconnected is younger.
+ * Waiting for a gap between turns (speechStartedAt is set from speech start
+ * until that turn's transcript arrives) keeps a sentence from being cut in
+ * half across two sessions.
  * @returns {string[]} "mic" | "system"
  */
-function sourcesToRotate({
-  active,
-  now,
-  rotating,
-  streams,
-  reconnecting = {},
-  maxAgeMs = SESSION_MAX_AGE_MS,
-}) {
+function sourcesToRotate({ active, now, rotating, streams, reconnecting = {} }) {
   if (!active || rotating) return [];
   return MEETING_SOURCES.filter((source) => {
-    const connectedAt = streams[source]?.connectedAt;
-    return connectedAt != null && now - connectedAt >= maxAgeMs && !reconnecting[source];
+    const stream = streams[source];
+    if (!stream || reconnecting[source]) return false;
+    if (!stream.isConnected && !stream.isConnecting) return true;
+    if (stream.connectedAt == null) return false;
+    const age = now - stream.connectedAt;
+    const midTurn = stream.speechStartedAt != null;
+    return age >= SESSION_HARD_MAX_AGE_MS || (age >= SESSION_MAX_AGE_MS && !midTurn);
   });
+}
+
+/**
+ * Whether a session that ended unexpectedly should reconnect right away. One
+ * that dropped within a minute of opening (a server accepting and closing
+ * sessions, e.g. over a limit) is left to the 30s rotation check instead, so
+ * reconnects can't turn into a tight loop.
+ */
+function reconnectsRightAway(stream, now) {
+  return stream.connectedAt != null && now - stream.connectedAt >= MIN_SESSION_LIFE_MS;
 }
 
 /** OpenAIRealtimeStreaming.connect() options for a meeting, minus the token. */
@@ -50,8 +67,9 @@ const closeAll = (streams) =>
 
 /**
  * Open a fresh session per source, then swap them all in. If any fails to
- * connect, drops before the swap, or the meeting ended meanwhile (isCurrent()
- * false), the fresh sessions are closed and the old ones stay.
+ * connect or drops before the swap, the fresh sessions are closed and the old
+ * ones stay; if the meeting ended meanwhile (isCurrent() false), nothing is
+ * opened or swapped.
  *
  * Handlers go on at the swap, so a failed attempt doesn't report errors to
  * the meeting while its old session is still transcribing.
@@ -75,25 +93,29 @@ async function rotateMeetingStreams({
   isCurrent,
   swapIn,
 }) {
-  let fresh;
+  let tokens;
   try {
-    const tokens = await fetchTokens(sources.length);
-    fresh = sources.map((source, i) => ({
-      source,
-      token: tokens[i],
-      streaming: createStreaming(),
-    }));
+    tokens = await fetchTokens(sources.length);
   } catch (error) {
     return { rotated: false, error };
   }
+  if (!isCurrent()) return { rotated: false };
 
+  const fresh = sources.map((source, i) => ({
+    source,
+    token: tokens[i],
+    streaming: createStreaming(),
+  }));
   const results = await Promise.allSettled(
     fresh.map(({ streaming, token }) => streaming.connect({ apiKey: token, ...connectOptions }))
   );
   const failure = results.find((r) => r.status === "rejected");
-  if (failure || !isCurrent() || fresh.some(({ streaming }) => !streaming.isConnected)) {
+  const dropped = fresh.some(({ streaming }) => !streaming.isConnected);
+  if (failure || dropped || !isCurrent()) {
     await closeAll(fresh.map(({ streaming }) => streaming));
-    return failure ? { rotated: false, error: failure.reason } : { rotated: false };
+    if (!isCurrent()) return { rotated: false };
+    const error = failure ? failure.reason : new Error("A new session closed before it took over");
+    return { rotated: false, error };
   }
 
   const replaced = fresh.map(({ source, streaming }) => {
@@ -121,7 +143,9 @@ function meetingTranscriptText(retired, results) {
 
 module.exports = {
   SESSION_MAX_AGE_MS,
+  SESSION_HARD_MAX_AGE_MS,
   sourcesToRotate,
+  reconnectsRightAway,
   meetingConnectOptions,
   rotateMeetingStreams,
   meetingTranscriptText,

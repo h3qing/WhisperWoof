@@ -309,8 +309,8 @@ class OpenAIRealtimeStreaming {
             resolve();
           };
 
-          this.onFinalTranscript = (text) => {
-            prevOnFinal?.(text);
+          this.onFinalTranscript = (text, timestamp) => {
+            prevOnFinal?.(text, timestamp);
             done();
           };
 
@@ -326,6 +326,8 @@ class OpenAIRealtimeStreaming {
           };
 
           try {
+            // No answer is coming once the server closes the socket.
+            this.ws.once("close", done);
             this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
           } catch {
             done();

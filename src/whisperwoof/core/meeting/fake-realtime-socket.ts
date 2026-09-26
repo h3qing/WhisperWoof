@@ -12,6 +12,9 @@ const require = createRequire(import.meta.url);
 /** Every socket opened, oldest first. Tests reset it with `sockets.length = 0`. */
 export const sockets: FakeWebSocket[] = [];
 
+/** What the server transcribes when the client commits its remaining audio. */
+export const COMMIT_TRANSCRIPT = "last words on commit";
+
 export class FakeWebSocket extends EventEmitter {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -21,6 +24,8 @@ export class FakeWebSocket extends EventEmitter {
   sent: Array<{ type: string }> = [];
   /** What the server does when the client commits its audio. */
   onCommit: "transcribe" | "drop" = "transcribe";
+  /** The transcript it answers a commit with ("" for a commit of silence). */
+  commitTranscript = COMMIT_TRANSCRIPT;
 
   constructor(
     public url: string,
@@ -52,7 +57,7 @@ export class FakeWebSocket extends EventEmitter {
     }
     if (msg.type === "input_audio_buffer.commit") {
       setImmediate(() =>
-        this.onCommit === "drop" ? this.drop() : this.transcribes("last words before rotation")
+        this.onCommit === "drop" ? this.drop() : this.transcribes(this.commitTranscript)
       );
     }
   }

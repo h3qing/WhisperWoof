@@ -11,7 +11,7 @@
  */
 import { createRequire } from "module";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { FakeWebSocket, injectModule, sockets } from "./fake-realtime-socket";
+import { COMMIT_TRANSCRIPT, FakeWebSocket, injectModule, sockets } from "./fake-realtime-socket";
 
 const require = createRequire(import.meta.url);
 
@@ -115,7 +115,7 @@ describe("meeting session rotation (IPCHandlers)", () => {
     expect(oldMic.isConnected).toBe(false);
     expect(sockets[0].sent.map((m) => m.type)).toContain("input_audio_buffer.commit");
     expect(handlers._meetingRetiredStreams.mic).toEqual([oldMic]);
-    expect(oldMic.getFullTranscript()).toBe("last words before rotation");
+    expect(oldMic.getFullTranscript()).toBe(COMMIT_TRANSCRIPT);
 
     // The renderer isn't told about an "error", and the fresh sessions aren't due again.
     expect(sentToWindow).toEqual([]);
@@ -174,7 +174,7 @@ describe("meeting session rotation (IPCHandlers)", () => {
     expect(handlers._meetingMicStreaming).not.toBe(oldMic);
   });
 
-  it("closes the new session and leaves the stream alone when the meeting stops mid-rotation", async () => {
+  it("opens nothing and leaves the stream alone when the meeting stops during the token request", async () => {
     const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
     handlers._meetingMicStreaming = oldMic;
     fetchToken.mockImplementationOnce(async () => {
@@ -186,8 +186,24 @@ describe("meeting session rotation (IPCHandlers)", () => {
     await flush();
 
     expect(handlers._meetingMicStreaming).toBe(oldMic);
-    const late = sockets.find((s) => s.bearer === "ek_fresh_late");
-    expect(late?.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(sockets).toHaveLength(1); // no session opened with the late token
+  });
+
+  it("closes the new session when the meeting stops while it connects", async () => {
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
+    handlers._meetingMicStreaming = oldMic;
+
+    const rotation = handlers._checkMeetingSessionRotation();
+    // Stop once the new socket exists but before it opens (it opens on setImmediate).
+    for (let turn = 0; turn < 50 && sockets.length < 2; turn++) await Promise.resolve();
+    expect(sockets).toHaveLength(2);
+    handlers._stopMeetingSessionRotation(); // meeting-transcription-stop
+    await rotation;
+    await flush();
+
+    expect(handlers._meetingMicStreaming).toBe(oldMic);
+    expect(sockets).toHaveLength(2);
+    expect(sockets[1].readyState).toBe(FakeWebSocket.CLOSED);
   });
 
   it("reconnects a dropped cloud stream with a fresh cloud token, not the user's own key", async () => {
@@ -225,9 +241,7 @@ describe("meeting session rotation (IPCHandlers)", () => {
     await flush();
 
     expect(handlers._meetingMicStreaming).toBe(deadMic);
-    expect(sockets.find((s) => s.bearer === "ek_fresh_late")?.readyState).toBe(
-      FakeWebSocket.CLOSED
-    );
+    expect(sockets).toHaveLength(1); // no session opened with the late token
   });
 
   it("stands a reconnect down when rotation already replaced the stream that dropped", async () => {
@@ -257,12 +271,11 @@ describe("meeting session rotation (IPCHandlers)", () => {
     const deadMic = await liveStream("ek_first_mic");
     handlers._meetingMicStreaming = deadMic;
     sockets[0].drop();
-    fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
-    fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
-    fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
-    fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
+    for (let attempt = 1; attempt < 5; attempt++) {
+      fetchToken.mockRejectedValueOnce(new Error("Token request failed: 503"));
+    }
     fetchToken.mockImplementationOnce(async () => {
-      // The meeting ends and a new one starts during the last attempt.
+      // The meeting ends and a new one starts during the last (5th) attempt.
       handlers._stopMeetingSessionRotation();
       handlers._startMeetingSessionRotation({ sender: {} }, { mode: "cloud" });
       handlers._meetingReconnecting = { mic: true }; // the new meeting's own reconnect
@@ -274,5 +287,48 @@ describe("meeting session rotation (IPCHandlers)", () => {
     expect(fetchToken).toHaveBeenCalledTimes(5);
     expect(handlers._meetingReconnecting).toEqual({ mic: true });
     expect(sentToWindow).toEqual([]);
+  });
+
+  it("runs one rotation at a time", async () => {
+    const oldMic = await liveStream("ek_first_mic", { ageMinutes: 26 });
+    handlers._meetingMicStreaming = oldMic;
+
+    // The 30s check fires again while the first rotation is still connecting.
+    await Promise.all([
+      handlers._checkMeetingSessionRotation(),
+      handlers._checkMeetingSessionRotation(),
+    ]);
+
+    expect(fetchToken).toHaveBeenCalledTimes(1);
+    expect(sockets).toHaveLength(2); // the old session and one new one
+    expect(handlers._meetingRetiredStreams.mic).toEqual([oldMic]);
+    expect(handlers._meetingRotating).toBe(false);
+  });
+
+  it("says the stream is lost when reconnect gives up, then the next check brings it back", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const deadMic = await liveStream("ek_first_mic");
+    handlers._meetingMicStreaming = deadMic;
+    sockets[0].drop();
+    fetchToken.mockRejectedValue(new Error("Token request failed: 503"));
+
+    await runBackoff(handlers._attemptMeetingReconnect("mic", win, deadMic));
+
+    expect(fetchToken).toHaveBeenCalledTimes(5);
+    expect(sentToWindow).toEqual([
+      ["meeting-transcription-error", "mic connection lost. Audio is saved locally for recovery."],
+    ]);
+    expect(handlers._meetingReconnecting.mic).toBe(false);
+    expect(handlers._meetingMicStreaming).toBe(deadMic);
+
+    // The network is back: the next 30s check replaces the dead session, young as it is.
+    fetchToken.mockReset();
+    fetchToken.mockResolvedValue("ek_back");
+    await handlers._checkMeetingSessionRotation();
+
+    const mic = handlers._meetingMicStreaming;
+    expect(mic).not.toBe(deadMic);
+    expect(mic.isConnected).toBe(true);
+    expect(sockets.at(-1)!.bearer).toBe("ek_back");
   });
 });

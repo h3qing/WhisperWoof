@@ -15,6 +15,7 @@ const MeetingAudioBuffer = require("./meetingAudioBuffer");
 const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
 const {
   sourcesToRotate,
+  reconnectsRightAway,
   meetingConnectOptions,
   rotateMeetingStreams,
   meetingTranscriptText,
@@ -22,6 +23,8 @@ const {
 const { getModelRuntime } = require("./parakeetModelInfo");
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
+// A stalled token request would otherwise hold a meeting's session rotation for minutes.
+const REALTIME_TOKEN_TIMEOUT_MS = 15000;
 
 // Debounce delay: wait for user to stop typing before processing corrections
 const AUTO_LEARN_DEBOUNCE_MS = 1500;
@@ -4420,9 +4423,14 @@ class IPCHandlers {
       streaming.onPartialTranscript = (text) => {
         send("meeting-transcription-segment", { text, source, type: "partial" });
       };
+      // Only a turn that added a segment has something to send: committing silence
+      // (e.g. as a rotation closes the old session) completes an empty turn.
+      let segmentsSent = streaming.completedSegments.length;
       streaming.onFinalTranscript = (text, timestamp) => {
         const segments = streaming.completedSegments;
-        const latestSegment = segments.length > 0 ? segments[segments.length - 1] : text;
+        if (segments.length === segmentsSent) return;
+        segmentsSent = segments.length;
+        const latestSegment = segments[segments.length - 1];
         debugLogger.debug("Meeting segment sending to renderer", {
           source,
           text: latestSegment.slice(0, 80),
@@ -4450,6 +4458,12 @@ class IPCHandlers {
       };
       streaming.onSessionEnd = (data) => {
         // Unexpected disconnect — attempt reconnection
+        if (!reconnectsRightAway(streaming, Date.now())) {
+          debugLogger.log("Meeting stream dropped soon after opening; next check retries", {
+            source,
+          });
+          return;
+        }
         if (!this._meetingReconnecting[source]) {
           debugLogger.log("Meeting stream ended unexpectedly, attempting reconnect", { source });
           send("meeting-transcription-error", `Connection lost for ${source} — reconnecting...`);
@@ -4479,6 +4493,7 @@ class IPCHandlers {
           language: options.language,
           streams: streams || 1,
         }),
+        signal: AbortSignal.timeout(REALTIME_TOKEN_TIMEOUT_MS),
       });
 
       if (!tokenResponse.ok) {
@@ -4517,11 +4532,7 @@ class IPCHandlers {
       this._meetingSystemStreaming = null;
       const win = BrowserWindow.fromWebContents(event.sender);
 
-      const connectOpts = {
-        model: options.model,
-        language: options.language,
-        preconfigured: options.mode !== "byok",
-      };
+      const connectOpts = meetingConnectOptions(options);
       let pairs;
       if (hasNativeMeetingSystemAudio()) {
         const secrets = await fetchRealtimeToken(event, options, { streams: 2 });
@@ -6671,12 +6682,12 @@ class IPCHandlers {
       if (!stillNeeded()) break;
 
       try {
-        const streaming = new OpenAIRealtimeStreaming();
-
         // Cloud sessions need a fresh ephemeral secret from the OpenWhispr API,
         // BYOK the stored key: the same path the meeting started with.
         const token = await this._fetchMeetingRealtimeToken(event, options);
+        if (!stillNeeded()) break;
 
+        const streaming = new OpenAIRealtimeStreaming();
         this._attachMeetingStreamingHandlers(streaming, win, source);
 
         await streaming.connect({ apiKey: token, ...meetingConnectOptions(options) });

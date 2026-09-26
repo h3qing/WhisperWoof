@@ -9,7 +9,9 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const {
   SESSION_MAX_AGE_MS,
+  SESSION_HARD_MAX_AGE_MS,
   sourcesToRotate,
+  reconnectsRightAway,
   meetingConnectOptions,
   rotateMeetingStreams,
   meetingTranscriptText,
@@ -38,7 +40,12 @@ function fakeStream(name: string, log: string[], { failConnect = false, text = "
 }
 
 describe("sourcesToRotate", () => {
-  const session = (connectedAt: number | null) => ({ connectedAt });
+  const session = (connectedAt: number | null) => ({
+    connectedAt,
+    isConnected: connectedAt != null,
+    isConnecting: connectedAt == null,
+  });
+  const gone = (connectedAt: number) => ({ connectedAt, isConnected: false, isConnecting: false });
   const due = {
     active: true,
     now: START + SESSION_MAX_AGE_MS,
@@ -46,8 +53,21 @@ describe("sourcesToRotate", () => {
     streams: { mic: session(START), system: session(START) },
   };
 
-  it("rotates 5 minutes before OpenAI's 30 minute session limit", () => {
+  it("rotates from 25 minutes, and by 28 at the latest, before OpenAI's 30 minute limit", () => {
     expect(SESSION_MAX_AGE_MS).toBe(25 * MIN);
+    expect(SESSION_HARD_MAX_AGE_MS).toBe(28 * MIN);
+  });
+
+  it("waits for a quiet moment instead of cutting a sentence in half, up to 28 minutes", () => {
+    // speechStartedAt is set from speech start until that turn's transcript arrives.
+    const midTurn = { ...session(START), speechStartedAt: START + SESSION_MAX_AGE_MS - 2000 };
+    const streams = { mic: midTurn, system: session(START) };
+    expect(sourcesToRotate({ ...due, streams })).toEqual(["system"]);
+    expect(sourcesToRotate({ ...due, streams, now: START + 27 * MIN })).toEqual(["system"]);
+    expect(sourcesToRotate({ ...due, streams, now: START + SESSION_HARD_MAX_AGE_MS })).toEqual([
+      "mic",
+      "system",
+    ]);
   });
 
   it("leaves sessions younger than 25 minutes alone", () => {
@@ -63,6 +83,14 @@ describe("sourcesToRotate", () => {
     const streams = { mic: session(START), system: session(START + 10 * MIN) };
     expect(sourcesToRotate({ ...due, streams })).toEqual(["mic"]);
     expect(sourcesToRotate({ ...due, streams, now: START + 35 * MIN })).toEqual(["mic", "system"]);
+  });
+
+  it("replaces a stream whose session is gone right away, whatever its age", () => {
+    // Reconnect gave up (or never started): the 30s check keeps trying instead of
+    // waiting until the dead session would have turned 25 minutes old.
+    const streams = { mic: gone(START + 20 * MIN), system: session(START + 20 * MIN) };
+    expect(sourcesToRotate({ ...due, streams })).toEqual(["mic"]);
+    expect(sourcesToRotate({ ...due, streams, reconnecting: { mic: true } })).toEqual([]);
   });
 
   it("leaves a session that hasn't connected yet alone", () => {
@@ -87,6 +115,18 @@ describe("sourcesToRotate", () => {
   it("does nothing when no meeting is streaming", () => {
     expect(sourcesToRotate({ ...due, active: false })).toEqual([]);
     expect(sourcesToRotate({ ...due, streams: { mic: null, system: null } })).toEqual([]);
+  });
+});
+
+describe("reconnectsRightAway", () => {
+  it("reconnects a session that had been up for a minute or more", () => {
+    expect(reconnectsRightAway({ connectedAt: START }, START + MIN)).toBe(true);
+    expect(reconnectsRightAway({ connectedAt: START }, START + 40 * MIN)).toBe(true);
+  });
+
+  it("leaves one that dropped within a minute to the 30s check, so a flapping server can't loop", () => {
+    expect(reconnectsRightAway({ connectedAt: START }, START + MIN - 1)).toBe(false);
+    expect(reconnectsRightAway({ connectedAt: null }, START)).toBe(false);
   });
 });
 
@@ -232,26 +272,45 @@ describe("rotateMeetingStreams", () => {
     expect(live).toEqual(before);
   });
 
-  it("closes the new sessions without swapping when the meeting ended meanwhile", async () => {
+  it("opens no sessions when the meeting ended during the token request", async () => {
     const { deps, created } = setup({ current: () => false });
 
     await expect(rotateMeetingStreams(deps)).resolves.toEqual({ rotated: false });
 
+    expect(created).toEqual([]);
     expect(deps.swapIn).not.toHaveBeenCalled();
+  });
+
+  it("closes the new sessions without swapping when the meeting ended while they connected", async () => {
+    let checks = 0;
+    const { deps, created } = setup({ current: () => checks++ === 0 }); // ends after the tokens
+
+    await expect(rotateMeetingStreams(deps)).resolves.toEqual({ rotated: false });
+
+    expect(deps.swapIn).not.toHaveBeenCalled();
+    expect(created).toHaveLength(2);
     expect(created.every((s) => s.disconnect.mock.calls.length === 1)).toBe(true);
   });
 
   it("treats a new session that dropped before the swap as a failed rotation", async () => {
     const { deps, live, created } = setup();
     const before = { ...live };
-    deps.isCurrent = vi.fn(() => {
-      created[1].isConnected = false; // dropped after connecting, before handlers were on
-      return true;
-    });
+    deps.createStreaming = ((create) => () => {
+      const stream = create();
+      if (stream.name === "new-system") {
+        const connect = stream.connect;
+        stream.connect = vi.fn(async () => {
+          await connect();
+          stream.isConnected = false; // dropped after connecting, before handlers were on
+        });
+      }
+      return stream;
+    })(deps.createStreaming);
 
     const result = await rotateMeetingStreams(deps);
 
     expect(result.rotated).toBe(false);
+    expect(result.error?.message).toMatch(/closed before/);
     expect(live).toEqual(before);
     expect(created[0].disconnect).toHaveBeenCalled();
   });
