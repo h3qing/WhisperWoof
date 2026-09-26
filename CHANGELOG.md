@@ -5,6 +5,8 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-09-26 — Your files stay yours
+
 ### Fixed
 - **Deleting an imported recording no longer deletes your audio file.** An import remembers where your original file lives, and deleting the entry in Storage (selected entries, or "older than N days") also deleted that original from your disk. Deleting an entry now only removes files WhisperWoof made itself (clipboard images and their thumbnails in its own folder), never anything outside it.
 - **The app only opens its own images.** Showing a clipboard image in History read whatever file path it was handed. It now reads only from WhisperWoof's image folder, and a saved entry can only point at files inside the app's own folders.
