@@ -571,11 +571,12 @@ class WindowManager {
     });
 
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
+      // Production builds load from a file, so there's no app URL (null).
       const appUrl = DevServerManager.getAppUrl(true);
-      const controlPanelUrl = appUrl.startsWith("http") ? appUrl : `file://${appUrl}`;
+      const controlPanelUrl = appUrl && (appUrl.startsWith("http") ? appUrl : `file://${appUrl}`);
 
       if (
-        url.startsWith(controlPanelUrl) ||
+        (controlPanelUrl && url.startsWith(controlPanelUrl)) ||
         url.startsWith("file://") ||
         url.startsWith("devtools://")
       ) {
