@@ -66,4 +66,6 @@
 
 **Context:** Eng-review decision D4 (2026-05-04) chose option 2-style scope ("Minimal: keyring + AES-256-GCM for plugin keys only") under the false premise that there was a safeStorage migration. With the premise corrected, the user should re-decide.
 
+**Update (v2.3.0):** encryption shipped. `bridge/vault/vault-files.js` can store a plugin's keys sealed (readable only while WhisperWoof is unlocked) with no new native dependency, so option 2 no longer needs `@napi-rs/keyring`. The open question below becomes: what happens to a plugin that needs its key while WhisperWoof is locked?
+
 **Start here:** When option 2 is picked, the design also needs to answer: what happens to the in-memory `process.env[KEY] = value` writes when keys come from disk on restart? Does the MCP child process inherit them, or do we need to spawn it after decrypt completes?

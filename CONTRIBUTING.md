@@ -8,7 +8,7 @@ WhisperWoof is a voice-first personal automation tool built on top of OpenWhispr
 git clone https://github.com/h3qing/whisperwoof.git
 cd whisperwoof
 npm install
-npm run compile:native    # Build native binaries (macOS Globe key, paste helpers)
+npm run compile:native    # Build native binaries (Globe key, paste, text monitor, vault helper)
 npm run download:whisper-cpp  # Download Whisper STT binary
 npm run build:renderer    # Build the React UI
 npm start                 # Launch the app
@@ -31,29 +31,39 @@ WhisperWoof code lives in `src/whisperwoof/` — isolated from OpenWhispr core t
 
 ```
 src/whisperwoof/
-  core/           ← Main process (strict TypeScript)
-    storage/      StorageProvider interface + shared types (runtime DB in bridge/app-init.js)
-    polish/       OllamaService for transcript cleanup
-    router/       HotkeyRouter for destination routing
-    clipboard/    ClipboardMonitor (NSPasteboard polling)
-    pipeline/     Orchestrates STT → Polish → Route → Store
-    plugins/      MCP plugin manager
-  ui/             ← Renderer (React + TSX)
-    history/      Unified voice + clipboard history view
-    indicator/    MandoSprite (animated Mando), cancel button, meeting pill; indicator shell is src/App.jsx
-    settings/     WhisperWoof settings panel
-    projects/     Project capture buckets
-    plugins/      Plugin management UI
-    command-bar/  Cmd+K text routing overlay
-  bridge/         ← ONLY place that imports OpenWhispr code
-    app-init.js   WhisperWoof init at startup
-    ollama-bridge.js  Ollama HTTP API wrapper
-    polish-presets.js  5 personality presets for text cleanup
-    model-advisor.js   RAM-based model recommendations
+  core/             ← Main-process logic and its tests (strict TypeScript)
+    storage/        StorageProvider interface + shared types (runtime DB in bridge/app-init.js)
+    polish/         Dictation formatting tests (cleanup itself is OpenWhispr's ReasoningService)
+    router/         Hotkey → destination routing
+    clipboard/      Clipboard monitor rules (the monitor runs in bridge/app-init.js)
+    live/           Live typing plan (streaming preview vs whole-recording pass)
+    vocabulary/     Memory swaps and speech-to-text hints
+    vault/          Encryption tests (the code is in bridge/vault/)
+    pipeline/       Orchestrates STT → Polish → Route → Store
+    plugins/        MCP plugin manager
+  ui/               ← Renderer (React + TSX)
+    home/           Home summary and activity heatmap
+    history/        Unified voice + clipboard history view
+    notes/          Notes view
+    smart-clipboard/ Clipboard view (text | images)
+    memory/         Memory view (learned words, approved swaps)
+    indicator/      MandoSprite (animated Mando), live typing panel, cancel button, meeting pill; indicator shell is src/App.jsx
+    settings/       WhisperWoof settings sections
+    vault/          Encryption settings, lock screen, Home offer
+    plugins/        Plugin management UI
+    command-bar/    Cmd+K text routing overlay
+  bridge/           ← ONLY place that imports OpenWhispr code
+    app-init.js     WhisperWoof init at startup: database, clipboard monitor
+    app-files.js    Path checks: the app only reads and deletes inside its own folders
+    vault/          At-rest encryption: keys, encrypted files, keyed DB, sealed inbox, migrations
+    vocabulary.js   Memory (learned words, corrections, swaps)
     markdown-route.js  Voice-to-Markdown (Fn+N)
+    project-notes.js   Notes filed under projects (Fn+P)
+    clipboard-store.js Clipboard view backend (copy back, save to note, retention)
     meeting-bridge.js  Meeting transcription tracking
     file-import.js     Audio file import pipeline
     plugin-bridge.js   Plugin config persistence
+    settings-export.js Settings export/import (native file dialogs)
 ```
 
 ## Key Rules
@@ -65,13 +75,14 @@ src/whisperwoof/
 - **Files < 400 lines** — extract when larger
 - **Functions < 50 lines** — one job per function
 - **Visual changes follow [DESIGN.md](DESIGN.md)** — colors, fonts, glass vs sheets, controls
+- **Encryption-aware storage** — read and write user files through `bridge/vault/vault-files.js` and open the database through `vault-db.js`; code that runs at startup or on a timer must cope with a locked (closed) database. See [the design](docs/design/at-rest-encryption.md).
 
 ## Testing
 
 ```bash
 npx vitest run                          # All tests
 npx vitest run --reporter=verbose       # Detailed output
-node eval/run-eval.js --preset all      # Polish quality eval
+node eval/run-polish-eval.js            # Cleanup prompt eval (needs a local model server; see the file header)
 ```
 
 ## Branch Strategy

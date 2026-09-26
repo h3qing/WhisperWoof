@@ -265,6 +265,7 @@ grid (824 on a 1024 canvas) so macOS 26 doesn't put it in a gray tile. Source
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-09-26 | Site: Clipboard and Encryption sections. The Clipboard view is drawn as a still sheet (text rows, image tiles with Mando art, no fake screenshots); the lock screen is shown as the app draws it, one glass card on the backdrop | Show shipped features with the product's own surfaces instead of new illustrations |
 | 2026-09-25 | Encryption UI: lock screen replaces the panel; the phrase copies only through its Copy button; Home offers encryption once with a real "no" | Owner asked for one-click copy and an explicit opt-out that says it can be turned on later |
 | 2026-09-24 | Adopt the Glassfolio system in Mando's colors | The user's own Glassfolio design language; palette re-derived from photos of Mando instead of copying Glassfolio's blues |
 | 2026-09-24 | Glass means "not landed yet"; `live-words` is the signature | WhisperWoof's own reason for glass, as Glassfolio's glass bar means "held through funds" |
