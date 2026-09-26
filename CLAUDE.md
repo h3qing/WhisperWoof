@@ -83,6 +83,9 @@ Voice/System Audio Chunks
           └── At most 60s of transcript lost on crash
 ```
 
+- **Rotation + recovery** — a 30s check in `ipcHandlers.js` asks `sourcesToRotate` (`meetingSessionRotation.js`): a session due at 25 min waits for a gap between turns (`speechStartedAt` null) until 28 min; a stream whose reconnect gave up is reopened by the same check. A session that drops <60s after opening isn't reconnected at once (`reconnectsRightAway`, flapping guard). Stop returns every session's text, rotated-out ones first (`meetingTranscriptText`).
+- **Recordings outlive the Notes view** — `src/components/notes/MeetingTranscriptionProvider.tsx` (mounted by `ControlPanel`, read via `useMeetingRecording`) owns meeting + note recordings; `ActiveRecordingPill` shows and stops them; the transcript is saved to its note on stop (`ui/notes/meeting-recording.ts`). Backstop: main stops a meeting if the window that started it closes, reloads or crashes (`watchMeetingOwner` in `ipcHandlers.js`).
+
 ### Meeting detection confidence model
 
 ```
