@@ -5,10 +5,13 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-09-26 — Long meetings keep transcribing
+
 ### Fixed
-- **Meeting transcription no longer stops after 25 minutes.** Long meetings switch to a fresh transcription session before OpenAI's 30-minute limit, but the old session was closed and never replaced, so everything after minute 25 stayed untranscribed. The new session now connects first and takes over without a gap, and the words spoken as the switch happens aren't lost. The full meeting transcript is shown when you stop, not only the part since the last switch. Sessions that meeting mode opens before you press record are switched on time too; they used to run into OpenAI's limit early because the clock only started at record.
-- **Dropped meeting connections reconnect when you're signed in.** A lost meeting connection used to reconnect with your own OpenAI key, which signed-in users usually don't have, so it never recovered. It now gets a new session the same way the meeting started.
-- **Stopping kept no text when OpenAI hung up at that moment.** If the connection closed while a meeting (or OpenAI live dictation) was saving its last words, the stop came back empty for that whole session. Its text is kept now.
+- **Meeting transcription no longer stops after 25 minutes.** Long meetings switch to a fresh transcription session before OpenAI's 30-minute limit, but the old session was closed and never replaced, so everything after minute 25 was left untranscribed. Now the new session connects first and takes over without a gap in the audio, at a pause between sentences rather than mid-word. When you stop, you see the whole meeting's transcript, not just the part since the last switch. Sessions that meeting mode opens before you press record are switched on time too.
+- **Dropped meeting connections come back.** When signed in, a lost connection tried to reconnect with your own OpenAI key, which you usually don't have, so it never recovered. It now gets a new session the same way the meeting started. If the network stays down for a while, it keeps trying every 30 seconds instead of giving up after half a minute.
+- **Leaving Notes no longer breaks a recording.** Switching to another view while a meeting or note was recording stopped the microphone and lost the transcript, while the connection kept running in the background with no way to stop it. Recordings now keep going in any view: the recording pill shows them, its Stop really stops them, and the transcript is saved to its note. If the window closes or reloads mid-meeting, the meeting stops.
+- **Stopping could lose a whole session's text.** If OpenAI closed the connection just as a meeting (or OpenAI live dictation) was saving its last words, the stop came back empty. The text is kept now, and stopping no longer waits 3 seconds for a reply that isn't coming.
 
 ## [2.2.0] - 2026-09-25 — A clipboard you can actually use
 
