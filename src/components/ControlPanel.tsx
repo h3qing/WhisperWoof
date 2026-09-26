@@ -44,11 +44,23 @@ const ClipboardTimeline = React.lazy(() => import("../whisperwoof/ui/smart-clipb
 const StorageManager = React.lazy(() => import("../whisperwoof/ui/storage/StorageManager"));
 const CommandBar = React.lazy(() => import("../whisperwoof/ui/command-bar/CommandBar"));
 
-import { MeetingRecordingPill } from "../whisperwoof/ui/indicator/MeetingRecordingPill";
+import {
+  ActiveRecordingPill,
+  MeetingTranscriptionProvider,
+} from "./notes/MeetingTranscriptionProvider";
 import { useVaultGate } from "../whisperwoof/ui/vault/useVaultStatus";
 import VaultLockScreen from "../whisperwoof/ui/vault/VaultLockScreen";
 
+// Recordings live above the views so switching views doesn't end them.
 export default function ControlPanel() {
+  return (
+    <MeetingTranscriptionProvider>
+      <ControlPanelViews />
+    </MeetingTranscriptionProvider>
+  );
+}
+
+function ControlPanelViews() {
   const { t } = useTranslation();
   const history = useTranscriptions();
   const [isLoading, setIsLoading] = useState(true);
@@ -509,6 +521,8 @@ export default function ControlPanel() {
     [],
   );
 
+  // The pill's Stop has already stopped the recording (ActiveRecordingPill);
+  // this ends the meeting around it.
   const handleMeetingPillStop = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = window.electronAPI as any;
@@ -517,7 +531,8 @@ export default function ControlPanel() {
     } catch {
       /* IPC failure surfaces via main-process logging */
     }
-  }, []);
+    if (isMeetingMode) handleExitMeetingMode();
+  }, [isMeetingMode, handleExitMeetingMode]);
 
   // WhisperWoof: while encryption has WhisperWoof locked, the whole panel is
   // the lock screen. Wait for the first vault status so history never flashes
@@ -536,7 +551,7 @@ export default function ControlPanel() {
   return (
     <div className="relative h-screen flex flex-col">
       <div className="mando-field" aria-hidden />
-      <MeetingRecordingPill
+      <ActiveRecordingPill
         onJumpToNote={handleMeetingPillJump}
         onStopMeeting={handleMeetingPillStop}
       />

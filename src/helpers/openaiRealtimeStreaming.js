@@ -11,6 +11,8 @@ class OpenAIRealtimeStreaming {
     this.ws = null;
     this.isConnected = false;
     this.isConnecting = false;
+    // When the session went live: OpenAI ends sessions ~30 minutes after that.
+    this.connectedAt = null;
     this.completedSegments = [];
     this.currentPartial = "";
     this.onPartialTranscript = null;
@@ -126,6 +128,7 @@ class OpenAIRealtimeStreaming {
             });
             this.isConnected = true;
             this.isConnecting = false;
+            this.connectedAt = Date.now();
             clearTimeout(this.connectionTimeout);
             if (this.pendingResolve) {
               this.pendingResolve();
@@ -162,6 +165,7 @@ class OpenAIRealtimeStreaming {
           if (this.pendingResolve) {
             this.isConnected = true;
             this.isConnecting = false;
+            this.connectedAt = Date.now();
             clearTimeout(this.connectionTimeout);
             debugLogger.debug("OpenAI Realtime session configured", {
               model: this.model,
@@ -305,8 +309,8 @@ class OpenAIRealtimeStreaming {
             resolve();
           };
 
-          this.onFinalTranscript = (text) => {
-            prevOnFinal?.(text);
+          this.onFinalTranscript = (text, timestamp) => {
+            prevOnFinal?.(text, timestamp);
             done();
           };
 
@@ -322,6 +326,8 @@ class OpenAIRealtimeStreaming {
           };
 
           try {
+            // No answer is coming once the server closes the socket.
+            this.ws.once("close", done);
             this.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
           } catch {
             done();
@@ -329,7 +335,8 @@ class OpenAIRealtimeStreaming {
         });
       }
 
-      this.ws.close();
+      // The server may have closed the socket during the commit wait (cleanup() then cleared it).
+      this.ws?.close();
     }
 
     const result = { text: this.getFullTranscript() };

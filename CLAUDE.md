@@ -67,7 +67,8 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
 src/helpers/                     ← Meeting safety modules (main process)
     meetingAudioBuffer.js       Local WAV file buffer (5-min rotating segments)
     meetingTranscriptCheckpoint.js  Periodic transcript save to SQLite (60s)
-    meetingSessionManager.js    WebSocket reconnection + session rotation
+    meetingSessionRotation.js   25-min session rotation: which streams, connect new → swap → close old
+    meetingSessionManager.js    Unused wrapper (tests only); live rotation/reconnect is in ipcHandlers.js
     meetingDetectionEngine.js   Orchestrates calendar + process + audio detection
     audioActivityDetector.js    Mic activity detection (event-driven + polling)
     meetingProcessDetector.js   Detects Zoom/Teams/Webex/FaceTime running
@@ -82,12 +83,16 @@ Voice/System Audio Chunks
     │     └── Crash-safe: valid WAV on disk at all times
     │
     ├──► OpenAI Realtime WebSocket (streaming transcription)
-    │     ├── MeetingSessionManager handles reconnection + rotation
-    │     └── If disconnect: auto-reconnect with exponential backoff
+    │     ├── Rotation at 25min per session (connectedAt; ipcHandlers + meetingSessionRotation.js):
+    │     │   fresh session connects first, swaps in, then the old one closes
+    │     └── If disconnect: auto-reconnect with exponential backoff (fresh token)
     │
     └──► MeetingTranscriptCheckpoint (SQLite every 60s)
           └── At most 60s of transcript lost on crash
 ```
+
+- **Rotation + recovery** — a 30s check in `ipcHandlers.js` asks `sourcesToRotate` (`meetingSessionRotation.js`): a session due at 25 min waits for a gap between turns (`speechStartedAt` null) until 28 min; a stream whose reconnect gave up is reopened by the same check. A session that drops <60s after opening isn't reconnected at once (`reconnectsRightAway`, flapping guard). Stop returns every session's text per source (mic, then system): sessions rotated out or replaced by a reconnect, then the live one (`meetingTranscriptText`).
+- **Recordings outlive the Notes view** — `src/components/notes/MeetingTranscriptionProvider.tsx` (mounted by `ControlPanel`, read via `useMeetingRecording`) owns meeting + note recordings; `ActiveRecordingPill` shows and stops them; on stop the provider saves the transcript to its note (`transcriptForNote`, pill state `recordingPillState`: `ui/notes/meeting-recording.ts`). Backstop: main stops a meeting if the window that started it closes, reloads or crashes (`watchMeetingOwner` in `ipcHandlers.js`).
 
 ### Meeting detection confidence model
 
