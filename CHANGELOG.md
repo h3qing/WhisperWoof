@@ -11,7 +11,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Fixed
 - **Parakeet and SenseVoice servers no longer start on a port that's taken.** The check for a free port missed a sherpa-onnx server already listening on it (they listen on every network interface), so a second one could start on the same port and die. It now checks both ways.
 - **A note shows only its own recording.** After recording into one note, opening another note showed the first note's transcript as its own, and AI actions ran on it.
-- **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window closes or reloads, the recording stops instead of running on unseen.
+- **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window closes, crashes or reloads, the recording stops instead of running on unseen, and its audio is kept.
 
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 

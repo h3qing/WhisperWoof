@@ -193,6 +193,45 @@ describe("a meeting through the IPC handlers", () => {
     expect(handlers._meetingMicStreaming).toBeNull();
   });
 
+  it("keeps the meeting's audio when its window closes, since nothing saves the transcript then", async () => {
+    handlers._meetingAudioBuffer.stop = function () {
+      this.isActive = false;
+      return { dir: "/tmp/meeting-audio-2", files: ["/tmp/meeting-audio-2/mic-0000.wav"] };
+    };
+    handlers._meetingAudioBuffer.cleanupFiles = vi.fn();
+    const first = await startMeeting();
+    speak();
+    first.transcribes("forty minutes in");
+
+    sender.emit("render-process-gone");
+    await vi.waitFor(() => expect(handlers._meetingAudioBuffer.isActive).toBe(false));
+
+    expect(handlers._meetingAudioBuffer.cleanupFiles).not.toHaveBeenCalled();
+  });
+
+  it("undoes a start with a provider it doesn't know, so the next meeting can start", async () => {
+    const odd = await ipc.get("meeting-transcription-start")!(event, { provider: "other" });
+    expect(odd).toMatchObject({ success: false, error: "Unsupported provider: other" });
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+    expect(sender.listenerCount("destroyed")).toBe(0);
+    await startMeeting();
+    await ipc.get("meeting-transcription-stop")!();
+  });
+
+  it("drops a start whose window is gone by the time its turn comes", async () => {
+    const gone = Object.assign(new EventEmitter(), { isDestroyed: () => true });
+    const result = await ipc.get("meeting-transcription-start")!(
+      { sender: gone },
+      {
+        provider: "openai-realtime",
+        mode: "byok",
+      }
+    );
+    expect(result).toMatchObject({ success: false });
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+    expect(sockets).toHaveLength(0);
+  });
+
   it("doesn't start the transcript checkpoint, which would write over the note's own text", async () => {
     await ipc.get("meeting-transcription-start")!(event, {
       provider: "openai-realtime",

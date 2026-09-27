@@ -18,10 +18,12 @@ export function MeetingTranscriptionProvider({ children }: { children: React.Rea
 
   const startRecording = useCallback(
     async (target: ActiveRecording) => {
+      // One recording at a time; a second start must not retarget the running one.
+      if (isRecording) return;
       setRecording(target);
       await startTranscription({ noteId: target.noteId });
     },
-    [startTranscription]
+    [isRecording, startTranscription]
   );
 
   // Save the transcript to its note as the recording stops. `recording` stays

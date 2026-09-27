@@ -1304,7 +1304,9 @@ if (gotSingleInstanceLock) {
   // its note before WhisperWoof quits: a few seconds, 20 at most.
   let meetingStoppedForQuit = false;
   app.on("before-quit", (event) => {
-    if (meetingStoppedForQuit || !ipcHandlers?.isLocalMeetingRecording()) return;
+    // The updater emits a bare before-quit first; its real quit comes after it
+    // closes the windows, which starts the meeting's stop, and waits here.
+    if (!event || meetingStoppedForQuit || !ipcHandlers?.isLocalMeetingRecording()) return;
     event.preventDefault();
     meetingStoppedForQuit = true;
     const timeout = new Promise((resolve) => setTimeout(resolve, 20_000));

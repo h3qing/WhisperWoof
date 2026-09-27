@@ -4847,7 +4847,7 @@ class IPCHandlers {
       releaseMeetingOwner();
       const ownerGone = () => {
         debugLogger.log("Meeting window closed or reloaded, stopping the meeting");
-        void stopMeetingTranscription();
+        void stopMeetingTranscription({ ownerGone: true });
       };
       const onNavigation = (details) => {
         if (details?.isMainFrame && !details.isSameDocument) ownerGone();
@@ -4864,6 +4864,10 @@ class IPCHandlers {
     };
 
     const startMeetingTranscription = async (event, options = {}) => {
+      // Queued behind a stop, the window that asked may be gone by now.
+      if (event.sender.isDestroyed?.()) {
+        return { success: false, error: "The window that started the meeting is gone." };
+      }
       if (this._meetingAudioBuffer.isActive) {
         return { success: false, error: "A meeting is already recording." };
       }
@@ -4925,7 +4929,7 @@ class IPCHandlers {
         }
 
         if (options.provider !== "openai-realtime") {
-          return { success: false, error: `Unsupported provider: ${options.provider}` };
+          throw new Error(`Unsupported provider: ${options.provider}`); // the catch undoes the start
         }
 
         await connectRealtimeStreaming(event, options);
@@ -5024,9 +5028,9 @@ class IPCHandlers {
     });
 
     // The window and the owner backstop can both ask; the meeting stops once.
-    const stopMeetingTranscription = () => {
+    const stopMeetingTranscription = ({ ownerGone = false } = {}) => {
       if (!pendingMeetingStop) {
-        const stopping = queueMeetingOp(finishMeetingTranscription);
+        const stopping = queueMeetingOp(() => finishMeetingTranscription({ ownerGone }));
         const settled = () => {
           if (pendingMeetingStop === stopping) pendingMeetingStop = null;
         };
@@ -5038,7 +5042,7 @@ class IPCHandlers {
     // Quitting mid-meeting: a local meeting finishes its last clip first (main.js).
     this.stopMeetingTranscription = stopMeetingTranscription;
 
-    const finishMeetingTranscription = async () => {
+    const finishMeetingTranscription = async ({ ownerGone }) => {
       releaseMeetingOwner();
       try {
         this._stopMeetingSessionRotation();
@@ -5062,7 +5066,10 @@ class IPCHandlers {
         const checkpointResult = this._meetingTranscriptCheckpoint.stop();
         const audioKept = this._releaseMeetingAudio(
           audioResult,
-          local ? local.complete : checkpointResult.persisted && !this._meetingAudioUntranscribed
+          local
+            ? local.complete
+            : // With its window gone, nothing saves a cloud meeting's transcript: keep the audio.
+              !ownerGone && checkpointResult.persisted && !this._meetingAudioUntranscribed
         );
         this._afterMeetingStopped();
 

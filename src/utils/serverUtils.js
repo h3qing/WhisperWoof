@@ -17,11 +17,23 @@ function canListen(port, host) {
   });
 }
 
-// Free only if both work: on macOS a listen on 127.0.0.1 succeeds while a
-// server (sherpa-onnx) holds the port on all interfaces, and a listen on
-// 0.0.0.0 succeeds while one holds it on 127.0.0.1 alone.
+function answers(port, host) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+// On macOS a listen on 127.0.0.1 succeeds while a server (sherpa-onnx) holds
+// the port on all interfaces, so the port must not answer either. (A test
+// listen on 0.0.0.0 would catch it too, but makes the macOS firewall ask
+// about WhisperWoof.)
 async function isPortAvailable(port) {
-  return (await canListen(port, "127.0.0.1")) && (await canListen(port, "0.0.0.0"));
+  return (await canListen(port, "127.0.0.1")) && !(await answers(port, "127.0.0.1"));
 }
 
 async function findAvailablePort(rangeStart, rangeEnd) {

@@ -360,6 +360,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
       if (isRecordingRef.current || isStartingRef.current) return;
       isStartingRef.current = true;
       recordingRunRef.current += 1;
+      const run = recordingRunRef.current;
 
       logger.info("Meeting transcription starting...", {}, "meeting");
       setTranscript("");
@@ -378,6 +379,11 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
       if (preparePromiseRef.current) {
         logger.debug("Waiting for in-flight prepare to finish...", {}, "meeting");
         await preparePromiseRef.current;
+        // Stopped while waiting: main never heard of this start, so don't send it.
+        if (!isRecordingRef.current) {
+          isStartingRef.current = false;
+          return;
+        }
       }
 
       try {
@@ -450,7 +456,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
               {
                 source: data.source,
                 type: data.type,
-                text: data.text?.slice(0, 80),
+                chars: data.text?.length, // meeting text stays out of the debug log
               },
               "meeting"
             );
@@ -574,8 +580,11 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         isStartingRef.current = false;
         setIsRecording(false);
         await cleanup();
-        // Main may have started the meeting before this window's setup failed.
-        await window.electronAPI?.meetingTranscriptionStop?.();
+        // Main may have started the meeting before this window's setup failed
+        // (unless a newer recording has started since, which that stop would end).
+        if (run === recordingRunRef.current) {
+          await window.electronAPI?.meetingTranscriptionStop?.();
+        }
       }
     },
     [cleanup]
