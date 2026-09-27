@@ -5,6 +5,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Added
+- **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification or search. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events still to come are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, uploads, your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
+
 ## [2.4.0] - 2026-09-27 — Meetings, transcribed on your Mac
 
 ### Added

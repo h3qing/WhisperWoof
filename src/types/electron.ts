@@ -1330,8 +1330,8 @@ declare global {
         detectionId: string,
         action: string
       ) => Promise<{ success: boolean }>;
-      /** Starts a meeting now: a note in Meetings, meeting mode, recording. */
-      startNewMeeting?: () => Promise<{ success: boolean; error?: string }>;
+      /** Starts a meeting now: a note in Meetings (titled `title`), meeting mode, recording. */
+      startNewMeeting?: (options?: { title?: string }) => Promise<{ success: boolean; error?: string }>;
       onNavigateToMeetingNote?: (
         callback: (data: {
           noteId: number;

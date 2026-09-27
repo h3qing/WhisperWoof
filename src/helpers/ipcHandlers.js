@@ -6632,13 +6632,16 @@ class IPCHandlers {
       }
     });
 
-    // The Meetings tab's "New meeting": a note in Meetings, meeting mode, recording.
-    ipcMain.handle("meeting-start-new", async () => {
+    // The Meetings tab's "New meeting" (or Record on an event coming up): a note
+    // in Meetings, meeting mode, recording.
+    ipcMain.handle("meeting-start-new", async (_event, options = {}) => {
       if (this.isMeetingRecording()) {
         return { success: false, error: "A meeting is already recording." };
       }
+      const title =
+        typeof options?.title === "string" ? options.title.trim().slice(0, 200) : "";
       try {
-        await this.meetingDetectionEngine.startManualMeeting();
+        await this.meetingDetectionEngine.startManualMeeting({ title: title || undefined });
         return { success: true };
       } catch (error) {
         return { success: false, error: error.message };

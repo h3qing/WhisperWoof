@@ -17,7 +17,7 @@ vi.mock("../../../helpers/debugLogger", () => ({
 const MeetingDetectionEngineModule = await import("../../../helpers/meetingDetectionEngine");
 type EngineCtor = new (...args: unknown[]) => {
   setMeetingModeActive: (active: boolean, payload?: { noteId?: number; noteTitle?: string; trigger?: string }) => void;
-  startManualMeeting: () => Promise<void>;
+  startManualMeeting: (options?: { title?: string }) => Promise<void>;
   stop: () => void;
   _meetingModeActive: boolean;
   _meetingState: { isRecording: boolean; noteId: number | null; noteTitle: string | null; trigger: string | null };
@@ -127,6 +127,14 @@ describe("meeting-state IPC channel", () => {
     expect((navMessages[0].payload as { trigger: string }).trigger).toBe("manual");
   });
 
+  it("startManualMeeting names the note after the title it's given, else 'New note'", async () => {
+    await env.engine.startManualMeeting({ title: "Standup" });
+    env.engine.stop();
+    await env.engine.startManualMeeting();
+    const titles = env.databaseManager.saveNote.mock.calls.map(([title]: [string]) => title);
+    expect(titles).toEqual(["Standup", "New note"]);
+  });
+
   it("stop() emits meeting-state with isRecording=false (cleanup)", () => {
     env.engine.setMeetingModeActive(true, { noteId: 1, noteTitle: "X", trigger: "manual" });
     env.sent.length = 0;
@@ -172,7 +180,7 @@ describe("meeting-state IPC channel", () => {
     interface EngineWithDeps {
       databaseManager: { saveNote: ReturnType<typeof vi.fn> };
       _meetingModeActive: boolean;
-      startManualMeeting: () => Promise<void>;
+      startManualMeeting: (options?: { title?: string }) => Promise<void>;
     }
     const e = env.engine as unknown as EngineWithDeps;
     let flagDuringSaveNote: boolean | null = null;
@@ -194,7 +202,7 @@ describe("meeting-state IPC channel", () => {
     interface EngineWithDeps {
       databaseManager: { saveNote: ReturnType<typeof vi.fn> };
       _meetingModeActive: boolean;
-      startManualMeeting: () => Promise<void>;
+      startManualMeeting: (options?: { title?: string }) => Promise<void>;
     }
     const e = env.engine as unknown as EngineWithDeps;
     e.databaseManager.saveNote = vi.fn(() => ({ note: null }));

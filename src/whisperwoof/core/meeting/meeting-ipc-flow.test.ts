@@ -478,7 +478,19 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => {}) };
     const result = await ipc.get("meeting-start-new")!();
     expect(result).toEqual({ success: true });
-    expect(handlers.meetingDetectionEngine.startManualMeeting).toHaveBeenCalledTimes(1);
+    expect(handlers.meetingDetectionEngine.startManualMeeting).toHaveBeenCalledWith({
+      title: undefined,
+    });
+  });
+
+  it("titles a meeting recorded from the calendar after the event", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => {}) };
+    await ipc.get("meeting-start-new")!(event, { title: "  Standup  " });
+    await ipc.get("meeting-start-new")!(event, { title: "x".repeat(500) });
+    await ipc.get("meeting-start-new")!(event, { title: 42 });
+    expect(handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(([o]: any) => o.title)).toEqual(
+      ["Standup", "x".repeat(200), undefined]
+    );
   });
 
   it("won't start a second meeting from New meeting while one is recording", async () => {

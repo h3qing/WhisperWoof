@@ -291,7 +291,8 @@ class MeetingDetectionEngine {
     }
   }
 
-  async startManualMeeting() {
+  /** `title`: the note's title, e.g. the calendar event recorded from the Meetings tab. */
+  async startManualMeeting({ title } = {}) {
     debugLogger.info("Starting manual meeting", {}, "meeting");
 
     // Suppression flag flips synchronously so any concurrent auto-detect
@@ -302,7 +303,7 @@ class MeetingDetectionEngine {
     const event = {
       id: `manual-${Date.now()}`,
       calendar_id: "__manual__",
-      summary: "New note",
+      summary: title || "New note",
       start_time: new Date().toISOString(),
       end_time: new Date(Date.now() + 3600000).toISOString(),
       is_all_day: 0,

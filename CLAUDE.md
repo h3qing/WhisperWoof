@@ -60,6 +60,8 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
                               itself is owned by src/components/notes/MeetingTranscriptionProvider.tsx)
     vault/                    Encryption settings, turn-on/off dialogs, lock screen, Home offer
     projects/                 Project picker, project detail view
+    meetings/                 Meetings tab column: ComingUpToday (calendar, Record → meeting-start-new),
+                              FolderFilter (folder capsule), day grouping (meetings-list.ts)
   bridge/                     ← ONLY place that imports OpenWhispr code
     vault/                    At-rest encryption: keys, WWENC1 files, keyed DB open,
                               sealed inbox, migrations, Touch ID helper bridge, IPC

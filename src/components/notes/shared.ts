@@ -8,6 +8,11 @@ export function findDefaultFolder(folders: FolderItem[]): FolderItem | undefined
   return folders.find((f) => f.name === DEFAULT_FOLDER_NAME && f.is_default);
 }
 
+/** The Meetings tab opens on this one. */
+export function findMeetingsFolder(folders: FolderItem[]): FolderItem | undefined {
+  return folders.find((f) => f.name === MEETINGS_FOLDER_NAME && f.is_default);
+}
+
 export const notesInputClass = cn(
   "w-full h-8 px-3 rounded-md text-xs",
   "bg-input border border-border",
