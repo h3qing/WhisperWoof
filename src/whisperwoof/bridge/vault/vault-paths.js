@@ -55,6 +55,83 @@ function keepTimes(file, original) {
   fs.utimesSync(file, original.atime, original.mtime);
 }
 
+/**
+ * For converting many files: write `data` to a temp file next to `file` and
+ * fsync it, off the main thread. The folder isn't synced here: the caller
+ * syncs each folder once per batch (syncDirAsync). → the temp path
+ */
+async function writeTempAsync(file, data, mode = 0o600, times = null) {
+  const tmp = `${file}.tmp-${crypto.randomBytes(4).toString("hex")}`;
+  const handle = await fs.promises.open(tmp, "w", mode);
+  try {
+    await handle.writeFile(data);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  if (times) await fs.promises.utimes(tmp, times.atime, times.mtime);
+  return tmp;
+}
+
+const sameFile = (now, before) => Boolean(now) && now.size === before.size && now.mtimeMs === before.mtimeMs;
+
+function statOrNull(file) {
+  try {
+    return fs.statSync(file);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Move `tmp` to `file` only if `watched` is still what was read (`before`):
+ * the app may have deleted or rewritten it while the conversion awaited.
+ * The check and the rename run back to back, so nothing in the app can land
+ * between them. → false (and the temp file gone) when it changed.
+ */
+function commitIfUnchanged(tmp, file, watched, before) {
+  if (!sameFile(statOrNull(watched), before)) {
+    removeIfExists(tmp);
+    return false;
+  }
+  fs.renameSync(tmp, file);
+  return true;
+}
+
+/** Remove `file` only if it's still what was read (`before`); same guarantee as commitIfUnchanged. */
+function removeIfUnchanged(file, before) {
+  if (!sameFile(statOrNull(file), before)) return false;
+  fs.rmSync(file, { force: true });
+  return true;
+}
+
+async function syncDirAsync(dir) {
+  try {
+    const handle = await fs.promises.open(dir, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Not every filesystem lets a directory be fsynced; the rename is still atomic.
+  }
+}
+
+// Converting many files (turning encryption on/off, a new phrase) runs in
+// batches so the app keeps working: each file's write and fsync happen off the
+// main thread a few at a time, and each folder is synced once per batch.
+const CONVERT_BATCH = 32;
+const CONVERT_PARALLEL = 4;
+
+/** Run `fn` over `items`, `size` at a time, keeping the results in order. */
+async function inGroups(items, size, fn) {
+  const groups = Array.from({ length: Math.ceil(items.length / size) }, (_, g) => items.slice(g * size, g * size + size));
+  let results = [];
+  for (const group of groups) results = [...results, ...(await Promise.all(group.map(fn)))];
+  return results;
+}
+
 function syncDir(dir) {
   try {
     const fd = fs.openSync(dir, "r");
@@ -84,4 +161,19 @@ function removeStaleTemps(dir) {
   }
 }
 
-module.exports = { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, syncDir, removeIfExists, removeStaleTemps };
+module.exports = {
+  vaultPaths,
+  ensurePrivateDir,
+  writeFileAtomic,
+  writeTempAsync,
+  commitIfUnchanged,
+  removeIfUnchanged,
+  syncDirAsync,
+  inGroups,
+  CONVERT_BATCH,
+  CONVERT_PARALLEL,
+  keepTimes,
+  syncDir,
+  removeIfExists,
+  removeStaleTemps,
+};

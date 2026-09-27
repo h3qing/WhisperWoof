@@ -182,6 +182,122 @@ describe("turning encryption on", () => {
   });
 });
 
+// Your data can be big (tens of thousands of clipboard images): the app must
+// keep working while it's converted, and whatever it saves meanwhile must survive.
+describe("while it runs", () => {
+  function manyImages(n: number) {
+    const dir = path.join(userData, "whisperwoof-images");
+    for (let i = 0; i < n; i++) fs.writeFileSync(path.join(dir, `bulk-${i}.png`), crypto.randomBytes(2000));
+    return dir;
+  }
+
+  async function adopt(m: ReturnType<typeof freshModules>) {
+    const { vault: v, masterKey } = m.keys.createVault({ entropy: crypto.randomBytes(16), password: "a good password", kdf: FAST });
+    await m.vault.adoptNewVault(v, masterKey);
+  }
+
+  it("lets the app keep running while it encrypts", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    manyImages(200);
+    await adopt(m);
+    let turns = 0;
+    let finished = false;
+    const turn = () => {
+      if (finished) return;
+      turns += 1;
+      setImmediate(turn);
+    };
+    setImmediate(turn);
+    await m.migrate.run("enable", { Database, userData, notesDir, sealNotes: true });
+    finished = true;
+    expect(turns).toBeGreaterThan(5);
+    expect(leaks(userData)).toEqual([]);
+  });
+
+  it("keeps a Memory change made while encrypting", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    manyImages(100);
+    await adopt(m);
+    const vocab = path.join(userData, "whisperwoof-vocabulary.json");
+    const running = m.migrate.run("enable", { Database, userData, notesDir, sealNotes: true });
+    setImmediate(() => m.files.writeJson(vocab, [{ word: "changed meanwhile" }]));
+    await running;
+    expect(m.files.readJson(vocab, null)).toEqual([{ word: "changed meanwhile" }]);
+    expect(fs.existsSync(vocab)).toBe(false);
+  });
+
+  it("keeps a note saved while turning encryption off", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    manyImages(100);
+    await turnOn(m);
+    const note = path.join(notesDir, "2026-09-25-101500.md");
+    const running = m.migrate.run("disable", { Database, userData, notesDir, sealNotes: true });
+    // Encryption is still on until the end, so the app writes it encrypted.
+    setImmediate(() => m.files.writeFile(note, "edited while turning off", { kind: "note", seal: true }));
+    await running;
+    expect(fs.readFileSync(note, "utf8")).toBe("edited while turning off");
+    expect(fs.existsSync(`${note}.wwenc`)).toBe(false);
+  });
+
+  it("skips a clipboard image deleted while encrypting", async () => {
+    const m = freshModules();
+    seedPlainData().live.close();
+    const dir = manyImages(100);
+    await adopt(m);
+    const running = m.migrate.run("enable", { Database, userData, notesDir, sealNotes: true });
+    setImmediate(() => fs.rmSync(path.join(dir, "bulk-99.png"), { force: true }));
+    await running;
+    expect(fs.existsSync(path.join(dir, "bulk-99.png"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "bulk-99.png.wwenc"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "bulk-98.png.wwenc"))).toBe(true);
+  });
+});
+
+describe("only if unchanged", () => {
+  // A conversion awaits between reading a file and replacing or deleting it;
+  // whatever the app did to the file meanwhile wins.
+  function paths() {
+    freshModules();
+    return require("../../bridge/vault/vault-paths.js");
+  }
+
+  it("won't replace a file that was rewritten or deleted after it was read", async () => {
+    const p = paths();
+    const file = path.join(userData, "a.bin");
+    fs.writeFileSync(file, "first");
+    const before = fs.statSync(file);
+    const tmp = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, before);
+    fs.writeFileSync(file, "rewritten by the app");
+    expect(p.commitIfUnchanged(tmp, file, file, before)).toBe(false);
+    expect(fs.readFileSync(file, "utf8")).toBe("rewritten by the app");
+    expect(fs.existsSync(tmp)).toBe(false);
+
+    const again = fs.statSync(file);
+    const tmp2 = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, again);
+    fs.rmSync(file);
+    expect(p.commitIfUnchanged(tmp2, file, file, again)).toBe(false);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+
+  it("replaces and removes a file nobody touched", async () => {
+    const p = paths();
+    const file = path.join(userData, "b.bin");
+    fs.writeFileSync(file, "first");
+    const before = fs.statSync(file);
+    const tmp = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, before);
+    expect(p.commitIfUnchanged(tmp, file, file, before)).toBe(true);
+    expect(fs.readFileSync(file, "utf8")).toBe("converted");
+    const now = fs.statSync(file);
+    fs.appendFileSync(file, "!");
+    expect(p.removeIfUnchanged(file, now)).toBe(false);
+    expect(p.removeIfUnchanged(file, fs.statSync(file))).toBe(true);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+});
+
 describe("file dates", () => {
   // Audio Retention ages recordings by their modified time, and the Notes
   // list sorts by it: converting a file must not make it look new.
