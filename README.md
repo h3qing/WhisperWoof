@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.3.2-C87B3A?style=flat-square" alt="v2.3.2"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.4.0-C87B3A?style=flat-square" alt="v2.4.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1568%20passing-brightgreen?style=flat-square" alt="1568 tests passing">
+  <img src="https://img.shields.io/badge/tests-1636%20passing-brightgreen?style=flat-square" alt="1636 tests passing">
 </p>
 
 <p align="center">
@@ -98,7 +98,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 
 ### Dictation
 - **Live typing** *(new in 1.18, a one-line ticker since 2.1)*: text streams in as you talk, IME-style, from a local Chinese + English streaming model (X-ASR, 134 MB). On release the whole recording is re-checked by your transcription model (or the live text is pasted as is, your choice), then cleaned up. Off by default; turn it on in Settings → Transcription.
-- **Local speech-to-text**: Whisper large-v3 turbo by default (1.6 GB, many languages including Chinese), or NVIDIA Parakeet for fast English and European dictation, or Distil-Whisper for English. Nothing leaves your Mac.
+- **Local speech-to-text**: Whisper large-v3 turbo by default (1.6 GB, many languages including Chinese), or NVIDIA Parakeet for fast English and European dictation, or Distil-Whisper for English, or SenseVoice for mixed Chinese and English. Nothing leaves your Mac.
 - **Smart Cleanup**: a small bundled model (Qwen3.5 2B, 1.3 GB, run by llama-server) removes filler, fixes grammar, assembles spoken emails, and keeps your voice. Spoken enumerations ("第一… 第二…") become numbered lists; silent captures are dropped instead of guessed at. One click in onboarding sets it up; the prompt is yours to edit in Prompt Studio.
 - **Memory**: learns names and jargon from the fixes you already make. Fix the same mishearing twice and it offers to fix it for you from then on, with every engine. It only swaps what you approve.
 - **Hotkey = destination**: each Fn combination has one place it sends your words. No commands to remember, no guessing.
@@ -118,10 +118,12 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 - **Only its own files** *(2.3.1)*: WhisperWoof reads and deletes files only inside its own folders, never an imported original, and settings import/export use their own file dialogs.
 - **Graceful degradation**: no cleanup model? You still get a clean raw transcript. Selected model missing? It falls back to the best one on disk.
 
-### Meetings *(cloud, opt-in)*
-- **Transcribed live by OpenAI Realtime**, with your own OpenAI key or an OpenWhispr account. This is the one feature that sends audio off your Mac, and only when you start a meeting.
+### Meetings
+- **Transcribed on your Mac** *(new in 2.4)*: once the SenseVoice model is downloaded (155 MB, listed with the Parakeet models in Settings → Transcription; downloading it also switches dictation to it), your mic and the other side's audio are transcribed on this Mac and saved into the meeting's note as it goes. Nothing leaves your Mac. Lines arrive every couple of minutes, not word by word. SenseVoice covers Chinese, English, Japanese, Korean and Cantonese, and while it's downloaded every meeting uses it.
+- **Or live with OpenAI Realtime** when SenseVoice isn't downloaded, with your own OpenAI key or an OpenWhispr account. That sends the meeting's audio to OpenAI, and only when you start a meeting.
 - **Noticed for you**: calendar events, meeting apps and mic activity trigger a notification, about 90 seconds ahead for scheduled meetings.
-- **Long meetings keep going** *(fixed in 2.3.1)*: the session switches over before OpenAI's 30-minute limit without a gap, and reconnects after drops.
+- **Keeps recording in any view** *(2.4)*: leave Notes and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
+- **Long meetings keep going** *(fixed in 2.3.1)*: with OpenAI, the session switches over before OpenAI's 30-minute limit without a gap, and reconnects after drops.
 - **Crash-safe audio**: recorded to disk in 5-minute segments while you talk (encrypted when encryption is on), and deleted once the meeting ends normally.
 
 ### More
@@ -173,7 +175,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 | Principle | What it means |
 |---|---|
 | **Hotkey = intent** | The key combo you press determines where voice goes. Explicit over magic. |
-| **Local-first** | Dictation, cleanup, history and search run on your Mac. Anything that uses the cloud (meetings, agent mode, cloud models) is opt-in. |
+| **Local-first** | Dictation, cleanup, history and search run on your Mac. Anything that uses the cloud (OpenAI meeting transcription, agent mode, cloud models) is opt-in. |
 | **Yours to lock** | Encryption is one switch away, with no back door and no account. |
 | **Fork, don't reinvent** | Built on OpenWhispr's proven STT engine and Electron shell. |
 | **Power users first** | Control, customization, and ownership of your tools. |
@@ -185,7 +187,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 | Layer | Technology |
 |---|---|
 | Runtime | Electron 39 + React 19 + TypeScript + Tailwind CSS v4 |
-| STT | Whisper (whisper.cpp, default, multilingual) / NVIDIA Parakeet and X-ASR (sherpa-onnx), all local |
+| STT | Whisper (whisper.cpp, default, multilingual) / NVIDIA Parakeet, X-ASR and SenseVoice (sherpa-onnx), all local |
 | Cleanup | Bundled `llama-server` (llama.cpp) with Qwen3.5 2B. Cloud providers (OpenAI, Anthropic, Gemini) optional. |
 | Storage | SQLite (`better-sqlite3-multiple-ciphers`) + FTS5 full-text search |
 | Encryption | SQLCipher for the database, AES-256-GCM files sealed to an X25519 key, Touch ID via the Secure Enclave, scrypt for the password |
@@ -201,7 +203,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 - [x] **Phases 4–10**: Competitive features, AI intelligence, vibe coding, streaming, templates
 - [x] **Meeting recording**: crash-safe audio buffer, Granola-style detection, long-meeting session rotation
 - [x] **Agent mode**: voice-driven AI chat with streaming LLM responses
-- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3)
+- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **Meetings transcribed on your Mac** (2.4)
 - [ ] **Phase 2, MCP plugins**: the plugin servers and Plugins page are in; sending dictation to Todoist, Notion, Slack and Calendar is next
 - [ ] **Distribution**: code signing, notarization, auto-update
 

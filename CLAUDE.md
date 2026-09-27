@@ -56,6 +56,8 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
                               CancelRecordingButton, MeetingRecordingPill. The indicator
                               shell itself (WhisperWoofIndicator, full/compact/dot) is in src/App.jsx
     settings/                 WhisperWoof settings sections
+    notes/                    meeting-recording.ts: transcriptForNote, recording pill state (the recording
+                              itself is owned by src/components/notes/MeetingTranscriptionProvider.tsx)
     vault/                    Encryption settings, turn-on/off dialogs, lock screen, Home offer
     projects/                 Project picker, project detail view
   bridge/                     ← ONLY place that imports OpenWhispr code
@@ -64,11 +66,14 @@ src/whisperwoof/                 ← ALL WhisperWoof additions
     stt-hook.ts               Hook into STT output
     hotkey-hook.ts            Extend HotkeyManager
     app-init.ts               WhisperWoof init at startup
-    meeting-bridge.js         Meeting lifecycle coordinator (delegates to checkpoint)
+    meeting-bridge.js         Meeting state behind the whisperwoof-meeting-* IPC (id, duration, segment count; no transcript, no checkpoint)
     agentic-actions.js        Voice-triggered action intent detection + MCP routing
 
 src/helpers/                     ← Meeting safety modules (main process)
     meetingAudioBuffer.js       Local WAV file buffer (5-min rotating segments)
+    meetingLocalSession.js      Meeting transcribed on this Mac: own SenseVoice server, saves lines to the note
+    meetingLocalTranscriber.js  Per-track (mic, system) buffering, ~2-min clips cut at a lull, one queue
+    meetingLocalTranscription.js  Pure parts: findLullCut, splitAtLulls (≤20 s pieces), sentencesFromResult
     meetingTranscriptCheckpoint.js  Periodic transcript save to SQLite (60s); not started by anything (it writes the note's content)
     meetingSessionRotation.js   25-min session rotation: which streams, connect new → swap → close old
     meetingSessionManager.js    Unused wrapper (tests only); live rotation/reconnect is in ipcHandlers.js
