@@ -19,6 +19,15 @@ const {
   WindowPositionUtil,
 } = require("./windowConfig");
 
+// Reading the words in clipboard images steps aside while you dictate.
+function holdImageText(dictating) {
+  try {
+    require("../whisperwoof/bridge/clipboard-image-text").setDictating(dictating);
+  } catch {
+    // Reader not available (tests, other platforms)
+  }
+}
+
 class WindowManager {
   constructor() {
     this.mainWindow = null;
@@ -432,6 +441,7 @@ class WindowManager {
       this.mainWindow.webContents.send("toggle-dictation");
       this._isDictatingToggle = !this._isDictatingToggle;
       this.meetingDetectionEngine?.setUserRecording(this._isDictatingToggle);
+      holdImageText(this._isDictatingToggle);
     }
   }
 
@@ -443,6 +453,7 @@ class WindowManager {
       this.showDictationPanel();
       this.mainWindow.webContents.send("start-dictation");
       this.meetingDetectionEngine?.setUserRecording(true);
+      holdImageText(true);
     }
   }
 
@@ -454,6 +465,7 @@ class WindowManager {
       this.mainWindow.webContents.send("cancel-dictation");
       this._isDictatingToggle = false;
       this.meetingDetectionEngine?.setUserRecording(false);
+      holdImageText(false);
     }
   }
 
@@ -465,6 +477,7 @@ class WindowManager {
       this.mainWindow.webContents.send("stop-dictation", hotkeyUsed);
       this._isDictatingToggle = false;
       this.meetingDetectionEngine?.setUserRecording(false);
+      holdImageText(false);
     }
   }
 

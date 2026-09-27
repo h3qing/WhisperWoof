@@ -19,7 +19,7 @@
 const DEFAULT_KEYBINDINGS = Object.freeze({
   // Core actions
   "toggle-recording": { key: "Fn", label: "Toggle recording", category: "core" },
-  "command-bar": { key: "CommandOrControl+K", label: "Command bar", category: "core" },
+  "command-bar": { key: "CommandOrControl+K", label: "Search everything (/ for commands)", category: "core" },
   "paste-at-cursor": { key: "Fn", label: "Paste at cursor", category: "routing" },
 
   // Routing
@@ -47,7 +47,7 @@ const DEFAULT_KEYBINDINGS = Object.freeze({
  * assert that every default binding belongs to a real category.
  */
 const CATEGORIES = Object.freeze([
-  { id: "core", name: "Core", description: "Recording and command bar" },
+  { id: "core", name: "Core", description: "Recording, search and commands" },
   { id: "routing", name: "Routing", description: "Where voice text goes" },
   { id: "navigation", name: "Navigation", description: "Open panels and views" },
   { id: "focus", name: "Focus", description: "Focus sprint controls" },

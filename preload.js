@@ -925,6 +925,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofClipboardSetCapture: (capture) =>
     ipcRenderer.invoke("whisperwoof-clipboard-set-capture", capture),
   whisperwoofClipboardReveal: (id) => ipcRenderer.invoke("whisperwoof-clipboard-reveal", id),
+  whisperwoofSearchEverything: (query) => ipcRenderer.invoke("whisperwoof-search-everything", query),
+  whisperwoofClipboardSetImageText: (settings) =>
+    ipcRenderer.invoke("whisperwoof-clipboard-set-image-text", settings),
+  whisperwoofClipboardImageText: (id) => ipcRenderer.invoke("whisperwoof-clipboard-image-text", id),
+  whisperwoofClipboardCopyImageText: (id) => ipcRenderer.invoke("whisperwoof-clipboard-copy-image-text", id),
+  onClipboardImageTextStatus: (callback) => {
+    const handler = (_event, status) => callback(status);
+    ipcRenderer.on("whisperwoof-clipboard-image-text-status", handler);
+    return () => ipcRenderer.removeListener("whisperwoof-clipboard-image-text-status", handler);
+  },
   onClipboardChanged: (callback) => {
     const handler = () => callback();
     ipcRenderer.on("whisperwoof-clipboard-changed", handler);

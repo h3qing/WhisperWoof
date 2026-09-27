@@ -3458,6 +3458,21 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
+    // Search everything (⌘K): history, clipboard text, images (and their words), files.
+    ipcMain.handle(
+      "whisperwoof-search-everything",
+      clipboardCall((query) => require("../whisperwoof/bridge/global-search").searchEverything(query))
+    );
+    // Words in images (opt-in): read them for search, show and copy one image's words.
+    ipcMain.handle(
+      "whisperwoof-clipboard-set-image-text",
+      clipboardCall((settings) => clipboardStore().setImageText(settings))
+    );
+    ipcMain.handle("whisperwoof-clipboard-image-text", clipboardCall((id) => clipboardStore().imageText(id)));
+    ipcMain.handle(
+      "whisperwoof-clipboard-copy-image-text",
+      clipboardCall((id) => clipboardStore().copyImageText(id))
+    );
 
     // WhisperWoof: Toggle clipboard monitoring on/off (saved, so it survives a restart)
     ipcMain.handle("whisperwoof-clipboard-toggle", async (_event, enabled) => {
