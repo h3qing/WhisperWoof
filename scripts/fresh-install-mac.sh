@@ -41,7 +41,7 @@ fi
 say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
 say "Quitting $APP_NAME if it is running"
-osascript -e "tell application \"$APP_NAME\" to quit" 2>/dev/null || true
+osascript -e 'tell application id "com.whisperwoof.app" to quit' 2>/dev/null || true
 pkill -f "$APP_NAME.app/Contents/MacOS" 2>/dev/null || true
 sleep 1
 

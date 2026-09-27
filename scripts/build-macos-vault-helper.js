@@ -28,8 +28,44 @@ if (!swiftTarget) {
 const projectRoot = path.resolve(__dirname, "..");
 const swiftSource = path.join(projectRoot, "resources", "macos-vault-helper.swift");
 const outputDir = path.join(projectRoot, "resources", "bin");
-const outputBinary = path.join(outputDir, "macos-vault-helper");
+// macOS titles the Touch ID prompt with the calling app's name and shows its
+// icon, so the helper is built as a small app bundle, WhisperWoof.app, with
+// WhisperWoof's icon: "WhisperWoof is trying to unlock your history and notes."
+const bundleDir = path.join(outputDir, "WhisperWoof.app");
+const outputBinary = path.join(bundleDir, "Contents", "MacOS", "WhisperWoof");
+const infoPlistPath = path.join(bundleDir, "Contents", "Info.plist");
+const iconSource = path.join(projectRoot, "src", "assets", "icon.icns");
+const iconDest = path.join(bundleDir, "Contents", "Resources", "icon.icns");
 const hashFile = path.join(outputDir, `.macos-vault-helper.${targetArch}.hash`);
+const appVersion = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")).version;
+
+const INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>WhisperWoof</string>
+  <key>CFBundleIdentifier</key><string>com.whisperwoof.app.touchid</string>
+  <key>CFBundleName</key><string>WhisperWoof</string>
+  <key>CFBundleDisplayName</key><string>WhisperWoof</string>
+  <key>CFBundleIconFile</key><string>icon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${appVersion}</string>
+  <key>CFBundleVersion</key><string>${appVersion}</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSUIElement</key><true/>
+</dict>
+</plist>
+`;
+
+/** What the bundle is built from: a change to any of it means a rebuild. */
+function inputsHash() {
+  return crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(swiftSource))
+    .update(fs.readFileSync(iconSource))
+    .update(INFO_PLIST)
+    .digest("hex");
+}
 const moduleCacheDir = path.join(outputDir, ".swift-module-cache");
 
 // Mach-O CPU type constants for architecture verification
@@ -75,9 +111,11 @@ if (!fs.existsSync(swiftSource)) {
 
 ensureDir(outputDir);
 ensureDir(moduleCacheDir);
+ensureDir(path.dirname(outputBinary));
+ensureDir(path.dirname(iconDest));
 
 let needsBuild = true;
-if (fs.existsSync(outputBinary)) {
+if (fs.existsSync(outputBinary) && fs.existsSync(infoPlistPath) && fs.existsSync(iconDest)) {
   // Verify existing binary matches the target architecture
   if (!verifyBinaryArch(outputBinary, targetArch)) {
     log(`Existing binary is wrong architecture (expected ${targetArch}), rebuild needed`);
@@ -98,8 +136,7 @@ if (fs.existsSync(outputBinary)) {
 // Secondary check: compare source hash
 if (!needsBuild && fs.existsSync(outputBinary)) {
   try {
-    const sourceContent = fs.readFileSync(swiftSource, "utf8");
-    const currentHash = crypto.createHash("sha256").update(sourceContent).digest("hex");
+    const currentHash = inputsHash();
 
     if (fs.existsSync(hashFile)) {
       const savedHash = fs.readFileSync(hashFile, "utf8").trim();
@@ -180,14 +217,25 @@ if (!verifyBinaryArch(outputBinary, targetArch)) {
   process.exit(1);
 }
 
-// Save source hash after successful build
+// The rest of the app bundle: its Info.plist (name, id, no Dock icon) and icon.
+fs.writeFileSync(infoPlistPath, INFO_PLIST);
+fs.copyFileSync(iconSource, iconDest);
+
+// Sign the bundle ad hoc so its signature covers the Info.plist and icon (the
+// release signs it again along with the rest of the app).
+const signed = spawnSync("codesign", ["--force", "--sign", "-", bundleDir], { stdio: "inherit" });
+if (signed.status !== 0) {
+  // No hash saved, so the next build tries again.
+  log("Warning: couldn't sign WhisperWoof.app ad hoc; the linker's signature on the binary stays");
+  process.exit(0);
+}
+
+// Save the inputs' hash after a successful build
 try {
-  const sourceContent = fs.readFileSync(swiftSource, "utf8");
-  const hash = crypto.createHash("sha256").update(sourceContent).digest("hex");
-  fs.writeFileSync(hashFile, hash);
+  fs.writeFileSync(hashFile, inputsHash());
 } catch (err) {
   // Non-critical, just log
   log(`Warning: Could not save source hash: ${err.message}`);
 }
 
-log(`Successfully built macOS vault helper binary (${targetArch}).`);
+log(`Successfully built WhisperWoof.app, the macOS vault helper (${targetArch}).`);

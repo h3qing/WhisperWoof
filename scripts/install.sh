@@ -65,7 +65,7 @@ main() {
   [[ -d "$MOUNT/$APP_NAME.app" ]] || fail "The disk image doesn't contain $APP_NAME.app."
 
   if [[ "$DEST_DIR" == "/Applications" ]] && pgrep -x "$APP_NAME" >/dev/null 2>&1; then
-    osascript -e "quit app \"$APP_NAME\"" >/dev/null 2>&1 || true
+    osascript -e 'quit app id "com.whisperwoof.app"' >/dev/null 2>&1 || true
     sleep 2
   fi
   rm -rf "$DEST"
