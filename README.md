@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.4.0-C87B3A?style=flat-square" alt="v2.4.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.5.0-C87B3A?style=flat-square" alt="v2.5.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1655%20passing-brightgreen?style=flat-square" alt="1655 tests passing">
+  <img src="https://img.shields.io/badge/tests-1720%20passing-brightgreen?style=flat-square" alt="1720 tests passing">
 </p>
 
 <p align="center">
@@ -106,6 +106,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 ### Notes, clipboard & history
 - **Notes & projects**: Fn+N saves a dated Markdown note to `~/Documents/WhisperWoof Notes` (change the folder in Settings; Obsidian reads it as is). Fn+P files it under a project, Inbox by default. A note links back to its recording.
 - **Clipboard** *(new in 2.2)*: everything you copy, text on one side and images on the other. Click to copy again (images paste as images), save any item to Notes, pin what matters, and choose how long history is kept and how much space images may use. What password managers copy is never saved.
+- **Words in images** *(new in 2.4)*: opt-in. Search finds a screenshot by the words in it, Chinese and English included. macOS's own text recognition reads your images on your Mac, in the background and at low priority (older images only while plugged in); nothing is uploaded. Turning it off deletes the words.
 - **Voice history + audio playback**: tap any entry to replay the original recording. Audio Retention keeps recordings for 7 to 90 days, or stops saving them.
 - **Full-text search**: SQLite FTS5 across all your voice and clipboard entries.
 
@@ -119,15 +120,16 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 - **Graceful degradation**: no cleanup model? You still get a clean raw transcript. Selected model missing? It falls back to the best one on disk.
 
 ### Meetings
-- **Transcribed on your Mac** *(new in 2.4)*: once the SenseVoice model is downloaded (155 MB, listed with the Parakeet models in Settings → Transcription; downloading it also switches dictation to it), your mic and the other side's audio are transcribed on this Mac and saved into the meeting's note as it goes. Nothing leaves your Mac. Lines arrive every couple of minutes, not word by word. SenseVoice covers Chinese, English, Japanese, Korean and Cantonese, and while it's downloaded every meeting uses it.
+- **Transcribed on your Mac** *(new in 2.5)*: once the SenseVoice model is downloaded (155 MB, listed with the Parakeet models in Settings → Transcription; downloading it also switches dictation to it), your mic and the other side's audio are transcribed on this Mac and saved into the meeting's note as it goes. Nothing leaves your Mac. Lines arrive every couple of minutes, not word by word. SenseVoice covers Chinese, English, Japanese, Korean and Cantonese, and while it's downloaded every meeting uses it.
 - **Or live with OpenAI Realtime** when SenseVoice isn't downloaded, with your own OpenAI key or an OpenWhispr account. That sends the meeting's audio to OpenAI, and only when you start a meeting.
 - **Noticed for you**: calendar events, meeting apps and mic activity trigger a notification, about 90 seconds ahead for scheduled meetings.
-- **Keeps recording in any view** *(2.4)*: leave Notes and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
+- **Keeps recording in any view** *(2.5)*: leave Notes and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
 - **Long meetings keep going** *(fixed in 2.3.1)*: with OpenAI, the session switches over before OpenAI's 30-minute limit without a gap, and reconnects after drops.
 - **Crash-safe audio**: recorded to disk in 5-minute segments while you talk (encrypted when encryption is on), and deleted once the meeting ends normally.
 
 ### More
-- **Cmd+K command bar**: type instead of talk, inside the app. Your text gets the same cleanup; `/note` saves it as a Markdown note, anything else goes to your history.
+- **⌘K searches everything** *(new in 2.4)*: history, notes, meeting notes, everything you copied, and the words in your images, in one box (Chinese included). Enter opens a result, or copies a clipboard item back.
+- **Command bar**: in the same box, start with `/` to type instead of talk. Your text gets the same cleanup; `/note` saves it as a Markdown note, `/paste` pastes it at your cursor.
 - **Agent mode**: voice chat with an LLM, streamed. Give it a hotkey in Settings; it uses a cloud model (Groq by default).
 - **MCP plugins** *(early)*: the Plugins page sets up Todoist, TickTick, Notion, Calendar and Slack servers, and asks before any plugin command runs. Sending dictation to a plugin isn't wired up yet.
 - **Glass in Mando's colors** *(new in 2.0)*: liquid glass only for what's still moving (the sidebar, menus, the dictation overlay), solid sheets for what has landed, pill-shaped controls, the rounded Nunito font, and a brown-black dark mode. Design rules live in [DESIGN.md](DESIGN.md).
@@ -203,7 +205,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 - [x] **Phases 4–10**: Competitive features, AI intelligence, vibe coding, streaming, templates
 - [x] **Meeting recording**: crash-safe audio buffer, Granola-style detection, long-meeting session rotation
 - [x] **Agent mode**: voice-driven AI chat with streaming LLM responses
-- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **Meetings transcribed on your Mac** (2.4)
+- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **⌘K search** (2.4), **Meetings transcribed on your Mac** (2.5)
 - [ ] **Phase 2, MCP plugins**: the plugin servers and Plugins page are in; sending dictation to Todoist, Notion, Slack and Calendar is next
 - [ ] **Distribution**: code signing, notarization, auto-update
 
