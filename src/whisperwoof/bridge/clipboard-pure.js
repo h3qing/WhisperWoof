@@ -244,16 +244,17 @@ function luhnValid(digits) {
   return sum % 10 === 0;
 }
 
-/** A 13–19 digit card number (spaces or dashes allowed) that passes the Luhn check. */
+/** 13–19 digits (spaces or dashes allowed) that pass the Luhn check. */
+function isCardNumber(run) {
+  const digits = run.replace(/[ -]/g, "");
+  return digits.length >= 13 && digits.length <= 19 && !/^(\d)\1+$/.test(digits) && luhnValid(digits);
+}
+
+const CARD_RUN = /(^|[^\d])((?:\d[ -]?){12,18}\d)(?!\d)/g;
+
+/** A card number anywhere in the text. */
 function containsCardNumber(text) {
-  const re = /(?:^|[^\d])((?:\d[ -]?){12,18}\d)(?!\d)/g;
-  let match;
-  while ((match = re.exec(text)) !== null) {
-    const digits = match[1].replace(/[ -]/g, "");
-    if (digits.length >= 13 && digits.length <= 19 && !/^(\d)\1+$/.test(digits) && luhnValid(digits)) {
-      return true;
-    }
-  }
+  for (const match of text.matchAll(CARD_RUN)) if (isCardNumber(match[2])) return true;
   return false;
 }
 
@@ -304,6 +305,73 @@ function sensitiveKind(text) {
     if (looksLikeRandomKey(trimmed)) return "key";
   }
   return null;
+}
+
+const REDACTED = "•••••";
+const PEM_PRIVATE_KEY_BLOCK =
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|$)/g;
+const SECRET_PATTERNS_GLOBAL = SECRET_PATTERNS.map(([, re]) => new RegExp(re.source, "g"));
+// Brackets, quotes and separators around a word ("(Hunter2025!)," → Hunter2025!).
+// Trimmed by index: a regex like /[…]+$/ backtracks quadratically on a long run.
+const WORD_EDGE_CHARS = new Set("()[]{}<>\"'“”‘’,;");
+
+/** Spans of 12+ BIP39 words in a row, list numbers ("1." "12)") allowed between them. */
+function recoveryPhraseSpans(text) {
+  const spans = [];
+  let start = -1;
+  let end = -1;
+  let words = 0;
+  const close = () => {
+    if (words >= 12) spans.push([start, end]);
+    start = -1;
+    words = 0;
+  };
+  for (const match of text.matchAll(/\S+/g)) {
+    const word = match[0].toLowerCase().replace(/^\d+[.)]?/, "").replace(/[.,;:]$/, "");
+    if (word === "") continue;
+    if (/^[a-z]+$/.test(word) && isBip39Word(word)) {
+      if (start < 0) start = match.index;
+      end = match.index + match[0].length;
+      words += 1;
+    } else {
+      close();
+    }
+  }
+  close();
+  return spans;
+}
+
+/**
+ * The text with anything secret-shaped replaced by "•••••": the formats
+ * `sensitiveKind` knows (keys, tokens, private key blocks, card numbers,
+ * recovery phrases) wherever they are, and single words that read like a
+ * password or a random key. For text that is kept anyway, such as the words
+ * read from a screenshot, so a secret in it doesn't become searchable.
+ * → { text, redacted } (how many were replaced)
+ */
+function redactSecrets(input) {
+  let text = typeof input === "string" ? input : "";
+  let redacted = 0;
+  const hide = () => {
+    redacted += 1;
+    return REDACTED;
+  };
+  text = text.replace(PEM_PRIVATE_KEY_BLOCK, hide);
+  for (const re of SECRET_PATTERNS_GLOBAL) text = text.replace(re, hide);
+  text = text.replace(CARD_RUN, (whole, before, run) => (isCardNumber(run) ? `${before}${hide()}` : whole));
+  for (const [start, end] of recoveryPhraseSpans(text).reverse()) {
+    text = `${text.slice(0, start)}${hide()}${text.slice(end)}`;
+  }
+  text = text.replace(/\S+/g, (word) => {
+    let start = 0;
+    let end = word.length;
+    while (start < end && WORD_EDGE_CHARS.has(word[start])) start += 1;
+    while (end > start && WORD_EDGE_CHARS.has(word[end - 1])) end -= 1;
+    const core = word.slice(start, end);
+    if (!core || !(looksLikePassword(core) || looksLikeRandomKey(core))) return word;
+    return `${word.slice(0, start)}${hide()}${word.slice(end)}`;
+  });
+  return { text, redacted };
 }
 
 /**
@@ -457,6 +525,7 @@ module.exports = {
   TERMINAL_BUNDLE_IDS,
   isPrivateInputApp,
   sensitiveKind,
+  redactSecrets,
   planCopiedFiles,
   isFileMetadata,
   fileEntryText,

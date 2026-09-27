@@ -48,8 +48,8 @@ words are stored next to the history they belong to.
   (search), how (on this Mac), the cost (older images in the background, only
   on power), privacy (words stored with the history, encrypted only when
   encryption is on; a screenshot of a password becomes searchable text) and
-  how to undo it. Off deletes every word (`DELETE FROM bf_image_text`); the
-  images stay.
+  how to undo it. Off deletes every word (`DELETE FROM bf_image_text`, then
+  a WAL checkpoint, with `secure_delete` on); the images stay.
 - **Never in the way.** One image at a time, the helper at Darwin background
   priority (`setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)`) plus
   `nice 19`. After each older image it rests at least as long as the image
@@ -69,7 +69,13 @@ words are stored next to the history they belong to.
   (strictly inside `userData/whisperwoof-images`), so a bad row can't point
   the reader at another file. Bytes are piped; a sealed image is decrypted in
   memory and wiped after its answer. On lock the helper is killed before the
-  keys go. Logs carry counts, never recognized text.
+  keys go. Logs carry counts, never recognized text. The helper gets the
+  sidecar environment (no API keys).
+- **Secrets stay out of the words.** Before storing, `redactSecrets` replaces
+  what the copied-text detector would refuse (keys, tokens, private key
+  blocks, card numbers, recovery phrases, password- or key-shaped words)
+  with `•••••`, so a screenshot of one isn't searchable. The image is kept.
+  Rows read before this (`redacted = 0`) are redacted once at attach.
 - **Failure handling.** An image the helper answers "unreadable" is stored as
   `failed` and not retried. A crash or 60 s timeout on the same image three
   times marks it `failed`. The helper says `{"ready":true}` when it starts; if

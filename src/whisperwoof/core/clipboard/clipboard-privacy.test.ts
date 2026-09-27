@@ -121,6 +121,59 @@ describe("sensitiveKind", () => {
   });
 });
 
+describe("redactSecrets (words read from a screenshot)", () => {
+  const hidden = (text: string) => pure.redactSecrets(text).text;
+
+  it("hides keys and tokens but keeps the words around them", () => {
+    expect(hidden("OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123 is set")).toBe("OPENAI_API_KEY=••••• is set");
+    expect(hidden("Token ghp_abcdefghijklmnopqrstuvwxyz0123456789 copied\nAKIAIOSFODNN7EXAMPLE")).toBe(
+      "Token ••••• copied\n•••••"
+    );
+    expect(pure.redactSecrets("a sk-ant-abcdefghijklmnopqrstuv0123 b sk-ant-zyxwvutsrqponmlkjihgf9876").redacted).toBe(2);
+  });
+
+  it("hides a whole private key block, even one cut off at the edge of the screenshot", () => {
+    const key = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmU\n-----END OPENSSH PRIVATE KEY-----";
+    expect(hidden(`id_ed25519\n${key}\nSave`)).toBe("id_ed25519\n•••••\nSave");
+    expect(hidden("-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\nqk3")).toBe("•••••");
+  });
+
+  it("hides card numbers, recovery phrases and password-like words", () => {
+    expect(hidden("Card 4242 4242 4242 4242 exp 12/28")).toBe("Card ••••• exp 12/28");
+    expect(hidden("Order 1234567890123 shipped")).toBe("Order 1234567890123 shipped"); // not Luhn-valid
+    const grid =
+      "Recovery phrase\n1. abandon 2. ability 3. able 4. about\n5. above 6. absent 7. absorb 8. abstract\n9. absurd 10. abuse 11. access 12. accident\nDone";
+    expect(hidden(grid)).toBe("Recovery •••••\nDone"); // "phrase" is a BIP39 word too
+    expect(hidden("Wi-Fi password: (Hunter2025!),")).toBe("Wi-Fi password: (•••••),");
+    expect(hidden("secret aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW")).toBe("secret •••••");
+  });
+
+  it("leaves ordinary screenshot text alone", () => {
+    const text = [
+      "macOS 14.2 (23C64) iPhone 15 Pro, Windows11 COVID-19 SHA-256",
+      "user@example.com https://github.com/h3qing/WhisperWoof/pull/141?tab=files&q=Dd9!",
+      "现在真正的瓶颈 +1 (415) 555-0100 2026-09-27 19:03 Version 2.4.0",
+      "eaa8e75bcfdf240a396e02647146f36b5bb564c8 550e8400-e29b-41d4-a716-446655440000",
+      "abandon ability able about above", // five BIP39 words is not a phrase
+    ].join("\n");
+    expect(pure.redactSecrets(text)).toEqual({ text, redacted: 0 });
+    expect(pure.redactSecrets(undefined)).toEqual({ text: "", redacted: 0 });
+  });
+
+  it("stays fast on text made to make a regex backtrack (an image anyone could have made)", () => {
+    for (const text of ["x" + "(".repeat(20000) + "x", "a" + ",".repeat(20000) + "b", "4 ".repeat(10000)]) {
+      const started = performance.now();
+      pure.redactSecrets(text);
+      expect(performance.now() - started).toBeLessThan(100);
+    }
+  });
+
+  it("is idempotent", () => {
+    const once = hidden("key sk-proj-abcdefghijklmnopqrstuvwxyz0123 and 4242 4242 4242 4242");
+    expect(pure.redactSecrets(once)).toEqual({ text: once, redacted: 0 });
+  });
+});
+
 describe("normalizeCapture", () => {
   it("keeps monitoring on unless it was turned off", () => {
     expect(pure.normalizeCapture(undefined)).toEqual({ keepFiles: false, monitor: true });
