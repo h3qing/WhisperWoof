@@ -94,6 +94,7 @@
     "resources/bin/macos-mic-listener",
     "resources/bin/macos-text-monitor",
     { "from": "resources/bin/WhisperWoof.app", "to": "resources/bin/WhisperWoof.app" },
+    "resources/bin/macos-ocr-helper",
     "resources/bin/macos-media-remote",
     "resources/bin/linux-fast-paste",
     "resources/bin/linux-text-monitor",
