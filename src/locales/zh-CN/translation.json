@@ -279,7 +279,7 @@
       "enableButton": "启用 GPU",
       "dismissButton": "暂不启用"
     },
-    "backToNotes": "返回笔记"
+    "backToMeetings": "返回会议"
   },
   "reasoning": {
     "mode": {

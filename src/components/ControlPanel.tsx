@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
-import { Download, RefreshCw, Loader2, Zap, ChevronLeft } from "lucide-react";
+import { Download, RefreshCw, Loader2, Zap, ChevronLeft, Mic } from "lucide-react";
 
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
@@ -48,6 +48,7 @@ import {
   ActiveRecordingPill,
   MeetingTranscriptionProvider,
 } from "./notes/MeetingTranscriptionProvider";
+import { useMeetingRecording } from "./notes/useMeetingRecording";
 import { useVaultGate } from "../whisperwoof/ui/vault/useVaultStatus";
 import VaultLockScreen from "../whisperwoof/ui/vault/VaultLockScreen";
 
@@ -228,6 +229,19 @@ function ControlPanelViews() {
     () => setMeetingRecordingRequest(null),
     []
   );
+
+  // Meetings' one primary action: main makes the note, enters meeting mode and records.
+  const { isRecording: isRecordingMeeting } = useMeetingRecording();
+  const handleNewMeeting = useCallback(async () => {
+    const result = await window.electronAPI?.startNewMeeting?.();
+    if (result && !result.success) {
+      toast({
+        title: "The meeting didn't start",
+        description: result.error,
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   const handleExitMeetingMode = useCallback(() => {
     setIsMeetingMode(false);
@@ -501,7 +515,7 @@ function ControlPanelViews() {
       home: t("sidebar.home"),
       "whisperwoof-history": "History",
       "voice-notes": "Notes",
-      "personal-notes": "Notes",
+      "personal-notes": "Meetings",
       "smart-clipboard": "Clipboard",
       memory: "Memory",
       "whisperwoof-plugins": "Plugins",
@@ -670,11 +684,26 @@ function ControlPanelViews() {
                   className="h-7 px-2.5 pl-1.5 gap-1"
                 >
                   <ChevronLeft size={14} strokeWidth={1.8} />
-                  {t("controlPanel.backToNotes")}
+                  {t("controlPanel.backToMeetings")}
                 </Button>
               </div>
             )}
             <div className="flex-1" />
+            {activeView === "personal-notes" && !isMeetingMode && (
+              <div
+                className="pr-4 pt-2"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              >
+                <Button
+                  onClick={handleNewMeeting}
+                  disabled={isRecordingMeeting}
+                  className="h-9 pl-3 pr-4 gap-2"
+                >
+                  <Mic size={16} strokeWidth={2} />
+                  New meeting
+                </Button>
+              </div>
+            )}
             {platform !== "darwin" && (
               <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
                 <WindowControls />

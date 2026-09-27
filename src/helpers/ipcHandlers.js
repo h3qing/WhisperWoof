@@ -6632,6 +6632,19 @@ class IPCHandlers {
       }
     });
 
+    // The Meetings tab's "New meeting": a note in Meetings, meeting mode, recording.
+    ipcMain.handle("meeting-start-new", async () => {
+      if (this.isMeetingRecording()) {
+        return { success: false, error: "A meeting is already recording." };
+      }
+      try {
+        await this.meetingDetectionEngine.startManualMeeting();
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
     ipcMain.handle("meeting-notification-respond", async (_event, detectionId, action) => {
       try {
         await this.meetingDetectionEngine.handleNotificationResponse(detectionId, action);

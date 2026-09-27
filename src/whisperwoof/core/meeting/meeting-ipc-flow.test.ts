@@ -474,6 +474,22 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     await ipc.get("meeting-transcription-stop")!();
   });
 
+  it("starts a meeting from the Meetings tab's New meeting button", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => {}) };
+    const result = await ipc.get("meeting-start-new")!();
+    expect(result).toEqual({ success: true });
+    expect(handlers.meetingDetectionEngine.startManualMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it("won't start a second meeting from New meeting while one is recording", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => {}) };
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    const result = await ipc.get("meeting-start-new")!();
+    expect(result).toMatchObject({ success: false, error: "A meeting is already recording." });
+    expect(handlers.meetingDetectionEngine.startManualMeeting).not.toHaveBeenCalled();
+    await ipc.get("meeting-transcription-stop")!();
+  });
+
   it("fails to start, leaving nothing running, when the model won't load", async () => {
     local.server.start.mockRejectedValueOnce(new Error("model missing"));
     const started = await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
