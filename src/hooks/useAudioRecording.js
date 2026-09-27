@@ -11,6 +11,10 @@ import mandoHeadSvg from "../assets/mando-head.svg";
 import { EMPTY_LIVE_SEGMENTS, toLiveSegments } from "../whisperwoof/core/live/live-dictation";
 import { copyTextFromOverlay } from "../whisperwoof/core/router/copy-to-clipboard";
 import { routeForHotkey } from "../whisperwoof/core/router/dictation-route";
+import {
+  MIXED_LANGUAGE_TIP_KEY,
+  shouldShowMixedLanguageTip,
+} from "../whisperwoof/core/language/auto-language-note";
 
 // How long the live panel keeps showing the pasted text before it collapses.
 const LIVE_DONE_HOLD_MS = 1600;
@@ -304,6 +308,34 @@ export const useAudioRecording = (toast, options = {}) => {
           // Counts successful dictations so the indicator can celebrate only when
           // text actually landed (not on cancel, error, or silence).
           setCompletedCount((count) => count + 1);
+
+          // Once, after the first dictation Whisper heard as Chinese, Japanese
+          // or Korean: Auto mode hears one language per recording, so a long
+          // switch into English can come out translated (auto-language-note.ts).
+          let tipShown = true;
+          try {
+            tipShown = localStorage.getItem(MIXED_LANGUAGE_TIP_KEY) === "1";
+          } catch {
+            // No storage: skip the tip rather than repeat it on every dictation.
+          }
+          if (
+            shouldShowMixedLanguageTip({
+              detectedLanguage: result.detectedLanguage,
+              alreadyShown: tipShown,
+            })
+          ) {
+            try {
+              localStorage.setItem(MIXED_LANGUAGE_TIP_KEY, "1");
+              toast({
+                title: t("app.toasts.mixedLanguageTip.title"),
+                description: t("app.toasts.mixedLanguageTip.description"),
+                icon: MandoToastIcon,
+                duration: 15000,
+              });
+            } catch {
+              // Couldn't remember it was shown; better no tip than one every time.
+            }
+          }
 
           // WhisperWoof: Route based on active hotkey combo
           const hotkeyUsed = activeHotkeyRef.current ?? "Fn";

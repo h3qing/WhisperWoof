@@ -79,6 +79,7 @@ import { useTheme } from "../hooks/useTheme";
 import type { LocalTranscriptionProvider } from "../types/electron";
 import logger from "../utils/logger";
 import { SettingsRow } from "./ui/SettingsSection";
+import { autoLanguageNoteApplies } from "../whisperwoof/core/language/auto-language-note";
 import { useUsage } from "../hooks/useUsage";
 import { cn } from "./lib/utils";
 import { startMigration, useMigration } from "../stores/noteStore.js";
@@ -2230,6 +2231,15 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       }
                     />
                   </SettingsRow>
+                  {autoLanguageNoteApplies({
+                    useLocalWhisper,
+                    provider: localTranscriptionProvider,
+                    language: preferredLanguage,
+                  }) && (
+                    <p className="text-xs text-faint mt-2 leading-relaxed">
+                      {t("settings.language.autoWhisperNote")}
+                    </p>
+                  )}
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>
