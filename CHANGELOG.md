@@ -5,6 +5,14 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-09-27 — Encryption without the freeze
+
+### Fixed
+- **Turning on encryption no longer freezes WhisperWoof.** With a lot of data (tens of thousands of clipboard images), the app froze for minutes: every file was encrypted on the app's main thread, and each one waited for the disk twice. It now runs in the background, about three times faster, with a progress bar you can close, and WhisperWoof keeps working meanwhile. Turning encryption off and making a new recovery phrase work the same way.
+- **Touch ID is checked before anything is encrypted.** Setup asks for one touch when you click Turn on encryption. If Touch ID doesn't work, nothing is encrypted and your recovery phrase still holds, so you can try again or go on without Touch ID. Before, the check came at the very end.
+- **The Touch ID prompt says it's from WhisperWoof.** It was titled "macos-vault-helper". It now reads "WhisperWoof is trying to…" and says what the touch is for: checking Touch ID before encrypting, unlocking your history and notes, or confirming it's you.
+- **A lock that comes while your data is being encrypted waits for it.** If your Mac sleeps part-way through, WhisperWoof locks as soon as encrypting finishes, instead of skipping the lock.
+
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 
 ### Fixed
