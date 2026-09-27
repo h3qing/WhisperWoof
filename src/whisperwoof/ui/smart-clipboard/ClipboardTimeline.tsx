@@ -4,14 +4,16 @@
  * not a file name). Hover for: save as a note, pin (kept by clean-up), remove.
  * The top line says what's kept and what images cost on disk; the controls
  * next to search set how long history is kept, how much space images may
- * use, and clear things in bulk. Backed by bridge/clipboard-store.js; items
- * are addressed by id.
+ * use, whether the words in images are read for search (asked first, with
+ * what that means), and clear things in bulk. Backed by
+ * bridge/clipboard-store.js; items are addressed by id.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Check,
   ChevronDown,
+  Copy,
   FilePlus2,
   FileText,
   FolderOpen,
@@ -19,6 +21,7 @@ import {
   Maximize2,
   Pin,
   PinOff,
+  ScanText,
   Search,
   Trash2,
   X,
@@ -48,12 +51,17 @@ import {
   fileBadge,
   formatBytes,
   imageCaption,
+  imageTextConsent,
+  imageTextLine,
+  imageTextOffQuestion,
   relativeTime,
   type ClearChoice,
   type ClipboardItem,
   type ClipboardKind,
   type ClipboardRetention,
   type ClipboardSummary,
+  type ImageTextResult,
+  type ImageTextStatus,
 } from "./clipboard-view";
 
 const PAGE = { text: 60, image: 36, file: 40 } as const;
@@ -77,7 +85,11 @@ interface ClipboardApi {
   whisperwoofClipboardSetRetention?: (r: ClipboardRetention) => Result<{ deleted: number }>;
   whisperwoofClipboardSetCapture?: (c: { keepFiles: boolean }) => Result;
   whisperwoofClipboardReveal?: (id: string) => Result;
+  whisperwoofClipboardSetImageText?: (o: { enabled: boolean }) => Result<{ imageText: ImageTextStatus; deleted: number }>;
+  whisperwoofClipboardImageText?: (id: string) => Result<ImageTextResult>;
+  whisperwoofClipboardCopyImageText?: (id: string) => Result;
   onClipboardChanged?: (cb: () => void) => () => void;
+  onClipboardImageTextStatus?: (cb: (status: ImageTextStatus) => void) => () => void;
   whisperwoofOpenVoiceNote?: (name: string | null) => Promise<unknown>;
 }
 const api = (): ClipboardApi => (window as unknown as { electronAPI?: ClipboardApi }).electronAPI ?? {};
@@ -310,6 +322,13 @@ function ImageTile({
       <p className="truncate px-0.5 text-[11px] text-muted-foreground">
         {[item.sourceApp, relativeTime(item.createdAt)].filter(Boolean).join(" · ")}
       </p>
+      {item.textMatch && (
+        <p className="line-clamp-2 break-words px-0.5 pt-0.5 text-[11px] text-muted-foreground" title="Words in this image">
+          {item.textMatch.before}
+          <mark className="rounded-sm bg-select px-0.5 text-foreground">{item.textMatch.match}</mark>
+          {item.textMatch.after}
+        </p>
+      )}
     </li>
   );
 }
@@ -370,7 +389,105 @@ function FileRow({
   );
 }
 
-function Lightbox({ item, onClose, ...actions }: { readonly item: ClipboardItem; readonly onClose: () => void } & ItemActions) {
+/** The words read from an image, under it in "Look closer": copy them, or why there are none. */
+function ImageWords({ id, status }: { readonly id: string; readonly status: ImageTextStatus | null }) {
+  const [result, setResult] = useState<ImageTextResult | null>(null);
+  const [copied, setCopied] = useState(false);
+  // While it isn't read yet, look again as reading moves on.
+  const progress = result?.status === "unread" ? (status?.read ?? 0) : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void api()
+      .whisperwoofClipboardImageText?.(id)
+      .then((res) => {
+        if (!cancelled && res?.success) setResult({ status: res.status ?? "unread", text: res.text ?? "" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, progress, status?.enabled]);
+
+  const copy = async () => {
+    const res = await api().whisperwoofClipboardCopyImageText?.(id);
+    if (!res?.success) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  if (!result) return null;
+  let note: string | null = null;
+  if (result.status === "failed") note = "This image couldn\u2019t be read.";
+  else if (result.status === "done" && !result.text) note = "No words found in this image.";
+  else if (result.status === "unread") {
+    if (status?.enabled) note = "Its words aren\u2019t read yet. That happens in the background.";
+    else if (status?.available) note = "Turn on \u201cWords in images\u201d to search and copy the words in images.";
+  }
+  if (note) return <p className="mx-4 mb-3 shrink-0 text-xs text-muted-foreground">{note}</p>;
+  if (!result.text) return null;
+  return (
+    <div className="mx-3 mb-3 shrink-0">
+      <div className="flex items-center gap-2 px-1 pb-1">
+        <p className="flex-1 text-xs font-semibold text-muted-foreground">Words in this image</p>
+        <button
+          type="button"
+          onClick={copy}
+          className="press flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-primary hover:bg-foreground/[0.05]"
+        >
+          {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+          {copied ? "Copied" : "Copy text"}
+        </button>
+      </div>
+      <p className="max-h-36 select-text overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-surface-1 px-3 py-2 text-sm text-foreground">
+        {result.text}
+      </p>
+    </div>
+  );
+}
+
+/** A capsule switch in the toolbar (role="switch"). */
+function ToolbarSwitch({
+  on,
+  label,
+  title,
+  icon,
+  onClick,
+}: {
+  readonly on: boolean;
+  readonly label: string;
+  readonly title: string;
+  readonly icon: React.ReactNode;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onClick}
+      title={title}
+      className="press flex h-8 shrink-0 items-center gap-2 rounded-full bg-card px-3 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      {icon}
+      {label}
+      <span aria-hidden="true" className={cn("relative h-4 w-7 rounded-full transition-colors", on ? "bg-primary/90" : "bg-foreground/15")}>
+        <span
+          className={cn(
+            "absolute left-0.5 top-0.5 size-3 rounded-full bg-card shadow-sm transition-transform",
+            on ? "translate-x-3" : "translate-x-0"
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
+function Lightbox({
+  item,
+  imageText,
+  onClose,
+  ...actions
+}: { readonly item: ClipboardItem; readonly imageText: ImageTextStatus | null; readonly onClose: () => void } & ItemActions) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -411,6 +528,7 @@ function Lightbox({ item, onClose, ...actions }: { readonly item: ClipboardItem;
           </ActionButton>
         </div>
         <Preview id={item.id} size="large" className="mx-3 mb-3 min-h-0 flex-1 rounded-lg" />
+        <ImageWords id={item.id} status={imageText} />
       </div>
     </div>
   );
@@ -465,6 +583,8 @@ export default function ClipboardTimeline() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pendingClear, setPendingClear] = useState<ClearChoice | null>(null);
   const [askKeepFiles, setAskKeepFiles] = useState(false);
+  const [askImageText, setAskImageText] = useState<"on" | "off" | null>(null);
+  const [imageText, setImageText] = useState<ImageTextStatus | null>(null);
   const [open, setOpen] = useState<ClipboardItem | null>(null);
   const text = useColumn("text", debounced);
   const images = useColumn("image", debounced);
@@ -477,8 +597,14 @@ export default function ClipboardTimeline() {
 
   const refreshSummary = useCallback(async () => {
     const res = await api().whisperwoofClipboardSummary?.();
-    if (res?.success) setSummary(res as unknown as ClipboardSummary);
+    if (!res?.success) return;
+    const next = res as unknown as ClipboardSummary;
+    setSummary(next);
+    if (next.imageText) setImageText(next.imageText);
   }, []);
+
+  // Reading the words in images reports its progress while the view is open.
+  useEffect(() => api().onClipboardImageTextStatus?.((status) => setImageText(status)), []);
 
   const { reload: reloadText } = text;
   const { reload: reloadImages } = images;
@@ -562,6 +688,23 @@ export default function ClipboardTimeline() {
     void refreshSummary();
   };
 
+  const imageTextOn = imageText?.enabled ?? false;
+  const setImageTextOn = async (on: boolean) => {
+    setAskImageText(null);
+    const res = await api().whisperwoofClipboardSetImageText?.({ enabled: on });
+    if (!res?.success) return fail(res?.error);
+    if (res.imageText) setImageText(res.imageText);
+    setNotice({
+      text: on
+        ? "Reading the words in your images, new ones first. Search finds them as they\u2019re read."
+        : `Stopped reading words in images${res.deleted ? ` and deleted the words from ${res.deleted.toLocaleString("en-US")} images` : ""}.`,
+      tone: "info",
+    });
+    refreshAll();
+  };
+  const consent = imageTextConsent({ imageCount: summary?.imageCount ?? 0, encrypted: imageText?.encrypted ?? false });
+  const imageTextStatusLine = imageText ? imageTextLine(imageText) : null;
+
   const confirmClear = async () => {
     if (!pendingClear) return;
     const res = await api().whisperwoofClipboardClear?.(clearOptions(pendingClear));
@@ -629,36 +772,27 @@ export default function ClipboardTimeline() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search text and file names"
+            placeholder={imageTextOn ? "Search text, file names and words in images" : "Search text and file names"}
             aria-label="Search clipboard"
             className="h-8 w-full rounded-full bg-card pl-8 pr-3 text-sm text-foreground shadow-card placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={keepFiles}
-          onClick={() => (keepFiles ? setKeepFiles(false) : setAskKeepFiles(true))}
+        {(imageText?.available || imageTextOn) && (
+          <ToolbarSwitch
+            on={imageTextOn}
+            label="Words in images"
+            title="Read the words in images on this Mac, so search finds them"
+            icon={<ScanText size={13} aria-hidden="true" />}
+            onClick={() => setAskImageText(imageTextOn ? "off" : "on")}
+          />
+        )}
+        <ToolbarSwitch
+          on={keepFiles}
+          label="Keep copied files"
           title="PDFs, documents and other files you copy"
-          className="press flex h-8 items-center gap-2 rounded-full bg-card px-3 text-xs font-medium text-foreground shadow-card hover:bg-surface-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <FileText size={13} aria-hidden="true" />
-          Keep copied files
-          <span
-            aria-hidden="true"
-            className={cn(
-              "relative h-4 w-7 rounded-full transition-colors",
-              keepFiles ? "bg-primary/90" : "bg-foreground/15"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute left-0.5 top-0.5 size-3 rounded-full bg-card shadow-sm transition-transform",
-                keepFiles ? "translate-x-3" : "translate-x-0"
-              )}
-            />
-          </span>
-        </button>
+          icon={<FileText size={13} aria-hidden="true" />}
+          onClick={() => (keepFiles ? setKeepFiles(false) : setAskKeepFiles(true))}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -683,6 +817,60 @@ export default function ClipboardTimeline() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {imageTextStatusLine && (
+        <p className="-mt-1 flex items-center gap-1.5 px-1 text-xs text-muted-foreground" aria-live="polite">
+          <ScanText size={12} className="shrink-0 text-primary" aria-hidden="true" />
+          <span className="tabular-nums">{imageTextStatusLine}</span>
+        </p>
+      )}
+
+      {askImageText === "on" && (
+        <div role="alertdialog" aria-label={consent.question} className="rounded-lg bg-surface-1 px-4 py-3 text-sm">
+          <p className="font-semibold text-foreground">{consent.question}</p>
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[13px] text-muted-foreground">
+            {consent.points.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAskImageText(null)}
+              className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Not now
+            </button>
+            <button
+              type="button"
+              onClick={() => setImageTextOn(true)}
+              className="press rounded-full bg-primary/90 px-3 py-1 text-xs font-semibold text-primary-foreground"
+            >
+              {consent.confirm}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {askImageText === "off" && (
+        <div role="alertdialog" className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-1 px-3 py-2 text-sm">
+          <span className="flex-1 text-foreground">{imageTextOffQuestion(imageText ?? { read: 0 })}</span>
+          <button
+            type="button"
+            onClick={() => setAskImageText(null)}
+            className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => setImageTextOn(false)}
+            className="press rounded-full bg-destructive px-3 py-1 text-xs font-semibold text-destructive-foreground"
+          >
+            Turn off
+          </button>
+        </div>
+      )}
 
       {askKeepFiles && (
         <div role="alertdialog" className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-1 px-3 py-2 text-sm">
@@ -767,7 +955,9 @@ export default function ClipboardTimeline() {
           }
           empty={
             searching
-              ? "No image or file names match."
+              ? imageTextOn
+                ? "No images or files match."
+                : "No image or file names match."
               : keepFiles
                 ? "Screenshots, photos and files you copy show up here."
                 : "Screenshots and photos you copy show up here."
@@ -805,7 +995,7 @@ export default function ClipboardTimeline() {
         </Column>
       </div>
 
-      {open && <Lightbox item={open} onClose={() => setOpen(null)} {...actions} />}
+      {open && <Lightbox item={open} imageText={imageText} onClose={() => setOpen(null)} {...actions} />}
     </div>
   );
 }

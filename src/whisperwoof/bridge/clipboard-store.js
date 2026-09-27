@@ -14,6 +14,8 @@ const { pathToFileURL } = require("url");
 const { clipboard, nativeImage, BrowserWindow, shell } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 const pure = require("./clipboard-pure");
+const imageTextPure = require("./clipboard-image-text-pure");
+const imageTextDb = require("./clipboard-image-text-db");
 const vault = require("./vault/vault-service");
 const vaultFiles = require("./vault/vault-files");
 
@@ -90,16 +92,26 @@ function toItem(row) {
 
 const escapeLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-/** One column of the view: text or images, pinned first, then newest. */
+/**
+ * One column of the view: text or images, pinned first, then newest. A
+ * search also finds images by the words read from them; those results carry
+ * the words around the match (`textMatch`).
+ */
 function listClipboard({ kind = "text", limit = 60, offset = 0, query = "" } = {}) {
   if (!db()) return [];
   const where = ["source = 'clipboard'", KIND_WHERE[kind] ?? KIND_WHERE.text];
   const params = [];
   const q = String(query ?? "").trim();
+  const searchImageText = Boolean(q) && kind === "image";
   if (q) {
-    where.push("(raw_text LIKE ? ESCAPE '\\' OR polished LIKE ? ESCAPE '\\')");
     const like = `%${escapeLike(q)}%`;
+    const match = ["raw_text LIKE ? ESCAPE '\\'", "polished LIKE ? ESCAPE '\\'"];
     params.push(like, like);
+    if (searchImageText) {
+      match.push(imageTextDb.TEXT_MATCH_SQL);
+      params.push(like);
+    }
+    where.push(`(${match.join(" OR ")})`);
   }
   const rows = db()
     .prepare(
@@ -107,7 +119,13 @@ function listClipboard({ kind = "text", limit = 60, offset = 0, query = "" } = {
        ORDER BY favorite DESC, created_at DESC LIMIT ? OFFSET ?`
     )
     .all(...params, Math.min(Number(limit) || 60, 200), Math.max(Number(offset) || 0, 0));
-  return rows.map(toItem);
+  const items = rows.map(toItem);
+  if (!searchImageText || items.length === 0) return items;
+  const texts = imageTextDb.textsFor(db(), items.map((item) => item.id));
+  return items.map((item) => {
+    const textMatch = texts.has(item.id) ? imageTextPure.matchSnippet(texts.get(item.id), q) : null;
+    return textMatch ? { ...item, textMatch } : item;
+  });
 }
 
 function fileSize(filePath) {
@@ -170,7 +188,35 @@ function summary() {
     fileBytes: files.reduce((sum, r) => sum + r.bytes, 0),
     retention: getRetention(),
     capture: getCapture(),
+    imageText: imageTextReader().getStatus(),
   };
+}
+
+const imageTextReader = () => require("./clipboard-image-text");
+
+/** Read the words in images (on) or stop and delete them (off). */
+function setImageText(raw) {
+  const result = imageTextReader().setEnabled(raw);
+  notifyChanged();
+  return result;
+}
+
+/** The words read from one image: { status: unread | done | failed, text }. */
+function imageText(id) {
+  const row = clipboardRow(id);
+  if (!row) return { success: false, error: "Not a clipboard item" };
+  if (!pure.isImageMetadata(row.metadata)) return { success: false, error: "Not an image" };
+  return imageTextDb.imageTextFor(db(), id);
+}
+
+/** Put an image's words on the clipboard as text (not added to history: the image already finds them). */
+function copyImageText(id) {
+  const found = imageText(id);
+  if (found.success === false) return found;
+  if (!found.text) return { success: false, error: "No words found in this image" };
+  clipboard.writeText(found.text);
+  require("./app-init").adoptCurrentClipboard();
+  return { success: true };
 }
 
 /** Delete rows and what they stored on disk (image + preview, or a kept file's folder). */
@@ -372,6 +418,9 @@ module.exports = {
   setRetention,
   getCapture,
   setCapture,
+  setImageText,
+  imageText,
+  copyImageText,
   reveal,
   prune,
   removeItems,

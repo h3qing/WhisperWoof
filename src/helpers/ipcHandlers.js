@@ -3439,6 +3439,16 @@ class IPCHandlers {
       clipboardCall((capture) => clipboardStore().setCapture(capture))
     );
     ipcMain.handle("whisperwoof-clipboard-reveal", clipboardCall((id) => clipboardStore().reveal(id)));
+    // Words in images (opt-in): read them for search, show and copy one image's words.
+    ipcMain.handle(
+      "whisperwoof-clipboard-set-image-text",
+      clipboardCall((settings) => clipboardStore().setImageText(settings))
+    );
+    ipcMain.handle("whisperwoof-clipboard-image-text", clipboardCall((id) => clipboardStore().imageText(id)));
+    ipcMain.handle(
+      "whisperwoof-clipboard-copy-image-text",
+      clipboardCall((id) => clipboardStore().copyImageText(id))
+    );
 
     // WhisperWoof: Toggle clipboard monitoring on/off
     ipcMain.handle("whisperwoof-clipboard-toggle", async (_event, enabled) => {

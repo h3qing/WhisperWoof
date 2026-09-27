@@ -106,6 +106,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 ### Notes, clipboard & history
 - **Notes & projects**: Fn+N saves a dated Markdown note to `~/Documents/WhisperWoof Notes` (change the folder in Settings; Obsidian reads it as is). Fn+P files it under a project, Inbox by default. A note links back to its recording.
 - **Clipboard** *(new in 2.2)*: everything you copy, text on one side and images on the other. Click to copy again (images paste as images), save any item to Notes, pin what matters, and choose how long history is kept and how much space images may use. What password managers copy is never saved.
+- **Words in images** *(new in 2.4)*: opt-in. Search finds a screenshot by the words in it, Chinese and English included. macOS's own text recognition reads your images on your Mac, in the background and at low priority (older images only while plugged in); nothing is uploaded. Turning it off deletes the words.
 - **Voice history + audio playback**: tap any entry to replay the original recording. Audio Retention keeps recordings for 7 to 90 days, or stops saving them.
 - **Full-text search**: SQLite FTS5 across all your voice and clipboard entries.
 

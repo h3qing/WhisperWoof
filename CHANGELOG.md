@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-27 — Search the words in your images
+
+### Added
+- **Clipboard search finds screenshots by what they say.** Turn on **Words in images** in the Clipboard view and WhisperWoof reads the text in the images you copy, so searching "bottleneck" also finds the screenshot of the chat where someone wrote it. Chinese and English (and the other languages your Mac is set to) are read. A search result shows the words around the match, and **Look closer** shows everything read from an image with a **Copy text** button.
+- **It asks first, and says what it means.** Nothing is read until you say yes to a short explanation: why (search), how (macOS's own text recognition, on this Mac: nothing is uploaded or downloaded), what it costs (your older images are read in the background, newest first, only while your Mac is plugged in), and what it means for privacy (the words are kept with your clipboard history, encrypted when encryption is on, so a screenshot of a password becomes searchable text too). Turning it off stops reading and deletes every word it read; your images stay.
+- **You shouldn't notice it running.** One image at a time, at background priority. New copies are read a few seconds after you copy them; older ones in the background with a rest after each. It waits while you dictate (and while your words are transcribed and polished), while a meeting records, while your Mac is busy, hot or locked, and on battery it reads only new copies. A line under the search box says how far it's got and why it's waiting.
+
+### Security
+- Image bytes go to the text reader through a pipe: an encrypted image is decrypted in memory, never written out, and the decrypted copy is wiped once it has been read. Only files inside WhisperWoof's own image folder are ever read. The reader is a small helper built into the app that makes no network requests.
+
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 
 ### Fixed
