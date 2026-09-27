@@ -311,6 +311,9 @@ async function becomeUnlocked(nextMasterKey) {
   pendingLock = false;
   await runHooks(unlockedHooks, "unlock");
   notifyState();
+  // A lock asked for during the unlock steps (say, while a resumed migration
+  // ran) waits until every step is done, then happens.
+  await releaseDeferredLock();
 }
 
 async function unlockWithPassword(password) {
@@ -344,7 +347,10 @@ async function unlockWithTouchIdSecret(shared) {
 
 /** Lock now, unless something (a recording meeting) needs the keys — then lock when it ends. */
 async function lock({ force = false } = {}) {
-  if (!isUnlocked()) return { locked: true };
+  if (!isUnlocked()) {
+    pendingLock = false; // e.g. encryption was turned off while a lock waited
+    return { locked: true };
+  }
   if (!force && lockBlockers.some((blocked) => blocked())) {
     pendingLock = true;
     notifyState();

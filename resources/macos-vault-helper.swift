@@ -1,4 +1,6 @@
-// macos-vault-helper — Touch ID for WhisperWoof's encryption.
+// macos-vault-helper — Touch ID for WhisperWoof's encryption. Built as the
+// app bundle resources/bin/WhisperWoof.app (with WhisperWoof's icon), because
+// macOS titles the Touch ID prompt with the calling app's name and icon.
 //
 // Holds a Secure Enclave P-256 key-agreement key that needs a fingerprint
 // every time it's used ([.privateKeyUsage, .biometryCurrentSet]). The private
@@ -16,7 +18,7 @@
 //   create               → {"publicKey":b64 X9.63,"keyBlob":b64}
 //   unlock  (stdin JSON {"keyBlob","peer","purpose"})
 //                        → {"shared":b64}   or error cancelled|fallback|invalidated|lockout|unavailable|failed
-//           "purpose" (unlock|enroll|confirm) picks one of the prompts below;
+//           "purpose" (setup|enable|unlock|confirm) picks one of the prompts below;
 //           the prompt text never comes from the caller, so another program
 //           can't borrow this helper to ask for a fingerprint in its own words.
 //   copy    (stdin JSON {"text"}) → {"copied":true}
@@ -32,10 +34,14 @@ import Foundation
 import LocalAuthentication
 import Security
 
+// macOS shows these as "WhisperWoof is trying to <prompt>." (this helper is
+// the WhisperWoof.app bundle), so each says what the touch is for.
 let touchIdPrompts: [String: String] = [
-  "unlock": "unlock your WhisperWoof history and notes",
-  "enroll": "turn on Touch ID for WhisperWoof",
-  "confirm": "confirm it's you in WhisperWoof",
+  "setup": "check that Touch ID works before encrypting your data",
+  "enable": "turn on Touch ID for unlocking your data",
+  "enroll": "turn on Touch ID for unlocking your data",
+  "unlock": "unlock your history and notes",
+  "confirm": "confirm it's you",
 ]
 
 func emit(_ object: [String: Any]) -> Never {

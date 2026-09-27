@@ -22,6 +22,15 @@ const { unlockDelayMs } = require("./password-policy-pure");
 // that short.
 const SETUP_TTL_MS = 5 * 60 * 1000;
 const CLIPBOARD_CLEAR_MS = 60 * 1000;
+// Which Touch ID prompt to show. The words live in the helper
+// (macos-vault-helper.swift: "WhisperWoof is trying to <prompt>."), so no
+// caller can put its own text in a real Touch ID prompt.
+const TOUCH_ID_PURPOSE = Object.freeze({
+  setup: "setup",
+  enable: "enable",
+  unlock: "unlock",
+  confirm: "confirm",
+});
 
 let setup = null; // { entropy, words, confirmIndexes, expires, purpose: "setup" | "rotate" }
 let touchIdAvailability = { available: false, reason: "unavailable" };
@@ -37,8 +46,29 @@ const ok = (extra = {}) => ({ success: true, ...extra });
 const fail = (error, code) => ({ success: false, error, code });
 
 function errorResult(err) {
-  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY", "INVALID"];
+  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "FAILED", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY", "INVALID"];
   return fail(err.message, known.includes(err.code) ? err.code : undefined);
+}
+
+/**
+ * Settings changes and conversions run one at a time, and never while files
+ * are being converted: that can also be a migration resumed on unlock, which
+ * runs outside `exclusive`. A conversion that stopped part-way (its journal is
+ * still there) must be finished first; `allowPending(journal)` lets through
+ * what finishes or undoes it (Try again, turning off).
+ */
+function whenIdle(fn, { allowPending = () => false } = {}) {
+  return vault.exclusive(async () => {
+    if (lifecycle.getProgress()) {
+      return fail("WhisperWoof is still converting your data. Try again when it's done.", "BUSY");
+    }
+    // Only a journal this vault signed counts (read() is null while locked).
+    const pending = vault.isOn() ? journalStore.read() : null;
+    if (pending && !allowPending(pending)) {
+      return fail("Finish what was interrupted first: press Try again in Settings → Encryption.", "BUSY");
+    }
+    return fn();
+  });
 }
 
 async function guarded(fn) {
@@ -165,27 +195,37 @@ function beginSetup() {
   return ok(newPhraseSession("setup"));
 }
 
-/** Enroll a Secure Enclave key for the vault's current master key. `test` asks for one touch. */
-async function enrollTouchId({ test }) {
+/**
+ * `v` with a new Secure Enclave key wrapped around `masterKey`. With a
+ * `purpose` (which prompt), it asks for one touch and checks the enclave's
+ * answer opens it.
+ */
+async function withTouchId(v, masterKey, purpose) {
   const availability = await refreshTouchIdAvailability();
   if (!availability.available) throw Object.assign(new Error("Touch ID isn't available on this Mac"), { code: "UNAVAILABLE" });
   const key = await touchId.createKey();
-  const next = vk.setTouchIdWrap(vault.getVault(), vault.requireMasterKey(), key);
-  if (test) {
-    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), purpose: "enroll" });
+  const next = vk.setTouchIdWrap(v, masterKey, key);
+  if (purpose) {
+    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), purpose });
     try {
       vk.unlockWithTouchIdSecret(next, shared).fill(0); // throws if the enclave's answer doesn't open it
     } finally {
       shared.fill(0);
     }
   }
+  return next;
+}
+
+/** Enroll Touch ID for the vault's current master key. `test` asks for one touch. */
+async function enrollTouchId({ test }) {
+  const next = await withTouchId(vault.getVault(), vault.requireMasterKey(), test ? TOUCH_ID_PURPOSE.enable : null);
   vault.saveVault(next);
   touchIdWasReset = false;
 }
 
 async function completeSetup({ password, confirmWords, useTouchId, notesReadable }) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       if (vault.isOn()) return fail("Encryption is already on", "INVALID");
       if (vault.isLockBlocked()) {
         return fail("Finish recording the meeting first, then turn on encryption.", "BUSY");
@@ -194,25 +234,34 @@ async function completeSetup({ password, confirmWords, useTouchId, notesReadable
       let created;
       try {
         created = vk.createVault({ entropy: session.entropy, password });
-      } finally {
+      } catch (err) {
         session.entropy.fill(0);
+        throw err;
       }
       const withPrefs = vk.updatePrefs(created.vault, { notesReadable: Boolean(notesReadable) });
+      let ready = withPrefs;
+      if (useTouchId) {
+        // One touch now, before anything is encrypted: if Touch ID doesn't
+        // work, nothing has changed and the phrase they wrote down still holds.
+        try {
+          ready = await withTouchId(withPrefs, created.masterKey, TOUCH_ID_PURPOSE.setup);
+        } catch (err) {
+          // Kept whole for the retry: the phrase they wrote down must still hold.
+          setup = session;
+          throw err;
+        }
+      }
+      // Past the last retry point: the phrase's entropy isn't needed any more.
+      session.entropy.fill(0);
       // vault.json, then the journal, then the unlock — which sees the journal
       // and runs the migration. A crash in between never leaves a journal alone.
       // The journal is signed with the new master key before its first unlock.
-      await vault.adoptNewVault(withPrefs, created.masterKey, {
+      await vault.adoptNewVault(ready, created.masterKey, {
         beforeUnlock: () =>
-          journalStore.write(planPure.startJournal("enable"), { masterKey: created.masterKey, vaultId: withPrefs.vaultId }),
+          journalStore.write(planPure.startJournal("enable"), { masterKey: created.masterKey, vaultId: ready.vaultId }),
       });
-      let touchIdNote;
-      if (useTouchId) {
-        await enrollTouchId({ test: true }).catch((err) => {
-          touchIdNote = err.message;
-        });
-      }
       notify();
-      return ok(touchIdNote ? { touchIdError: touchIdNote } : {});
+      return ok();
     })
   );
 }
@@ -231,7 +280,7 @@ async function unlockWithTouchId() {
     if (vault.isUnlocked()) return ok();
     let shared;
     try {
-      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: "unlock" });
+      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: TOUCH_ID_PURPOSE.unlock });
     } catch (err) {
       if (err.code === "INVALIDATED") {
         // The fingerprints on this Mac changed (someone may have added theirs).
@@ -331,7 +380,7 @@ async function reauthenticate(reauth) {
     return;
   }
   if (reauth && reauth.touchId && v.touchId) {
-    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: "confirm" });
+    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: TOUCH_ID_PURPOSE.confirm });
     try {
       vk.unlockWithTouchIdSecret(v, shared).fill(0);
     } finally {
@@ -343,12 +392,14 @@ async function reauthenticate(reauth) {
 }
 
 async function changePassword({ currentPassword, newPassword }) {
-  return guarded(async () => {
-    vault.requireMasterKey();
-    await reauthenticate({ password: currentPassword });
-    vault.saveVault(vk.setPassword(vault.getVault(), vault.requireMasterKey(), String(newPassword || "")));
-    return ok();
-  });
+  return guarded(() =>
+    whenIdle(async () => {
+      vault.requireMasterKey();
+      await reauthenticate({ password: currentPassword });
+      vault.saveVault(vk.setPassword(vault.getVault(), vault.requireMasterKey(), String(newPassword || "")));
+      return ok();
+    })
+  );
 }
 
 /**
@@ -357,24 +408,26 @@ async function changePassword({ currentPassword, newPassword }) {
  * Turning it off needs nothing.
  */
 async function setTouchIdEnabled(enabled, reauth) {
-  return guarded(async () => {
-    vault.requireMasterKey();
-    if (!enabled) {
-      vault.saveVault(vk.clearTouchId(vault.getVault()));
+  return guarded(() =>
+    whenIdle(async () => {
+      vault.requireMasterKey();
+      if (!enabled) {
+        vault.saveVault(vk.clearTouchId(vault.getVault()));
+        return ok();
+      }
+      if (!reauth || typeof reauth.password !== "string") {
+        return fail("Enter your password to turn on Touch ID.", "INVALID");
+      }
+      await reauthenticate({ password: reauth.password });
+      await enrollTouchId({ test: true });
       return ok();
-    }
-    if (!reauth || typeof reauth.password !== "string") {
-      return fail("Enter your password to turn on Touch ID.", "INVALID");
-    }
-    await reauthenticate({ password: reauth.password });
-    await enrollTouchId({ test: true });
-    return ok();
-  });
+    })
+  );
 }
 
 async function setPrefs(prefs, reauth) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       const current = vault.getVault();
       if (!current) return fail("Encryption is off", "INVALID");
       // Every pref is a security setting (and gets signed): only while unlocked.
@@ -406,7 +459,7 @@ async function beginNewPhrase(reauth) {
 
 async function completeNewPhrase({ confirmWords }) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       const session = takeConfirmedSession("rotate", confirmWords);
       try {
         await lifecycle.runRotation(() => rotation.rotate(session.entropy));
@@ -420,7 +473,7 @@ async function completeNewPhrase({ confirmWords }) {
 
 async function disable(reauth) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       vault.requireMasterKey();
       await reauthenticate(reauth);
       await lifecycle.replayInbox();
@@ -431,19 +484,19 @@ async function disable(reauth) {
       await lifecycle.runMigration("disable");
       notify();
       return ok();
-    })
+    }, { allowPending: (journal) => journal.direction !== "rotate" })
   );
 }
 
 /** "Try again" after a migration or new phrase stopped. */
 async function retry() {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       vault.requireKeys();
       await lifecycle.retry();
       notify();
       return ok();
-    })
+    }, { allowPending: () => true })
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { VaultMigration, VaultStatus } from "../../../types/electron";
+import type { VaultErrorCode, VaultFailure, VaultMigration, VaultStatus } from "../../../types/electron";
 import {
   TOO_EASY_PASSWORD,
   afterAuthFailure,
@@ -9,6 +9,7 @@ import {
   checkNewPassword,
   confirmWordsPayload,
   encryptionOfferView,
+  encryptionStarted,
   encryptionSummary,
   initialAuthMode,
   initialTurnOnState,
@@ -25,6 +26,7 @@ import {
   previousTurnOnStep,
   recoveryPhraseProblem,
   settingsMode,
+  setupTouchIdMessage,
   shouldReloadOnTransition,
   touchIdOutcome,
   touchIdRowDescription,
@@ -414,5 +416,39 @@ describe("encryptionOfferView (the one-time offer on Home)", () => {
 
   it("doesn't come back after someone turned it on and later off", () => {
     expect(encryptionOfferView(off, "accepted", false)).toBe("hidden");
+  });
+});
+
+describe("encryptionStarted", () => {
+  const migration = (patch: Partial<VaultMigration>): VaultMigration =>
+    ({ direction: "enable", phase: "files", done: 10, total: 100, needsUnlock: false, ...patch }) as VaultMigration;
+
+  it("is true once turning encryption on is under way", () => {
+    expect(encryptionStarted(status({ migrating: migration({ phase: "db", done: 0 }) }))).toBe(true);
+    expect(encryptionStarted(status({ migrating: migration({}) }))).toBe(true);
+  });
+
+  it("is false before it starts, for other conversions, and when it stopped", () => {
+    expect(encryptionStarted(status())).toBe(false);
+    expect(encryptionStarted(null)).toBe(false);
+    expect(encryptionStarted(status({ migrating: migration({ direction: "disable" }) }))).toBe(false);
+    expect(encryptionStarted(status({ migrating: migration({ phase: "error" }) }))).toBe(false);
+  });
+});
+
+describe("setupTouchIdMessage", () => {
+  const failure = (code: VaultErrorCode, error = "x"): VaultFailure => ({ success: false, error, code });
+
+  it("says nothing was encrypted and how to go on", () => {
+    expect(setupTouchIdMessage(failure("CANCELLED"))).toBe(
+      "Touch ID was cancelled, so nothing was encrypted. Try again, or untick Unlock with Touch ID."
+    );
+    expect(setupTouchIdMessage(failure("FAILED"))).toMatch(/^Touch ID didn't work, so nothing was encrypted\./);
+    expect(setupTouchIdMessage(failure("LOCKOUT"))).toMatch(/^Touch ID is locked after too many tries, so nothing/);
+  });
+
+  it("leaves other errors to the usual message", () => {
+    expect(setupTouchIdMessage(failure("WRONG_PHRASE"))).toBeNull();
+    expect(setupTouchIdMessage({ success: false, error: "disk full" })).toBeNull();
   });
 });

@@ -7,8 +7,9 @@
  *            migration → open databases → replay inbox.
  * On lock:   close databases (keys are dropped by the vault service after).
  *
- * A running migration holds off automatic locks; a failed one doesn't — it
- * leaves an error the Encryption settings show with "Try again".
+ * A running migration holds off every lock (Mac sleep, idle, "Lock now") until
+ * it finishes, then the lock happens; a failed one doesn't hold anything off —
+ * it leaves an error the Encryption settings show with "Try again".
  */
 
 const path = require("path");
@@ -43,6 +44,11 @@ function setProgress(next) {
   notify();
 }
 
+/** A conversion ended: a lock asked for while it ran happens now. */
+async function lockIfAsked() {
+  await vault.releaseDeferredLock().catch((err) => debugLogger.error("[Vault] Deferred lock failed", { error: err.message }));
+}
+
 function setError(direction, err) {
   lastError = err ? { direction, message: err.message } : null;
   if (err) debugLogger.error("[Vault] Stopped", { direction, error: err.message });
@@ -70,15 +76,18 @@ async function reopenDatabases() {
 }
 
 /**
- * The last step of turning encryption off, the same when resuming after a
- * crash: import what was saved while it ran (the now-plain database opens
- * while the signed journal is there), write out what won't import, and forget
- * the vault — the keys with it — only once the disk shows nothing is still
- * encrypted.
+ * Encryption is off on disk: bring in what was saved sealed meanwhile (while
+ * the database step had it closed, or while locked; the now-plain database
+ * opens only while the signed journal is there), keep anything that won't
+ * import as plain JSON, make plain whatever that import wrote encrypted
+ * (encryption is on until the keys go), and only then — once the disk shows
+ * nothing is still encrypted — forget the keys. The journal goes last, so a
+ * crash anywhere here resumes turning off.
  */
-async function finishTurningOff(d) {
+async function finishTurningOff() {
+  const d = requireDeps();
   await reopenDatabases();
-  await replayInbox().catch((err) => debugLogger.warn("[Vault] Inbox import before turning off failed", { error: err.message }));
+  await replayInbox();
   // From here to the forget, nothing awaits: no new sealed write can slip in.
   vaultInbox.exportRemaining(path.join(d.userData(), "unimported-while-locked"));
   migrate.decryptRemaining(d.userData(), d.notesDir());
@@ -86,17 +95,19 @@ async function finishTurningOff(d) {
     throw new Error("Some files are still encrypted. Try again.");
   }
   await vault.forgetVault();
+  journalStore.remove();
 }
 
 /**
- * Run (or resume) a migration with the app's databases closed. Turning
- * encryption off forgets the vault only after every file is plain again.
+ * Run (or resume) a migration. The databases stay open except during the
+ * database step, so the app keeps working. Turning encryption off forgets the
+ * vault only after every file is plain again. `inUnlock`: called from the
+ * unlock steps, which release a waiting lock themselves once they're all done.
  */
-async function runMigration(direction, { sealNotes } = {}) {
+async function runMigration(direction, { sealNotes, inUnlock = false } = {}) {
   const d = requireDeps();
   setError(direction, null);
   setProgress({ direction, phase: direction === "disable" ? "files" : "db", done: 0, total: 1 });
-  await d.closeDatabases();
   try {
     await migrate.run(direction, {
       Database: d.Database,
@@ -104,19 +115,22 @@ async function runMigration(direction, { sealNotes } = {}) {
       notesDir: d.notesDir(),
       sealNotes: sealNotes ?? !vault.getPrefs().notesReadable,
       onProgress: (p) => setProgress(p),
+      closeDatabases: () => d.closeDatabases(),
+      openDatabases: reopenDatabases,
     });
-    if (direction === "disable") await finishTurningOff(d);
+    if (direction === "disable") await finishTurningOff();
   } catch (err) {
     setError(direction, err);
     throw err;
   } finally {
     setProgress(null);
     await reopenDatabases();
+    if (!inUnlock) await lockIfAsked();
   }
 }
 
 /** A new recovery phrase: `start` writes the plan, rotation.finish() carries it out. */
-async function runRotation(start = () => rotation.finish()) {
+async function runRotation(start = () => rotation.finish(), { inUnlock = false } = {}) {
   setError("rotate", null);
   try {
     await start();
@@ -126,6 +140,7 @@ async function runRotation(start = () => rotation.finish()) {
   } finally {
     setProgress(null);
     await reopenDatabases();
+    if (!inUnlock) await lockIfAsked();
   }
 }
 
@@ -175,10 +190,10 @@ async function afterUnlock() {
   const journal = journalStore.read();
   if (journal && journal.direction === "rotate") {
     // A new recovery phrase was being rolled out; finish it (it reopens the databases).
-    await runRotation().catch(() => {});
+    await runRotation(undefined, { inUnlock: true }).catch(() => {});
   } else if (journal) {
     // Resume what a crash or quit interrupted; runMigration reopens the databases.
-    await runMigration(journal.direction).catch(() => {});
+    await runMigration(journal.direction, { inUnlock: true }).catch(() => {});
   } else {
     await reopenDatabases();
   }
@@ -208,6 +223,7 @@ async function convertNotes(seal) {
     throw err;
   } finally {
     setProgress(null);
+    await lockIfAsked();
   }
 }
 
@@ -225,7 +241,8 @@ function checkIdle() {
 }
 
 function lockOnSleep() {
-  if (vault.isUnlocked() && vault.getPrefs().lockOnSleep && !progress) vault.lock().catch(() => {});
+  // During a conversion the lock waits for it (the blocker below), then happens.
+  if (vault.isUnlocked() && vault.getPrefs().lockOnSleep) vault.lock().catch(() => {});
 }
 
 /**
@@ -237,6 +254,8 @@ function configure(nextDeps) {
   rotation.configure({ ...nextDeps, onProgress: (p) => setProgress(p) });
   vault.onUnlocked(afterUnlock);
   vault.onLocking(beforeLock);
+  // Converting files needs the keys until the last one is done.
+  vault.addLockBlocker(() => progress !== null);
   powerMonitor.on("lock-screen", lockOnSleep);
   powerMonitor.on("suspend", lockOnSleep);
   clearInterval(idleTimer);
