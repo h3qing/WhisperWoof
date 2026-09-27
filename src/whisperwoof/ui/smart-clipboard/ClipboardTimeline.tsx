@@ -17,7 +17,6 @@ import {
   FilePlus2,
   FileText,
   FolderOpen,
-  Image as ImageIcon,
   Maximize2,
   Pin,
   PinOff,
@@ -27,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "../../../components/lib/utils";
+import { Preview } from "./ClipboardPreview";
 import {
   Select,
   SelectContent,
@@ -226,54 +226,6 @@ function TextRow({ item, copied, ...actions }: { readonly item: ClipboardItem; r
         )}
       </div>
     </li>
-  );
-}
-
-/** A preview loaded by id when the tile scrolls into view. */
-function Preview({ id, size = "thumb", className }: { readonly id: string; readonly size?: "thumb" | "large"; readonly className?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = () =>
-      api()
-        .whisperwoofClipboardPreview?.(id, { size })
-        .then((res) => {
-          if (cancelled) return;
-          if (res?.success && res.data) setSrc(`data:${res.mime ?? "image/png"};base64,${res.data}`);
-          else setFailed(true);
-        })
-        .catch(() => !cancelled && setFailed(true));
-    const node = ref.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      void load();
-      return () => {
-        cancelled = true;
-      };
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        observer.disconnect();
-        void load();
-      }
-    }, { rootMargin: "200px" });
-    observer.observe(node);
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-    };
-  }, [id, size]);
-
-  return (
-    <div ref={ref} className={cn("flex items-center justify-center bg-surface-1", className)}>
-      {src ? (
-        <img src={src} alt="" className="h-full w-full object-contain" draggable={false} />
-      ) : (
-        <ImageIcon size={18} className={cn("text-muted-foreground/60", failed ? "" : "animate-pulse")} aria-hidden="true" />
-      )}
-    </div>
   );
 }
 
@@ -575,9 +527,10 @@ function Column({
 
 const selectClass = "h-8 rounded-full px-3 text-xs gap-1.5 [&>svg]:h-3 [&>svg]:w-3";
 
-export default function ClipboardTimeline() {
-  const [query, setQuery] = useState("");
-  const [debounced, setDebounced] = useState("");
+/** `initialQuery`: open with this search (⌘K's "Show all in Clipboard"). */
+export default function ClipboardTimeline({ initialQuery = "" }: { readonly initialQuery?: string } = {}) {
+  const [query, setQuery] = useState(initialQuery);
+  const [debounced, setDebounced] = useState(initialQuery.trim());
   const [summary, setSummary] = useState<ClipboardSummary | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);

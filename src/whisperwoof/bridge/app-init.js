@@ -763,15 +763,15 @@ function getWhisperWoofEntriesBySource(source, limit = 50, offset = 0) {
   return rows.map(mapRow);
 }
 
+/**
+ * History search: entries whose text contains `query`, newest first. Substring
+ * matching (not FTS MATCH), so part of a Chinese sentence is found and quotes
+ * or dashes in the query can't break it.
+ */
 function searchWhisperWoofEntries(query, limit = 50) {
   if (!whisperwoofDb) return [];
-  const rows = whisperwoofDb.prepare(
-    `SELECT e.* FROM bf_entries e
-     INNER JOIN bf_entries_fts fts ON e.rowid = fts.rowid
-     WHERE bf_entries_fts MATCH ?
-     ORDER BY e.created_at DESC LIMIT ?`
-  ).all(query, limit);
-  return rows.map(mapRow);
+  const { searchEntries } = require("./global-search");
+  return searchEntries(whisperwoofDb, query, { limit }).map(mapRow);
 }
 
 function deleteWhisperWoofEntry(id) {
@@ -954,6 +954,7 @@ module.exports = {
   toggleWhisperWoofFavorite,
   getWhisperWoofFavorites,
   getWhisperWoofEntryRow,
+  mapEntryRow: mapRow,
   findUpstreamTranscriptionForEntry,
   setWhisperWoofEntryMetadata,
   updateWhisperWoofEntryText,

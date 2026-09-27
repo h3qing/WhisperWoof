@@ -3439,6 +3439,11 @@ class IPCHandlers {
       clipboardCall((capture) => clipboardStore().setCapture(capture))
     );
     ipcMain.handle("whisperwoof-clipboard-reveal", clipboardCall((id) => clipboardStore().reveal(id)));
+    // Search everything (⌘K): history, clipboard text, images (and their words), files.
+    ipcMain.handle(
+      "whisperwoof-search-everything",
+      clipboardCall((query) => require("../whisperwoof/bridge/global-search").searchEverything(query))
+    );
     // Words in images (opt-in): read them for search, show and copy one image's words.
     ipcMain.handle(
       "whisperwoof-clipboard-set-image-text",

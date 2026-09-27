@@ -925,6 +925,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofClipboardSetCapture: (capture) =>
     ipcRenderer.invoke("whisperwoof-clipboard-set-capture", capture),
   whisperwoofClipboardReveal: (id) => ipcRenderer.invoke("whisperwoof-clipboard-reveal", id),
+  whisperwoofSearchEverything: (query) => ipcRenderer.invoke("whisperwoof-search-everything", query),
   whisperwoofClipboardSetImageText: (settings) =>
     ipcRenderer.invoke("whisperwoof-clipboard-set-image-text", settings),
   whisperwoofClipboardImageText: (id) => ipcRenderer.invoke("whisperwoof-clipboard-image-text", id),

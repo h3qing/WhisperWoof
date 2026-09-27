@@ -128,6 +128,55 @@ function listClipboard({ kind = "text", limit = 60, offset = 0, query = "" } = {
   });
 }
 
+/**
+ * ⌘K: text, images and files matching `query`. Each kind pinned first, then
+ * newest, at most `limits[kind]`; images found by their words carry
+ * `textMatch`. → { text, image, file }
+ *
+ * One pass over the history ranks the matches of every kind at once, about
+ * twice as fast as a query per kind for a real search (74k entries: ~25–40
+ * ms vs ~50–85). A one-character search matches nearly everything, and there
+ * the per-kind queries, which stop sorting at their limit, win.
+ */
+function searchClipboard(query, limits) {
+  const q = String(query ?? "").trim();
+  const found = { text: [], image: [], file: [] };
+  if (!db() || !q) return found;
+  if (q.length < 2) {
+    for (const kind of Object.keys(found)) found[kind] = listClipboard({ kind, query: q, limit: limits[kind] });
+    return found;
+  }
+  const like = `%${escapeLike(q)}%`;
+  // Rank only ids (narrow rows sort fast), then read the few that are shown.
+  const ranked = db()
+    .prepare(
+      `SELECT id, kind FROM (
+         SELECT id, kind, ROW_NUMBER() OVER (PARTITION BY kind ORDER BY favorite DESC, created_at DESC) AS rank_in_kind
+         FROM (
+           SELECT id, favorite, created_at,
+                  CASE WHEN ${KIND_WHERE.image} THEN 'image' WHEN ${KIND_WHERE.file} THEN 'file' ELSE 'text' END AS kind
+           FROM bf_entries
+           WHERE source = 'clipboard'
+             AND (raw_text LIKE ? ESCAPE '\\' OR polished LIKE ? ESCAPE '\\' OR ${imageTextDb.TEXT_MATCH_SQL})
+         )
+       )
+       WHERE rank_in_kind <= CASE kind WHEN 'image' THEN ? WHEN 'file' THEN ? ELSE ? END
+       ORDER BY kind, rank_in_kind`
+    )
+    .all(like, like, like, limits.image, limits.file, limits.text);
+  const get = db().prepare("SELECT * FROM bf_entries WHERE id = ?");
+  const rows = ranked.map(({ id, kind }) => ({ ...get.get(id), kind }));
+  for (const row of rows) found[row.kind].push(toItem(row));
+  if (found.image.length > 0) {
+    const texts = imageTextDb.textsFor(db(), found.image.map((item) => item.id));
+    found.image = found.image.map((item) => {
+      const textMatch = texts.has(item.id) ? imageTextPure.matchSnippet(texts.get(item.id), q) : null;
+      return textMatch ? { ...item, textMatch } : item;
+    });
+  }
+  return found;
+}
+
 function fileSize(filePath) {
   try {
     return filePath ? vaultFiles.statFile(filePath)?.size ?? 0 : 0;
@@ -413,6 +462,7 @@ function saveToNote(id) {
 
 module.exports = {
   listClipboard,
+  searchClipboard,
   summary,
   getRetention,
   setRetention,

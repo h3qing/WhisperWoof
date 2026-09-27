@@ -88,8 +88,12 @@ stdout  {"ready":true,"languages":["zh-Hans","en-US"]}
         {"error":"failed","message":"…"}       recognition failed
 ```
 
+## Where the words are searched
+
+- The Clipboard view's search (image column).
+- ⌘K search everything (`bridge/global-search.js`): images whose words match
+  show up under "Images" with the words around the match.
+
 ## Not done (yet)
 
-- History and Cmd+K search don't include image words; only the Clipboard view
-  does.
 - Other platforms: the switch is hidden where the helper isn't available.
