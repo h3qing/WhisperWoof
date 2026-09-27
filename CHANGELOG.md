@@ -5,11 +5,14 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-27 — Meetings, transcribed on your Mac
+
 ### Added
 - **Meetings are transcribed on your Mac.** Once the SenseVoice speech model is downloaded (the same one dictation can use), recording a meeting no longer needs OpenAI or an internet connection: your mic and the other side's audio are transcribed on this Mac, two minutes at a time, and nothing leaves it. The transcript is saved into the meeting's note as it goes, so a crash loses at most the last few minutes, and their audio is kept for recovery. Lines appear every two minutes rather than word by word; when you stop, or quit WhisperWoof mid-meeting, the last part takes a few seconds. On a noisy, many-speaker Chinese/English test meeting, about 16 words in 100 differed from a hand-checked transcript, and transcribing ran about 30 times faster than the meeting itself. Without SenseVoice, meetings use OpenAI as before.
 
 ### Fixed
 - **Parakeet and SenseVoice servers no longer start on a port that's taken.** The check for a free port missed a sherpa-onnx server already listening on it (they listen on every network interface), so a second one could start on the same port and die. It now checks both ways.
+- **Debug logs no longer contain what was said in meetings.** With debug logging on, each meeting line was written to the plaintext log file, even with encryption on.
 - **A note shows only its own recording.** After recording into one note, opening another note showed the first note's transcript as its own, and AI actions ran on it.
 - **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window closes, crashes or reloads, the recording stops instead of running on unseen, and its audio is kept.
 
