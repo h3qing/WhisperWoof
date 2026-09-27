@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Changed
+- **Whisper Turbo and Qwen3.5 2B are the recommended models.** They're the most stable pair in daily Chinese + English dictation, so they're now the only on-device models marked Recommended: Whisper Turbo for speech-to-text, Qwen3.5 2B for cleanup. New users already start on Turbo, and onboarding offers the 2B for cleanup. Before, the pickers recommended Base, the English-only Distil models, Parakeet and Qwen3.5 9B instead. When WhisperWoof chooses a cleanup model for you (switching to local mode, or to another model family), it now picks the recommended one if you've downloaded it, instead of the first one in the list.
+
+### Added
+- **A heads-up that Whisper hears one language per recording.** In Auto-detect, Whisper picks the language from the first 30 seconds and transcribes the whole recording in it. A few English words inside Chinese are fine, but if you start in Chinese and then switch to a long stretch of English, the Chinese part can come out translated into English. WhisperWoof doesn't fix this for you yet. A real fix means running the model several extra times on every dictation. Instead, it now tells you once, after your first dictation in Chinese, Japanese or Korean. The same note appears under Transcription language in Settings and on Upload audio, where a long recording in several languages gets one language for the whole file.
+
 ## [2.3.3] - 2026-09-27 — Encryption without the freeze
 
 ### Fixed

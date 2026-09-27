@@ -33,6 +33,7 @@ import { withSessionRefresh } from "../../lib/neonAuth";
 import { getAllReasoningModels } from "../../models/ModelRegistry";
 import { useSettingsStore, selectIsCloudReasoningMode } from "../../stores/settingsStore";
 import { generateNoteTitle } from "../../utils/generateTitle";
+import { autoLanguageNoteApplies } from "../../whisperwoof/core/language/auto-language-note";
 
 const TranscriptionModelPicker = React.lazy(() => import("../TranscriptionModelPicker"));
 
@@ -614,6 +615,16 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
               onSwitchToCloud={switchToCloud}
             />
           )}
+
+          {/* Files are transcribed in Auto mode: whisper.cpp picks one
+              language for the whole file (auto-language-note.ts). */}
+          {state === "selected" &&
+            file &&
+            autoLanguageNoteApplies({ useLocalWhisper, provider: localTranscriptionProvider }) && (
+              <p className="mt-3 text-xs text-faint text-center leading-relaxed">
+                {t("notes.upload.autoLanguageNote")}
+              </p>
+            )}
 
           {state === "transcribing" && (
             <TranscribingView

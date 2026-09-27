@@ -3,6 +3,7 @@ import { inferenceConfig } from "../config/InferenceConfig";
 import { BaseReasoningService } from "./BaseReasoningService";
 import { TOKEN_LIMITS } from "../config/constants";
 import logger from "../utils/logger";
+import { RECOMMENDED_CLEANUP_MODEL } from "../whisperwoof/core/settings/recommended-models";
 
 interface LocalReasoningConfig {
   maxTokens?: number;
@@ -13,7 +14,7 @@ interface LocalReasoningConfig {
 class LocalReasoningService extends BaseReasoningService {
   async processText(
     text: string,
-    modelId: string = "qwen3.5-2b-q4_k_m",
+    modelId: string = RECOMMENDED_CLEANUP_MODEL,
     agentName: string | null = null,
     config: LocalReasoningConfig = {}
   ): Promise<string> {

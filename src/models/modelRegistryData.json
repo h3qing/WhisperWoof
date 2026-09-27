@@ -33,7 +33,6 @@
         "ru",
         "uk"
       ],
-      "recommended": true,
       "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
       "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
       "descriptionKey": "models.descriptions.parakeet.parakeet_tdt_0_6b_v3"
@@ -185,7 +184,6 @@
       "expectedSizeBytes": 148000000,
       "fileName": "ggml-base.bin",
       "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-      "recommended": true,
       "descriptionKey": "models.descriptions.whisper.base"
     },
     "small": {
@@ -226,6 +224,7 @@
       "expectedSizeBytes": 1670000000,
       "fileName": "ggml-large-v3-turbo.bin",
       "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+      "recommended": true,
       "descriptionKey": "models.descriptions.whisper.turbo"
     },
     "distil-large-v3": {
@@ -236,7 +235,6 @@
       "size": "756MB",
       "expectedSizeBytes": 756000000,
       "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3-ggml/resolve/main/ggml-distil-large-v3.bin",
-      "recommended": true,
       "speed": "fast",
       "quality": "high",
       "languages": "English (optimized)"
@@ -249,7 +247,6 @@
       "size": "1.5GB",
       "expectedSizeBytes": 1519521155,
       "downloadUrl": "https://huggingface.co/distil-whisper/distil-large-v3.5-ggml/resolve/main/ggml-model.bin",
-      "recommended": true,
       "speed": "fast",
       "quality": "highest",
       "languages": "English (optimized)"
@@ -504,7 +501,6 @@
           "quantization": "q4_k_m",
           "contextLength": 262144,
           "hfRepo": "bartowski/Qwen_Qwen3.5-9B-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.qwen_qwen3_5_9b_q4_k_m"
         },
         {
@@ -529,6 +525,7 @@
           "quantization": "q4_k_m",
           "contextLength": 262144,
           "hfRepo": "bartowski/Qwen_Qwen3.5-2B-GGUF",
+          "recommended": true,
           "descriptionKey": "models.descriptions.local.qwen_qwen3_5_2b_q4_k_m"
         },
         {
@@ -657,7 +654,6 @@
           "quantization": "q4_k_m",
           "contextLength": 131072,
           "hfRepo": "mradermacher/Mistral-Nemo-12B-Instruct-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.mistral_nemo_12b_instruct_q4_k_m"
         },
         {
@@ -714,7 +710,6 @@
           "quantization": "q4_k_m",
           "contextLength": 131072,
           "hfRepo": "bartowski/Llama-3.2-3B-Instruct-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.llama_llama_3_2_3b_instruct_q4_k_m"
         },
         {
@@ -747,7 +742,6 @@
           "quantization": "mxfp4",
           "contextLength": 128000,
           "hfRepo": "ggml-org/gpt-oss-20b-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.openai_oss_gpt_oss_20b_mxfp4"
         }
       ]
@@ -792,7 +786,6 @@
           "quantization": "q4_k_m",
           "contextLength": 262144,
           "hfRepo": "bartowski/google_gemma-4-E4B-it-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.gemma_gemma_4_e4b_it_q4_k_m"
         },
         {
