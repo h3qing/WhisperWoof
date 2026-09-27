@@ -44,12 +44,18 @@ function errorResult(err) {
 /**
  * Settings changes and conversions run one at a time, and never while files
  * are being converted: that can also be a migration resumed on unlock, which
- * runs outside `exclusive`.
+ * runs outside `exclusive`. A conversion that stopped part-way (its journal is
+ * still there) must be finished first; `allowPending(journal)` lets through
+ * what finishes or undoes it (Try again, turning off).
  */
-function whenIdle(fn) {
+function whenIdle(fn, { allowPending = () => false } = {}) {
   return vault.exclusive(async () => {
     if (lifecycle.getProgress()) {
       return fail("WhisperWoof is still converting your data. Try again when it's done.", "BUSY");
+    }
+    const pending = vault.isOn() ? migrate.readJournal() : null;
+    if (pending && !allowPending(pending)) {
+      return fail("Finish what was interrupted first: press Try again in Settings → Encryption.", "BUSY");
     }
     return fn();
   });
@@ -387,7 +393,7 @@ async function disable(reauth) {
       await lifecycle.runMigration("disable");
       notify();
       return ok();
-    })
+    }, { allowPending: (journal) => journal.direction !== "rotate" })
   );
 }
 
@@ -399,7 +405,7 @@ async function retry() {
       await lifecycle.retry();
       notify();
       return ok();
-    })
+    }, { allowPending: () => true })
   );
 }
 

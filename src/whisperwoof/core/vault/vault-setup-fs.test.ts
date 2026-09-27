@@ -225,6 +225,21 @@ describe("while files are being converted", () => {
     expect(fs.existsSync(path.join(userData, "whisperwoof-images", "late.png.wwenc"))).toBe(true);
   });
 
+  it("while something that stopped is waiting to be finished, only Try again (or turning off) runs", async () => {
+    const m = boot();
+    seed();
+    await turnOn(m, false);
+    const journal = path.join(userData, "vault", "migration.json");
+    fs.writeFileSync(journal, JSON.stringify({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" }));
+    const begun = await m.controller.beginNewPhrase({ password: PASSWORD });
+    const confirmWords = Object.fromEntries(begun.confirmIndexes.map((i: number) => [i, begun.words[i]]));
+    expect(await m.controller.completeNewPhrase({ confirmWords })).toMatchObject({ success: false, code: "BUSY" });
+    expect(JSON.parse(fs.readFileSync(journal, "utf8")).direction).toBe("disable");
+    expect(await m.controller.retry()).toEqual({ success: true });
+    expect(m.vault.isOn()).toBe(false);
+    expect(dbIsPlain()).toBe(true);
+  });
+
   it("won't change the password until converting is done", async () => {
     const m = boot();
     seed();
