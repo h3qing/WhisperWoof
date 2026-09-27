@@ -358,6 +358,9 @@ export type VaultStatus = {
   inboxCount: number; // entries saved while locked, waiting for unlock
   lockDeferred: boolean; // a meeting is recording; WhisperWoof locks when it ends
   platformSupported: boolean; // false off macOS: the Encryption UI is hidden
+  // Changed on disk while locked and put back at unlock (shown as a notice).
+  changedWhileLocked?: ("sealKey" | "prefs" | "journal")[];
+  touchIdWasReset?: boolean; // fingerprints changed: Touch ID is off until turned on again
 };
 
 export type VaultErrorCode =
@@ -704,7 +707,7 @@ declare global {
       // llama-server
       llamaServerStart: (
         modelId: string
-      ) => Promise<{ success: boolean; port?: number; error?: string }>;
+      ) => Promise<{ success: boolean; port?: number; apiKey?: string | null; error?: string }>;
       llamaServerStop: () => Promise<{ success: boolean; error?: string }>;
       llamaServerStatus: () => Promise<LlamaServerStatus>;
       llamaGpuReset: () => Promise<{ success: boolean; error?: string }>;
@@ -1555,7 +1558,10 @@ declare global {
       vaultRecover?: (args: { phrase: string; newPassword: string }) => Promise<VaultResult>;
       vaultLock?: () => Promise<VaultResult>;
       vaultChangePassword?: (args: { currentPassword: string; newPassword: string }) => Promise<VaultResult>;
-      vaultSetTouchId?: (enabled: boolean) => Promise<VaultResult>;
+      // Turning Touch ID on needs the password: { enabled: true, reauth }.
+      vaultSetTouchId?: (
+        arg: boolean | { enabled: boolean; reauth: VaultReauth }
+      ) => Promise<VaultResult>;
       /** Turning notesReadable on needs `reauth` (password or Touch ID). */
       vaultSetPrefs?: (prefs: Partial<Omit<VaultPrefs, "touchId">>, reauth?: VaultReauth) => Promise<VaultResult>;
       /** Resume a migration or new recovery phrase that stopped with an error. */

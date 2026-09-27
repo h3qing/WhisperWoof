@@ -31,6 +31,24 @@ const PERSISTED_KEYS = [
   "SKIPPED_UPDATE_VERSION",
 ];
 
+// The only names read back from userData/.env. Every child process (servers,
+// ffmpeg, MCP plugins) inherits process.env, so a planted line or a value
+// smuggling a newline must never set NODE_OPTIONS, PATH, DYLD_* and friends.
+const LOADABLE_KEYS = new Set([...PERSISTED_KEYS, "PANEL_START_POSITION", "OPENWHISPR_LOG_LEVEL"]);
+
+/** One line per value: a newline would start a new `NAME=value` line. */
+function envValue(value) {
+  return String(value ?? "").replace(/[\r\n]/g, "");
+}
+
+function loadAppEnvFile(envPath, { override }) {
+  const parsed = require("dotenv").parse(fs.readFileSync(envPath));
+  for (const [name, value] of Object.entries(parsed)) {
+    if (!LOADABLE_KEYS.has(name)) continue;
+    if (override || process.env[name] === undefined) process.env[name] = value;
+  }
+}
+
 class EnvironmentManager {
   constructor() {
     this.loadEnvironmentVariables();
@@ -42,7 +60,7 @@ class EnvironmentManager {
     const userDataEnv = path.join(app.getPath("userData"), ".env");
     try {
       if (fs.existsSync(userDataEnv)) {
-        require("dotenv").config({ path: userDataEnv, override: true });
+        loadAppEnvFile(userDataEnv, { override: true });
       }
     } catch {}
 
@@ -67,7 +85,7 @@ class EnvironmentManager {
   }
 
   _saveKey(envVarName, key) {
-    process.env[envVarName] = key;
+    process.env[envVarName] = envValue(key);
     return { success: true };
   }
 
@@ -227,11 +245,12 @@ class EnvironmentManager {
 
     const envContent = `# OpenWhispr Environment Variables
 # This file was created automatically for production use
-OPENAI_API_KEY=${apiKey}
+OPENAI_API_KEY=${envValue(apiKey)}
 `;
 
-    await fsPromises.writeFile(envPath, envContent, "utf8");
-    require("dotenv").config({ path: envPath });
+    await fsPromises.writeFile(envPath, envContent, { encoding: "utf8", mode: 0o600 });
+    await fsPromises.chmod(envPath, 0o600).catch(() => {});
+    loadAppEnvFile(envPath, { override: false });
 
     return { success: true, path: envPath };
   }
@@ -243,12 +262,14 @@ OPENAI_API_KEY=${apiKey}
 
     for (const key of PERSISTED_KEYS) {
       if (process.env[key]) {
-        envContent += `${key}=${process.env[key]}\n`;
+        envContent += `${key}=${envValue(process.env[key])}\n`;
       }
     }
 
-    await fsPromises.writeFile(envPath, envContent, "utf8");
-    require("dotenv").config({ path: envPath });
+    // API keys: readable by this user only (the file predates encryption and
+    // stays outside it; see docs/design/at-rest-encryption.md §8).
+    await fsPromises.writeFile(envPath, envContent, { encoding: "utf8", mode: 0o600 });
+    await fsPromises.chmod(envPath, 0o600).catch(() => {});
 
     return { success: true, path: envPath };
   }

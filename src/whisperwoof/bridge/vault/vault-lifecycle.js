@@ -3,19 +3,22 @@
  * owns (database open/close, inbox handlers, windows); this module registers
  * the ordered unlock/lock steps and the automatic lock triggers.
  *
- * On unlock: finish an interrupted migration → open databases → replay inbox.
+ * On unlock: drop a journal this vault didn't sign → finish an interrupted
+ *            migration → open databases → replay inbox.
  * On lock:   close databases (keys are dropped by the vault service after).
  *
  * A running migration holds off automatic locks; a failed one doesn't — it
  * leaves an error the Encryption settings show with "Try again".
  */
 
+const path = require("path");
 const { powerMonitor } = require("electron");
 const debugLogger = require("../../../helpers/debugLogger");
 const vault = require("./vault-service");
 const vaultInbox = require("./vault-inbox");
 const migrate = require("./vault-migrate");
 const rotation = require("./vault-rotate");
+const journalStore = require("./vault-journal");
 
 const IDLE_CHECK_MS = 30000;
 
@@ -67,6 +70,25 @@ async function reopenDatabases() {
 }
 
 /**
+ * The last step of turning encryption off, the same when resuming after a
+ * crash: import what was saved while it ran (the now-plain database opens
+ * while the signed journal is there), write out what won't import, and forget
+ * the vault — the keys with it — only once the disk shows nothing is still
+ * encrypted.
+ */
+async function finishTurningOff(d) {
+  await reopenDatabases();
+  await replayInbox().catch((err) => debugLogger.warn("[Vault] Inbox import before turning off failed", { error: err.message }));
+  // From here to the forget, nothing awaits: no new sealed write can slip in.
+  vaultInbox.exportRemaining(path.join(d.userData(), "unimported-while-locked"));
+  migrate.decryptRemaining(d.userData(), d.notesDir());
+  if (!migrate.isTurnedOff(d.userData(), d.notesDir())) {
+    throw new Error("Some files are still encrypted. Try again.");
+  }
+  await vault.forgetVault();
+}
+
+/**
  * Run (or resume) a migration with the app's databases closed. Turning
  * encryption off forgets the vault only after every file is plain again.
  */
@@ -83,7 +105,7 @@ async function runMigration(direction, { sealNotes } = {}) {
       sealNotes: sealNotes ?? !vault.getPrefs().notesReadable,
       onProgress: (p) => setProgress(p),
     });
-    if (direction === "disable") await vault.forgetVault();
+    if (direction === "disable") await finishTurningOff(d);
   } catch (err) {
     setError(direction, err);
     throw err;
@@ -124,8 +146,33 @@ function replayInbox() {
   return replayChain;
 }
 
+/**
+ * A migration journal this vault didn't sign was planted while it was locked
+ * (to make this unlock decrypt everything or forget the vault). Drop it and
+ * say so — except the one expected case, a new recovery phrase that crashed
+ * after adopting its vault (its journal is signed with the old key).
+ */
+function dropUnsignedJournal() {
+  const claimed = journalStore.dropUnverified();
+  if (!claimed) return;
+  if (claimed.direction === "rotate" && rotation.discardFinished()) return;
+  debugLogger.error("[Vault] Ignored a migration journal this vault didn't write", { direction: claimed.direction });
+  vault.addWarning("journal");
+}
+
+/** Notes sealed before this unlock could confirm "keep notes readable": make them plain again. */
+function unsealNotesIfReadable() {
+  if (!vault.takeNotesSealedBeforeCheck() || !vault.getPrefs().notesReadable) return;
+  try {
+    migrate.unsealOpenableNotes(requireDeps().notesDir());
+  } catch (err) {
+    debugLogger.warn("[Vault] Notes saved while locked stay sealed", { error: err.message });
+  }
+}
+
 async function afterUnlock() {
-  const journal = migrate.readJournal();
+  dropUnsignedJournal();
+  const journal = journalStore.read();
   if (journal && journal.direction === "rotate") {
     // A new recovery phrase was being rolled out; finish it (it reopens the databases).
     await runRotation().catch(() => {});
@@ -136,11 +183,12 @@ async function afterUnlock() {
     await reopenDatabases();
   }
   if (vault.isUnlocked()) await replayInbox();
+  if (vault.isUnlocked()) unsealNotesIfReadable();
 }
 
 /** "Try again" after a stop: resume whatever the journal says, then replay the inbox. */
 async function retry() {
-  const journal = migrate.readJournal();
+  const journal = journalStore.read();
   if (journal && journal.direction === "rotate") await runRotation();
   else if (journal) await runMigration(journal.direction);
   else {

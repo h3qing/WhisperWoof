@@ -12,6 +12,18 @@ const path = require("path");
 const http = require("http");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
+// A packaged app is never in development mode: NODE_ENV=development would make
+// it load its windows from a local port that any process could be serving.
+if (app.isPackaged && process.env.NODE_ENV === "development") {
+  process.env.NODE_ENV = "production";
+}
+
+// Only the app's own page may use IPC, navigate, open windows or get
+// permissions. Installed before any module registers an IPC handler.
+const appGuard = require("./src/whisperwoof/bridge/app-guard");
+appGuard.installIpcGuard();
+appGuard.installWindowGuards();
+
 // WhisperWoof: Memory optimization
 // Cap V8 heap for renderer processes (main process uses Node.js defaults)
 app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
@@ -27,16 +39,24 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
   });
 }
 
-// WhisperWoof: Kill stale whisper-server/llama-server from previous crashed sessions
+// WhisperWoof: Kill stale whisper-server/llama-server from previous crashed
+// sessions: only the app's own binaries, never a same-named process of the user's.
 try {
-  const { execSync } = require("child_process");
-  const stale = execSync("pgrep -f 'whisper-server|llama-server' 2>/dev/null || true", { encoding: "utf-8" }).trim();
-  if (stale) {
-    for (const pid of stale.split("\n").filter(Boolean)) {
-      try { process.kill(parseInt(pid), "SIGTERM"); } catch { /* already dead */ }
-    }
+  const { execFileSync } = require("child_process");
+  const { pickStaleServerPids } = require("./src/helpers/sidecarReaper");
+  const appData = app.getPath("appData");
+  const binDirs = [
+    process.resourcesPath && path.join(process.resourcesPath, "bin"),
+    path.join(__dirname, "resources", "bin"),
+    ...["WhisperWoof", "WhisperWoof-development", "WhisperWoof-staging"].map((name) =>
+      path.join(appData, name, "bin")
+    ),
+  ];
+  const ps = execFileSync("ps", ["-axo", "pid=,command="], { encoding: "utf-8" });
+  for (const pid of pickStaleServerPids(ps, binDirs)) {
+    try { process.kill(pid, "SIGTERM"); } catch { /* already dead */ }
   }
-} catch { /* pgrep not available or no stale processes */ }
+} catch { /* ps not available (Windows) or nothing to kill */ }
 
 // WhisperWoof: Catch architecture mismatch early (Rosetta / wrong Node binary)
 // This happens when Node.js runs as x86_64 on an Apple Silicon Mac,
@@ -103,6 +123,19 @@ function resolveAppChannel() {
 
 const APP_CHANNEL = resolveAppChannel();
 process.env.OPENWHISPR_CHANNEL = APP_CHANNEL;
+
+// A release build never starts with Chromium's remote debugging on: whoever
+// relaunched it that way would drive the page (and its IPC) once you unlock.
+// The staging/development channels use their own profile and keep it.
+if (
+  app.isPackaged &&
+  APP_CHANNEL === "production" &&
+  ["remote-debugging-port", "remote-debugging-pipe", "remote-debugging-address"].some((s) =>
+    app.commandLine.hasSwitch(s)
+  )
+) {
+  app.exit(1);
+}
 
 function configureChannelUserDataPath() {
   if (APP_CHANNEL === "production") {
@@ -308,6 +341,16 @@ function setupProductionPath() {
 function initializeCoreManagers() {
   setupProductionPath();
 
+  // History, recordings, notes, logs and API keys live under userData: other
+  // accounts on this computer get no access (Linux often makes ~/.config 0755).
+  if (process.platform !== "win32") {
+    try {
+      require("fs").chmodSync(app.getPath("userData"), 0o700);
+    } catch {
+      /* not created yet: Electron creates it 0700 */
+    }
+  }
+
   debugLogger = require("./src/helpers/debugLogger");
   debugLogger.ensureFileLogging();
 
@@ -408,6 +451,15 @@ function setupVault() {
         learnCorrections: (data) => ipcHandlers.replayLearnCorrections(data),
         broadcast: (channel, payload) => ipcHandlers.broadcastToWindows(channel, payload),
       }),
+    // Windows keep what they showed (the last dictation, the agent chat) in
+    // memory: reload them so nothing decrypted outlives the lock. The control
+    // panel reloads itself into the lock screen.
+    afterLock: () => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed() || win === windowManager?.controlPanelWindow) continue;
+        win.webContents.reloadIgnoringCache();
+      }
+    },
   });
   // Registered after lifecycle.configure, so these run once the databases are open.
   // Calendar accounts and events are in the database: pause while locked.
@@ -670,6 +722,8 @@ async function startApp() {
       callback({ requestHeaders: details.requestHeaders });
     }
   );
+
+  appGuard.installPermissionGuard();
 
   // WhisperWoof security: Add Content Security Policy to all responses
   // In development, Vite dev server requires 'unsafe-inline' and 'unsafe-eval' for HMR

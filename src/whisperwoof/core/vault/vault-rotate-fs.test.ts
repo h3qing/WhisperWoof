@@ -115,7 +115,7 @@ describe("new recovery phrase", () => {
     const again = boot();
     await again.vault.unlockWithPassword(PASSWORD);
     expectEverythingOpens(again);
-  });
+  }, 20000); // three full-cost scrypt runs (the new vault uses the real KDF): ~4 s alone, more under load
 
   it("keeps each file's modified time", async () => {
     const { m } = await encryptedSetup();
@@ -198,6 +198,8 @@ describe("new recovery phrase", () => {
     await restarted.vault.unlockWithPassword(PASSWORD);
     expect(fs.existsSync(path.join(userData, "vault", "vault.next.json"))).toBe(false);
     expect(fs.existsSync(path.join(userData, "vault", "migration.json"))).toBe(false);
+    // Its journal no longer verifies (signed with the old key), but that's expected, not tampering.
+    expect(restarted.vault.getWarnings()).toEqual([]);
     expectEverythingOpens(restarted);
   });
 

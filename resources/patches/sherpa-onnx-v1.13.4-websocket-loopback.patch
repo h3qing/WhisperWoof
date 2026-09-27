@@ -1,0 +1,81 @@
+diff --git a/sherpa-onnx/csrc/offline-websocket-server-impl.cc b/sherpa-onnx/csrc/offline-websocket-server-impl.cc
+index 685aa46..e5a9788 100644
+--- a/sherpa-onnx/csrc/offline-websocket-server-impl.cc
++++ b/sherpa-onnx/csrc/offline-websocket-server-impl.cc
+@@ -214,6 +214,22 @@ void OfflineWebsocketServer::OnMessage(connection_hdl hdl,
+         connection_data->expected_byte_size =
+             *reinterpret_cast<const int32_t *>(p + 4);
+ 
++        // WhisperWoof: the header comes from the client. Refuse a sample
++        // rate or size that would make the buffer below the wrong size.
++        if (connection_data->sample_rate <= 0 ||
++            connection_data->sample_rate > 192000 ||
++            connection_data->expected_byte_size <= 0 ||
++            connection_data->expected_byte_size % sizeof(float) != 0 ||
++            payload.size() - 8 >
++                static_cast<size_t>(connection_data->expected_byte_size)) {
++          connection_data->sample_rate = 0;
++          connection_data->expected_byte_size = 0;
++          connection_data->cur = 0;
++          Close(hdl, websocketpp::close::status::protocol_error,
++                "Invalid header");
++          break;
++        }
++
+         int32_t max_byte_size_ = decoder_.GetConfig().max_utterance_length *
+                                  connection_data->sample_rate * sizeof(float);
+         if (connection_data->expected_byte_size > max_byte_size_) {
+@@ -236,6 +252,17 @@ void OfflineWebsocketServer::OnMessage(connection_hdl hdl,
+                   connection_data->data.data());
+         connection_data->cur = payload.size() - 8;
+       } else {
++        // WhisperWoof: never write past the size the header announced.
++        if (payload.size() > static_cast<size_t>(
++                                 connection_data->expected_byte_size -
++                                 connection_data->cur)) {
++          connection_data->sample_rate = 0;
++          connection_data->expected_byte_size = 0;
++          connection_data->cur = 0;
++          Close(hdl, websocketpp::close::status::message_too_big,
++                "Payload is larger than announced");
++          break;
++        }
+         std::copy(payload.begin(), payload.end(),
+                   connection_data->data.data() + connection_data->cur);
+         connection_data->cur += payload.size();
+@@ -284,8 +311,14 @@ void OfflineWebsocketServer::Close(connection_hdl hdl,
+ }
+ 
+ void OfflineWebsocketServer::Run(uint16_t port) {
++  // WhisperWoof: loopback only (upstream listens on every interface), and
++  // no browser pages: a browser always sends Origin, the app never does.
++  server_.set_validate_handler([this](connection_hdl hdl) {
++    return server_.get_con_from_hdl(hdl)->get_origin().empty();
++  });
+   server_.set_reuse_addr(true);
+-  server_.listen(asio::ip::tcp::v4(), port);
++  server_.listen(
++      asio::ip::tcp::endpoint(asio::ip::address_v4::loopback(), port));
+   server_.start_accept();
+ }
+ 
+diff --git a/sherpa-onnx/csrc/online-websocket-server-impl.cc b/sherpa-onnx/csrc/online-websocket-server-impl.cc
+index 53443cd..ba64e8e 100644
+--- a/sherpa-onnx/csrc/online-websocket-server-impl.cc
++++ b/sherpa-onnx/csrc/online-websocket-server-impl.cc
+@@ -250,8 +250,14 @@ OnlineWebsocketServer::OnlineWebsocketServer(
+ }
+ 
+ void OnlineWebsocketServer::Run(uint16_t port) {
++  // WhisperWoof: loopback only (upstream listens on every interface), and
++  // no browser pages: a browser always sends Origin, the app never does.
++  server_.set_validate_handler([this](connection_hdl hdl) {
++    return server_.get_con_from_hdl(hdl)->get_origin().empty();
++  });
+   server_.set_reuse_addr(true);
+-  server_.listen(asio::ip::tcp::v4(), port);
++  server_.listen(
++      asio::ip::tcp::endpoint(asio::ip::address_v4::loopback(), port));
+   server_.start_accept();
+   auto recognizer_config = config_.decoder_config.recognizer_config;
+   int32_t warm_up = recognizer_config.model_config.warm_up;

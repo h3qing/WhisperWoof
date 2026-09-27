@@ -2,6 +2,7 @@
 // Hidden when the vault isn't available (off macOS, or no preload API).
 
 import React, { useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Toggle } from "../../../components/ui/toggle";
 import {
@@ -17,20 +18,23 @@ import TurnOffEncryptionDialog from "./TurnOffEncryptionDialog";
 import TurnOnEncryptionDialog from "./TurnOnEncryptionDialog";
 import { FieldError, MigrationProgress, SegmentedControl } from "./VaultFields";
 import NotesReadableDialog from "./NotesReadableDialog";
+import TouchIdDialog from "./TouchIdDialog";
 import { useVaultStatus, vaultApi } from "./useVaultStatus";
 import {
   IDLE_LOCK_OPTIONS,
   NOTES_READABLE_WARNING,
   callVault,
+  changedWhileLockedNotice,
   encryptionSummary,
   isVaultFailure,
   lockNowDescription,
   settingsMode,
   touchIdRowDescription,
   vaultErrorMessage,
+  vaultNotices,
 } from "./vault-ui-pure";
 
-type DialogKind = "turnOn" | "changePassword" | "newPhrase" | "turnOff" | "notesReadable" | null;
+type DialogKind = "turnOn" | "changePassword" | "newPhrase" | "turnOff" | "notesReadable" | "touchId" | null;
 
 export default function EncryptionSettings() {
   const { status, refresh } = useVaultStatus();
@@ -62,10 +66,18 @@ export default function EncryptionSettings() {
   };
   const setPref = (patch: Partial<Omit<VaultPrefs, "touchId">>) =>
     run(patch, () => callVault(api?.vaultSetPrefs, patch));
+  const changedNotice = changedWhileLockedNotice(status);
 
   return (
     <div className="space-y-4">
       <SectionHeader title="Encryption" description={encryptionSummary(status)} />
+
+      {changedNotice && (
+        <div role="status" className="flex items-start gap-2.5 rounded-lg bg-surface-1 p-3.5 text-[13px] text-foreground">
+          <TriangleAlert className="size-4 shrink-0 mt-0.5 text-warning" aria-hidden />
+          <p>{changedNotice}</p>
+        </div>
+      )}
 
       {status.migrating && (
         <SettingsPanel>
@@ -94,11 +106,19 @@ export default function EncryptionSettings() {
         <>
           <SettingsPanel>
             <SettingsPanelRow>
-              <SettingsRow label="Unlock with Touch ID" description={touchIdRowDescription(status.touchId)}>
+              <SettingsRow
+                label="Unlock with Touch ID"
+                description={touchIdRowDescription(status.touchId, {
+                  wasReset: Boolean(vaultNotices(status).touchIdWasReset) && !prefs.touchId,
+                })}
+              >
                 <Toggle
                   checked={prefs.touchId}
                   disabled={disabled || !status.touchId.available}
-                  onChange={(touchId) => run({ touchId }, () => callVault(api?.vaultSetTouchId, touchId))}
+                  onChange={(touchId) =>
+                    // Turning it on asks for the password first; turning it off doesn't.
+                    touchId ? setDialog("touchId") : run({ touchId }, () => callVault(api?.vaultSetTouchId, false))
+                  }
                 />
               </SettingsRow>
             </SettingsPanelRow>
@@ -195,6 +215,7 @@ export default function EncryptionSettings() {
       {dialog === "newPhrase" && <NewPhraseDialog status={status} onClose={close} />}
       {dialog === "turnOff" && <TurnOffEncryptionDialog status={status} onClose={close} />}
       {dialog === "notesReadable" && <NotesReadableDialog status={status} onClose={close} />}
+      {dialog === "touchId" && <TouchIdDialog status={status} onClose={close} />}
     </div>
   );
 }

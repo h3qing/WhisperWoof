@@ -32,8 +32,10 @@ let _ReasoningService: typeof import("../services/ReasoningService").default | n
 const isBrowser = typeof window !== "undefined";
 
 // With encryption on, personal words live only in the encrypted database —
-// never in localStorage, which Chromium keeps as plaintext on disk.
-let keepDictionaryInLocalStorage = true;
+// never in localStorage, which Chromium keeps as plaintext on disk. Nothing is
+// written there until main has actually said encryption is off (the database
+// keeps the words either way).
+let keepDictionaryInLocalStorage = false;
 
 function persistDictionary(words: string[]) {
   if (!isBrowser) return;

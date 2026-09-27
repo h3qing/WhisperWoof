@@ -5,6 +5,23 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Security
+A full red-team review of the app (details: `docs/security/red-team-2026-09-27.md`).
+- **Passwords from your password manager no longer end up in clipboard history.** After a dictation, WhisperWoof put your earlier clipboard back, but as plain text: a copied password lost its "private" mark, and the next clipboard check saved it. A password manager's copy is now never put back, and nothing WhisperWoof restores is recorded again.
+- **Password managers are respected on Windows and Linux too** (KeePass, Bitwarden, 1Password, KeePassXC), and on macOS a few older markers are now recognized as well.
+- **Secrets aren't kept, whatever app you copy them from.** API keys and tokens, private keys, 12–24-word recovery phrases, card numbers and password-like words are skipped, and nothing is kept while a password manager is in front.
+- **Turning clipboard monitoring off stays off.** Before, it quietly came back on at every launch while Settings still said off.
+- **Deleting really deletes.** Deleted clipboard items, entries and notes are erased from the database file and its search index, including what you deleted before this update. Deleting a dictation in History also deletes its transcript and recording.
+- **Parakeet and live dictation no longer open a port to your network.** The speech server they use listened on every network interface, and one crafted message could crash it (or worse). It's now built with a fix: it listens only on this Mac, refuses web pages, and checks every message.
+- **Web pages can't use the app's local servers.** The local transcription and text-cleanup servers now need a secret that changes every launch.
+- **Only WhisperWoof's own window can talk to WhisperWoof.** A page that somehow ended up in one of its windows used to get the same access as the app. Links open in your browser only when they're web or mail links.
+- **Other programs can't borrow WhisperWoof's permissions** by running its binary as a script engine or with a debugger, and release builds have no developer tools.
+- **Password fields and terminals are never read.** Learning from your edits after a dictation skipped nothing before; now it doesn't read password fields, terminals or password managers, doesn't learn from edits that contain a secret, and saves no copy of the field. Existing "style examples" (field text that was never used) are deleted.
+- **Files and addresses are checked in main.** Transcribing a file only reads audio files, custom endpoints must use HTTPS (plain http only to this computer or your network), the notes folder is chosen only in the folder dialog, and downloads are HTTPS-only with checksums when GitHub provides them.
+- **Logs, temp files and keys are private to you.** Debug logs keep lengths, not text; app files, logs and temp audio are readable only by your account; and child processes no longer receive your API keys.
+- **The Telegram companion answers only chats you allow** (`TELEGRAM_ALLOWED_CHAT_IDS`).
+- **Local builds no longer bundle the repo's `.env`**, which would have shipped a builder's API keys to everyone.
+
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 
 ### Fixed

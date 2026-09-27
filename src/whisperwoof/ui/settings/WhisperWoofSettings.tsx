@@ -12,6 +12,7 @@ import { useSettingsStore } from "../../../stores/settingsStore";
 // WhisperWoof-specific electronAPI methods (exposed in preload.js).
 interface WhisperWoofSettingsAPI {
   whisperwoofClipboardToggle: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>;
+  whisperwoofClipboardMonitoring?: () => Promise<{ success: boolean; enabled?: boolean }>;
   whisperwoofGetNotesDir: () => Promise<{ success: boolean; path?: string; error?: string }>;
   openExternal: (url: string) => Promise<void>;
 }
@@ -47,6 +48,29 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
   const autoPasteEnabled = useSettingsStore((s) => s.autoPasteEnabled);
   const setAutoPasteEnabled = useSettingsStore((s) => s.setAutoPasteEnabled);
 
+  // Monitoring is saved in main. Older versions kept "off" only here, and main
+  // turned capture back on at every launch: hand that choice over once.
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const api = getAPI();
+        const current = await api.whisperwoofClipboardMonitoring?.();
+        if (!current?.success || typeof current.enabled !== "boolean") return;
+        let enabled = current.enabled;
+        if (enabled && localStorage.getItem("whisperwoof-clipboard-enabled") === "false") {
+          enabled = (await api.whisperwoofClipboardToggle(false)).enabled;
+        }
+        localStorage.setItem("whisperwoof-clipboard-enabled", String(enabled));
+        if (!cancelled) setState((prev) => ({ ...prev, clipboardEnabled: enabled }));
+      } catch {
+        // Keep what the page already shows
+      }
+    };
+    sync();
+    return () => { cancelled = true; };
+  }, []);
+
   // Fetch notes directory on mount
   useEffect(() => {
     let cancelled = false;
@@ -72,9 +96,10 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
 
   const handleClipboardToggle = useCallback(async (checked: boolean) => {
     try {
-      await getAPI().whisperwoofClipboardToggle(checked);
-      localStorage.setItem("whisperwoof-clipboard-enabled", String(checked));
-      setState((prev) => ({ ...prev, clipboardEnabled: checked }));
+      const result = await getAPI().whisperwoofClipboardToggle(checked);
+      if (!result?.success) return;
+      localStorage.setItem("whisperwoof-clipboard-enabled", String(result.enabled));
+      setState((prev) => ({ ...prev, clipboardEnabled: result.enabled }));
     } catch {
       // Toggle failed — keep previous state
     }
@@ -123,7 +148,7 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
             />
           </SettingsRow>
           <p className="text-xs text-muted-foreground/70 leading-relaxed">
-            Captures clipboard text to build searchable history. Passwords from password managers are never captured.
+            Captures clipboard text to build searchable history. Never kept: copies a password manager marks as private, copies made in a password manager, and anything that looks like a password, key, token, card number or recovery phrase.
           </p>
         </SettingsGroup>
       </SettingsSection>

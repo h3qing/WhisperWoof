@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const { app } = require("electron");
 const debugLogger = require("../../helpers/debugLogger");
 
+const { resolveUserAudioFile } = require("./user-audio-file");
 const SUPPORTED_EXTENSIONS = new Set([".mp3", ".m4a", ".wav", ".webm", ".ogg", ".flac", ".aac"]);
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB
 
@@ -41,7 +42,13 @@ function validateAudioFile(filePath) {
     return { valid: false, error: "File not found" };
   }
 
-  const stats = fs.statSync(resolved);
+  // Check (and later read) the real file: `voice.mp3` may be a symlink to anything.
+  const real = resolveUserAudioFile(resolved);
+  if (!real) {
+    return { valid: false, error: "Not an audio file" };
+  }
+
+  const stats = fs.statSync(real);
   if (stats.size > MAX_FILE_SIZE_BYTES) {
     return {
       valid: false,
@@ -49,7 +56,7 @@ function validateAudioFile(filePath) {
     };
   }
 
-  return { valid: true, filePath: resolved, size: stats.size, extension: ext };
+  return { valid: true, filePath: real, size: stats.size, extension: ext };
 }
 
 /**

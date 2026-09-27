@@ -71,3 +71,42 @@ describe("provisional transcription ids", () => {
     expect(inbox.remapEntry({ id: "e1" }, new Map())).toEqual({ id: "e1" });
   });
 });
+
+describe("what an item may contain (anyone can seal one)", () => {
+  const pid = inbox.provisionalId(1, at("2026-09-25T10:00:00Z"));
+  const item = (op: string, data: object) =>
+    JSON.parse(JSON.stringify(inbox.makeItem(op, data, { seq: 1, now: at("2026-09-25T10:00:00Z") })));
+
+  it("accepts what WhisperWoof itself records", () => {
+    const ok = [
+      item("transcription.save", { pid, text: "hi", rawText: null, options: null }),
+      item("transcription.audio", { pid, audio: Buffer.from("voice").toString("base64"), metadata: { durationMs: 900 } }),
+      item("entry.save", { entry: { id: "e1", source: "voice", rawText: "hi", polished: null, audioPath: null, metadata: { transcriptionId: pid } } }),
+      item("note.linkEntry", { name: "2026-09-25-101500.md", entryId: "e1" }),
+      item("note.fileInDefaultProject", { name: "2026-09-25-101500.md" }),
+      item("vocab.correction", { originalText: "super base", newFieldValue: "Supabase", bundleId: "com.apple.Notes", swaps: [] }),
+    ];
+    for (const i of ok) expect(inbox.parseItem(i).op).toBe(i.op);
+  });
+
+  it("only attaches a recording to a transcription saved while locked", () => {
+    const audio = Buffer.from("voice").toString("base64");
+    expect(() => inbox.parseItem(item("transcription.audio", { pid: 42, audio }))).toThrow(inbox.InvalidItemError);
+    expect(() => inbox.parseItem(item("transcription.save", { pid: 42, text: "x" }))).toThrow(inbox.InvalidItemError);
+  });
+
+  it("refuses fields of the wrong type", () => {
+    const bad = [
+      item("transcription.audio", { pid, audio: 5 }),
+      item("transcription.audio", { pid, audio: "not base64!" }),
+      item("transcription.save", { pid, text: { html: "<b>" } }),
+      item("entry.save", { entry: { id: "" } }),
+      item("entry.save", { entry: { id: "e1", audioPath: 7 } }),
+      item("entry.save", { entry: { id: "e1", metadata: { transcriptionId: "1" } } }),
+      item("entry.save", { entry: "e1" }),
+      item("note.linkEntry", { name: "a.md" }),
+      item("vocab.correction", { originalText: "a", newFieldValue: ["b"] }),
+    ];
+    for (const i of bad) expect(() => inbox.parseItem(i), JSON.stringify(i.data)).toThrow(inbox.InvalidItemError);
+  });
+});

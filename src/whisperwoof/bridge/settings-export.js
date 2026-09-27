@@ -6,7 +6,6 @@
  *
  * Exported data:
  * - Vocabulary (custom words, categories, alternatives)
- * - Style examples (adaptive learning before/after pairs)
  * - Plugin configs (enabled, hotkey bindings)
  * - App-preset map (context-aware polish rules)
  *
@@ -33,16 +32,17 @@ const USER_DATA = app.getPath("userData");
 
 const CONFIG_FILES = {
   vocabulary: path.join(USER_DATA, "whisperwoof-vocabulary.json"),
-  styleExamples: path.join(USER_DATA, "whisperwoof-style-examples.json"),
+  // No style examples: they held other apps' field text and are deleted
+  // (style-learner.js purgeStyleExamples); bundles that carry them are ignored.
   // Imported plugin commands are untrusted, like any write to this file:
   // plugin-bridge's authorizePluginCommand asks before any command runs.
   plugins: path.join(USER_DATA, "whisperwoof-plugins.json"),
 };
 
-// Memory and style examples hold what you said, so with encryption on they
-// are sealed ("<name>.wwenc"); the plugins config stays a plain file.
+// Memory holds what you said, so with encryption on it is sealed
+// ("<name>.wwenc"); the plugins config stays a plain file.
 const vaultFiles = require("./vault/vault-files");
-const SEALED_CONFIG = new Set([CONFIG_FILES.vocabulary, CONFIG_FILES.styleExamples]);
+const SEALED_CONFIG = new Set([CONFIG_FILES.vocabulary]);
 
 /**
  * Read a JSON config file. Returns null if not found or invalid (or sealed while locked).

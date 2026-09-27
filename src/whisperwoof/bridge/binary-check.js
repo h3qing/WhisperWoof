@@ -7,13 +7,18 @@
 
 const fs = require("fs");
 const path = require("path");
-const { app } = require("electron");
 const https = require("https");
-const { createWriteStream } = require("fs");
-const { exec } = require("child_process");
 const debugLogger = require("../../helpers/debugLogger");
+const { downloadFile, extractArchive, findFile } = require("../../helpers/downloadUtils");
+const {
+  parseGithubDigest,
+  resolveHttpsRedirect,
+  requireHttpsUrl,
+  githubTokenAllowed,
+} = require("./download-integrity-pure");
 
 const WHISPER_CPP_REPO = "OpenWhispr/whisper.cpp";
+const MAX_REDIRECTS = 5;
 
 function getExpectedBinaryPath() {
   const platform = process.platform;
@@ -42,69 +47,58 @@ function isBinaryAvailable() {
   return fs.existsSync(binaryPath);
 }
 
-async function fetchJSON(url) {
+// GitHub API JSON over https only. A GitHub token (for rate limits) is sent
+// to api.github.com only — never to wherever a redirect points.
+function fetchJSON(url, redirectsLeft = MAX_REDIRECTS) {
   return new Promise((resolve, reject) => {
-    const options = {
-      headers: {
-        "User-Agent": "WhisperWoof",
-        "Accept": "application/vnd.github.v3+json",
-      },
+    try {
+      requireHttpsUrl(url);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    const headers = {
+      "User-Agent": "WhisperWoof",
+      "Accept": "application/vnd.github.v3+json",
     };
-    // Add GitHub token if available
     const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-    if (token) options.headers["Authorization"] = `token ${token}`;
+    if (token && githubTokenAllowed(url)) headers["Authorization"] = `token ${token}`;
 
-    https.get(url, options, (res) => {
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        return fetchJSON(res.headers.location).then(resolve).catch(reject);
+    https.get(url, { headers, timeout: 15000 }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400) {
+        res.resume();
+        if (redirectsLeft <= 0) {
+          reject(new Error("GitHub API: too many redirects"));
+          return;
+        }
+        let next;
+        try {
+          next = resolveHttpsRedirect(url, res.headers.location);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        fetchJSON(next, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`GitHub API returned HTTP ${res.statusCode}`));
+        return;
       }
       let data = "";
+      res.setEncoding("utf8");
       res.on("data", (chunk) => data += chunk);
       res.on("end", () => {
         try { resolve(JSON.parse(data)); }
         catch (e) { reject(new Error(`Failed to parse JSON: ${e.message}`)); }
       });
       res.on("error", reject);
-    }).on("error", reject);
-  });
-}
-
-async function downloadToFile(url, destPath, onProgress) {
-  return new Promise((resolve, reject) => {
-    const headers = {
-      "User-Agent": "WhisperWoof",
-      "Accept": "application/octet-stream",
-    };
-    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-    if (token) headers["Authorization"] = `token ${token}`;
-
-    const doRequest = (reqUrl) => {
-      https.get(reqUrl, { headers }, (res) => {
-        if (res.statusCode === 302 || res.statusCode === 301) {
-          return doRequest(res.headers.location);
-        }
-        if (res.statusCode !== 200) {
-          return reject(new Error(`Download failed: HTTP ${res.statusCode}`));
-        }
-
-        const totalBytes = parseInt(res.headers["content-length"] || "0");
-        let downloaded = 0;
-        const file = createWriteStream(destPath);
-
-        res.on("data", (chunk) => {
-          downloaded += chunk.length;
-          if (onProgress && totalBytes > 0) {
-            onProgress(downloaded, totalBytes);
-          }
-        });
-        res.pipe(file);
-        file.on("finish", () => { file.close(); resolve(); });
-        file.on("error", reject);
-        res.on("error", reject);
-      }).on("error", reject);
-    };
-
-    doRequest(url);
+    })
+      .on("error", reject)
+      .on("timeout", function onTimeout() {
+        this.destroy(new Error("GitHub API request timed out"));
+      });
   });
 }
 
@@ -136,6 +130,7 @@ async function autoDownloadWhisperServer(onStatus) {
 
   onStatus?.("Finding latest release...");
 
+  let workDir = null;
   try {
     // Fetch latest release
     const release = await fetchJSON(`https://api.github.com/repos/${WHISPER_CPP_REPO}/releases/latest`);
@@ -145,62 +140,53 @@ async function autoDownloadWhisperServer(onStatus) {
       return false;
     }
 
+    // GitHub's SHA-256 of the asset (null for assets from before GitHub
+    // recorded digests). The zip is checked before it is extracted, and the
+    // binary is only installed from a verified archive.
+    const sha256 = parseGithubDigest(asset.digest);
+    if (!sha256) {
+      debugLogger.log(`[BinaryCheck] ${zipName} has no published SHA-256; integrity unchecked`);
+    }
+
     const binDir = path.join(__dirname, "..", "..", "..", "resources", "bin");
     fs.mkdirSync(binDir, { recursive: true });
 
-    const zipPath = path.join(binDir, zipName);
     const outputName = platform === "win32"
       ? `whisper-server-${platformArch}.exe`
       : `whisper-server-${platformArch}`;
     const outputPath = path.join(binDir, outputName);
 
-    // Download
+    // A fresh, unguessable work dir for the archive and its contents
+    // (swept by cleanupStaleDownloads' "temp-extract-" rule if left behind).
+    workDir = fs.mkdtempSync(path.join(binDir, "temp-extract-"));
+    const zipPath = path.join(workDir, zipName);
+    const extractDir = path.join(workDir, "extract");
+
+    // Download (https only, every redirect too; SHA-256 checked when known)
     onStatus?.("Downloading whisper-server...");
-    await downloadToFile(asset.url, zipPath, (downloaded, total) => {
-      const pct = Math.round((downloaded / total) * 100);
-      onStatus?.(`Downloading whisper-server... ${pct}%`);
+    await downloadFile(asset.browser_download_url, zipPath, {
+      expectedSize: asset.size,
+      sha256,
+      onProgress: (downloaded, total) => {
+        if (!total) return;
+        const pct = Math.round((downloaded / total) * 100);
+        onStatus?.(`Downloading whisper-server... ${pct}%`);
+      },
     });
 
-    // Extract
+    // Extract: execFile with an argv (no shell), JS fallback, Windows aware
     onStatus?.("Extracting...");
-    const extractDir = path.join(binDir, `temp-whisper-extract`);
-    fs.mkdirSync(extractDir, { recursive: true });
+    fs.mkdirSync(extractDir);
+    await extractArchive(zipPath, extractDir);
 
-    await new Promise((resolve, reject) => {
-      exec(`unzip -o "${zipPath}" -d "${extractDir}"`, (err) => {
-        if (err) reject(err); else resolve();
-      });
-    });
-
-    // Find and move binary
-    const findBinary = (dir, name) => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isFile() && entry.name === name) return full;
-        if (entry.isDirectory()) {
-          const found = findBinary(full, name);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const binaryPath = findBinary(extractDir, extractBinaryName);
-    if (binaryPath) {
-      fs.copyFileSync(binaryPath, outputPath);
-      fs.chmodSync(outputPath, 0o755);
-      debugLogger.log(`[BinaryCheck] whisper-server downloaded to ${outputPath}`);
-    } else {
+    const binaryPath = await findFile(extractDir, extractBinaryName);
+    if (!binaryPath) {
       debugLogger.log(`[BinaryCheck] Binary not found in archive`);
       return false;
     }
-
-    // Cleanup
-    try {
-      fs.rmSync(extractDir, { recursive: true, force: true });
-      fs.unlinkSync(zipPath);
-    } catch { /* */ }
+    fs.copyFileSync(binaryPath, outputPath);
+    if (platform !== "win32") fs.chmodSync(outputPath, 0o755);
+    debugLogger.log(`[BinaryCheck] whisper-server downloaded to ${outputPath}`);
 
     onStatus?.("Ready!");
     return true;
@@ -209,6 +195,10 @@ async function autoDownloadWhisperServer(onStatus) {
     debugLogger.log(`[BinaryCheck] Download failed: ${error.message}`);
     onStatus?.(`Download failed: ${error.message}`);
     return false;
+  } finally {
+    if (workDir) {
+      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* */ }
+    }
   }
 }
 

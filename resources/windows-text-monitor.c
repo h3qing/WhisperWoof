@@ -152,6 +152,19 @@ int main(void) {
         return 1;
     }
 
+    /* Password fields are never read. */
+    BOOL isPassword = FALSE;
+    hr = IUIAutomationElement_get_CurrentIsPassword(focused, &isPassword);
+    if (SUCCEEDED(hr) && isPassword) {
+        fprintf(stderr, "Focused element is a password field; not reading it\n");
+        printf("NO_VALUE\n");
+        fflush(stdout);
+        IUIAutomationElement_Release(focused);
+        IUIAutomation_Release(automation);
+        CoUninitialize();
+        return 0;
+    }
+
     /* Try to get the Value pattern */
     IUIAutomationValuePattern *valuePattern = NULL;
     hr = IUIAutomationElement_GetCurrentPatternAs(

@@ -152,3 +152,18 @@ describe("extractCorrectionPairs", () => {
     ).toEqual([{ from: "Superbase", to: "Supabase" }]);
   });
 });
+
+describe("secrets are never learned", () => {
+  it("learns nothing from an edit that put a password or key in the field", () => {
+    expect(
+      extractCorrectionPairs("the wifi password is blue horse forty two", "the wifi password is BlueHorse42!")
+    ).toEqual([]);
+    expect(extractCorrectionPairs("my key is s k proj", "my key is sk-proj-abcdefghijklmnopqrstuvwxyz1234")).toEqual([]);
+  });
+
+  it("still learns ordinary corrections", () => {
+    expect(extractCorrectionPairs("we use super base for the back end", "we use Supabase for the back end")).toEqual([
+      { from: "super base", to: "Supabase" },
+    ]);
+  });
+});

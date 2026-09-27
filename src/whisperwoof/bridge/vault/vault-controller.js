@@ -12,18 +12,25 @@ const vault = require("./vault-service");
 const vaultInbox = require("./vault-inbox");
 const touchId = require("./vault-touchid");
 const lifecycle = require("./vault-lifecycle");
-const migrate = require("./vault-migrate");
+const journalStore = require("./vault-journal");
 const rotation = require("./vault-rotate");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic } = require("./vault-paths");
+const { vaultPaths } = require("./vault-paths");
 const planPure = require("./migration-plan-pure");
+const { unlockDelayMs } = require("./password-policy-pure");
 
-const SETUP_TTL_MS = 30 * 60 * 1000;
+// The phrase's entropy is held from "show the words" to "confirm them"; keep
+// that short.
+const SETUP_TTL_MS = 5 * 60 * 1000;
 const CLIPBOARD_CLEAR_MS = 60 * 1000;
-const TOUCH_ID_REASON = "unlock your WhisperWoof history and notes";
 
 let setup = null; // { entropy, words, confirmIndexes, expires, purpose: "setup" | "rotate" }
 let touchIdAvailability = { available: false, reason: "unavailable" };
-let reenrollTouchId = false;
+// Touch ID was turned off because the fingerprints on this Mac changed; it
+// comes back only when someone turns it on again, with the password.
+let touchIdWasReset = false;
+// Wrong passwords at the lock screen, in a row (password-policy-pure unlockDelayMs).
+let failedUnlocks = 0;
+let nextUnlockAt = 0;
 const statusListeners = [];
 
 const ok = (extra = {}) => ({ success: true, ...extra });
@@ -52,7 +59,9 @@ function migrationStatus() {
   const progress = lifecycle.getProgress();
   if (progress) return { ...progress, needsUnlock: false };
   const error = lifecycle.getError();
-  const journal = vault.isOn() ? migrate.readJournal() : null;
+  // While locked the journal can't be verified; it only decides this status
+  // line then. The unlock acts on it only if this vault signed it.
+  const journal = !vault.isOn() ? null : vault.isUnlocked() ? journalStore.read() : journalStore.peek();
   if (journal) {
     return {
       direction: journal.direction,
@@ -76,6 +85,9 @@ function getStatus() {
     inboxCount: vault.isOn() ? vaultInbox.count() : 0,
     lockDeferred: vault.isLockDeferred(),
     platformSupported: process.platform === "darwin",
+    // What the first unlock found changed while locked: "sealKey" | "prefs" | "journal".
+    changedWhileLocked: vault.isOn() ? vault.getWarnings() : [],
+    touchIdWasReset: vault.isOn() && touchIdWasReset,
   };
 }
 
@@ -93,7 +105,13 @@ lifecycle.onProgress(notify);
 
 // ---------- setup (turning encryption on) ----------
 
+function dropSession() {
+  if (setup) setup.entropy.fill(0);
+  setup = null;
+}
+
 function newPhraseSession(purpose) {
+  dropSession();
   const entropy = crypto.randomBytes(phrase.ENTROPY_BYTES);
   setup = {
     purpose,
@@ -107,6 +125,7 @@ function newPhraseSession(purpose) {
 
 function takeConfirmedSession(purpose, confirmWords) {
   if (!setup || setup.purpose !== purpose || Date.now() > setup.expires) {
+    if (setup && Date.now() > setup.expires) dropSession();
     throw Object.assign(new Error("That took too long. Start again."), { code: "INVALID" });
   }
   const typed = confirmWords || {};
@@ -122,7 +141,9 @@ function takeConfirmedSession(purpose, confirmWords) {
 /**
  * Copy the recovery phrase being shown (setup or a new phrase) in one click.
  * Kept out of WhisperWoof's clipboard history, marked concealed/transient for
- * other clipboard managers, and cleared after a minute if it's still there.
+ * other clipboard managers, kept to this Mac (no Universal Clipboard), and
+ * cleared after a minute if it's still there. Only the helper can mark it
+ * that way, so without it there's no copy at all.
  */
 async function copyPhrase() {
   return guarded(async () => {
@@ -131,7 +152,7 @@ async function copyPhrase() {
     const { clipboard } = require("electron");
     require("../app-init").skipClipboardCapture(text);
     const marked = await touchId.copySecret(text).catch(() => false);
-    if (!marked) clipboard.writeText(text);
+    if (!marked) return fail("Couldn't copy safely. Write the words down instead.");
     setTimeout(() => {
       if (clipboard.readText() === text) clipboard.clear();
     }, CLIPBOARD_CLEAR_MS).unref?.();
@@ -151,10 +172,15 @@ async function enrollTouchId({ test }) {
   const key = await touchId.createKey();
   const next = vk.setTouchIdWrap(vault.getVault(), vault.requireMasterKey(), key);
   if (test) {
-    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), reason: "turn on Touch ID for WhisperWoof" });
-    vk.unlockWithTouchIdSecret(next, shared); // throws if the enclave's answer doesn't open it
+    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), purpose: "enroll" });
+    try {
+      vk.unlockWithTouchIdSecret(next, shared).fill(0); // throws if the enclave's answer doesn't open it
+    } finally {
+      shared.fill(0);
+    }
   }
   vault.saveVault(next);
+  touchIdWasReset = false;
 }
 
 async function completeSetup({ password, confirmWords, useTouchId, notesReadable }) {
@@ -165,15 +191,19 @@ async function completeSetup({ password, confirmWords, useTouchId, notesReadable
         return fail("Finish recording the meeting first, then turn on encryption.", "BUSY");
       }
       const session = takeConfirmedSession("setup", confirmWords);
-      const created = vk.createVault({ entropy: session.entropy, password });
+      let created;
+      try {
+        created = vk.createVault({ entropy: session.entropy, password });
+      } finally {
+        session.entropy.fill(0);
+      }
       const withPrefs = vk.updatePrefs(created.vault, { notesReadable: Boolean(notesReadable) });
       // vault.json, then the journal, then the unlock — which sees the journal
       // and runs the migration. A crash in between never leaves a journal alone.
+      // The journal is signed with the new master key before its first unlock.
       await vault.adoptNewVault(withPrefs, created.masterKey, {
-        beforeUnlock: () => {
-          ensurePrivateDir(vaultPaths.dir());
-          writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("enable")));
-        },
+        beforeUnlock: () =>
+          journalStore.write(planPure.startJournal("enable"), { masterKey: created.masterKey, vaultId: withPrefs.vaultId }),
       });
       let touchIdNote;
       if (useTouchId) {
@@ -189,6 +219,11 @@ async function completeSetup({ password, confirmWords, useTouchId, notesReadable
 
 // ---------- unlocking ----------
 
+function unlocked() {
+  failedUnlocks = 0;
+  nextUnlockAt = 0;
+}
+
 async function unlockWithTouchId() {
   return guarded(async () => {
     const v = vault.getVault();
@@ -196,35 +231,57 @@ async function unlockWithTouchId() {
     if (vault.isUnlocked()) return ok();
     let shared;
     try {
-      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: TOUCH_ID_REASON });
+      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: "unlock" });
     } catch (err) {
       if (err.code === "INVALIDATED") {
+        // The fingerprints on this Mac changed (someone may have added theirs).
+        // Touch ID stays off until it's turned on again with the password:
+        // never re-enroll by itself.
         vault.saveVault(vk.clearTouchId(v));
-        reenrollTouchId = true;
-        return fail("Your fingerprints changed, so Touch ID needs to be set up again. Use your password.", "INVALIDATED");
+        touchIdWasReset = true;
+        return fail("The fingerprints on this Mac changed, so Touch ID was turned off. Use your password.", "INVALIDATED");
       }
       throw err;
     }
-    await vault.unlockWithTouchIdSecret(shared);
+    try {
+      await vault.unlockWithTouchIdSecret(shared);
+    } finally {
+      shared.fill(0);
+    }
+    unlocked();
     return ok();
   });
 }
 
-async function afterPasswordUnlock() {
-  if (!reenrollTouchId) return;
-  reenrollTouchId = false;
-  await enrollTouchId({ test: false }).catch(() => {});
+function secondsText(ms) {
+  const seconds = Math.ceil(ms / 1000);
+  return seconds === 1 ? "1 second" : `${seconds} seconds`;
 }
 
 async function unlockWithPassword(password) {
   return guarded(async () => {
     if (vault.isUnlocked()) return ok();
-    await vault.unlockWithPassword(String(password || ""));
-    await afterPasswordUnlock();
+    const wait = nextUnlockAt - Date.now();
+    if (wait > 0) return fail(`Too many wrong passwords. Try again in ${secondsText(wait)}.`);
+    try {
+      await vault.unlockWithPassword(String(password || ""));
+    } catch (err) {
+      if (err.code === "WRONG_PASSWORD") {
+        failedUnlocks += 1;
+        nextUnlockAt = Date.now() + unlockDelayMs(failedUnlocks);
+      }
+      throw err;
+    }
+    unlocked();
     return ok();
   });
 }
 
+/**
+ * Forgot the password: the 12 words set a new one. While unlocked, the words
+ * are checked first and nothing locks: a wrong phrase changes nothing, and a
+ * recording meeting keeps its files.
+ */
 async function recover({ phrase: typed, newPassword }) {
   return guarded(async () => {
     let entropy;
@@ -233,10 +290,24 @@ async function recover({ phrase: typed, newPassword }) {
     } catch (err) {
       return fail(err.message, "WRONG_PHRASE");
     }
-    if (vault.isUnlocked()) await vault.lock({ force: true });
-    await vault.unlockWithEntropy(entropy, String(newPassword || ""));
-    await afterPasswordUnlock();
-    return ok();
+    try {
+      if (vault.isUnlocked()) {
+        const current = vault.getVault();
+        if (!current) return fail("Encryption is off", "INVALID");
+        const mk = vk.masterKeyFromEntropy(entropy, current); // WrongPhraseError if it isn't this vault's
+        try {
+          vault.saveVault(vk.setPassword(current, mk, String(newPassword || "")));
+        } finally {
+          mk.fill(0);
+        }
+        return ok();
+      }
+      await vault.unlockWithEntropy(entropy, String(newPassword || ""));
+      unlocked();
+      return ok();
+    } finally {
+      entropy.fill(0);
+    }
   });
 }
 
@@ -260,9 +331,12 @@ async function reauthenticate(reauth) {
     return;
   }
   if (reauth && reauth.touchId && v.touchId) {
-    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: "confirm it's you" });
-    const mk = vk.unlockWithTouchIdSecret(v, shared);
-    mk.fill(0);
+    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), purpose: "confirm" });
+    try {
+      vk.unlockWithTouchIdSecret(v, shared).fill(0);
+    } finally {
+      shared.fill(0);
+    }
     return;
   }
   throw Object.assign(new Error("Confirm with your password or Touch ID."), { code: "INVALID" });
@@ -277,13 +351,22 @@ async function changePassword({ currentPassword, newPassword }) {
   });
 }
 
-async function setTouchIdEnabled(enabled) {
+/**
+ * Turning Touch ID on enrolls whatever fingerprints the Mac has right now, so
+ * it needs the password (a finger someone added can't vouch for itself).
+ * Turning it off needs nothing.
+ */
+async function setTouchIdEnabled(enabled, reauth) {
   return guarded(async () => {
     vault.requireMasterKey();
     if (!enabled) {
       vault.saveVault(vk.clearTouchId(vault.getVault()));
       return ok();
     }
+    if (!reauth || typeof reauth.password !== "string") {
+      return fail("Enter your password to turn on Touch ID.", "INVALID");
+    }
+    await reauthenticate({ password: reauth.password });
     await enrollTouchId({ test: true });
     return ok();
   });
@@ -294,9 +377,10 @@ async function setPrefs(prefs, reauth) {
     vault.exclusive(async () => {
       const current = vault.getVault();
       if (!current) return fail("Encryption is off", "INVALID");
+      // Every pref is a security setting (and gets signed): only while unlocked.
+      vault.requireKeys();
       const next = vk.updatePrefs(current, prefs);
       if (next.prefs.notesReadable !== current.prefs.notesReadable) {
-        vault.requireKeys();
         // Making every note plain on disk is as serious as turning encryption off.
         if (next.prefs.notesReadable) await reauthenticate(reauth);
         await lifecycle.convertNotes(!next.prefs.notesReadable);
@@ -324,7 +408,11 @@ async function completeNewPhrase({ confirmWords }) {
   return guarded(() =>
     vault.exclusive(async () => {
       const session = takeConfirmedSession("rotate", confirmWords);
-      await lifecycle.runRotation(() => rotation.rotate(session.entropy));
+      try {
+        await lifecycle.runRotation(() => rotation.rotate(session.entropy));
+      } finally {
+        session.entropy.fill(0);
+      }
       return ok();
     })
   );
@@ -339,8 +427,7 @@ async function disable(reauth) {
       // Anything that still won't import is written out as plain JSON (it's all
       // going plain now) instead of being lost with the vault.
       vaultInbox.exportRemaining(require("path").join(vaultPaths.dir(), "..", "unimported-while-locked"));
-      ensurePrivateDir(vaultPaths.dir());
-      writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("disable")));
+      journalStore.write(planPure.startJournal("disable"));
       await lifecycle.runMigration("disable");
       notify();
       return ok();

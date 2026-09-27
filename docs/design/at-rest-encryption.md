@@ -34,7 +34,7 @@ Every store below is plaintext today. "Plan" says what happens with encryption o
 | Memory and other JSON | `whisperwoof-vocabulary.json` (words, mishearings, per-app), `whisperwoof-style-examples.json` (**50 transcript pairs**), `whisperwoof-focus-sessions.json`, `whisperwoof-schedules.json`, `whisperwoof-templates.json`, `eval-dataset.json` + `eval-audio/` | Things you said or wrote | Encrypted file |
 | Telegram inbox | `telegram-inbox.json`, written by the companion bot, a separate process | Mobile voice notes | The bot can't encrypt, so this file stays plaintext until import. After import the items are **removed** (today they pile up forever) |
 | Debug logs | `userData/logs/debug-*.log` (debug level only) | Up to 500 characters of transcripts, 80 characters of text you type in other apps (`textEditMonitor.js`), dictionary prompts | Content redacted while encryption is on. Old logs are deleted during migration |
-| localStorage (Chromium leveldb) | `userData/Local Storage/` | API keys, a copy of `customDictionary`, Google account emails, your prompts | The dictionary copy stops being written and is cleared. API keys: see section 8 |
+| localStorage (Chromium leveldb) | `userData/Local Storage/` | API keys, a copy of `customDictionary`, Google account emails, your prompts | The dictionary copy stops being written and is cleared. A window writes it only after main has said encryption is off. API keys: see section 8 |
 | Config | `whisperwoof-settings.json`, keybindings, pack state, privacy, plugins | Settings | Stays plaintext. It's needed before unlock and holds none of your content |
 | Models | `~/.cache/openwhispr/` | Downloaded models | Not user data. Untouched |
 
@@ -62,7 +62,7 @@ Every store below is plaintext today. "Plan" says what happens with encryption o
 ```
 
 - **The recovery phrase *is* the master key's seed.** If `vault.json` is lost or corrupted, the 12 words still open everything, on this Mac or a new one. That includes notes synced through iCloud. The password and Touch ID are just faster ways to get the same MK.
-- **Password:** scrypt, because Argon2id isn't in Electron 39's Node. Adding a WASM Argon2 would mean one more dependency to audit, and it wouldn't gain much over scrypt at 256 MiB. The parameters are stored in `vault.json`, so they can be raised later without re-encrypting. A wrong password fails the GCM tag check; there's no separate password hash. The minimum is 8 characters, and the screen suggests a few words.
+- **Password:** scrypt, because Argon2id isn't in Electron 39's Node. Adding a WASM Argon2 would mean one more dependency to audit, and it wouldn't gain much over scrypt at 256 MiB. The parameters are stored in `vault.json`, so they can be raised later without re-encrypting. A wrong password fails the GCM tag check; there's no separate password hash. The minimum is 8 characters, and the screen suggests a few words. Passwords every guessing list starts with are refused (a built-in list of about 100, `bridge/vault/common-passwords.json`, checked the same way in main and in the form), as is one character repeated. At the lock screen the first three wrong passwords cost nothing extra; after that each try waits twice as long as the last (1 s, 2 s, 4 s… up to 30 s). The wait is kept in memory only.
 - **Each wrap uses AAD** `whisperwoof-vault/v1/<method>/<vaultId>`, so wraps can't be swapped between vaults or methods.
 - **Checking a phrase:** `vault.json` keeps `HMAC(MK, "ww/check")` to confirm a phrase belongs to this vault. It's safe to store because MK has 128 bits of entropy. The BIP39 checksum catches most typos before that.
 
@@ -70,8 +70,8 @@ Every store below is plaintext today. "Plan" says what happens with encryption o
 
 **Recommended: a small Swift helper, `macos-vault-helper`, using the Secure Enclave.** It's built the same way as our other helpers (`resources/*.swift` → `resources/bin/`, `compile:native`, `extraResources`).
 - `create`: makes a Secure Enclave P-256 key-agreement key with `[.privateKeyUsage, .biometryCurrentSet]` and prints the key's blob and its public key. There's no prompt. Main then wraps MK to that public key using an ephemeral P-256 key, ECDH and HKDF → AES-GCM.
-- `unlock`: loads the blob and asks for Touch ID ("unlock your WhisperWoof history"). The Secure Enclave then does the ECDH and the helper returns the shared secret over its stdout pipe. Main unwraps MK.
-- **Why this is a real gate:** the private key never leaves the Secure Enclave, and the Enclave refuses the ECDH without a fingerprint at that moment. The blob on disk is useless on any other Mac, and useless on this one without a finger. Adding or removing a fingerprint invalidates it (`biometryCurrentSet`), so someone who knows your Mac password can't enroll their own finger to get in. When that happens, the app asks for your password once and re-enrolls Touch ID by itself.
+- `unlock`: loads the blob and asks for Touch ID ("unlock your WhisperWoof history and notes"). The Secure Enclave then does the ECDH and the helper returns the shared secret over its stdout pipe. Main unwraps MK. The prompt texts are built into the helper: the caller only picks one (`unlock`, `enroll`, `confirm`), so another program can't use the helper to ask for a fingerprint in its own words. The helper reports "invalidated" only when the enclave says the key is gone (not found, or unreadable after a fingerprint change); any other failure is a plain "failed".
+- **Why this is a real gate:** the private key never leaves the Secure Enclave, and the Enclave refuses the ECDH without a fingerprint at that moment. The blob on disk is useless on any other Mac, and useless on this one without a finger. Adding or removing a fingerprint invalidates it (`biometryCurrentSet`), so someone who knows your Mac password can't enroll their own finger to get in. When that happens, WhisperWoof turns Touch ID off and says so, and never enrolls a new key by itself: turning Touch ID on (then or any time) asks for the password, because the new key trusts every fingerprint the Mac has at that moment.
 - It works on today's unsigned releases (verified, section 2) and on future signed ones.
 
 **Not recommended: `systemPreferences.promptTouchID` + `safeStorage`.** Here the Touch ID dialog is only a gate in the UI. The key sits in the login Keychain, and the app can read it at any time without a fingerprint. So can anyone who knows your Mac password (Keychain Access → show password). On unsigned builds, macOS also asks for Keychain access after every update. A Keychain item with a biometry rule would be a real gate, but it fails on our unsigned builds with `-34018`.
@@ -112,7 +112,7 @@ Touch ID is optional. It's on by default when the Mac has it; Macs without it us
 
 - **Speech-to-text:** whisper-server gets audio as HTTP multipart bytes (`whisperServer.js:465`), and sherpa-onnx as WebSocket frames (`parakeetWsServer.js:307`). Neither gets a file path. The only plaintext temp files come from ffmpeg conversion, and those become pipes: webm in on stdin, raw s16le PCM out on stdout, with the WAV header built in memory. The cloud split for large files (`ow-chunks`) uses one ffmpeg per chunk (`-ss/-t` → stdout). Imports read your own file where it already is. Encryption never copies or changes it (but see the deletion bug in section 10).
 - **Wiping:** real wiping isn't possible on APFS and SSDs (copy-on-write, TRIM, snapshots), so the design avoids writing plaintext in the first place. Any leftover case writes to a private 0700 folder, `userData/vault/tmp`, which is emptied at startup. FileVault stays the backstop for that last gap.
-- **Memory:** MK and derived keys live in `Buffer`s that are zeroed on lock. That's best effort: the password crosses IPC as a JS string, and those can't be wiped. On lock, each window reloads, so decrypted history and notes leave React state. Swap and the sleep image are already encrypted by macOS.
+- **Memory:** MK lives in a `Buffer` that is zeroed on lock (and when encryption is turned off); a new recovery phrase's extra keys are dropped then too. Intermediate secrets are zeroed right after use: HKDF outputs and the X25519 seed, the phrase's entropy once the vault is made, the Secure Enclave's ECDH answer, each file's payload key. Not everything can be: the SQLCipher key is a hex string and the sealing private key a `KeyObject`, so they're only dropped (left to the garbage collector), and the password and recovery words cross IPC as JS strings. Secrets waiting on the user are held briefly: the phrase between "show the words" and "confirm them", and the password between "confirm it's you" and a new phrase's words, 5 minutes at most each. On lock, each window reloads, so decrypted history and notes leave React state. Swap and the sleep image are already encrypted by macOS.
 - **Renderer:** decrypted audio and images come over IPC as bytes, then become Blob or data URLs, as they do today. Keys and the vault never reach the renderer.
 
 ### 4.6 Locking, and what works while locked
@@ -129,20 +129,20 @@ Touch ID is optional. It's on by default when the Mac has it; Macs without it us
   - Mac screen lock or sleep: `powerMonitor` `lock-screen` / `suspend`.
   - Idle time (optional).
   - "Lock now" in the tray and in Settings.
-- **The lock is enforced in main, not just in the UI.** Every database and vault IPC handler checks the state, so DevTools or a bug can't read around the lock screen.
+- **The lock is enforced in main, not just in the UI.** Every database and vault IPC handler checks the state, so DevTools or a bug can't read around the lock screen. Memory is handed only to the dictation window while locked (for swaps and hints), and can't be edited; the encryption settings can't be changed while locked.
 
 ### 4.7 Turning it on, off, and changing things
 
 **Turning it on** is a sheet with five steps:
 1. It explains what's encrypted and what isn't, with the no-back-door warning. You tick "I understand my data is gone if I lose both".
 2. Set a password, twice.
-3. The 12 words are shown once, with a **Copy** button (the owner asked for one-click copy). Copying goes through main: WhisperWoof's clipboard monitor skips the phrase, the clipboard entry is marked `org.nspasteboard.ConcealedType` + `TransientType` (clipboard managers that follow nspasteboard.org don't keep it), and it's cleared after 60 seconds if it's still there. The words can't be selected, so ⌘C can't bypass this.
+3. The 12 words are shown once, with a **Copy** button (the owner asked for one-click copy). Copying goes through main: WhisperWoof's clipboard monitor skips the phrase, the clipboard entry is marked `org.nspasteboard.ConcealedType` + `TransientType` (clipboard managers that follow nspasteboard.org don't keep it), it's kept to this Mac (`prepareForNewContents(with: .currentHostOnly)`, so Universal Clipboard doesn't carry it to your phone), and it's cleared after 60 seconds if it's still there. Only the helper can mark the clipboard this way: if it can't, nothing is copied and the screen says to write the words down. The words can't be selected, so ⌘C can't bypass this.
 4. You type 3 of the words to confirm.
 5. You choose whether to use Touch ID, with one test touch.
 
 Then the migration runs, with a progress bar.
 
-**Migration** is journaled in `userData/vault/migration.json`, and every step can be repeated safely:
+**Migration** is journaled in `userData/vault/migration.json`, and every step can be repeated safely. The journal decides what the next unlock does, up to decrypting everything, so it carries an HMAC over its fields and the vault id, keyed from MK (HKDF `whisperwoof/journal/v1`). Turning encryption on signs it with the new vault's MK before the first unlock. An unlock deletes a journal that doesn't verify instead of acting on it, and Settings says one was ignored (a new recovery phrase that crashed after adopting its vault is the one expected exception: its journal was signed with the old key).
 1. Write `vault.json` (a temp file, fsync, rename), plus `vault.json.bak`. From here on, new writes go to the sealed inbox, so dictation keeps working during the migration.
 2. Check free space: the database size plus a margin.
 3. **Database:**
@@ -158,7 +158,7 @@ If the migration is interrupted (crash, power loss, quit):
 - Plaintext is deleted only after its encrypted copy has been synced to disk and checked.
 - Resuming needs an unlock, because MK is never written down. That's the one case where WhisperWoof waits at the lock screen before starting.
 
-**Turning it off:** unlock again first. The same journal runs in reverse (`PRAGMA rekey = ''` on a copy, then decrypting the files), and `vault.json` is deleted last.
+**Turning it off:** unlock again first. The same journal runs in reverse (decrypting the files, then `PRAGMA rekey = ''` on a copy), and `vault.json` is deleted last. The journal stays until then, so the now-plain database can open to import what was saved while it ran (dictation keeps working); what won't import is written out as plain JSON, and anything still sealed is decrypted in a last pass. The vault (and with it the keys) is forgotten only when the disk shows it's done: the database is plain and no sealed file is left among what turning off decrypts, the inbox included. Resuming after a crash runs the same steps.
 
 **Changing the password:** the app re-wraps MK with a new salt, writes it atomically, and the old password stops working. No data is re-encrypted.
 
@@ -197,7 +197,16 @@ If the migration is interrupted (crash, power loss, quit):
   - your settings, and the fact that you use WhisperWoof
 - Notes you choose to keep readable, and the Telegram inbox before import.
 - API keys and webhook secrets (section 8).
-- **Planted files:** someone who can write to your files can plant *new* sealed items or notes, because the public key is public. They can't read your data or change existing items without detection. As a small guard, the public key cached in `vault.json` is recomputed from MK at every unlock and compared.
+- **Planted and replaced files:** someone who can write to your files while WhisperWoof is locked can't read your data, but can still:
+  - plant *new* sealed items or notes, because the public key is public;
+  - replace a whole sealed file with one they sealed themselves (each file is authenticated only with its own key, and nothing ties it to its name), or put back an older copy of a sealed file, a note or the database (SQLCipher has no freshness check). WhisperWoof can't tell either from the real thing.
+
+  What limits this:
+  - With encryption on, the plain form of a store that's always sealed (Memory, style examples, recordings, images) is never read, except while a migration this vault signed is converting it.
+  - Inbox items are checked field by field; a recording only joins a transcription saved while locked (never replaces an existing one), and an entry keeps a file path only inside the app's folders.
+  - The migration journal and the security settings in `vault.json` (keep notes readable, lock when the Mac sleeps, the idle lock) carry an HMAC keyed from MK. The settings are checked at the first unlock and put back if they were changed. Until then, "keep notes readable" is treated as off (new notes are sealed) and those notes are made plain again after the unlock. A `vault.json` from before this HMAC is signed at its first unlock as it is, so deleting the HMAC can't be told apart from an old vault.
+  - The public key in `vault.json` is recomputed from MK at every unlock. A swapped key is put back and Settings says so: files sealed while locked went to someone else's key and may have been read (and WhisperWoof can't open them).
+- **Touch ID without the app:** on unsigned builds the Secure Enclave key isn't tied to WhisperWoof, so code running as you while it's locked could run the helper with the blob from `vault.json`. It still needs your finger on the sensor, and the prompt says WhisperWoof.
 
 ## 5. What you'll see
 
@@ -262,7 +271,7 @@ These follow `DESIGN.md`: plain words in sentence case, capsule controls, tokens
 - **12 words** (128-bit), English BIP39. 24 words would add nothing practical and is harder to write down.
 - **The master key comes from the phrase** (4.1), so the phrase alone restores everything.
 - **scrypt at 256 MiB**, 0.55 s measured on this Mac. My estimate for an M1 is about 1 s.
-- **Touch ID re-enrolls after a fingerprint change**, following one password entry.
+- **After a fingerprint change, Touch ID is turned off.** Turning it back on takes the password.
 - **macOS only.** The Encryption group is hidden on other platforms.
 - **API keys (`.env`, localStorage) and webhook secrets are out of scope.** They're credentials, not your content, and cloud dictation needs them while locked. The right home is the Keychain once releases are Developer ID signed; safeStorage prompts after every unsigned update. I'll suggest this as a separate task.
 - **Imported audio files are yours.** We read them in place and never encrypt, move or delete them.

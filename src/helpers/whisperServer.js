@@ -7,8 +7,13 @@ const http = require("http");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const { killProcess } = require("../utils/process");
-const { getSafeTempDir } = require("./safeTempDir");
+const { getSafeTempDir, makePrivateTempDir, removeTempDir } = require("./safeTempDir");
 const { convertToWav, convertBufferToWav } = require("./ffmpegUtils");
+const { buildSidecarEnv } = require("../whisperwoof/bridge/sidecar-env-pure");
+const {
+  newServerRequestPath,
+  redactArgs,
+} = require("../whisperwoof/bridge/local-server-auth-pure");
 
 const PORT_RANGE_START = 8178;
 const PORT_RANGE_END = 8199;
@@ -29,6 +34,8 @@ class WhisperServerManager extends EventEmitter {
     this.cachedFFmpegPath = null;
     this.canConvert = false;
     this.useCuda = false;
+    // Random per-process route prefix (see _doStart); every request uses it.
+    this.requestPath = null;
 
     // WhisperWoof: Auto-stop after 2 minutes of idle to free model RAM (500MB-3GB)
     this._idleTimer = null;
@@ -236,10 +243,16 @@ class WhisperServerManager extends EventEmitter {
     this.port = await this.findAvailablePort();
     this.modelPath = modelPath;
     this.useCuda = usingCuda;
+    // whisper-server has no auth and answers with Access-Control-Allow-Origin
+    // "*", so any web page could POST /inference or /load (swap the model, or
+    // crash the server with a bad path). --request-path puts every route
+    // (/, /inference, /load, /health) under this unguessable prefix.
+    this.requestPath = newServerRequestPath();
 
     // Check for FFmpeg first - only use --convert flag if FFmpeg is available
     const ffmpegPath = this.getFFmpegPath();
-    const spawnEnv = { ...process.env };
+    // Without the user's cloud API keys and tokens.
+    const spawnEnv = buildSidecarEnv(process.env);
     const pathSep = process.platform === "win32" ? ";" : ":";
 
     if (process.platform === "win32") {
@@ -252,7 +265,16 @@ class WhisperServerManager extends EventEmitter {
     const serverBinaryDir = path.dirname(serverBinary);
     spawnEnv.PATH = serverBinaryDir + pathSep + (process.env.PATH || "");
 
-    const args = ["--model", modelPath, "--host", "127.0.0.1", "--port", String(this.port)];
+    const args = [
+      "--model",
+      modelPath,
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(this.port),
+      "--request-path",
+      this.requestPath,
+    ];
 
     // FFmpeg is required for pre-converting audio to 16kHz mono WAV
     this.canConvert = !!ffmpegPath;
@@ -275,7 +297,7 @@ class WhisperServerManager extends EventEmitter {
     debugLogger.debug("Starting whisper-server", {
       port: this.port,
       modelPath,
-      args,
+      args: redactArgs(args, [this.requestPath]),
       cwd: serverBinaryDir,
       cuda: usingCuda,
     });
@@ -395,12 +417,13 @@ class WhisperServerManager extends EventEmitter {
         {
           hostname: "127.0.0.1",
           port: this.port,
-          path: "/",
+          // Registered under --request-path; 200 once the model is loaded.
+          path: `${this.requestPath || ""}/health`,
           method: "GET",
           timeout: HEALTH_CHECK_TIMEOUT_MS,
         },
         (res) => {
-          resolve(true);
+          resolve(res.statusCode === 200);
           res.resume();
         }
       );
@@ -510,7 +533,7 @@ class WhisperServerManager extends EventEmitter {
         {
           hostname: "127.0.0.1",
           port: this.port,
-          path: "/inference",
+          path: `${this.requestPath || ""}/inference`,
           method: "POST",
           headers: {
             "Content-Type": `multipart/form-data; boundary=${boundary}`,
@@ -567,23 +590,18 @@ class WhisperServerManager extends EventEmitter {
     } catch (err) {
       debugLogger.debug("Pipe conversion failed, using temp files", { error: err.message });
     }
-    const tempDir = getSafeTempDir();
-    const timestamp = Date.now();
-    const tempInputPath = path.join(tempDir, `whisper-input-${timestamp}.webm`);
-    const tempWavPath = path.join(tempDir, `whisper-output-${timestamp}.wav`);
+    // A private dir (0700, unguessable name) and an owner-only file: the
+    // voice recording is never readable by, or redirectable by, another user.
+    const tempDir = makePrivateTempDir("ww-whisper-");
+    const tempInputPath = path.join(tempDir, "input.webm");
+    const tempWavPath = path.join(tempDir, "output.wav");
 
     try {
-      fs.writeFileSync(tempInputPath, audioBuffer);
+      fs.writeFileSync(tempInputPath, audioBuffer, { mode: 0o600 });
       await convertToWav(tempInputPath, tempWavPath, { sampleRate: 16000, channels: 1 });
       return fs.readFileSync(tempWavPath);
     } finally {
-      for (const f of [tempInputPath, tempWavPath]) {
-        try {
-          if (fs.existsSync(f)) fs.unlinkSync(f);
-        } catch {
-          // ignore cleanup errors
-        }
-      }
+      removeTempDir(tempDir);
     }
   }
 
@@ -626,6 +644,7 @@ class WhisperServerManager extends EventEmitter {
     this.ready = false;
     this.port = null;
     this.modelPath = null;
+    this.requestPath = null;
   }
 
   getStatus() {

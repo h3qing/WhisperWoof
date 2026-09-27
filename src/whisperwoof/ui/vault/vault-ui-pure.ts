@@ -11,6 +11,17 @@ import type {
   VaultStatus,
   VaultTouchIdState,
 } from "../../../types/electron";
+// Shared with main's check (bridge/vault/password-policy-pure.js).
+import COMMON_PASSWORDS from "../../bridge/vault/common-passwords.json";
+
+/**
+ * Status fields newer than the VaultStatus type: what the first unlock found
+ * changed while WhisperWoof was locked, and whether Touch ID was turned off
+ * because the Mac's fingerprints changed.
+ */
+export type VaultChange = NonNullable<VaultStatus["changedWhileLocked"]>[number];
+export type VaultNotices = Pick<VaultStatus, "changedWhileLocked" | "touchIdWasReset">;
+export const vaultNotices = (status: VaultStatus): VaultNotices => status;
 
 export const MIN_PASSWORD_LENGTH = 8;
 export const RECOVERY_WORD_COUNT = 12;
@@ -36,18 +47,31 @@ export interface PasswordCheck {
 /** Characters as people count them (code points, so an emoji is one). */
 const charCount = (s: string): number => Array.from(s).length;
 
+const COMMON = new Set<string>(COMMON_PASSWORDS);
+export const TOO_EASY_PASSWORD = "That password is too easy to guess. Try a few words together.";
+
+/** A well-known password, or one character repeated — the same rule main applies. */
+export function isTooEasyPassword(password: string): boolean {
+  const n = password.normalize("NFKC").toLowerCase();
+  return COMMON.has(n) || /^(.)\1*$/u.test(n);
+}
+
 /**
  * A new password typed twice. The length rule is always on screen as a hint,
- * so it isn't repeated as an error; a mismatch is only called out once the
- * second field can no longer be a prefix of the first.
+ * so it isn't repeated as an error; a password on every guessing list is
+ * called out as soon as it's long enough; a mismatch is only called out once
+ * the second field can no longer be a prefix of the first.
  */
 export function checkNewPassword(password: string, confirm: string): PasswordCheck {
-  const ok = charCount(password) >= MIN_PASSWORD_LENGTH && password === confirm;
+  const longEnough = charCount(password) >= MIN_PASSWORD_LENGTH;
+  const tooEasy = longEnough && isTooEasyPassword(password);
+  const ok = longEnough && !tooEasy && password === confirm;
   const mismatch =
     confirm.length > 0 &&
     confirm !== password &&
     (confirm.length >= password.length || !password.startsWith(confirm));
-  return { ok, message: mismatch ? "The two passwords don't match." : null };
+  const message = tooEasy ? TOO_EASY_PASSWORD : mismatch ? "The two passwords don't match." : null;
+  return { ok, message };
 }
 
 // ── Recovery words ───────────────────────────────────────────────────────────
@@ -282,7 +306,7 @@ export const isVaultFailure = (result: { success: boolean }): result is VaultFai
 export type ErrorContext = "general" | "confirm";
 
 const TOUCH_ID_MESSAGES: Partial<Record<string, string>> = {
-  INVALIDATED: "Touch ID needs to be set up again. Use your password.",
+  INVALIDATED: "The fingerprints on this Mac changed, so Touch ID was turned off. Use your password.",
   LOCKOUT: "Touch ID is locked after too many tries. Use your password.",
   UNAVAILABLE: "Touch ID isn't available right now. Use your password.",
 };
@@ -374,7 +398,10 @@ export function encryptionSummary(status: VaultStatus): string {
     : "Encrypted. Unlocks with your password.";
 }
 
-export function touchIdRowDescription(touchId: VaultTouchIdState): string {
+export function touchIdRowDescription(touchId: VaultTouchIdState, { wasReset = false } = {}): string {
+  if (touchId.available && wasReset) {
+    return "The fingerprints on this Mac changed, so Touch ID was turned off. Turn it back on if you added them.";
+  }
   if (touchId.available) return "Use your fingerprint instead of typing your password.";
   switch (touchId.reason) {
     case "notEnrolled":
@@ -384,6 +411,20 @@ export function touchIdRowDescription(touchId: VaultTouchIdState): string {
     default:
       return "This Mac doesn't have Touch ID.";
   }
+}
+
+const CHANGE_LINES: Record<VaultChange, string> = {
+  sealKey:
+    "The encryption key in WhisperWoof's settings file was replaced while it was locked, and has been put back. Entries saved while it was locked may have been readable by whoever changed it.",
+  prefs: "Your encryption settings were changed while WhisperWoof was locked. They've been put back.",
+  journal: "A request to decrypt your data appeared while WhisperWoof was locked. It was ignored.",
+};
+
+/** What to say when the first unlock found WhisperWoof's files changed while locked; null when nothing was. */
+export function changedWhileLockedNotice(status: VaultStatus): string | null {
+  const changes = vaultNotices(status).changedWhileLocked ?? [];
+  const lines = (Object.keys(CHANGE_LINES) as VaultChange[]).filter((c) => changes.includes(c)).map((c) => CHANGE_LINES[c]);
+  return lines.length > 0 ? lines.join(" ") : null;
 }
 
 export function lockNowDescription(status: VaultStatus): string {

@@ -2,7 +2,8 @@
  * Turning encryption on / off (and converting notes alone), crash-safe.
  * What to do next is always decided from what's on disk
  * (migration-plan-pure), so the runner can be re-run from any point; the
- * journal only remembers the direction and phase.
+ * journal (vault-journal, signed with the master key) only remembers the
+ * direction and phase.
  *
  * The caller closes the app's database connections before calling and
  * reopens them after; the runner never holds the app database open.
@@ -15,30 +16,21 @@ const path = require("path");
 const ww = require("./wwenc-pure");
 const plan = require("./migration-plan-pure");
 const vault = require("./vault-service");
+const journalStore = require("./vault-journal");
 const { applyKey } = require("./vault-db");
-const { SEALED_EXT, sealedPath, listNames } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, removeIfExists, removeStaleTemps } = require("./vault-paths");
+const {
+  SEALED_EXT,
+  SEALED_JSON_STORES: JSON_STORES,
+  SEALED_DIR_STORES: DIR_STORES,
+  sealedPath,
+  listNames,
+} = require("./vault-files");
+const { vaultPaths, writeFileAtomic, keepTimes, removeIfExists, removeStaleTemps } = require("./vault-paths");
 
 const WORK_EXT = ".vault-work";
 const OLD_EXT = ".vault-old";
 
 const sha256 = (b) => crypto.createHash("sha256").update(b).digest();
-
-// ---------- journal ----------
-
-function readJournal() {
-  try {
-    return plan.parseJournal(JSON.parse(fs.readFileSync(vaultPaths.journal(), "utf8")));
-  } catch {
-    return null;
-  }
-}
-
-function writeJournal(journal) {
-  ensurePrivateDir(vaultPaths.dir());
-  writeFileAtomic(vaultPaths.journal(), JSON.stringify(journal));
-  return journal;
-}
 
 // ---------- database ----------
 
@@ -185,21 +177,8 @@ function migrateFile(direction, { file, kind, mode }) {
 }
 
 // ---------- what gets encrypted ----------
-
-const JSON_STORES = [
-  "whisperwoof-vocabulary.json",
-  "whisperwoof-style-examples.json",
-  "whisperwoof-focus-sessions.json",
-  "whisperwoof-schedules.json",
-  "whisperwoof-templates.json",
-  "eval-dataset.json",
-];
-
-const DIR_STORES = [
-  { dir: "audio", kind: "audio" },
-  { dir: "whisperwoof-images", kind: "image" },
-  { dir: "eval-audio", kind: "audio" },
-];
+// JSON_STORES and DIR_STORES live in vault-files, which refuses their plain
+// form while encryption is on.
 
 function isNoteName(name) {
   return name.endsWith(".md") && !name.startsWith(".") && !name.includes("/");
@@ -275,14 +254,34 @@ function removePlaintextLeftovers(userData) {
 
 // ---------- runner ----------
 
+function convertTargets(direction, targets, report = () => {}) {
+  for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
+  targets.forEach((target, i) => {
+    try {
+      migrateFile(direction, target);
+    } catch (err) {
+      throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+    }
+    if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
+  });
+}
+
+/**
+ * Turning off, last pass: decrypt anything written sealed after the files
+ * phase (dictation keeps working while it runs). Idempotent.
+ */
+function decryptRemaining(userData, notesDir) {
+  convertTargets("disable", [...userDataTargets(userData), ...noteTargets(notesDir)]);
+}
+
 /**
  * Run (or resume) a migration.
  * opts: { Database, userData, notesDir, sealNotes, onProgress({direction, phase, done, total}) }
  */
 async function run(direction, opts) {
   const { Database, userData, notesDir, sealNotes, onProgress = () => {} } = opts;
-  const existing = readJournal();
-  let journal = existing && existing.direction === direction ? existing : writeJournal(plan.startJournal(direction));
+  const existing = journalStore.read();
+  let journal = existing && existing.direction === direction ? existing : journalStore.write(plan.startJournal(direction));
   const keyHex = vault.requireKeys().dbKeyHex;
   const report = (done, total) => onProgress({ direction, phase: journal.phase, done, total });
 
@@ -293,16 +292,7 @@ async function run(direction, opts) {
     },
     files: () => {
       const notes = direction === "disable" || sealNotes ? noteTargets(notesDir) : [];
-      const targets = [...userDataTargets(userData), ...notes];
-      for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
-      targets.forEach((target, i) => {
-        try {
-          migrateFile(direction, target);
-        } catch (err) {
-          throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
-        }
-        if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
-      });
+      convertTargets(direction, [...userDataTargets(userData), ...notes], report);
     },
     cleanup: () => {
       if (direction === "enable") removePlaintextLeftovers(userData);
@@ -311,11 +301,58 @@ async function run(direction, opts) {
   };
   while (journal.phase !== "done") {
     steps[journal.phase]();
-    journal = writeJournal(plan.advanceJournal(journal));
+    journal = journalStore.write(plan.advanceJournal(journal));
   }
 
-  removeIfExists(vaultPaths.journal());
+  // Turning off keeps its journal (at "done") until the vault is forgotten:
+  // while it's there the now-plain database may open, so what was saved in
+  // the meantime can still be imported (vault-lifecycle).
+  if (direction !== "disable") journalStore.remove();
   report(1, 1);
+}
+
+/** Sealed files still on disk among what turning off decrypts, plus the sealed inbox. */
+function sealedLeftovers(userData, notesDir) {
+  const targets = [...userDataTargets(userData), ...noteTargets(notesDir)]
+    .map((t) => sealedPath(t.file))
+    .filter((file) => fs.existsSync(file));
+  const inboxDir = vaultPaths.inboxDir();
+  const inbox = fs.existsSync(inboxDir)
+    ? fs.readdirSync(inboxDir).filter((n) => n.endsWith(SEALED_EXT)).map((n) => path.join(inboxDir, n))
+    : [];
+  return [...targets, ...inbox];
+}
+
+/**
+ * Whether the disk shows encryption is really off: the database is plain (or
+ * absent) with no encrypted original left beside it, and nothing sealed
+ * remains. Only then may the vault (and with it the keys) be forgotten.
+ */
+function isTurnedOff(userData, notesDir) {
+  const file = vaultPaths.dbFile();
+  return (
+    plan.sqliteState(readHead(file)) !== "encrypted" &&
+    !fs.existsSync(file + OLD_EXT) &&
+    sealedLeftovers(userData, notesDir).length === 0
+  );
+}
+
+/**
+ * Unseal the notes (and attachments) this vault can open, skipping any it
+ * can't (another Mac's). For notes sealed only because "keep notes readable"
+ * hadn't been checked yet when they were written.
+ */
+function unsealOpenableNotes(notesDir) {
+  let unsealed = 0;
+  for (const target of noteTargets(notesDir)) {
+    if (!fs.existsSync(sealedPath(target.file))) continue;
+    try {
+      if (migrateFile("disable", target)) unsealed += 1;
+    } catch {
+      // Not this vault's (or damaged): it stays as it is.
+    }
+  }
+  return unsealed;
 }
 
 /** Seal (seal=true) or unseal every note in the folder — for the "keep notes readable" switch. */
@@ -334,7 +371,10 @@ module.exports = {
   settle,
   tableCounts,
   noteTargets,
-  readJournal,
+  isTurnedOff,
+  decryptRemaining,
+  sealedLeftovers,
+  unsealOpenableNotes,
   convertNotes,
   migrateDatabase,
   userDataTargets,

@@ -158,9 +158,9 @@ describe("what a Finder copy keeps", () => {
   const on = clip.normalizeCapture({ keepFiles: true });
 
   it("keeps files only when the user turns it on", () => {
-    expect(off).toEqual({ keepFiles: false });
-    expect(on).toEqual({ keepFiles: true });
-    expect(clip.normalizeCapture({ keepFiles: "yes" })).toEqual({ keepFiles: false });
+    expect(off).toEqual({ keepFiles: false, monitor: true });
+    expect(on).toEqual({ keepFiles: true, monitor: true });
+    expect(clip.normalizeCapture({ keepFiles: "yes" })).toEqual({ keepFiles: false, monitor: true });
   });
 
   it("keeps photos, and leaves PDFs as names unless files are on", () => {

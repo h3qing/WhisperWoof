@@ -150,7 +150,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        # Third-party action with write access: pinned to a commit (v2.6.2).
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ needs.check.outputs.version }}
           name: WhisperWoof v${{ needs.check.outputs.version }}

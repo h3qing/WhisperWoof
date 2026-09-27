@@ -37,6 +37,7 @@ function freshModules() {
     files: require("../../bridge/vault/vault-files.js"),
     keys: require("../../bridge/vault/vault-keys-pure.js"),
     db: require("../../bridge/vault/vault-db.js"),
+    journal: require("../../bridge/vault/vault-journal.js"),
   };
 }
 
@@ -242,7 +243,7 @@ describe("interrupted migration resumes", () => {
     const ww = require("../../bridge/vault/wwenc-pure.js");
     fs.writeFileSync(audio + ".wwenc", ww.encrypt(fs.readFileSync(audio), m.vault.sealPublicRaw(), { kind: "audio" }));
     fs.writeFileSync(audio + ".wwenc.tmp-0badc0de", "partial");
-    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "enable", startedAt: new Date().toISOString(), phase: "files" }));
+    m.journal.write({ v: 1, direction: "enable", startedAt: new Date().toISOString(), phase: "files" });
     // the database phase is "done" in the journal but still plain on disk; the files phase must not care
     await m.migrate.run("enable", { Database, userData, notesDir, sealNotes: true });
     expect(fs.existsSync(audio)).toBe(false);
@@ -301,13 +302,19 @@ describe("turning encryption off", () => {
     seedPlainData().live.close();
     await turnOn(m);
     const dbFile = path.join(userData, "transcriptions.db");
-    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" }));
+    m.journal.write({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" });
     m.migrate.migrateDatabase(Database, dbFile, "disable", m.vault.requireKeys().dbKeyHex);
     const db = m.db.openDatabase(Database, dbFile);
     expect(db.prepare("SELECT count(*) AS n FROM bf_entries").get().n).toBe(51);
     db.close();
     // Without a turn-off in progress, a plain file under an encrypted vault is refused.
     fs.rmSync(path.join(userData, "vault", "migration.json"));
+    expect(() => m.db.openDatabase(Database, dbFile)).toThrow();
+    // …and so it is with a journal this vault didn't sign (planted next to a planted plain database).
+    fs.writeFileSync(
+      path.join(userData, "vault", "migration.json"),
+      JSON.stringify({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" })
+    );
     expect(() => m.db.openDatabase(Database, dbFile)).toThrow();
   });
 });

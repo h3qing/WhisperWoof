@@ -8,7 +8,6 @@
 
 const fs = require("fs");
 const vault = require("./vault-service");
-const { vaultPaths } = require("./vault-paths");
 
 const KEY_HEX = /^[0-9a-f]{64}$/;
 
@@ -22,14 +21,13 @@ function applyKey(db, keyHex) {
   return db;
 }
 
-/** A turn-off whose database step may already be done (then the file is plain). */
+/**
+ * A turn-off whose database step may already be done (then the file is plain).
+ * Only a journal this vault signed counts: a planted one plus a planted plain
+ * database would otherwise get every new entry written in the clear.
+ */
 function turningOff() {
-  try {
-    const { parseJournal } = require("./migration-plan-pure");
-    return parseJournal(JSON.parse(fs.readFileSync(vaultPaths.journal(), "utf8"))).direction === "disable";
-  } catch {
-    return false;
-  }
+  return require("./vault-journal").read()?.direction === "disable";
 }
 
 function isPlainFile(file) {

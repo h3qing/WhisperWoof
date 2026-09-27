@@ -6,6 +6,7 @@ const DragManager = require("./dragManager");
 const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
 const { i18nMain } = require("./i18nMain");
+const { isSafeExternalUrl } = require("../whisperwoof/bridge/app-origin-pure");
 const { DEV_SERVER_PORT } = DevServerManager;
 const {
   MAIN_WINDOW_CONFIG,
@@ -534,6 +535,8 @@ class WindowManager {
   }
 
   openExternalUrl(url, showError = true) {
+    // file:, smb: and custom schemes can launch apps or mount shares.
+    if (!isSafeExternalUrl(url)) return;
     shell.openExternal(url).catch((error) => {
       if (showError) {
         dialog.showErrorBox(
@@ -570,23 +573,8 @@ class WindowManager {
       backgroundColor: controlPanelBackground(nativeTheme.shouldUseDarkColors),
     });
 
-    this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
-      // Production builds load from a file, so there's no app URL (null).
-      const appUrl = DevServerManager.getAppUrl(true);
-      const controlPanelUrl = appUrl && (appUrl.startsWith("http") ? appUrl : `file://${appUrl}`);
-
-      if (
-        (controlPanelUrl && url.startsWith(controlPanelUrl)) ||
-        url.startsWith("file://") ||
-        url.startsWith("devtools://")
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      this.openExternalUrl(url);
-    });
-
+    // Navigation away from the app page is refused for every window by
+    // app-guard.js (main.js), which also opens http(s)/mailto links outside.
     this.controlPanelWindow.webContents.setWindowOpenHandler(({ url }) => {
       this.openExternalUrl(url);
       return { action: "deny" };

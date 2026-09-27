@@ -166,6 +166,12 @@ describe("validateWebhookUrl", () => {
 
   it("accepts http URLs (local dev / self-hosted)", () => {
     expect(validateWebhookUrl("http://localhost:5678/webhook")).toBeNull();
+    expect(validateWebhookUrl("http://192.168.1.10:5678/webhook")).toBeNull();
+  });
+
+  it("refuses plain http to the internet (entries would travel in clear text)", () => {
+    expect(validateWebhookUrl("http://hooks.example.com/abc")).toContain("https");
+    expect(validateWebhookUrl("http://10.attacker.com/abc")).toContain("https");
   });
 
   it("rejects non-http protocols (SSRF guard)", () => {

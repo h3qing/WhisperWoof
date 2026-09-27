@@ -104,4 +104,25 @@ async function reapStaleSidecars({
   );
 }
 
-module.exports = { reapStaleSidecars };
+/**
+ * PIDs of whisper-server / llama-server processes that run one of the app's
+ * own binaries (their executable sits directly in one of `binDirs`), from
+ * `ps -axo pid=,command=` output. A bare name match would also kill the
+ * user's own llama-server, or an editor open on whisper-server.js.
+ */
+function pickStaleServerPids(psOutput, binDirs) {
+  const prefixes = binDirs.filter(Boolean).map((dir) => (dir.endsWith("/") ? dir : `${dir}/`));
+  const pids = [];
+  for (const line of String(psOutput).split("\n")) {
+    const match = line.match(/^\s*(\d+)\s+(.*)$/);
+    if (!match) continue;
+    const command = match[2];
+    const prefix = prefixes.find((p) => command.startsWith(p));
+    if (!prefix) continue;
+    const executable = command.slice(prefix.length).split(" ")[0];
+    if (/^(whisper-server|llama-server)[\w.-]*$/.test(executable)) pids.push(Number(match[1]));
+  }
+  return pids;
+}
+
+module.exports = { reapStaleSidecars, pickStaleServerPids };
