@@ -214,13 +214,13 @@ export function migrationErrorText(m: VaultMigration): string | null {
   return `${noun} stopped: ${m.error}`;
 }
 
-/** Whether the operation a dialog started has landed, judged from the pushed status. */
 /** Turning encryption on is under way: the setup dialog moves to its progress step. */
 export function encryptionStarted(status: VaultStatus | null | undefined): boolean {
   const migrating = status?.migrating;
   return Boolean(migrating && migrating.direction === "enable" && migrating.phase !== "error");
 }
 
+/** Whether the operation a dialog started has landed, judged from the pushed status. */
 export function operationFinished(
   direction: VaultMigrationDirection,
   status: VaultStatus | null | undefined

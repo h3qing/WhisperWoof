@@ -256,6 +256,9 @@ async function becomeUnlocked(nextMasterKey) {
   pendingLock = false;
   await runHooks(unlockedHooks, "unlock");
   notifyState();
+  // A lock asked for during the unlock steps (say, while a resumed migration
+  // ran) waits until every step is done, then happens.
+  await releaseDeferredLock();
 }
 
 async function unlockWithPassword(password) {

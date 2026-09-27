@@ -11,12 +11,14 @@
  * it leaves an error the Encryption settings show with "Try again".
  */
 
+const path = require("path");
 const { powerMonitor } = require("electron");
 const debugLogger = require("../../../helpers/debugLogger");
 const vault = require("./vault-service");
 const vaultInbox = require("./vault-inbox");
 const migrate = require("./vault-migrate");
 const rotation = require("./vault-rotate");
+const { vaultPaths } = require("./vault-paths");
 
 const IDLE_CHECK_MS = 30000;
 
@@ -73,14 +75,27 @@ async function reopenDatabases() {
 }
 
 /**
- * Run (or resume) a migration with the app's databases closed. Turning
- * encryption off forgets the vault only after every file is plain again.
+ * Encryption is off on disk: bring in what was saved sealed meanwhile (while
+ * the database step had it closed), keep anything that won't import as plain
+ * JSON, and only then forget the keys.
  */
-async function runMigration(direction, { sealNotes } = {}) {
+async function finishTurningOff() {
+  await reopenDatabases();
+  await replayInbox();
+  vaultInbox.exportRemaining(path.join(vaultPaths.dir(), "..", "unimported-while-locked"));
+  await vault.forgetVault();
+}
+
+/**
+ * Run (or resume) a migration. The databases stay open except during the
+ * database step, so the app keeps working. Turning encryption off forgets the
+ * vault only after every file is plain again. `inUnlock`: called from the
+ * unlock steps, which release a waiting lock themselves once they're all done.
+ */
+async function runMigration(direction, { sealNotes, inUnlock = false } = {}) {
   const d = requireDeps();
   setError(direction, null);
   setProgress({ direction, phase: direction === "disable" ? "files" : "db", done: 0, total: 1 });
-  await d.closeDatabases();
   try {
     await migrate.run(direction, {
       Database: d.Database,
@@ -88,20 +103,22 @@ async function runMigration(direction, { sealNotes } = {}) {
       notesDir: d.notesDir(),
       sealNotes: sealNotes ?? !vault.getPrefs().notesReadable,
       onProgress: (p) => setProgress(p),
+      closeDatabases: () => d.closeDatabases(),
+      openDatabases: reopenDatabases,
     });
-    if (direction === "disable") await vault.forgetVault();
+    if (direction === "disable") await finishTurningOff();
   } catch (err) {
     setError(direction, err);
     throw err;
   } finally {
     setProgress(null);
     await reopenDatabases();
-    await lockIfAsked();
+    if (!inUnlock) await lockIfAsked();
   }
 }
 
 /** A new recovery phrase: `start` writes the plan, rotation.finish() carries it out. */
-async function runRotation(start = () => rotation.finish()) {
+async function runRotation(start = () => rotation.finish(), { inUnlock = false } = {}) {
   setError("rotate", null);
   try {
     await start();
@@ -111,7 +128,7 @@ async function runRotation(start = () => rotation.finish()) {
   } finally {
     setProgress(null);
     await reopenDatabases();
-    await lockIfAsked();
+    if (!inUnlock) await lockIfAsked();
   }
 }
 
@@ -136,10 +153,10 @@ async function afterUnlock() {
   const journal = migrate.readJournal();
   if (journal && journal.direction === "rotate") {
     // A new recovery phrase was being rolled out; finish it (it reopens the databases).
-    await runRotation().catch(() => {});
+    await runRotation(undefined, { inUnlock: true }).catch(() => {});
   } else if (journal) {
     // Resume what a crash or quit interrupted; runMigration reopens the databases.
-    await runMigration(journal.direction).catch(() => {});
+    await runMigration(journal.direction, { inUnlock: true }).catch(() => {});
   } else {
     await reopenDatabases();
   }

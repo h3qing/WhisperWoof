@@ -25,7 +25,8 @@ const {
   vaultPaths,
   ensurePrivateDir,
   writeFileAtomic,
-  writeFileAtomicAsync,
+  writeTempAsync,
+  commitIfUnchanged,
   syncDirAsync,
   inGroups,
   CONVERT_BATCH,
@@ -150,15 +151,19 @@ function rewrapNow(file, oldPrivateKey, newKeys) {
   return "rewrapped";
 }
 
-/** Same, off the main thread; the caller syncs the folder. → { file, written?, skipped? } */
+/**
+ * Same, off the main thread; the caller syncs the folder. A file the app
+ * deleted or rewrote meanwhile is left as the app left it (a rewrite already
+ * uses the new key). → { file, written?, skipped? }
+ */
 async function rewrapLater(file, oldPrivateKey, newKeys) {
   try {
+    const before = await fs.promises.stat(file);
     const bytes = await fs.promises.readFile(file);
     if (ww.opensWith(bytes, newKeys.sealPrivateKey)) return { file };
     if (!ww.opensWith(bytes, oldPrivateKey)) return { file, skipped: true };
-    const times = await fs.promises.stat(file);
-    await writeFileAtomicAsync(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, times);
-    return { file, written: true };
+    const tmp = await writeTempAsync(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, before);
+    return commitIfUnchanged(tmp, file, file, before) ? { file, written: true } : { file };
   } catch (err) {
     if (err.code === "ENOENT") return { file }; // deleted meanwhile
     throw err;

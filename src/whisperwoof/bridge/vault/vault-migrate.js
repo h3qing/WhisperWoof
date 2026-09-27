@@ -21,7 +21,9 @@ const {
   vaultPaths,
   ensurePrivateDir,
   writeFileAtomic,
-  writeFileAtomicAsync,
+  writeTempAsync,
+  commitIfUnchanged,
+  removeIfUnchanged,
   syncDirAsync,
   inGroups,
   CONVERT_BATCH,
@@ -201,25 +203,27 @@ const isMissing = (err) => err && err.code === "ENOENT";
 
 /**
  * First half of converting one file in a batch: write the converted copy
- * (fsynced; its folder isn't synced yet). null when there's nothing to do.
+ * (fsynced; its folder isn't synced yet). null when there's nothing to do, or
+ * when the file changed or went away meanwhile (the last pass redoes it).
  */
 async function stageFile(direction, target) {
   const { file, kind, mode } = target;
   const sealed = sealedPath(file);
   const step = plan.planFileStep(direction, { plain: fs.existsSync(file), sealed: fs.existsSync(sealed) });
   if (step === "done") return null;
+  const [source, written] = direction === "enable" ? [file, sealed] : [sealed, file];
   try {
-    if (direction === "enable") {
-      const original = await fs.promises.stat(file);
-      const plain = await fs.promises.readFile(file);
-      if (step === "convert") await writeFileAtomicAsync(sealed, sealBytes(plain, kind), 0o600, original);
-      return { target, source: file, written: sealed, original, hash: sha256(plain) };
+    const original = await fs.promises.stat(source);
+    const bytes = await fs.promises.readFile(source);
+    const plain = direction === "enable" ? bytes : openBytes(bytes);
+    const alreadyThere =
+      direction === "enable" ? step !== "convert" : step !== "convert" && sha256(await fs.promises.readFile(file)).equals(sha256(plain));
+    if (!alreadyThere) {
+      const converted = direction === "enable" ? sealBytes(plain, kind) : plain;
+      const tmp = await writeTempAsync(written, converted, direction === "enable" ? 0o600 : mode, original);
+      if (!commitIfUnchanged(tmp, written, source, original)) return null;
     }
-    const original = await fs.promises.stat(sealed);
-    const plain = openBytes(await fs.promises.readFile(sealed));
-    const alreadyThere = step !== "convert" && sha256(await fs.promises.readFile(file)).equals(sha256(plain));
-    if (!alreadyThere) await writeFileAtomicAsync(file, plain, mode, original);
-    return { target, source: sealed, written: file, original, hash: sha256(plain) };
+    return { target, source, written, original, hash: sha256(plain) };
   } catch (err) {
     if (isMissing(err)) return null;
     throw err;
@@ -235,7 +239,8 @@ async function finishFile(direction, staged) {
       return;
     }
     await fs.promises.utimes(staged.written, staged.original.atime, staged.original.mtime);
-    await fs.promises.rm(staged.source, { force: true });
+    // Only if the original is still what was converted; otherwise the last pass redoes it.
+    removeIfUnchanged(staged.source, staged.original);
   } catch (err) {
     if (!isMissing(err)) throw err;
   }
@@ -366,7 +371,17 @@ function removePlaintextLeftovers(userData) {
  * opts: { Database, userData, notesDir, sealNotes, onProgress({direction, phase, done, total}) }
  */
 async function run(direction, opts) {
-  const { Database, userData, notesDir, sealNotes, onProgress = () => {} } = opts;
+  const {
+    Database,
+    userData,
+    notesDir,
+    sealNotes,
+    onProgress = () => {},
+    // The app keeps its databases open while files convert (so what you
+    // dictate or copy lands in history); only the database step closes them.
+    closeDatabases = async () => {},
+    openDatabases = async () => {},
+  } = opts;
   const existing = readJournal();
   let journal = existing && existing.direction === direction ? existing : writeJournal(plan.startJournal(direction));
   const keyHex = vault.requireKeys().dbKeyHex;
@@ -382,9 +397,11 @@ async function run(direction, opts) {
   const rewritten = (target) => target.kind === "json" || target.kind === "note";
 
   const steps = {
-    db: () => {
+    db: async () => {
       report(0, 1);
+      await closeDatabases();
       migrateDatabase(Database, vaultPaths.dbFile(), direction, keyHex);
+      await openDatabases();
     },
     files: async () => {
       const targets = listTargets();
@@ -405,6 +422,7 @@ async function run(direction, opts) {
     },
   };
   while (journal.phase !== "done") {
+    if (journal.phase !== "db") await openDatabases();
     await steps[journal.phase]();
     journal = writeJournal(plan.advanceJournal(journal));
   }

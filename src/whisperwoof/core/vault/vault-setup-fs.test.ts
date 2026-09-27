@@ -19,6 +19,7 @@ let userData = "";
 let notesDir = "";
 let touchIdMode: "ok" | "cancel" = "ok";
 let atPrompt: { dbPlain: boolean; vaultExists: boolean; reason: string } | null = null;
+let replayed: string[] = [];
 
 const dbFile = () => path.join(userData, "transcriptions.db");
 const dbIsPlain = () => fs.readFileSync(dbFile()).subarray(0, 15).toString() === "SQLite format 3";
@@ -62,6 +63,7 @@ function boot() {
     vault: require("../../bridge/vault/vault-service.js"),
     lifecycle: require("../../bridge/vault/vault-lifecycle.js"),
     controller: require("../../bridge/vault/vault-controller.js"),
+    inbox: require("../../bridge/vault/vault-inbox.js"),
   };
   m.lifecycle.configure({
     Database,
@@ -69,7 +71,10 @@ function boot() {
     notesDir: () => notesDir,
     openDatabases: async () => {},
     closeDatabases: async () => {},
-    inbox: () => ({ handlers: {}, loadIdMap: () => ({}) }),
+    inbox: () => ({
+      handlers: { "entry.save": async (data: { entry: { id: string } }) => void replayed.push(data.entry.id) },
+      loadIdMap: () => ({}),
+    }),
   });
   return m;
 }
@@ -95,6 +100,7 @@ beforeEach(() => {
   notesDir = fs.mkdtempSync(path.join(os.tmpdir(), "ww-setup-notes-"));
   touchIdMode = "ok";
   atPrompt = null;
+  replayed = [];
 });
 
 afterEach(() => {
@@ -147,5 +153,58 @@ describe("locking while your data is being encrypted", () => {
     expect(duringLock).toEqual({ locked: false, deferred: true });
     expect(m.vault.isUnlocked()).toBe(false);
     expect(dbIsPlain()).toBe(false);
+  });
+});
+
+describe("while files are being converted", () => {
+  it("turning encryption off keeps what was saved sealed meanwhile, and the next start isn't locked", async () => {
+    const m = boot();
+    seed();
+    await turnOn(m, false);
+    setImmediate(() => m.inbox.record("entry.save", { entry: { id: "saved-while-turning-off" } }));
+    const off = await m.controller.disable({ password: PASSWORD });
+    expect(off).toEqual({ success: true });
+    expect(replayed).toContain("saved-while-turning-off");
+    expect(m.vault.isOn()).toBe(false);
+    const inboxDir = path.join(userData, "vault", "inbox");
+    expect(fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir) : []).toEqual([]);
+
+    const again = boot();
+    again.vault.load();
+    expect(again.vault.status()).toBe("off");
+  });
+
+  it("a lock asked for while unlocking waits until every unlock step has run", async () => {
+    const m = boot();
+    seed();
+    await turnOn(m, false);
+    // Leave a half-done migration for the next unlock to finish.
+    fs.writeFileSync(path.join(userData, "whisperwoof-images", "late.png"), crypto.randomBytes(2000));
+    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "enable", startedAt: new Date().toISOString(), phase: "files" }));
+    await m.vault.lock({ force: true });
+    let unlockedInLastStep: boolean | null = null;
+    m.vault.onUnlocked(async () => {
+      unlockedInLastStep = m.vault.isUnlocked();
+    });
+    setImmediate(() => void m.vault.lock());
+    const unlocked = await m.controller.unlockWithPassword(PASSWORD);
+    expect(unlocked).toEqual({ success: true });
+    expect(unlockedInLastStep).toBe(true);
+    expect(m.vault.isUnlocked()).toBe(false);
+    expect(fs.existsSync(path.join(userData, "whisperwoof-images", "late.png.wwenc"))).toBe(true);
+  });
+
+  it("won't change the password until converting is done", async () => {
+    const m = boot();
+    seed();
+    await turnOn(m, false);
+    let during: unknown = null;
+    setImmediate(() => {
+      m.controller.changePassword({ currentPassword: PASSWORD, newPassword: "another good password" }).then((r: unknown) => {
+        during = r;
+      });
+    });
+    await m.controller.disable({ password: PASSWORD });
+    expect(during).toMatchObject({ success: false, code: "BUSY" });
   });
 });

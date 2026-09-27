@@ -41,6 +41,20 @@ function errorResult(err) {
   return fail(err.message, known.includes(err.code) ? err.code : undefined);
 }
 
+/**
+ * Settings changes and conversions run one at a time, and never while files
+ * are being converted: that can also be a migration resumed on unlock, which
+ * runs outside `exclusive`.
+ */
+function whenIdle(fn) {
+  return vault.exclusive(async () => {
+    if (lifecycle.getProgress()) {
+      return fail("WhisperWoof is still converting your data. Try again when it's done.", "BUSY");
+    }
+    return fn();
+  });
+}
+
 async function guarded(fn) {
   try {
     return await fn();
@@ -175,7 +189,7 @@ async function enrollTouchId({ test }) {
 
 async function completeSetup({ password, confirmWords, useTouchId, notesReadable }) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       if (vault.isOn()) return fail("Encryption is already on", "INVALID");
       if (vault.isLockBlocked()) {
         return fail("Finish recording the meeting first, then turn on encryption.", "BUSY");
@@ -232,9 +246,13 @@ async function unlockWithTouchId() {
 }
 
 async function afterPasswordUnlock() {
-  if (!reenrollTouchId) return;
-  reenrollTouchId = false;
-  await enrollTouchId({ test: false }).catch(() => {});
+  if (!reenrollTouchId || !vault.isUnlocked()) return;
+  // Cleared only once it worked: a lock right after unlocking must not lose it.
+  await enrollTouchId({ test: false })
+    .then(() => {
+      reenrollTouchId = false;
+    })
+    .catch(() => {});
 }
 
 async function unlockWithPassword(password) {
@@ -290,29 +308,33 @@ async function reauthenticate(reauth) {
 }
 
 async function changePassword({ currentPassword, newPassword }) {
-  return guarded(async () => {
-    vault.requireMasterKey();
-    await reauthenticate({ password: currentPassword });
-    vault.saveVault(vk.setPassword(vault.getVault(), vault.requireMasterKey(), String(newPassword || "")));
-    return ok();
-  });
+  return guarded(() =>
+    whenIdle(async () => {
+      vault.requireMasterKey();
+      await reauthenticate({ password: currentPassword });
+      vault.saveVault(vk.setPassword(vault.getVault(), vault.requireMasterKey(), String(newPassword || "")));
+      return ok();
+    })
+  );
 }
 
 async function setTouchIdEnabled(enabled) {
-  return guarded(async () => {
-    vault.requireMasterKey();
-    if (!enabled) {
-      vault.saveVault(vk.clearTouchId(vault.getVault()));
+  return guarded(() =>
+    whenIdle(async () => {
+      vault.requireMasterKey();
+      if (!enabled) {
+        vault.saveVault(vk.clearTouchId(vault.getVault()));
+        return ok();
+      }
+      await enrollTouchId({ test: true });
       return ok();
-    }
-    await enrollTouchId({ test: true });
-    return ok();
-  });
+    })
+  );
 }
 
 async function setPrefs(prefs, reauth) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       const current = vault.getVault();
       if (!current) return fail("Encryption is off", "INVALID");
       const next = vk.updatePrefs(current, prefs);
@@ -343,7 +365,7 @@ async function beginNewPhrase(reauth) {
 
 async function completeNewPhrase({ confirmWords }) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       const session = takeConfirmedSession("rotate", confirmWords);
       await lifecycle.runRotation(() => rotation.rotate(session.entropy));
       return ok();
@@ -353,7 +375,7 @@ async function completeNewPhrase({ confirmWords }) {
 
 async function disable(reauth) {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       vault.requireMasterKey();
       await reauthenticate(reauth);
       await lifecycle.replayInbox();
@@ -372,7 +394,7 @@ async function disable(reauth) {
 /** "Try again" after a migration or new phrase stopped. */
 async function retry() {
   return guarded(() =>
-    vault.exclusive(async () => {
+    whenIdle(async () => {
       vault.requireKeys();
       await lifecycle.retry();
       notify();

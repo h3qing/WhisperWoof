@@ -225,7 +225,9 @@ fs.copyFileSync(iconSource, iconDest);
 // release signs it again along with the rest of the app).
 const signed = spawnSync("codesign", ["--force", "--sign", "-", bundleDir], { stdio: "inherit" });
 if (signed.status !== 0) {
+  // No hash saved, so the next build tries again.
   log("Warning: couldn't sign WhisperWoof.app ad hoc; the linker's signature on the binary stays");
+  process.exit(0);
 }
 
 // Save the inputs' hash after a successful build

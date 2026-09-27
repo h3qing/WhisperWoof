@@ -256,6 +256,48 @@ describe("while it runs", () => {
   });
 });
 
+describe("only if unchanged", () => {
+  // A conversion awaits between reading a file and replacing or deleting it;
+  // whatever the app did to the file meanwhile wins.
+  function paths() {
+    freshModules();
+    return require("../../bridge/vault/vault-paths.js");
+  }
+
+  it("won't replace a file that was rewritten or deleted after it was read", async () => {
+    const p = paths();
+    const file = path.join(userData, "a.bin");
+    fs.writeFileSync(file, "first");
+    const before = fs.statSync(file);
+    const tmp = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, before);
+    fs.writeFileSync(file, "rewritten by the app");
+    expect(p.commitIfUnchanged(tmp, file, file, before)).toBe(false);
+    expect(fs.readFileSync(file, "utf8")).toBe("rewritten by the app");
+    expect(fs.existsSync(tmp)).toBe(false);
+
+    const again = fs.statSync(file);
+    const tmp2 = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, again);
+    fs.rmSync(file);
+    expect(p.commitIfUnchanged(tmp2, file, file, again)).toBe(false);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+
+  it("replaces and removes a file nobody touched", async () => {
+    const p = paths();
+    const file = path.join(userData, "b.bin");
+    fs.writeFileSync(file, "first");
+    const before = fs.statSync(file);
+    const tmp = await p.writeTempAsync(file, Buffer.from("converted"), 0o600, before);
+    expect(p.commitIfUnchanged(tmp, file, file, before)).toBe(true);
+    expect(fs.readFileSync(file, "utf8")).toBe("converted");
+    const now = fs.statSync(file);
+    fs.appendFileSync(file, "!");
+    expect(p.removeIfUnchanged(file, now)).toBe(false);
+    expect(p.removeIfUnchanged(file, fs.statSync(file))).toBe(true);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+});
+
 describe("file dates", () => {
   // Audio Retention ages recordings by their modified time, and the Notes
   // list sorts by it: converting a file must not make it look new.

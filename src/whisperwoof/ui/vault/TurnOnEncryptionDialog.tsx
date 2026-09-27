@@ -143,6 +143,7 @@ export default function TurnOnEncryptionDialog({ status, onClose }: Props) {
   };
 
   const complete = async () => {
+    setMessage(null);
     const result = await callVault(vaultApi()?.vaultCompleteSetup, {
       password: state.password,
       confirmWords: confirmWordsPayload(state.confirmIndexes, state.answers),
