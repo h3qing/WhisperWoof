@@ -4,6 +4,13 @@
 
 export type ClipboardKind = "text" | "image" | "file";
 
+/** The words around a search match in an image's text. */
+export interface TextMatch {
+  readonly before: string;
+  readonly match: string;
+  readonly after: string;
+}
+
 export interface ClipboardItem {
   readonly id: string;
   readonly createdAt: string;
@@ -16,6 +23,8 @@ export interface ClipboardItem {
   /** Size on disk of a kept file. */
   readonly bytes?: number | null;
   readonly sourceApp: string | null;
+  /** In search results: an image found by the words in it. */
+  readonly textMatch?: TextMatch | null;
 }
 
 export interface ClipboardRetention {
@@ -27,6 +36,29 @@ export interface ClipboardCapture {
   readonly keepFiles: boolean;
 }
 
+export type ImageTextState = "off" | "unavailable" | "reading" | "paused" | "done";
+export type ImageTextPause = "locked" | "meeting" | "dictating" | "hot" | "busy" | "battery";
+
+/** How reading the words in images is going (bridge/clipboard-image-text.js). */
+export interface ImageTextStatus {
+  readonly enabled: boolean;
+  readonly available: boolean;
+  /** Encryption is on, so the words are stored encrypted. */
+  readonly encrypted: boolean;
+  readonly state: ImageTextState;
+  readonly reason?: ImageTextPause | null;
+  /** Images in the history, images read so far, and how many of those had words. */
+  readonly total: number;
+  readonly read: number;
+  readonly withText: number;
+}
+
+/** What was read from one image. */
+export interface ImageTextResult {
+  readonly status: "unread" | "done" | "failed";
+  readonly text: string;
+}
+
 export interface ClipboardSummary {
   readonly textCount: number;
   readonly imageCount: number;
@@ -36,6 +68,7 @@ export interface ClipboardSummary {
   readonly fileBytes?: number;
   readonly retention: ClipboardRetention;
   readonly capture?: ClipboardCapture;
+  readonly imageText?: ImageTextStatus;
 }
 
 /** Shown before copied files are kept: what it means for the disk. */
@@ -142,4 +175,61 @@ export function clearQuestion(choice: ClearChoice, s: ClipboardSummary): string 
 export function clearOptions(choice: ClearChoice): { kind: "text" | "image" | "file" | "all"; olderThanDays: number } {
   if (choice === "older") return { kind: "all", olderThanDays: 7 };
   return { kind: choice, olderThanDays: 0 };
+}
+
+const count = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * Asked before the words in images are read: why, how, what it costs, and
+ * what it means for privacy. Nothing is read until the user says yes.
+ */
+export function imageTextConsent({ imageCount, encrypted }: { imageCount: number; encrypted: boolean }): {
+  readonly question: string;
+  readonly points: readonly string[];
+  readonly confirm: string;
+} {
+  return {
+    question: "Read the words in your images so search can find them?",
+    points: [
+      "Then searching finds a screenshot by what it says: a message, an error, a receipt.",
+      "macOS\u2019s own text recognition reads them, on this Mac. Nothing is uploaded or downloaded.",
+      imageCount > 0
+        ? `New images are read a few seconds after you copy them. Your ${plural(imageCount, "older image", "older images")} ${imageCount === 1 ? "is" : "are"} read in the background, newest first, only while your Mac is plugged in.`
+        : "New images are read a few seconds after you copy them.",
+      "It runs at low priority and waits while you dictate or record a meeting, and while your Mac is busy or hot.",
+      encrypted
+        ? "The words are kept with your clipboard history and encrypted like it. Anything written in a screenshot, a password too, becomes text search can find."
+        : "The words are kept with your clipboard history as plain text, like the text you copy (Settings \u2192 Encryption locks it). Anything written in a screenshot, a password too, becomes text search can find.",
+      "Turn it off any time: reading stops and the words are deleted. Your images stay.",
+    ],
+    confirm: "Read words in images",
+  };
+}
+
+/** Asked before turning it off, because the words already read are deleted. */
+export function imageTextOffQuestion(s: Pick<ImageTextStatus, "read">): string {
+  return s.read > 0
+    ? `Stop reading words in images? The words read from ${plural(s.read, "image", "images")} are deleted. Your images stay.`
+    : "Stop reading words in images?";
+}
+
+const PAUSE_WORDS: Record<ImageTextPause, string> = {
+  locked: "Paused while WhisperWoof is locked.",
+  meeting: "Paused while a meeting records.",
+  dictating: "Paused while you dictate.",
+  hot: "Paused while your Mac cools down.",
+  busy: "Paused while your Mac is busy.",
+  battery: "The rest are read when your Mac is plugged in.",
+};
+
+/** The line under the toolbar while reading is on: progress, why it waits, or what it found. */
+export function imageTextLine(s: ImageTextStatus): string | null {
+  if (!s.enabled || s.state === "off") return null;
+  if (s.state === "unavailable") return "Words in images can\u2019t be read on this computer.";
+  if (s.total === 0) return "Images you copy are read for words a few seconds later.";
+  if (s.state === "done" || s.read >= s.total) {
+    return `Words found in ${count(s.withText)} of ${plural(s.total, "image", "images")}. Search finds them.`;
+  }
+  const progress = `Reading the words in your images: ${count(s.read)} of ${count(s.total)} done.`;
+  return s.state === "paused" && s.reason ? `${progress} ${PAUSE_WORDS[s.reason]}` : progress;
 }

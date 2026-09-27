@@ -47,6 +47,10 @@ type SourceFilter = "all" | "voice" | "clipboard" | "favorites";
 
 interface WhisperWoofHistoryProps {
   readonly className?: string;
+  /** Open with this entry selected (a ⌘K result), even if it's far down the list. */
+  readonly focusEntry?: Entry | null;
+  /** Open with this search (⌘K's "Show all in History"). */
+  readonly initialQuery?: string;
 }
 
 // Helpers (pure, side-effect-free)
@@ -503,15 +507,15 @@ const LOAD_MORE_THRESHOLD = 100; // px from bottom to trigger load-more
 
 // Main component
 
-export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProps) {
+export default function WhisperWoofHistory({ className, focusEntry = null, initialQuery = "" }: WhisperWoofHistoryProps) {
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(focusEntry?.id ?? null);
 
   // Virtual scroll state
   const [scrollTop, setScrollTop] = useState(0);
@@ -679,8 +683,11 @@ export default function WhisperWoofHistory({ className }: WhisperWoofHistoryProp
   }, [entries, favoriteEntries, sourceFilter]);
 
   const selectedEntry = useMemo(
-    () => filteredEntries.find((e) => e.id === selectedId) ?? null,
-    [filteredEntries, selectedId]
+    () =>
+      filteredEntries.find((e) => e.id === selectedId) ??
+      // A ⌘K result older than the loaded page still opens.
+      (focusEntry && focusEntry.id === selectedId ? focusEntry : null),
+    [filteredEntries, selectedId, focusEntry]
   );
 
   // Virtual scroll calculations

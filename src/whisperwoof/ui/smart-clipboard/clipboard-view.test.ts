@@ -7,8 +7,12 @@ import {
   clearOptions,
   formatBytes,
   fileBadge,
+  imageTextConsent,
+  imageTextLine,
+  imageTextOffQuestion,
   type ClipboardSummary,
   type ClipboardItem,
+  type ImageTextStatus,
 } from "./clipboard-view";
 
 const summary = (over: Partial<ClipboardSummary> = {}): ClipboardSummary => ({
@@ -102,5 +106,57 @@ describe("clear", () => {
   });
   it("formats sizes like the store", () => {
     expect(formatBytes(1536 * 1024 * 1024)).toBe("1.5 GB");
+  });
+});
+
+describe("words in images", () => {
+  const status = (over: Partial<ImageTextStatus> = {}): ImageTextStatus => ({
+    enabled: true,
+    available: true,
+    encrypted: false,
+    state: "reading",
+    reason: null,
+    total: 13179,
+    read: 2340,
+    withText: 1200,
+    ...over,
+  });
+
+  it("asks first, saying why, how, what it costs and what it means for privacy", () => {
+    const plain = imageTextConsent({ imageCount: 13179, encrypted: false });
+    expect(plain.question).toBe("Read the words in your images so search can find them?");
+    expect(plain.confirm).toBe("Read words in images");
+    const all = plain.points.join(" ");
+    expect(all).toContain("on this Mac. Nothing is uploaded or downloaded.");
+    expect(all).toContain("Your 13,179 older images are read in the background, newest first, only while your Mac is plugged in.");
+    expect(all).toContain("waits while you dictate or record a meeting");
+    expect(all).toContain("as plain text");
+    expect(all).toContain("a password too, becomes text search can find");
+    expect(all).toContain("reading stops and the words are deleted. Your images stay.");
+    const locked = imageTextConsent({ imageCount: 1, encrypted: true }).points.join(" ");
+    expect(locked).toContain("encrypted like it");
+    expect(locked).toContain("Your 1 older image is read");
+    expect(imageTextConsent({ imageCount: 0, encrypted: false }).points.join(" ")).not.toContain("older");
+  });
+
+  it("says what turning it off deletes", () => {
+    expect(imageTextOffQuestion({ read: 2340 })).toBe(
+      "Stop reading words in images? The words read from 2,340 images are deleted. Your images stay."
+    );
+    expect(imageTextOffQuestion({ read: 0 })).toBe("Stop reading words in images?");
+  });
+
+  it("shows progress, why it waits, and what it found", () => {
+    expect(imageTextLine(status())).toBe("Reading the words in your images: 2,340 of 13,179 done.");
+    expect(imageTextLine(status({ state: "paused", reason: "battery" }))).toBe(
+      "Reading the words in your images: 2,340 of 13,179 done. The rest are read when your Mac is plugged in."
+    );
+    expect(imageTextLine(status({ state: "paused", reason: "dictating" }))).toContain("Paused while you dictate.");
+    expect(imageTextLine(status({ state: "done", read: 13179, withText: 4210 }))).toBe(
+      "Words found in 4,210 of 13,179 images. Search finds them."
+    );
+    expect(imageTextLine(status({ total: 0, read: 0 }))).toBe("Images you copy are read for words a few seconds later.");
+    expect(imageTextLine(status({ state: "unavailable" }))).toBe("Words in images can\u2019t be read on this computer.");
+    expect(imageTextLine(status({ enabled: false, state: "off" }))).toBeNull();
   });
 });
