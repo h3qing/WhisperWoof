@@ -4,112 +4,82 @@
 <meta charset="UTF-8">
 <meta name="robots" content="noindex">
 <title>Social Preview</title>
-<!-- The link preview card, 1200x630. scripts/build-social-preview.js renders
-     it to social-preview.png (og:image) and social-preview.mp4 (og:video,
-     which Messages autoplays in the link preview) by calling draw(t) for each
-     frame. Every motion repeats within LOOP so the video loops without a seam.
-     Open with #play to watch the loop, or #t=1.2 for one moment. -->
+<!-- The link preview card, 1200x630: Mando's head as a sticker on caramel,
+     tilting to listen while sound waves reach him. scripts/build-social-preview.js
+     renders it to social-preview.png (og:image) and social-preview.mp4
+     (og:video, which Messages autoplays in the link preview) by calling
+     draw(t) for each frame. Every motion repeats within LOOP so the video
+     loops without a seam. Open with #play to watch the loop, or #t=1.2 for
+     one moment. -->
 <style>
   @font-face {
     font-family: "Nunito"; font-style: normal; font-weight: 200 1000;
     src: url("./fonts/Nunito-normal-latin.woff2") format("woff2");
   }
-  :root {
-    --ink: #2a211b; --ink-2: #64564b; --live: #b87a3c; --outline: #0c3255; --blush: #d98f80;
-    --bg: #ebe4dc;
-  }
-  html, body { margin: 0; background: var(--bg); }
+  :root { --ink: #2a211b; --cream: #fdfbf8; --edge: #fbf6ef; }
+  html, body { margin: 0; background: #d99c5c; }
   .card {
     position: relative; width: 1200px; height: 630px; overflow: hidden;
     font-family: "Nunito", sans-serif; color: var(--ink);
     background:
-      radial-gradient(760px 540px at 2% -8%, #f0c996 0%, transparent 64%),
-      radial-gradient(640px 460px at 104% 108%, #e3c1bc 0%, transparent 60%),
-      radial-gradient(560px 380px at 66% 6%, #f4e7d3 0%, transparent 62%),
-      var(--bg);
+      radial-gradient(700px 520px at 0% 0%, #f0c996 0%, transparent 62%),
+      radial-gradient(640px 480px at 100% 100%, #b9786a 0%, transparent 62%),
+      #d99c5c;
   }
-  .words { position: absolute; left: 88px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding-top: 40px; }
-  .brand { margin: 0; font-weight: 800; font-size: 100px; line-height: 1; letter-spacing: -0.035em; }
-  .brand span { color: var(--live); }
-  .line { margin: 0; font-weight: 700; font-size: 38px; line-height: 1.2; color: var(--ink-2); }
-  .shadow {
-    position: absolute; left: 770px; top: 572px; width: 360px; height: 48px; border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(58, 36, 20, 0.28), transparent);
+  /* A faint scatter of paw prints. */
+  .paws {
+    position: absolute; inset: 0; opacity: 0.16;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='%23fff'%3E%3Cg transform='translate(34 42) rotate(-18)'%3E%3Cellipse cx='0' cy='11' rx='12' ry='10'/%3E%3Ccircle cx='-13' cy='-4' r='5'/%3E%3Ccircle cx='-4.5' cy='-11' r='5'/%3E%3Ccircle cx='5' cy='-11' r='5'/%3E%3Ccircle cx='13.5' cy='-4' r='5'/%3E%3C/g%3E%3Cg transform='translate(108 112) rotate(16)'%3E%3Cellipse cx='0' cy='11' rx='12' ry='10'/%3E%3Ccircle cx='-13' cy='-4' r='5'/%3E%3Ccircle cx='-4.5' cy='-11' r='5'/%3E%3Ccircle cx='5' cy='-11' r='5'/%3E%3Ccircle cx='13.5' cy='-4' r='5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
-  .mando { position: absolute; left: 730px; height: 610px; transform-origin: 50% 100%; }
-  /* Mando's "Woof!" arrives the way dictation does: typed live in the
-     frosted caramel capsule, caret and all. */
-  .bubble {
-    position: absolute; left: 560px; top: 58px; height: 76px; padding: 0 30px; box-sizing: border-box;
-    display: flex; align-items: center; border-radius: 999px;
-    font-weight: 800; font-size: 50px; letter-spacing: -0.01em; white-space: nowrap;
-    background: linear-gradient(rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 60%), #f5dfc2;
-    box-shadow: inset 0 0 0 2.5px var(--live), 0 12px 26px -14px rgba(58, 36, 20, 0.45);
-    transform-origin: 88% 110%;
+  .words { position: absolute; left: 80px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding-top: 10px; }
+  .brand { margin: 0; font-weight: 800; font-size: 78px; line-height: 1; letter-spacing: -0.035em; white-space: nowrap; }
+  .brand span { color: var(--cream); }
+  .line { margin: 0; font-weight: 700; font-size: 34px; line-height: 1.2; color: #5a3a22; }
+  .waves { position: absolute; left: 590px; top: 228px; width: 110px; height: 180px; overflow: visible; }
+  .waves path { fill: none; stroke: var(--cream); stroke-width: 10; stroke-linecap: round; }
+  /* The die-cut sticker edge, as on the app icon. */
+  .head {
+    position: absolute; left: 576px; top: 31px; height: 560px; transform-origin: 62% 88%;
+    filter: drop-shadow(5px 0 0 var(--edge)) drop-shadow(-5px 0 0 var(--edge)) drop-shadow(0 5px 0 var(--edge))
+      drop-shadow(0 -5px 0 var(--edge)) drop-shadow(0 18px 22px rgba(58, 36, 20, 0.35));
   }
-  .tail { position: absolute; right: 34px; bottom: -30px; overflow: visible; }
-  .caret { width: 5px; height: 42px; margin-left: 5px; border-radius: 3px; background: var(--live); }
-  .heart { position: absolute; width: 40px; height: 40px; }
 </style>
 </head>
 <body>
 <div class="card">
+  <div class="paws"></div>
   <div class="words">
     <h1 class="brand">Whisper<span>Woof</span></h1>
-    <p class="line">A good dog who types<br>what you say.</p>
+    <p class="line">psst… he’s listening.</p>
   </div>
-  <div class="shadow" id="shadow"></div>
-  <img class="mando" id="mando" src="./mando-sit.svg" alt="">
-  <svg class="heart" id="heart-a" viewBox="0 0 40 40"><path d="M20 35 C8 26 3 19 3 12.5 3 7.5 7 4 11.5 4 15 4 18 6 20 9 22 6 25 4 28.5 4 33 4 37 7.5 37 12.5 37 19 32 26 20 35Z" fill="var(--blush)" stroke="var(--outline)" stroke-width="2.6" stroke-linejoin="round"/></svg>
-  <svg class="heart" id="heart-b" viewBox="0 0 40 40"><path d="M20 35 C8 26 3 19 3 12.5 3 7.5 7 4 11.5 4 15 4 18 6 20 9 22 6 25 4 28.5 4 33 4 37 7.5 37 12.5 37 19 32 26 20 35Z" fill="var(--blush)" stroke="var(--outline)" stroke-width="2.6" stroke-linejoin="round"/></svg>
-  <div class="bubble" id="bubble"><span id="said"></span><i class="caret" id="caret"></i>
-    <svg class="tail" width="46" height="33" viewBox="0 0 46 33"><path d="M1 1.5 Q 22 6 44 31 Q 30 13 29 1.5" fill="#f5dfc2" stroke="var(--live)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
-  </div>
+  <svg class="waves" viewBox="-10 -90 110 180" aria-hidden="true">
+    <path id="w0" d="M 21.2 -21.2 A 30 30 0 0 1 21.2 21.2"/>
+    <path id="w1" d="M 38.9 -38.9 A 55 55 0 0 1 38.9 38.9"/>
+    <path id="w2" d="M 56.6 -56.6 A 80 80 0 0 1 56.6 56.6"/>
+  </svg>
+  <img class="head" id="head" src="./mando-head.svg" alt="">
 </div>
 <script>
-  const LOOP = 3.84;   // seconds; the beat (0.64), wiggle (1.28), hearts (1.92) and caret (0.64) all divide it
-  const STILL = 1.6;   // the moment social-preview.png shows: "Woof!" typed, mid-bounce
-  const WORD = "Woof!";
+  const LOOP = 3.2;    // seconds; the tilt (3.2), bob (1.6) and waves (1.6) all divide it
+  const STILL = 0.8;   // the moment social-preview.png shows: head tilted, waves arriving
 
   const $ = (id) => document.getElementById(id);
-  const clamp01 = (x) => Math.min(1, Math.max(0, x));
-  const easeOutBack = (x) => 1 + 2.7 * Math.pow(x - 1, 3) + 1.7 * Math.pow(x - 1, 2);
+  const TAU = Math.PI * 2;
 
   function draw(seconds) {
     const t = seconds % LOOP;
-
-    // A happy bounce on every beat: up and back, a little squash on landing.
-    const beat = (t % 0.64) / 0.64;
-    const lift = Math.sin(Math.PI * beat);
-    const squash = 0.05 * Math.max(0, Math.cos(Math.PI * beat)) ** 4;
-    const tilt = Math.sin((2 * Math.PI * t) / 1.28) * 2.2;
-    $("mando").style.top = 630 - 610 + 30 - lift * 20 + "px";
-    $("mando").style.transform = `rotate(${tilt}deg) scale(${1 + squash}, ${1 - squash})`;
-    $("shadow").style.transform = `scale(${1 - lift * 0.14})`;
-    $("shadow").style.opacity = 1 - lift * 0.3;
-
-    // Two hearts float up past his ears, half a cycle apart.
-    for (const [id, phase, x] of [["heart-a", 0, 1010], ["heart-b", 0.5, 1080]]) {
-      const p = (t / 1.92 + phase) % 1;
-      const el = $(id);
-      el.style.left = x + Math.sin(p * Math.PI * 2) * 10 + "px";
-      el.style.top = 170 - p * 150 + "px";
-      el.style.opacity = Math.min(p / 0.15, (1 - p) / 0.35, 1);
-      el.style.transform = `scale(${0.6 + p * 0.5}) rotate(${phase ? 12 : -12}deg)`;
-    }
-
-    // The bubble pops in, "Woof!" types one letter at a time, holds, then pops out.
-    const pop = t < 3.5 ? easeOutBack(clamp01(t / 0.26)) : 1 - clamp01((t - 3.5) / 0.22);
-    const typed = Math.max(0, Math.min(WORD.length, Math.floor((t - 0.26) / 0.14) + 1));
-    $("bubble").style.transform = `translateY(${-lift * 6}px) scale(${pop})`;
-    $("bubble").style.opacity = clamp01(pop * 3);
-    $("said").textContent = WORD.slice(0, typed);
-    $("caret").style.opacity = t % 0.64 < 0.4 ? 1 : 0;
+    // A curious head tilt: lean one way, hold, lean the other.
+    const tilt = (9 * Math.tanh(3 * Math.sin((TAU * t) / 3.2))) / Math.tanh(3);
+    $("head").style.transform = `translateY(${Math.sin((TAU * t) / 1.6) * 5}px) rotate(${tilt}deg)`;
+    // The sound waves pulse outward, inner arc first.
+    ["w0", "w1", "w2"].forEach((id, i) => {
+      $(id).style.opacity = 0.2 + 0.8 * Math.max(0, Math.sin(TAU * (t / 1.6) - i * 0.9));
+    });
   }
 
   // #t=1.2 draws that moment; #play runs the loop, to preview it in a browser.
   window.draw = draw;
-  window.ready = Promise.all([document.fonts.ready, $("mando").decode()]);
+  window.ready = Promise.all([document.fonts.ready, $("head").decode()]);
   if (location.hash === "#play") {
     const start = performance.now();
     requestAnimationFrame(function tick(now) { draw((now - start) / 1000); requestAnimationFrame(tick); });
