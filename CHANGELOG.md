@@ -12,6 +12,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Touch ID is checked before anything is encrypted.** Setup asks for one touch when you click Turn on encryption. If Touch ID doesn't work, nothing is encrypted and your recovery phrase still holds, so you can try again or go on without Touch ID. Before, the check came at the very end.
 - **The Touch ID prompt says it's from WhisperWoof, with Mando on it.** It was titled "macos-vault-helper" with a blank icon. It now reads "WhisperWoof is trying to…", shows WhisperWoof's icon, and says what the touch is for: checking Touch ID before encrypting, unlocking your history and notes, or confirming it's you.
 - **A lock that comes while your data is being encrypted waits for it.** If your Mac sleeps part-way through, WhisperWoof locks as soon as encrypting finishes, instead of skipping the lock.
+- **Encryption settings wait for a conversion to finish.** While your data is being encrypted or decrypted, changing your password or Touch ID asks you to try again when it's done. If a conversion stopped part-way, Try again finishes it before anything else can change. Anything you dictate or copy meanwhile is kept, including while turning encryption off.
 
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 
