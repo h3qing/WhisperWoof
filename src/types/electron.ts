@@ -366,6 +366,7 @@ export type VaultErrorCode =
   | "LOCKED"
   | "CANCELLED"
   | "FALLBACK"
+  | "FAILED"
   | "INVALIDATED"
   | "LOCKOUT"
   | "UNAVAILABLE"
@@ -379,7 +380,7 @@ export type VaultNewPhraseResult =
   | { success: true; words: string[]; confirmIndexes: number[] }
   | VaultFailure;
 // Setup still succeeds when only the Touch ID enrollment failed; it says so here.
-export type VaultSetupResult = { success: true; touchIdError?: string } | VaultFailure;
+export type VaultSetupResult = { success: true } | VaultFailure;
 
 declare global {
   interface Window {

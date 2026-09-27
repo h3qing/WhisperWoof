@@ -127,6 +127,24 @@ describe("new recovery phrase", () => {
     expect(fs.statSync(audio).mtimeMs).toBe(old.getTime());
   });
 
+  it("lets the app keep running while it moves your files to the new key", async () => {
+    const { m } = await encryptedSetup();
+    for (let i = 0; i < 150; i++) m.files.writeFile(path.join(userData, "audio", `more-${i}.webm`), crypto.randomBytes(2000), { kind: "audio" });
+    let turns = 0;
+    let finished = false;
+    const turn = () => {
+      if (finished) return;
+      turns += 1;
+      setImmediate(turn);
+    };
+    setImmediate(turn);
+    m.rotation.rememberPassword(PASSWORD);
+    await m.rotation.rotate(crypto.randomBytes(16));
+    finished = true;
+    expect(turns).toBeGreaterThan(5);
+    expectEverythingOpens(m);
+  });
+
   it("resumes after a crash half-way through, on the next unlock", async () => {
     const { m } = await encryptedSetup();
     const newEntropy = crypto.randomBytes(16);
