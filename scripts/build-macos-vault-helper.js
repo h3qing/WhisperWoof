@@ -28,7 +28,10 @@ if (!swiftTarget) {
 const projectRoot = path.resolve(__dirname, "..");
 const swiftSource = path.join(projectRoot, "resources", "macos-vault-helper.swift");
 const outputDir = path.join(projectRoot, "resources", "bin");
-const outputBinary = path.join(outputDir, "macos-vault-helper");
+// macOS titles the Touch ID prompt with the calling program's name
+// ("WhisperWoof is trying to unlock your history and notes."), so the helper
+// is built as "WhisperWoof", not after its source file.
+const outputBinary = path.join(outputDir, "WhisperWoof");
 const hashFile = path.join(outputDir, `.macos-vault-helper.${targetArch}.hash`);
 const moduleCacheDir = path.join(outputDir, ".swift-module-cache");
 

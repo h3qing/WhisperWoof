@@ -19,7 +19,14 @@ const planPure = require("./migration-plan-pure");
 
 const SETUP_TTL_MS = 30 * 60 * 1000;
 const CLIPBOARD_CLEAR_MS = 60 * 1000;
-const TOUCH_ID_REASON = "unlock your WhisperWoof history and notes";
+// macOS shows these as "WhisperWoof is trying to <reason>." (the Touch ID
+// helper is named WhisperWoof), so each says what the touch is for.
+const TOUCH_ID_REASONS = Object.freeze({
+  setup: "check that Touch ID works before encrypting your data",
+  enable: "turn on Touch ID for unlocking your data",
+  unlock: "unlock your history and notes",
+  confirm: "confirm it's you",
+});
 
 let setup = null; // { entropy, words, confirmIndexes, expires, purpose: "setup" | "rotate" }
 let touchIdAvailability = { available: false, reason: "unavailable" };
@@ -30,7 +37,7 @@ const ok = (extra = {}) => ({ success: true, ...extra });
 const fail = (error, code) => ({ success: false, error, code });
 
 function errorResult(err) {
-  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY", "INVALID"];
+  const known = ["WRONG_PASSWORD", "WRONG_PHRASE", "LOCKED", "CANCELLED", "FALLBACK", "FAILED", "INVALIDATED", "LOCKOUT", "UNAVAILABLE", "BUSY", "INVALID"];
   return fail(err.message, known.includes(err.code) ? err.code : undefined);
 }
 
@@ -144,16 +151,25 @@ function beginSetup() {
   return ok(newPhraseSession("setup"));
 }
 
-/** Enroll a Secure Enclave key for the vault's current master key. `test` asks for one touch. */
-async function enrollTouchId({ test }) {
+/**
+ * `v` with a new Secure Enclave key wrapped around `masterKey`. With a
+ * `reason`, it asks for one touch and checks the enclave's answer opens it.
+ */
+async function withTouchId(v, masterKey, reason) {
   const availability = await refreshTouchIdAvailability();
   if (!availability.available) throw Object.assign(new Error("Touch ID isn't available on this Mac"), { code: "UNAVAILABLE" });
   const key = await touchId.createKey();
-  const next = vk.setTouchIdWrap(vault.getVault(), vault.requireMasterKey(), key);
-  if (test) {
-    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), reason: "turn on Touch ID for WhisperWoof" });
+  const next = vk.setTouchIdWrap(v, masterKey, key);
+  if (reason) {
+    const shared = await touchId.deriveSecret({ keyBlob: key.keyBlob, peer: vk.touchIdPeerPublic(next), reason });
     vk.unlockWithTouchIdSecret(next, shared); // throws if the enclave's answer doesn't open it
   }
+  return next;
+}
+
+/** Enroll Touch ID for the vault's current master key. `test` asks for one touch. */
+async function enrollTouchId({ test }) {
+  const next = await withTouchId(vault.getVault(), vault.requireMasterKey(), test ? TOUCH_ID_REASONS.enable : null);
   vault.saveVault(next);
 }
 
@@ -167,22 +183,27 @@ async function completeSetup({ password, confirmWords, useTouchId, notesReadable
       const session = takeConfirmedSession("setup", confirmWords);
       const created = vk.createVault({ entropy: session.entropy, password });
       const withPrefs = vk.updatePrefs(created.vault, { notesReadable: Boolean(notesReadable) });
+      let ready = withPrefs;
+      if (useTouchId) {
+        // One touch now, before anything is encrypted: if Touch ID doesn't
+        // work, nothing has changed and the phrase they wrote down still holds.
+        try {
+          ready = await withTouchId(withPrefs, created.masterKey, TOUCH_ID_REASONS.setup);
+        } catch (err) {
+          setup = session;
+          throw err;
+        }
+      }
       // vault.json, then the journal, then the unlock — which sees the journal
       // and runs the migration. A crash in between never leaves a journal alone.
-      await vault.adoptNewVault(withPrefs, created.masterKey, {
+      await vault.adoptNewVault(ready, created.masterKey, {
         beforeUnlock: () => {
           ensurePrivateDir(vaultPaths.dir());
           writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("enable")));
         },
       });
-      let touchIdNote;
-      if (useTouchId) {
-        await enrollTouchId({ test: true }).catch((err) => {
-          touchIdNote = err.message;
-        });
-      }
       notify();
-      return ok(touchIdNote ? { touchIdError: touchIdNote } : {});
+      return ok();
     })
   );
 }
@@ -196,7 +217,7 @@ async function unlockWithTouchId() {
     if (vault.isUnlocked()) return ok();
     let shared;
     try {
-      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: TOUCH_ID_REASON });
+      shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: TOUCH_ID_REASONS.unlock });
     } catch (err) {
       if (err.code === "INVALIDATED") {
         vault.saveVault(vk.clearTouchId(v));
@@ -260,7 +281,7 @@ async function reauthenticate(reauth) {
     return;
   }
   if (reauth && reauth.touchId && v.touchId) {
-    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: "confirm it's you" });
+    const shared = await touchId.deriveSecret({ keyBlob: vk.touchIdKeyBlob(v), peer: vk.touchIdPeerPublic(v), reason: TOUCH_ID_REASONS.confirm });
     const mk = vk.unlockWithTouchIdSecret(v, shared);
     mk.fill(0);
     return;

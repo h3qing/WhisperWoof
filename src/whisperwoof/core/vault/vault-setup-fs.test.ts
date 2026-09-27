@@ -1,0 +1,151 @@
+/**
+ * Turning encryption on through the controller, as the Encryption settings do:
+ * Touch ID is checked before anything is encrypted, and a lock asked for while
+ * the data is being encrypted waits for it to finish. Touch ID is a fake
+ * Secure Enclave doing real P-256 ECDH, so the unlock math is the real one.
+ */
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import crypto from "crypto";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const Database = require("better-sqlite3-multiple-ciphers");
+const PASSWORD = "a good password";
+
+let userData = "";
+let notesDir = "";
+let touchIdMode: "ok" | "cancel" = "ok";
+let atPrompt: { dbPlain: boolean; vaultExists: boolean; reason: string } | null = null;
+
+const dbFile = () => path.join(userData, "transcriptions.db");
+const dbIsPlain = () => fs.readFileSync(dbFile()).subarray(0, 15).toString() === "SQLite format 3";
+
+const fakeTouchId = {
+  getAvailability: async () => ({ available: true }),
+  createKey: async () => {
+    const ecdh = crypto.createECDH("prime256v1");
+    ecdh.generateKeys();
+    return { publicKey: ecdh.getPublicKey(), keyBlob: ecdh.getPrivateKey() };
+  },
+  deriveSecret: async ({ keyBlob, peer, reason }: { keyBlob: Buffer; peer: Buffer; reason: string }) => {
+    atPrompt = { dbPlain: dbIsPlain(), vaultExists: fs.existsSync(path.join(userData, "vault", "vault.json")), reason };
+    if (touchIdMode === "cancel") throw Object.assign(new Error("Touch ID was cancelled"), { code: "CANCELLED" });
+    const ecdh = crypto.createECDH("prime256v1");
+    ecdh.setPrivateKey(keyBlob);
+    return ecdh.computeSecret(peer);
+  },
+  copySecret: async () => false,
+};
+
+function boot() {
+  const electronPath = require.resolve("electron");
+  require.cache[electronPath] = {
+    id: electronPath,
+    filename: electronPath,
+    loaded: true,
+    exports: {
+      app: { getPath: () => userData, isReady: () => false },
+      powerMonitor: { on() {}, getSystemIdleTime: () => 0 },
+    },
+  } as unknown as NodeJS.Module;
+  for (const key of Object.keys(require.cache)) {
+    if (key.includes(`${path.sep}bridge${path.sep}vault${path.sep}`) || key.endsWith("debugLogger.js")) {
+      delete require.cache[key];
+    }
+  }
+  const touchIdPath = require.resolve("../../bridge/vault/vault-touchid.js");
+  require.cache[touchIdPath] = { id: touchIdPath, filename: touchIdPath, loaded: true, exports: fakeTouchId } as unknown as NodeJS.Module;
+  const m = {
+    vault: require("../../bridge/vault/vault-service.js"),
+    lifecycle: require("../../bridge/vault/vault-lifecycle.js"),
+    controller: require("../../bridge/vault/vault-controller.js"),
+  };
+  m.lifecycle.configure({
+    Database,
+    userData: () => userData,
+    notesDir: () => notesDir,
+    openDatabases: async () => {},
+    closeDatabases: async () => {},
+    inbox: () => ({ handlers: {}, loadIdMap: () => ({}) }),
+  });
+  return m;
+}
+
+function seed() {
+  const db = new Database(dbFile());
+  db.exec("CREATE TABLE t (x TEXT)");
+  db.prepare("INSERT INTO t VALUES (?)").run("hello");
+  db.close();
+  const images = path.join(userData, "whisperwoof-images");
+  fs.mkdirSync(images);
+  for (let i = 0; i < 150; i++) fs.writeFileSync(path.join(images, `img-${i}.png`), crypto.randomBytes(2000));
+}
+
+async function turnOn(m: ReturnType<typeof boot>, useTouchId: boolean) {
+  const begun = m.controller.beginSetup();
+  const confirmWords = Object.fromEntries(begun.confirmIndexes.map((i: number) => [i, begun.words[i]]));
+  return { begun, result: await m.controller.completeSetup({ password: PASSWORD, confirmWords, useTouchId, notesReadable: false }) };
+}
+
+beforeEach(() => {
+  userData = fs.mkdtempSync(path.join(os.tmpdir(), "ww-setup-ud-"));
+  notesDir = fs.mkdtempSync(path.join(os.tmpdir(), "ww-setup-notes-"));
+  touchIdMode = "ok";
+  atPrompt = null;
+});
+
+afterEach(() => {
+  fs.rmSync(userData, { recursive: true, force: true });
+  fs.rmSync(notesDir, { recursive: true, force: true });
+});
+
+describe("turning encryption on with Touch ID", () => {
+  it("checks Touch ID works before anything is encrypted", async () => {
+    const m = boot();
+    seed();
+    const { result } = await turnOn(m, true);
+    expect(result).toEqual({ success: true });
+    expect(atPrompt).toMatchObject({ dbPlain: true, vaultExists: false });
+    expect(atPrompt?.reason).toMatch(/before encrypting/);
+    expect(m.vault.getPrefs().touchId).toBe(true);
+    expect(dbIsPlain()).toBe(false);
+  });
+
+  it("encrypts nothing when the Touch ID check fails, and keeps the recovery phrase for a retry", async () => {
+    const m = boot();
+    seed();
+    touchIdMode = "cancel";
+    const { begun, result } = await turnOn(m, true);
+    expect(result).toMatchObject({ success: false, code: "CANCELLED" });
+    expect(m.vault.isOn()).toBe(false);
+    expect(dbIsPlain()).toBe(true);
+    expect(fs.existsSync(path.join(userData, "whisperwoof-images", "img-0.png"))).toBe(true);
+
+    touchIdMode = "ok";
+    const confirmWords = Object.fromEntries(begun.confirmIndexes.map((i: number) => [i, begun.words[i]]));
+    const retried = await m.controller.completeSetup({ password: PASSWORD, confirmWords, useTouchId: true, notesReadable: false });
+    expect(retried).toEqual({ success: true });
+    expect(m.vault.isOn()).toBe(true);
+  });
+});
+
+describe("locking while your data is being encrypted", () => {
+  it("waits until encrypting finishes, then locks", async () => {
+    const m = boot();
+    seed();
+    let duringLock: unknown = null;
+    setImmediate(() => {
+      m.vault.lock().then((r: unknown) => {
+        duringLock = r;
+      });
+    });
+    const { result } = await turnOn(m, false);
+    expect(result).toEqual({ success: true });
+    expect(duringLock).toEqual({ locked: false, deferred: true });
+    expect(m.vault.isUnlocked()).toBe(false);
+    expect(dbIsPlain()).toBe(false);
+  });
+});

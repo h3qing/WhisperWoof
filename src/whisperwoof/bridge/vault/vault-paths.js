@@ -55,6 +55,51 @@ function keepTimes(file, original) {
   fs.utimesSync(file, original.atime, original.mtime);
 }
 
+/**
+ * writeFileAtomic for converting many files: the write and fsync run off the
+ * main thread, and the folder isn't synced here. The caller syncs each folder
+ * once per batch (syncDirAsync) before trusting the renames.
+ */
+async function writeFileAtomicAsync(file, data, mode = 0o600, times = null) {
+  const tmp = `${file}.tmp-${crypto.randomBytes(4).toString("hex")}`;
+  const handle = await fs.promises.open(tmp, "w", mode);
+  try {
+    await handle.writeFile(data);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  if (times) await fs.promises.utimes(tmp, times.atime, times.mtime);
+  await fs.promises.rename(tmp, file);
+}
+
+async function syncDirAsync(dir) {
+  try {
+    const handle = await fs.promises.open(dir, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Not every filesystem lets a directory be fsynced; the rename is still atomic.
+  }
+}
+
+// Converting many files (turning encryption on/off, a new phrase) runs in
+// batches so the app keeps working: each file's write and fsync happen off the
+// main thread a few at a time, and each folder is synced once per batch.
+const CONVERT_BATCH = 32;
+const CONVERT_PARALLEL = 4;
+
+/** Run `fn` over `items`, `size` at a time, keeping the results in order. */
+async function inGroups(items, size, fn) {
+  const groups = Array.from({ length: Math.ceil(items.length / size) }, (_, g) => items.slice(g * size, g * size + size));
+  let results = [];
+  for (const group of groups) results = [...results, ...(await Promise.all(group.map(fn)))];
+  return results;
+}
+
 function syncDir(dir) {
   try {
     const fd = fs.openSync(dir, "r");
@@ -84,4 +129,17 @@ function removeStaleTemps(dir) {
   }
 }
 
-module.exports = { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, syncDir, removeIfExists, removeStaleTemps };
+module.exports = {
+  vaultPaths,
+  ensurePrivateDir,
+  writeFileAtomic,
+  writeFileAtomicAsync,
+  syncDirAsync,
+  inGroups,
+  CONVERT_BATCH,
+  CONVERT_PARALLEL,
+  keepTimes,
+  syncDir,
+  removeIfExists,
+  removeStaleTemps,
+};

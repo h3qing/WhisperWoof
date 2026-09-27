@@ -1,14 +1,16 @@
 /**
- * Touch ID through resources/macos-vault-helper (Secure Enclave key that
- * needs a fingerprint for every use). Input goes over stdin, one JSON result
- * comes back on stdout. macOS only; elsewhere Touch ID is simply unavailable.
+ * Touch ID through the vault helper (resources/macos-vault-helper.swift, built
+ * as resources/bin/WhisperWoof): a Secure Enclave key that needs a fingerprint
+ * for every use. Input goes over stdin, one JSON result comes back on stdout.
+ * macOS only; elsewhere Touch ID is simply unavailable.
  */
 
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const BINARY = "macos-vault-helper";
+// macOS names the Touch ID prompt after this program: "WhisperWoof is trying to …".
+const BINARY = "WhisperWoof";
 const UNLOCK_TIMEOUT_MS = 120000;
 const QUICK_TIMEOUT_MS = 10000;
 

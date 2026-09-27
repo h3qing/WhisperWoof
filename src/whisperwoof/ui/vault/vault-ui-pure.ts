@@ -215,6 +215,12 @@ export function migrationErrorText(m: VaultMigration): string | null {
 }
 
 /** Whether the operation a dialog started has landed, judged from the pushed status. */
+/** Turning encryption on is under way: the setup dialog moves to its progress step. */
+export function encryptionStarted(status: VaultStatus | null | undefined): boolean {
+  const migrating = status?.migrating;
+  return Boolean(migrating && migrating.direction === "enable" && migrating.phase !== "error");
+}
+
 export function operationFinished(
   direction: VaultMigrationDirection,
   status: VaultStatus | null | undefined
@@ -286,6 +292,21 @@ const TOUCH_ID_MESSAGES: Partial<Record<string, string>> = {
   LOCKOUT: "Touch ID is locked after too many tries. Use your password.",
   UNAVAILABLE: "Touch ID isn't available right now. Use your password.",
 };
+
+const SETUP_TOUCH_ID_FAILURES: Partial<Record<string, string>> = {
+  CANCELLED: "Touch ID was cancelled",
+  FALLBACK: "Touch ID was cancelled",
+  FAILED: "Touch ID didn't work",
+  INVALIDATED: "Touch ID didn't work",
+  LOCKOUT: "Touch ID is locked after too many tries",
+  UNAVAILABLE: "Touch ID isn't available right now",
+};
+
+/** Setup checks Touch ID before encrypting anything; when that check fails, say so. */
+export function setupTouchIdMessage(result: VaultFailure): string | null {
+  const what = result.code ? SETUP_TOUCH_ID_FAILURES[result.code] : undefined;
+  return what ? `${what}, so nothing was encrypted. Try again, or untick Unlock with Touch ID.` : null;
+}
 
 export function vaultErrorMessage(result: VaultFailure, context: ErrorContext = "general"): string | null {
   switch (result.code) {

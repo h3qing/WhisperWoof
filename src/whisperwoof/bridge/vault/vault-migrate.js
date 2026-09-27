@@ -17,7 +17,19 @@ const plan = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const { applyKey } = require("./vault-db");
 const { SEALED_EXT, sealedPath, listNames } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, removeIfExists, removeStaleTemps } = require("./vault-paths");
+const {
+  vaultPaths,
+  ensurePrivateDir,
+  writeFileAtomic,
+  writeFileAtomicAsync,
+  syncDirAsync,
+  inGroups,
+  CONVERT_BATCH,
+  CONVERT_PARALLEL,
+  keepTimes,
+  removeIfExists,
+  removeStaleTemps,
+} = require("./vault-paths");
 
 const WORK_EXT = ".vault-work";
 const OLD_EXT = ".vault-old";
@@ -184,6 +196,80 @@ function migrateFile(direction, { file, kind, mode }) {
   return true;
 }
 
+/** Deleted while we worked (clipboard retention, the user): nothing left to convert. */
+const isMissing = (err) => err && err.code === "ENOENT";
+
+/**
+ * First half of converting one file in a batch: write the converted copy
+ * (fsynced; its folder isn't synced yet). null when there's nothing to do.
+ */
+async function stageFile(direction, target) {
+  const { file, kind, mode } = target;
+  const sealed = sealedPath(file);
+  const step = plan.planFileStep(direction, { plain: fs.existsSync(file), sealed: fs.existsSync(sealed) });
+  if (step === "done") return null;
+  try {
+    if (direction === "enable") {
+      const original = await fs.promises.stat(file);
+      const plain = await fs.promises.readFile(file);
+      if (step === "convert") await writeFileAtomicAsync(sealed, sealBytes(plain, kind), 0o600, original);
+      return { target, source: file, written: sealed, original, hash: sha256(plain) };
+    }
+    const original = await fs.promises.stat(sealed);
+    const plain = openBytes(await fs.promises.readFile(sealed));
+    const alreadyThere = step !== "convert" && sha256(await fs.promises.readFile(file)).equals(sha256(plain));
+    if (!alreadyThere) await writeFileAtomicAsync(file, plain, mode, original);
+    return { target, source: sealed, written: file, original, hash: sha256(plain) };
+  } catch (err) {
+    if (isMissing(err)) return null;
+    throw err;
+  }
+}
+
+/** Second half, after the batch's folders are synced: check the copy, then remove the original. */
+async function finishFile(direction, staged) {
+  try {
+    if (direction === "enable" && !sha256(openBytes(await fs.promises.readFile(staged.written))).equals(staged.hash)) {
+      // A copy left by an interrupted run that doesn't match: redo this one the careful way.
+      migrateFile(direction, staged.target);
+      return;
+    }
+    await fs.promises.utimes(staged.written, staged.original.atime, staged.original.mtime);
+    await fs.promises.rm(staged.source, { force: true });
+  } catch (err) {
+    if (!isMissing(err)) throw err;
+  }
+}
+
+async function namingErrors(target, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+  }
+}
+
+/** Convert `targets` in batches; the event loop gets a turn at every await. */
+async function convertInBatches(direction, targets, onDone) {
+  for (let start = 0; start < targets.length; start += CONVERT_BATCH) {
+    const batch = targets.slice(start, start + CONVERT_BATCH);
+    const staged = (
+      await inGroups(batch, CONVERT_PARALLEL, (target) => namingErrors(target, () => stageFile(direction, target)))
+    ).filter(Boolean);
+    await Promise.all([...new Set(staged.map((s) => path.dirname(s.written)))].map(syncDirAsync));
+    await inGroups(staged, CONVERT_PARALLEL, (s) => namingErrors(s.target, () => finishFile(direction, s)));
+    onDone(Math.min(start + CONVERT_BATCH, targets.length));
+  }
+}
+
+function convertNow(direction, target) {
+  try {
+    migrateFile(direction, target);
+  } catch (err) {
+    throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+  }
+}
+
 // ---------- what gets encrypted ----------
 
 const JSON_STORES = [
@@ -286,23 +372,32 @@ async function run(direction, opts) {
   const keyHex = vault.requireKeys().dbKeyHex;
   const report = (done, total) => onProgress({ direction, phase: journal.phase, done, total });
 
+  const listTargets = () => [
+    ...userDataTargets(userData),
+    ...(direction === "disable" || sealNotes ? noteTargets(notesDir) : []),
+  ];
+  // Files the app rewrites in place (Memory and the other stores, notes).
+  // They're converted in one go before the app gets a turn, so a save can't
+  // land between reading a file and replacing it.
+  const rewritten = (target) => target.kind === "json" || target.kind === "note";
+
   const steps = {
     db: () => {
       report(0, 1);
       migrateDatabase(Database, vaultPaths.dbFile(), direction, keyHex);
     },
-    files: () => {
-      const notes = direction === "disable" || sealNotes ? noteTargets(notesDir) : [];
-      const targets = [...userDataTargets(userData), ...notes];
+    files: async () => {
+      const targets = listTargets();
       for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
-      targets.forEach((target, i) => {
-        try {
-          migrateFile(direction, target);
-        } catch (err) {
-          throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
-        }
-        if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
-      });
+      const first = targets.filter(rewritten);
+      first.forEach((target) => convertNow(direction, target));
+      report(first.length, targets.length);
+      await convertInBatches(direction, targets.filter((t) => !rewritten(t)), (done) =>
+        report(first.length + done, targets.length)
+      );
+      // Whatever the app saved meanwhile. While turning encryption off it still
+      // writes encrypted copies, and those must not be left behind.
+      listTargets().forEach((target) => convertNow(direction, target));
     },
     cleanup: () => {
       if (direction === "enable") removePlaintextLeftovers(userData);
@@ -310,7 +405,7 @@ async function run(direction, opts) {
     },
   };
   while (journal.phase !== "done") {
-    steps[journal.phase]();
+    await steps[journal.phase]();
     journal = writeJournal(plan.advanceJournal(journal));
   }
 

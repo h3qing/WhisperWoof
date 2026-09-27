@@ -6,8 +6,9 @@
  * On unlock: finish an interrupted migration → open databases → replay inbox.
  * On lock:   close databases (keys are dropped by the vault service after).
  *
- * A running migration holds off automatic locks; a failed one doesn't — it
- * leaves an error the Encryption settings show with "Try again".
+ * A running migration holds off every lock (Mac sleep, idle, "Lock now") until
+ * it finishes, then the lock happens; a failed one doesn't hold anything off —
+ * it leaves an error the Encryption settings show with "Try again".
  */
 
 const { powerMonitor } = require("electron");
@@ -38,6 +39,11 @@ function notify() {
 function setProgress(next) {
   progress = next;
   notify();
+}
+
+/** A conversion ended: a lock asked for while it ran happens now. */
+async function lockIfAsked() {
+  await vault.releaseDeferredLock().catch((err) => debugLogger.error("[Vault] Deferred lock failed", { error: err.message }));
 }
 
 function setError(direction, err) {
@@ -90,6 +96,7 @@ async function runMigration(direction, { sealNotes } = {}) {
   } finally {
     setProgress(null);
     await reopenDatabases();
+    await lockIfAsked();
   }
 }
 
@@ -104,6 +111,7 @@ async function runRotation(start = () => rotation.finish()) {
   } finally {
     setProgress(null);
     await reopenDatabases();
+    await lockIfAsked();
   }
 }
 
@@ -160,6 +168,7 @@ async function convertNotes(seal) {
     throw err;
   } finally {
     setProgress(null);
+    await lockIfAsked();
   }
 }
 
@@ -177,7 +186,8 @@ function checkIdle() {
 }
 
 function lockOnSleep() {
-  if (vault.isUnlocked() && vault.getPrefs().lockOnSleep && !progress) vault.lock().catch(() => {});
+  // During a conversion the lock waits for it (the blocker below), then happens.
+  if (vault.isUnlocked() && vault.getPrefs().lockOnSleep) vault.lock().catch(() => {});
 }
 
 /**
@@ -189,6 +199,8 @@ function configure(nextDeps) {
   rotation.configure({ ...nextDeps, onProgress: (p) => setProgress(p) });
   vault.onUnlocked(afterUnlock);
   vault.onLocking(beforeLock);
+  // Converting files needs the keys until the last one is done.
+  vault.addLockBlocker(() => progress !== null);
   powerMonitor.on("lock-screen", lockOnSleep);
   powerMonitor.on("suspend", lockOnSleep);
   clearInterval(idleTimer);

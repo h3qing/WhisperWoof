@@ -30,11 +30,13 @@ import {
   callVault,
   checkConfirmWords,
   confirmWordsPayload,
+  encryptionStarted,
   initialTurnOnState,
   isVaultFailure,
   nextTurnOnStep,
   operationFinished,
   previousTurnOnStep,
+  setupTouchIdMessage,
   touchIdRowDescription,
   turnOnCanContinue,
   turnOnStepNumber,
@@ -119,15 +121,16 @@ export default function TurnOnEncryptionDialog({ status, onClose }: Props) {
   const [state, setState] = useState<TurnOnState>(() => initialTurnOnState(status.touchId.available));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [touchIdNote, setTouchIdNote] = useState<string | null>(null);
   const update = (patch: Partial<TurnOnState>) => setState((s) => ({ ...s, ...patch }));
   const go = (step: TurnOnStep) => {
     setMessage(null);
     update({ step });
   };
 
-  // The migration reports through the pushed status; land on "done" with it.
+  // The migration reports through the pushed status: show its progress as
+  // soon as it starts (setup is still finishing), and land on "done" with it.
   useEffect(() => {
+    if (state.step === "touchId" && encryptionStarted(status)) update({ step: "working" });
     if (state.step === "working" && operationFinished("enable", status)) update({ step: "done" });
   }, [state.step, status]);
 
@@ -148,17 +151,12 @@ export default function TurnOnEncryptionDialog({ status, onClose }: Props) {
     });
     if (!isVaultFailure(result)) {
       setMessage(null);
-      if (result.touchIdError) {
-        setTouchIdNote("Touch ID wasn't set up. You can turn it on in these settings once encryption finishes.");
-      }
-      setState((s) => ({ ...withoutSecrets(s), step: "working" }));
+      setState((s) => ({ ...withoutSecrets(s), step: s.step === "done" ? "done" : "working" }));
     } else if (result.code === "WRONG_PHRASE") {
       update({ step: "confirm" });
       setMessage(vaultErrorMessage(result, "confirm"));
-    } else if (result.code === "CANCELLED") {
-      setMessage("Touch ID wasn't set up. Try again, or untick Unlock with Touch ID.");
     } else {
-      setMessage(vaultErrorMessage(result));
+      setMessage(setupTouchIdMessage(result) ?? vaultErrorMessage(result));
     }
   };
 
@@ -187,7 +185,9 @@ export default function TurnOnEncryptionDialog({ status, onClose }: Props) {
     state.step === "phrase"
       ? "I wrote them down"
       : state.step === "touchId"
-        ? busy ? "Turning on…" : "Turn on encryption"
+        ? busy
+          ? state.useTouchId && status.touchId.available ? "Touch the sensor…" : "Turning on…"
+          : "Turn on encryption"
         : state.step === "password" && busy
           ? "Making your phrase…"
           : "Continue";
@@ -240,19 +240,17 @@ export default function TurnOnEncryptionDialog({ status, onClose }: Props) {
                   checked={state.useTouchId}
                   onChange={(useTouchId) => update({ useTouchId })}
                   label="Unlock with Touch ID"
-                  description="You'll touch the sensor once to set it up."
+                  description="You'll touch the sensor once now, to check it works before anything is encrypted."
                 />
               )}
               <p className="text-[13px] text-muted-foreground">
-                Encrypting takes a few minutes if you have a lot of recordings. Dictation keeps working while it runs.
+                Encrypting runs in the background and can take a few minutes if you have a lot of clipboard images or
+                recordings. You can keep using WhisperWoof meanwhile.
               </p>
             </div>
           )}
           {state.step === "working" && status.migrating && (
             <MigrationProgress migration={status.migrating} notesReadable={status.prefs.notesReadable} />
-          )}
-          {finishedStep(state.step) && touchIdNote && (
-            <p className="text-[13px] text-muted-foreground">{touchIdNote}</p>
           )}
 
           <FieldError message={message} />

@@ -20,8 +20,18 @@ const ww = require("./wwenc-pure");
 const planPure = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const migrate = require("./vault-migrate");
-const { sealedPath } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, removeIfExists } = require("./vault-paths");
+const { SEALED_EXT, sealedPath } = require("./vault-files");
+const {
+  vaultPaths,
+  ensurePrivateDir,
+  writeFileAtomic,
+  writeFileAtomicAsync,
+  syncDirAsync,
+  inGroups,
+  CONVERT_BATCH,
+  CONVERT_PARALLEL,
+  removeIfExists,
+} = require("./vault-paths");
 const debugLogger = require("../../../helpers/debugLogger");
 
 const PASSWORD_TTL_MS = 30 * 60 * 1000;
@@ -126,23 +136,53 @@ function sealedFiles(userData, notesDir) {
   return [...logical, ...inbox].filter((f) => f.endsWith(".wwenc") && fs.existsSync(f));
 }
 
+// Files the app rewrites in place (Memory and the other stores, notes): moved
+// in one go before the app gets a turn, so a save can't land between reading
+// one and replacing it.
+const rewrittenInPlace = (file) => file.endsWith(`.json${SEALED_EXT}`) || file.endsWith(`.md${SEALED_EXT}`);
+
+/** Move one file to the new key now. → "rewrapped" | "done" | "skipped" */
+function rewrapNow(file, oldPrivateKey, newKeys) {
+  const bytes = fs.readFileSync(file);
+  if (ww.opensWith(bytes, newKeys.sealPrivateKey)) return "done";
+  if (!ww.opensWith(bytes, oldPrivateKey)) return "skipped";
+  writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, fs.statSync(file));
+  return "rewrapped";
+}
+
+/** Same, off the main thread; the caller syncs the folder. → { file, written?, skipped? } */
+async function rewrapLater(file, oldPrivateKey, newKeys) {
+  try {
+    const bytes = await fs.promises.readFile(file);
+    if (ww.opensWith(bytes, newKeys.sealPrivateKey)) return { file };
+    if (!ww.opensWith(bytes, oldPrivateKey)) return { file, skipped: true };
+    const times = await fs.promises.stat(file);
+    await writeFileAtomicAsync(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, times);
+    return { file, written: true };
+  } catch (err) {
+    if (err.code === "ENOENT") return { file }; // deleted meanwhile
+    throw err;
+  }
+}
+
 /**
  * Move each sealed file to the new key. A file neither key opens (a note
  * synced from another Mac's vault, a damaged file) is left as it is: it
  * wasn't readable before either, and it must not stop the rollout.
  */
-function rewrapFiles(files, oldPrivateKey, newKeys, onProgress) {
-  const skipped = [];
-  files.forEach((file, i) => {
-    const bytes = fs.readFileSync(file);
-    if (ww.opensWith(bytes, newKeys.sealPrivateKey)) return;
-    if (!ww.opensWith(bytes, oldPrivateKey)) {
-      skipped.push(file);
-      return;
-    }
-    writeFileAtomic(file, ww.rewrap(bytes, oldPrivateKey, newKeys.sealPublicRaw), 0o600, fs.statSync(file));
-    if (i % 10 === 0 || i === files.length - 1) onProgress({ direction: "rotate", phase: "files", done: i + 1, total: files.length });
-  });
+async function rewrapFiles(files, oldPrivateKey, newKeys, onProgress) {
+  const first = files.filter(rewrittenInPlace);
+  const rest = files.filter((file) => !rewrittenInPlace(file));
+  let skipped = first.filter((file) => rewrapNow(file, oldPrivateKey, newKeys) === "skipped");
+  for (let start = 0; start < rest.length; start += CONVERT_BATCH) {
+    const results = await inGroups(rest.slice(start, start + CONVERT_BATCH), CONVERT_PARALLEL, (file) =>
+      rewrapLater(file, oldPrivateKey, newKeys)
+    );
+    await Promise.all([...new Set(results.filter((r) => r.written).map((r) => path.dirname(r.file)))].map(syncDirAsync));
+    skipped = [...skipped, ...results.filter((r) => r.skipped).map((r) => r.file)];
+    const done = first.length + Math.min(start + CONVERT_BATCH, rest.length);
+    onProgress({ direction: "rotate", phase: "files", done, total: files.length });
+  }
   return skipped;
 }
 
@@ -182,7 +222,7 @@ async function finish() {
   });
   try {
     d.onProgress({ direction: "rotate", phase: "files", done: 0, total: 1 });
-    const skipped = rewrapFiles(sealedFiles(d.userData(), d.notesDir()), oldKeys.sealPrivateKey, newKeys, d.onProgress);
+    const skipped = await rewrapFiles(sealedFiles(d.userData(), d.notesDir()), oldKeys.sealPrivateKey, newKeys, d.onProgress);
     if (skipped.length > 0) debugLogger.warn("[Vault] Left files no key opens as they are", { count: skipped.length });
     d.onProgress({ direction: "rotate", phase: "db", done: 0, total: 1 });
     await d.closeDatabases();
