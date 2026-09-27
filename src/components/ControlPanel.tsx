@@ -22,6 +22,8 @@ import WindowControls from "./WindowControls";
 
 import { getCachedPlatform } from "../utils/platform";
 import { setActiveNoteId, setActiveFolderId, initializeNotes } from "../stores/noteStore";
+import type { Entry } from "../whisperwoof/core/storage/types";
+import type { PaletteNavigation } from "../whisperwoof/ui/command-bar/CommandBar";
 import { getSettings } from "../stores/settingsStore";
 import { resolveChineseScript } from "../whisperwoof/core/language/normalize-chinese-script";
 import HistoryView from "./HistoryView";
@@ -35,7 +37,6 @@ const DictionaryView = React.lazy(() => import("./DictionaryView"));
 const MemoryView = React.lazy(() => import("../whisperwoof/ui/memory/MemoryView"));
 const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
 const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
-const CommandSearch = React.lazy(() => import("./CommandSearch"));
 const WhisperWoofHistory = React.lazy(() => import("../whisperwoof/ui/history/WhisperWoofHistory"));
 const VoiceNotesView = React.lazy(() => import("../whisperwoof/ui/notes/VoiceNotesView"));
 // WhisperWoofSettings moved into SettingsModal as "Voice & Polish" tab
@@ -70,8 +71,10 @@ function ControlPanelViews() {
     () => localStorage.getItem("aiCTADismissed") === "true"
   );
   const [showReferrals, setShowReferrals] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const [showCommandBar, setShowCommandBar] = useState(false);
+  // Where a ⌘K result opens History or Clipboard (the key remounts the view).
+  const [historyFocus, setHistoryFocus] = useState<{ key: number; entry: Entry | null; query: string } | null>(null);
+  const [clipboardSearch, setClipboardSearch] = useState<{ key: number; query: string } | null>(null);
   const [activeView, setActiveView] = useState<ControlPanelView>("home");
   const [isMeetingMode, setIsMeetingMode] = useState(false);
   const [meetingRecordingRequest, setMeetingRecordingRequest] = useState<{
@@ -190,6 +193,33 @@ function ControlPanelViews() {
 
   // "Saved as note → Open" from the dictation overlay.
   const [voiceNoteFocus, setVoiceNoteFocus] = useState<string | null>(null);
+
+  /** A ⌘K result: open it where it lives. */
+  const openSearchResult = useCallback((to: PaletteNavigation) => {
+    switch (to.kind) {
+      case "open-history":
+        setHistoryFocus({ key: Date.now(), entry: to.entry, query: "" });
+        setActiveView("whisperwoof-history");
+        break;
+      case "open-note":
+        setVoiceNoteFocus(to.name);
+        setActiveView("voice-notes");
+        break;
+      case "open-meeting-note":
+        setActiveNoteId(to.id);
+        setActiveView("personal-notes");
+        break;
+      case "show-all":
+        if (to.view === "history") {
+          setHistoryFocus({ key: Date.now(), entry: null, query: to.query });
+          setActiveView("whisperwoof-history");
+        } else {
+          setClipboardSearch({ key: Date.now(), query: to.query });
+          setActiveView("smart-clipboard");
+        }
+        break;
+    }
+  }, []);
   useEffect(() => {
     const cleanup = window.electronAPI?.onWhisperwoofNavigateVoiceNote?.((name) => {
       setVoiceNoteFocus(name);
@@ -591,26 +621,20 @@ function ControlPanelViews() {
         </Suspense>
       )}
 
-      {showSearch && (
-        <Suspense fallback={null}>
-          <CommandSearch
-            open={showSearch}
-            onOpenChange={setShowSearch}
-            transcriptions={history}
-            onNoteSelect={(id) => {
-              setActiveNoteId(id);
-              setActiveView("personal-notes");
-            }}
-            onTranscriptSelect={() => {
-              setActiveView("home");
-            }}
-          />
-        </Suspense>
-      )}
-
-      {/* WhisperWoof: Command Bar (Cmd+K) */}
+      {/* WhisperWoof: ⌘K — search everything (and the command bar after "/") */}
       <Suspense fallback={null}>
-        <CommandBar isOpen={showCommandBar} onClose={() => setShowCommandBar(false)} />
+        <CommandBar
+          isOpen={showCommandBar}
+          onClose={() => setShowCommandBar(false)}
+          onNavigate={openSearchResult}
+          onCopied={(what) =>
+            toast({
+              title: what === "image" ? "Image copied" : what === "file" ? "File copied" : "Copied",
+              description: "It\u2019s on your clipboard, ready to paste.",
+              variant: "success",
+            })
+          }
+        />
       </Suspense>
 
       <div className="relative z-10 flex flex-1 overflow-hidden">
@@ -621,7 +645,7 @@ function ControlPanelViews() {
           <ControlPanelSidebar
             activeView={activeView}
             onViewChange={setActiveView}
-            onOpenSearch={() => setShowSearch(true)}
+            onOpenSearch={() => setShowCommandBar(true)}
             onOpenSettings={() => {
               setSettingsSection(undefined);
               setShowSettings(true);
@@ -794,7 +818,11 @@ function ControlPanelViews() {
             )}
             {activeView === "whisperwoof-history" && (
               <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
-                <WhisperWoofHistory />
+                <WhisperWoofHistory
+                  key={historyFocus?.key ?? 0}
+                  focusEntry={historyFocus?.entry ?? null}
+                  initialQuery={historyFocus?.query ?? ""}
+                />
               </Suspense>
             )}
             {activeView === "voice-notes" && (
@@ -809,7 +837,7 @@ function ControlPanelViews() {
             )}
             {activeView === "smart-clipboard" && (
               <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-muted-foreground">Loading...</span></div>}>
-                <ClipboardTimeline />
+                <ClipboardTimeline key={clipboardSearch?.key ?? 0} initialQuery={clipboardSearch?.query ?? ""} />
               </Suspense>
             )}
             {activeView === "storage" && (

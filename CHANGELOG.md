@@ -8,7 +8,7 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Changed
 - **Sharing the site shows Mando.** The link preview (Messages, Slack, X, Discord…) was a dark card of small text. It's now a sticker of Mando's head on caramel (the app icon's cream die-cut edge, faint paw prints behind), tilting his head to listen as sound waves reach him, next to the WhisperWoof name and "psst… he's listening." Messages plays it as a short silent loop (`og:video`, 3.2 s, 0.3 MB); everywhere else shows the still. Both pages of the site carry the preview now, not just the home page. The card is an HTML page (`website/social-preview.html`); `node scripts/build-social-preview.js` renders `social-preview.png` and `social-preview.mp4` from it with headless Chrome and ffmpeg.
 
-## [2.4.0] - 2026-09-27 — Meetings, transcribed on your Mac
+## [2.5.0] - 2026-09-28 — Meetings, transcribed on your Mac
 
 ### Added
 - **Meetings are transcribed on your Mac.** Once the SenseVoice speech model is downloaded (the same one dictation can use), recording a meeting no longer needs OpenAI or an internet connection: your mic and the other side's audio are transcribed on this Mac, two minutes at a time, and nothing leaves it. The transcript is saved into the meeting's note as it goes, so a crash loses at most the last few minutes, and their audio is kept for recovery. Lines appear every two minutes rather than word by word; when you stop, or quit WhisperWoof mid-meeting, the last part takes a few seconds. On a 10-minute test recording of two people talking in Chinese and English, with overlapping speech and some background noise, about 16 words in 100 (characters, for Chinese) differed from another meeting transcriber's transcript, and on an M5 Pro transcribing ran about 30 times faster than the meeting itself. Without SenseVoice, meetings use OpenAI as before.
@@ -18,6 +18,21 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Debug logs no longer contain what was said in meetings.** With debug logging on, each meeting line was written to the plaintext log file, even with encryption on.
 - **A note shows only its own recording.** After recording into one note, opening another note showed the first note's transcript as its own, and AI actions ran on it.
 - **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window crashes or reloads, the recording stops instead of running on unseen. A recording transcribed on this Mac still saves its transcript to the note; one transcribed by OpenAI keeps its audio on disk for a day. (Closing the window only hides it, and the recording keeps going.)
+
+## [2.4.0] - 2026-09-27 — ⌘K searches everything, even the words in your images
+
+### Added
+- **⌘K searches everything.** One box finds what you said, wrote and copied: History (dictations, meetings, imported audio), Notes, meeting notes, copied text, images (by name, and by the words in them when Words in images is on) and kept files. Results come in groups, newest first, with the words around the match highlighted, so part of a Chinese sentence is found too. ↵ opens a result where it lives, or copies a clipboard item straight back (images as images); ⌘↵ shows it in Clipboard; "Show all" opens History or Clipboard with the same search. The sidebar's Search button opens the same box.
+- **Commands start with a slash.** Typing `/` turns the box into the command bar you know: `/note`, `/project`, `/todo`, `/slack`, `/cal`, and the new `/paste` (text without a command used to be pasted at your cursor; now it searches).
+- **Clipboard search finds screenshots by what they say.** Turn on **Words in images** in the Clipboard view and WhisperWoof reads the text in the images you copy, so searching "bottleneck" also finds the screenshot of the chat where someone wrote it. Chinese and English (and the other languages your Mac is set to) are read. A search result shows the words around the match, and **Look closer** shows everything read from an image with a **Copy text** button.
+- **It asks first, and says what it means.** Nothing is read until you say yes to a short explanation: why (search), how (macOS's own text recognition, on this Mac: nothing is uploaded or downloaded), what it costs (your older images are read in the background, newest first, only while your Mac is plugged in), and what it means for privacy (the words are kept with your clipboard history, encrypted when encryption is on, so a screenshot of a password becomes searchable text too). Turning it off stops reading and deletes every word it read; your images stay.
+- **You shouldn't notice it running.** One image at a time, at background priority. New copies are read a few seconds after you copy them; older ones in the background with a rest after each. It waits while you dictate (and while your words are transcribed and polished), while a meeting records, while your Mac is busy, hot or locked, and on battery it reads only new copies. A line under the search box says how far it's got and why it's waiting.
+
+### Fixed
+- **History search finds part of a Chinese sentence.** It used SQLite's full-text index, which treats a whole Chinese sentence as one word, so searching "瓶颈" missed "现在真正的瓶颈". It now matches any part of the text, and quotes or dashes in a search can't break it.
+
+### Security
+- Image bytes go to the text reader through a pipe: an encrypted image is decrypted in memory, never written out, and the decrypted copy is wiped once it has been read. Only files inside WhisperWoof's own image folder are ever read. The reader is a small helper built into the app that makes no network requests.
 
 ## [2.3.3] - 2026-09-27 — Encryption without the freeze
 

@@ -8,7 +8,7 @@ export const SHORTCUT_CHEATSHEET: Array<{ group: string; items: Array<{ key: str
     group: "Recording",
     items: [
       { key: "Fn", label: "Toggle recording / paste at cursor" },
-      { key: "CommandOrControl+K", label: "Command bar" },
+      { key: "CommandOrControl+K", label: "Search everything (/ for commands)" },
     ],
   },
   {

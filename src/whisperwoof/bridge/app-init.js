@@ -260,7 +260,7 @@ async function storeClipboardImage({ image, bytes, ext, fileName }) {
   vaultFiles.writeFile(thumbPath, thumbBytes, { kind: "image" });
 
   const sourceApp = await captureSourceApp();
-  saveWhisperWoofEntry({
+  const saved = saveWhisperWoofEntry({
     source: "clipboard",
     rawText: clipboardPure.imageEntryText({ width, height, fileName }),
     polished: null,
@@ -281,6 +281,8 @@ async function storeClipboardImage({ image, bytes, ext, fileName }) {
     },
   });
   debugLogger.debug("[WhisperWoof] Clipboard image captured", { width, height, fromFile: Boolean(fileName) });
+  // Its words become searchable a few seconds later (when the user turned that on).
+  if (saved?.id && !saved.sealed) require("./clipboard-image-text").noteNewImage(saved.id);
 }
 
 async function captureCopiedImageFile(filePath) {
@@ -497,6 +499,13 @@ async function initializeWhisperWoof() {
 
   startClipboardMonitor();
 
+  // Words in clipboard images (opt-in): reads in the background once started.
+  try {
+    require("./clipboard-image-text").start();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Image text reader not started", { error: err.message });
+  }
+
   // Start Telegram companion sync (polls inbox file for mobile-captured entries)
   try {
     const { startTelegramSync } = require("./telegram-sync");
@@ -534,6 +543,7 @@ function attachDatabase() {
 
     createWhisperWoofTables(db);
     createFtsTables(db);
+    require("./clipboard-image-text-db").createImageTextTable(db);
 
     // Migration: add favorite column (idempotent)
     try {
@@ -603,6 +613,13 @@ function attachDatabase() {
   } catch (err) {
     debugLogger.debug("[WhisperWoof] Clipboard retention skipped", { error: err.message });
   }
+
+  // Words in clipboard images: carry on reading, or delete what's left from when it was off.
+  try {
+    require("./clipboard-image-text").onDatabaseAttached(whisperwoofDb);
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Image text attach skipped", { error: err.message });
+  }
   return true;
 }
 
@@ -630,6 +647,12 @@ async function shutdownWhisperWoof() {
   debugLogger.log("[WhisperWoof] Shutting down...");
 
   stopClipboardMonitor();
+
+  try {
+    require("./clipboard-image-text").stop();
+  } catch {
+    // Never started
+  }
 
   // Stop Telegram sync
   try {
@@ -740,15 +763,15 @@ function getWhisperWoofEntriesBySource(source, limit = 50, offset = 0) {
   return rows.map(mapRow);
 }
 
+/**
+ * History search: entries whose text contains `query`, newest first. Substring
+ * matching (not FTS MATCH), so part of a Chinese sentence is found and quotes
+ * or dashes in the query can't break it.
+ */
 function searchWhisperWoofEntries(query, limit = 50) {
   if (!whisperwoofDb) return [];
-  const rows = whisperwoofDb.prepare(
-    `SELECT e.* FROM bf_entries e
-     INNER JOIN bf_entries_fts fts ON e.rowid = fts.rowid
-     WHERE bf_entries_fts MATCH ?
-     ORDER BY e.created_at DESC LIMIT ?`
-  ).all(query, limit);
-  return rows.map(mapRow);
+  const { searchEntries } = require("./global-search");
+  return searchEntries(whisperwoofDb, query, { limit }).map(mapRow);
 }
 
 function deleteWhisperWoofEntry(id) {
@@ -931,6 +954,7 @@ module.exports = {
   toggleWhisperWoofFavorite,
   getWhisperWoofFavorites,
   getWhisperWoofEntryRow,
+  mapEntryRow: mapRow,
   findUpstreamTranscriptionForEntry,
   setWhisperWoofEntryMetadata,
   updateWhisperWoofEntryText,

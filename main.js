@@ -657,6 +657,10 @@ async function startApp() {
   // WhisperWoof: Initialize WhisperWoof subsystems
   const { initializeWhisperWoof } = require("./src/whisperwoof/bridge/app-init");
   await initializeWhisperWoof();
+  // Reading the words in clipboard images waits while a meeting records.
+  require("./src/whisperwoof/bridge/clipboard-image-text").setMeetingCheck(() =>
+    ipcHandlers?.isMeetingRecording?.()
+  );
 
   // Electron's file:// sends no Origin header, which Neon Auth rejects.
   session.defaultSession.webRequest.onBeforeSendHeaders(
