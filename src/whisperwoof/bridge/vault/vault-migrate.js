@@ -387,10 +387,7 @@ async function run(direction, opts) {
   const keyHex = vault.requireKeys().dbKeyHex;
   const report = (done, total) => onProgress({ direction, phase: journal.phase, done, total });
 
-  const listTargets = () => [
-    ...userDataTargets(userData),
-    ...(direction === "disable" || sealNotes ? noteTargets(notesDir) : []),
-  ];
+  const listTargets = () => targetsFor(direction, { userData, notesDir, sealNotes });
   // Files the app rewrites in place (Memory and the other stores, notes).
   // They're converted in one go before the app gets a turn, so a save can't
   // land between reading a file and replacing it.
@@ -414,7 +411,7 @@ async function run(direction, opts) {
       );
       // Whatever the app saved meanwhile. While turning encryption off it still
       // writes encrypted copies, and those must not be left behind.
-      listTargets().forEach((target) => convertNow(direction, target));
+      sweep(direction, { userData, notesDir, sealNotes });
     },
     cleanup: () => {
       if (direction === "enable") removePlaintextLeftovers(userData);
@@ -427,8 +424,20 @@ async function run(direction, opts) {
     journal = writeJournal(plan.advanceJournal(journal));
   }
 
-  removeIfExists(vaultPaths.journal());
+  // Turning off keeps its (finished) journal until the caller has forgotten
+  // the keys: a crash before that resumes turning off, and the now-plain
+  // database stays openable (vault-db allows it only with that journal).
+  if (direction !== "disable") removeIfExists(vaultPaths.journal());
   report(1, 1);
+}
+
+function targetsFor(direction, { userData, notesDir, sealNotes }) {
+  return [...userDataTargets(userData), ...(direction === "disable" || sealNotes ? noteTargets(notesDir) : [])];
+}
+
+/** Convert, in one go, anything not yet converted (what the app saved meanwhile). */
+function sweep(direction, { userData, notesDir, sealNotes }) {
+  targetsFor(direction, { userData, notesDir, sealNotes }).forEach((target) => convertNow(direction, target));
 }
 
 /** Seal (seal=true) or unseal every note in the folder — for the "keep notes readable" switch. */
@@ -443,6 +452,7 @@ function convertNotes(notesDir, seal, onProgress = () => {}) {
 
 module.exports = {
   run,
+  sweep,
   openAs,
   settle,
   tableCounts,

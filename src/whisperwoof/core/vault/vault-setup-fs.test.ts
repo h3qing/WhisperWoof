@@ -64,6 +64,7 @@ function boot() {
     lifecycle: require("../../bridge/vault/vault-lifecycle.js"),
     controller: require("../../bridge/vault/vault-controller.js"),
     inbox: require("../../bridge/vault/vault-inbox.js"),
+    files: require("../../bridge/vault/vault-files.js"),
   };
   m.lifecycle.configure({
     Database,
@@ -72,7 +73,12 @@ function boot() {
     openDatabases: async () => {},
     closeDatabases: async () => {},
     inbox: () => ({
-      handlers: { "entry.save": async (data: { entry: { id: string } }) => void replayed.push(data.entry.id) },
+      handlers: {
+        "entry.save": async (data: { entry: { id: string } }) => void replayed.push(data.entry.id),
+        // Like the real handler: Memory is rewritten, encrypted while encryption is on.
+        "vocab.correction": async (data: { word: string }) =>
+          m.files.writeJson(path.join(userData, "whisperwoof-vocabulary.json"), [{ word: data.word }]),
+      },
       loadIdMap: () => ({}),
     }),
   });
@@ -168,6 +174,31 @@ describe("while files are being converted", () => {
     expect(m.vault.isOn()).toBe(false);
     const inboxDir = path.join(userData, "vault", "inbox");
     expect(fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir) : []).toEqual([]);
+
+    const again = boot();
+    again.vault.load();
+    expect(again.vault.status()).toBe("off");
+  });
+
+  it("turning encryption off leaves what it brings in from the inbox plain, not encrypted", async () => {
+    const m = boot();
+    seed();
+    await turnOn(m, false);
+    setImmediate(() => m.inbox.record("vocab.correction", { word: "Mando" }));
+    expect(await m.controller.disable({ password: PASSWORD })).toEqual({ success: true });
+    const vocab = path.join(userData, "whisperwoof-vocabulary.json");
+    expect(JSON.parse(fs.readFileSync(vocab, "utf8"))).toEqual([{ word: "Mando" }]);
+    const sealedLeft: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (p.endsWith(".wwenc")) sealedLeft.push(p);
+      }
+    };
+    walk(userData);
+    expect(sealedLeft).toEqual([]);
+    expect(fs.existsSync(path.join(userData, "vault", "migration.json"))).toBe(false);
 
     const again = boot();
     again.vault.load();

@@ -18,7 +18,7 @@ const vault = require("./vault-service");
 const vaultInbox = require("./vault-inbox");
 const migrate = require("./vault-migrate");
 const rotation = require("./vault-rotate");
-const { vaultPaths } = require("./vault-paths");
+const { vaultPaths, removeIfExists } = require("./vault-paths");
 
 const IDLE_CHECK_MS = 30000;
 
@@ -76,14 +76,19 @@ async function reopenDatabases() {
 
 /**
  * Encryption is off on disk: bring in what was saved sealed meanwhile (while
- * the database step had it closed), keep anything that won't import as plain
- * JSON, and only then forget the keys.
+ * the database step had it closed, or while locked), keep anything that won't
+ * import as plain JSON, make plain whatever that import wrote encrypted
+ * (encryption is on until the keys go), and only then forget the keys. The
+ * journal goes last, so a crash anywhere here resumes turning off.
  */
 async function finishTurningOff() {
+  const d = requireDeps();
   await reopenDatabases();
   await replayInbox();
   vaultInbox.exportRemaining(path.join(vaultPaths.dir(), "..", "unimported-while-locked"));
+  migrate.sweep("disable", { userData: d.userData(), notesDir: d.notesDir() });
   await vault.forgetVault();
+  removeIfExists(vaultPaths.journal());
 }
 
 /**
