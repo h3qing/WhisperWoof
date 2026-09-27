@@ -46,8 +46,12 @@ const ONLINE_FINISH_IDLE_TIMEOUT_MS = 10000;
 const ONLINE_END_TAIL_PADDING_S = 1.0;
 
 class ParakeetWsServer {
-  constructor({ pidKey = "parakeet", stream = false, portRange = null } = {}) {
+  // Local meeting transcription runs its own offline server (meetingLocalSession.js).
+  static MEETING_PORT_RANGE = [6050, 6069];
+
+  constructor({ pidKey = "parakeet", stream = false, portRange = null, logTranscripts = true } = {}) {
     this.pidKey = pidKey;
+    this.logTranscripts = logTranscripts;
     this.portRange =
       portRange ??
       (stream
@@ -348,7 +352,7 @@ class ParakeetWsServer {
           elapsed,
           code,
           resultLength: result.length,
-          resultPreview: result.slice(0, 200),
+          ...(this.logTranscripts && { resultPreview: result.slice(0, 200) }),
         });
 
         resolve({ text: parseOfflineMessage(result), elapsed, detail: parseOfflineDetail(result) });
@@ -409,7 +413,7 @@ class ParakeetWsServer {
         elapsed,
         truncated,
         resultLength: text.length,
-        resultPreview: text.slice(0, 200),
+        ...(this.logTranscripts && { resultPreview: text.slice(0, 200) }),
       });
       return truncated ? { text, elapsed, truncated } : { text, elapsed };
     } finally {

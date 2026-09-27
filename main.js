@@ -1351,7 +1351,7 @@ if (gotSingleInstanceLock) {
     }
     if (ipcHandlers) {
       ipcHandlers._cleanupTextEditMonitor();
-      ipcHandlers._meetingLocalSession.shutdown().catch(() => {});
+      ipcHandlers.shutdownLocalMeeting().catch(() => {});
     }
     if (textEditMonitor) {
       textEditMonitor.stopMonitoring();

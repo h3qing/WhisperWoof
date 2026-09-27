@@ -296,6 +296,11 @@ class IPCHandlers {
     return Boolean(this._meetingLocalSession?.isActive);
   }
 
+  /** The app is quitting: stop the local meeting model now (its audio stays in the crash buffer). */
+  shutdownLocalMeeting() {
+    return this._meetingLocalSession?.shutdown() ?? Promise.resolve();
+  }
+
   /** A meeting ended (stopped, failed to stop, or failed to start): run a lock that waited for it. */
   _afterMeetingStopped() {
     setTimeout(() => vault.releaseDeferredLock().catch(() => {}), DEFERRED_LOCK_AFTER_MEETING_MS).unref?.();
@@ -4804,7 +4809,7 @@ class IPCHandlers {
 
       // A local meeting starts its model when it starts; nothing to warm up.
       if (this._meetingLocalSession.isAvailable()) {
-        return { success: true, local: true };
+        return { success: true };
       }
 
       if (isMeetingStreamingConnected()) {
@@ -4870,11 +4875,6 @@ class IPCHandlers {
       if (meetingTranscriptionPreparePromise) {
         debugLogger.debug("Meeting transcription start: waiting for in-flight prepare");
         await meetingTranscriptionPreparePromise;
-      }
-
-      if (meetingTranscriptionStartInProgress) {
-        debugLogger.debug("Meeting transcription start already in progress, ignoring");
-        return { success: false, error: "Operation in progress" };
       }
 
       meetingTranscriptionStartInProgress = true;
@@ -5018,6 +5018,8 @@ class IPCHandlers {
     };
 
     ipcMain.on("meeting-transcription-send", (_event, audioBuffer, source) => {
+      // The two tracks there are; the source also names crash-buffer files.
+      if (source !== "mic" && source !== "system") return;
       sendMeetingAudio(audioBuffer, source);
     });
 

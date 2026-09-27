@@ -216,9 +216,7 @@ const flushAndDisconnectProcessor = async (processor: AudioWorkletNode | null) =
 
 let segmentCounter = 0;
 
-export function useMeetingTranscription(options?: {
-  noteId?: string;
-}): UseMeetingTranscriptionReturn {
+export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
@@ -385,10 +383,7 @@ export function useMeetingTranscription(options?: {
       try {
         const startTime = performance.now();
 
-        const startOpts = {
-          ...getMeetingTranscriptionOptions(),
-          noteId: target?.noteId ?? options?.noteId,
-        };
+        const startOpts = { ...getMeetingTranscriptionOptions(), noteId: target?.noteId };
         const [startResult, micResult] = await Promise.all([
           window.electronAPI?.meetingTranscriptionStart?.(startOpts),
           getMeetingMicConstraints().then((constraints) =>
@@ -579,6 +574,8 @@ export function useMeetingTranscription(options?: {
         isStartingRef.current = false;
         setIsRecording(false);
         await cleanup();
+        // Main may have started the meeting before this window's setup failed.
+        await window.electronAPI?.meetingTranscriptionStop?.();
       }
     },
     [cleanup]

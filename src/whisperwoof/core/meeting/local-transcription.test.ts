@@ -137,7 +137,7 @@ describe("sentencesFromResult", () => {
     expect(sentencesFromResult(r, 10)).toEqual([{ startS: 10.5, text: "价格是3.5元。好。" }]);
   });
 
-  it("does not split English decimals, only sentence ends", () => {
+  it("keeps a piece whole when a decimal point makes text and tokens disagree", () => {
     const r = {
       text: "GPT 3.5 is fine. Yes.",
       tokens: ["▁GPT", "▁3", ".", "5", "▁is", "▁fine", ".", "▁Yes", "."],

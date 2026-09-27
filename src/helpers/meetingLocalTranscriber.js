@@ -5,16 +5,11 @@ const {
   splitAtLulls,
   sentencesFromResult,
 } = require("./meetingLocalTranscription");
+const { pcm16ToFloat32 } = require("../utils/audioUtils");
 
 // Pieces quieter than this aren't sent to the model: mostly the system track
 // while nobody else is talking.
 const SILENCE_RMS = 0.003;
-
-function pcm16ToFloat32(buf) {
-  const out = new Float32Array(buf.length >> 1);
-  for (let i = 0; i < out.length; i++) out[i] = buf.readInt16LE(i * 2) / 32768;
-  return out;
-}
 
 /**
  * Transcribes a meeting on this Mac, clip by clip. Each track (mic, system)

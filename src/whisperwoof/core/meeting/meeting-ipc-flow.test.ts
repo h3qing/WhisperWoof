@@ -100,6 +100,7 @@ describe("a meeting through the IPC handlers", () => {
     };
     handlers._meetingTranscriptCheckpoint = {
       isActive: false,
+      start: vi.fn(),
       forceCheckpoint() {},
       stop: () => ({ savedSegments: 0 }),
     };
@@ -192,6 +193,16 @@ describe("a meeting through the IPC handlers", () => {
     expect(handlers._meetingMicStreaming).toBeNull();
   });
 
+  it("doesn't start the transcript checkpoint, which would write over the note's own text", async () => {
+    await ipc.get("meeting-transcription-start")!(event, {
+      provider: "openai-realtime",
+      mode: "byok",
+      noteId: 7,
+    });
+    expect(handlers._meetingTranscriptCheckpoint.start).not.toHaveBeenCalled();
+    await ipc.get("meeting-transcription-stop")!();
+  });
+
   it("stops watching the window once the meeting is stopped", async () => {
     await startMeeting();
     expect(sender.listenerCount("destroyed")).toBe(1);
@@ -225,9 +236,10 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
       },
       stop() {
         this.isActive = false;
-        return { dir: null, files: [] };
+        return { dir: "/tmp/meeting-audio-1", files: ["/tmp/meeting-audio-1/mic-0000.wav"] };
       },
-      writeChunk() {},
+      writeChunk: vi.fn(),
+      cleanupFiles: vi.fn(),
       getSessionDir: () => null,
     };
     handlers._meetingTranscriptCheckpoint = {
@@ -255,7 +267,7 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     const prepared = await ipc.get("meeting-transcription-prepare")!(event, {
       provider: "openai-realtime",
     });
-    expect(prepared).toMatchObject({ success: true, local: true });
+    expect(prepared).toMatchObject({ success: true });
     expect(sockets).toHaveLength(0);
   });
 
@@ -341,6 +353,86 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     expect(local.session.isActive).toBe(true);
     speak();
     expect(await ipc.get("meeting-transcription-stop")!()).toMatchObject({ transcript: "line 1." });
+  });
+
+  /** macOS system audio: a native tap the tests drive by hand. */
+  function fakeTap({ fails = false } = {}) {
+    const tap = {
+      onChunk: null as null | ((chunk: Buffer) => void),
+      isSupported: () => true,
+      start: vi.fn(async ({ onChunk }: { onChunk: (chunk: Buffer) => void }) => {
+        if (fails) throw new Error("System audio permission denied");
+        tap.onChunk = onChunk;
+      }),
+      stop: vi.fn(async () => {}),
+    };
+    return tap;
+  }
+
+  it("records system audio at 16 kHz too, as the other side of the meeting", async () => {
+    const tap = fakeTap();
+    handlers.audioTapManager = tap;
+    const started = await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    expect(started).toMatchObject({ success: true, systemAudioMode: "native" });
+    expect(tap.start).toHaveBeenCalledWith(expect.objectContaining({ sampleRate: 16000 }));
+
+    const pcm = Buffer.alloc(3 * 16000 * 2);
+    for (let i = 0; i < pcm.length / 2; i++) {
+      pcm.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 220 * i) / 16000)), i * 2);
+    }
+    for (let i = 0; i < pcm.length; i += 3200) tap.onChunk!(pcm.subarray(i, i + 3200));
+    const stopped: any = await ipc.get("meeting-transcription-stop")!();
+
+    expect(stopped.segments).toEqual([expect.objectContaining({ source: "system" })]);
+    expect(tap.stop).toHaveBeenCalled();
+  });
+
+  it("stops the model again when system audio can't start, so the next meeting can", async () => {
+    handlers.audioTapManager = fakeTap({ fails: true });
+    const started = await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    expect(started).toMatchObject({ success: false, error: "System audio permission denied" });
+    expect(local.session.isActive).toBe(false);
+    expect(local.server.stop).toHaveBeenCalled();
+
+    handlers.audioTapManager = fakeTap();
+    const next = await ipc.get("meeting-transcription-start")!(event, { noteId: 8 });
+    expect(next).toMatchObject({ success: true, local: true });
+    await ipc.get("meeting-transcription-stop")!();
+  });
+
+  it("deletes the meeting's audio once the whole transcript is saved", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    speak();
+    const stopped: any = await ipc.get("meeting-transcription-stop")!();
+    expect(handlers._meetingAudioBuffer.cleanupFiles).toHaveBeenCalledWith("/tmp/meeting-audio-1");
+    expect(stopped.audioBufferDir).toBeUndefined();
+  });
+
+  it("keeps the meeting's audio when part of it couldn't be transcribed", async () => {
+    local.server.transcribe.mockRejectedValueOnce(new Error("server gone"));
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    speak();
+    const stopped: any = await ipc.get("meeting-transcription-stop")!();
+    expect(handlers._meetingAudioBuffer.cleanupFiles).not.toHaveBeenCalled();
+    expect(stopped.audioBufferDir).toBe("/tmp/meeting-audio-1");
+  });
+
+  it("finishes and saves the meeting when the window that runs it closes", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    speak();
+
+    sender.emit("destroyed");
+    await vi.waitFor(() => expect(local.server.stop).toHaveBeenCalled());
+
+    expect(local.saveTranscript).toHaveBeenLastCalledWith(7, expect.stringContaining("line 1."));
+    expect(local.session.isActive).toBe(false);
+  });
+
+  it("ignores audio from a source other than the mic and system audio", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    ipc.get("meeting-transcription-send")!(event, Buffer.alloc(3200), "../../escape");
+    expect(handlers._meetingAudioBuffer.writeChunk).not.toHaveBeenCalled();
+    await ipc.get("meeting-transcription-stop")!();
   });
 
   it("fails to start, leaving nothing running, when the model won't load", async () => {

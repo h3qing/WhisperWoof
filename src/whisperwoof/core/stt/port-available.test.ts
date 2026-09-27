@@ -1,6 +1,6 @@
 /**
- * isPortAvailable (utils/serverUtils.js) picks the port a sherpa-onnx,
- * whisper or llama server starts on. sherpa-onnx listens on all interfaces,
+ * isPortAvailable (utils/serverUtils.js) picks the port a sherpa-onnx server
+ * (parakeetWsServer.js) starts on. sherpa-onnx listens on all interfaces,
  * and on macOS a test listen on 127.0.0.1 alone still succeeds then, so a
  * second server started on that port and died ("Address already in use").
  */
@@ -13,9 +13,10 @@ const { isPortAvailable, findAvailablePort } = require("../../../utils/serverUti
 
 const held: net.Server[] = [];
 function hold(port: number, host: string) {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     const server = net.createServer();
     held.push(server);
+    server.once("error", reject);
     server.listen(port, host, () => resolve());
   });
 }

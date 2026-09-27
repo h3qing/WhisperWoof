@@ -1254,12 +1254,7 @@ declare global {
         provider?: string;
         model?: string;
         language?: string;
-      }) => Promise<{
-        success: boolean;
-        alreadyPrepared?: boolean;
-        local?: boolean;
-        error?: string;
-      }>;
+      }) => Promise<{ success: boolean; alreadyPrepared?: boolean; error?: string }>;
       meetingTranscriptionStart?: (options: {
         provider?: string;
         model?: string;
@@ -1290,6 +1285,7 @@ declare global {
           text: string;
           source: "mic" | "system";
           type: "partial" | "final";
+          timestamp?: number;
         }) => void
       ) => () => void;
       onMeetingTranscriptionError?: (callback: (error: string) => void) => () => void;

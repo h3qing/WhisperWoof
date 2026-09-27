@@ -7,16 +7,9 @@
  * keeps sentences whole where fixed-time cuts split them, and needs no
  * silence threshold, which real rooms' noise floors defeat.
  */
-const { analyzeFrames } = require("../whisperwoof/bridge/vad");
+const { analyzeFrames, calculateRms } = require("../whisperwoof/bridge/vad");
 
 const FRAME_S = 0.03;
-
-function rms(samples) {
-  if (!samples.length) return 0;
-  let sum = 0;
-  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
-  return Math.sqrt(sum / samples.length);
-}
 
 function quietestSpanStart(frames, spanFrames) {
   let best = 0;
@@ -117,4 +110,4 @@ function sentencesFromResult(result, offsetS) {
   return [{ startS: at(starts[0] ?? 0), text }];
 }
 
-module.exports = { rms, findLullCut, splitAtLulls, sentencesFromResult };
+module.exports = { rms: calculateRms, findLullCut, splitAtLulls, sentencesFromResult };

@@ -10,7 +10,9 @@ const require = createRequire(import.meta.url);
 const {
   MeetingLocalSession,
   LOCAL_MEETING_MODEL,
+  createMeetingServer,
 } = require("../../../helpers/meetingLocalSession");
+const ParakeetWsServer = require("../../../helpers/parakeetWsServer");
 
 const SR = 16000;
 const START = Date.parse("2026-09-27T10:00:00Z");
@@ -22,6 +24,11 @@ function speech(seconds: number) {
     buf.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 220 * i) / SR)), i * 2);
   }
   return buf;
+}
+
+/** Lets queued pieces go through the (instant) fake model. */
+async function settle() {
+  for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
 }
 
 function feed(session: any, source: string, buf: Buffer) {
@@ -113,6 +120,114 @@ describe("MeetingLocalSession", () => {
     );
     expect(server.stop).toHaveBeenCalled();
     expect(session.isActive).toBe(false);
+  });
+
+  it("saves to the note as clips finish, at most every 30 s, and always on stop", async () => {
+    const { session, saveTranscript } = make({ clipTargetS: 10 });
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(35));
+    await vi.waitFor(() => expect(saveTranscript).toHaveBeenCalledTimes(1));
+    await settle();
+    expect(saveTranscript).toHaveBeenCalledTimes(1); // more pieces, same half minute
+
+    vi.setSystemTime(START + 31_000);
+    feed(session, "mic", speech(35));
+    await vi.waitFor(() => expect(saveTranscript).toHaveBeenCalledTimes(2));
+    await session.stop();
+    expect(saveTranscript).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives the model a time limit per piece", async () => {
+    const { session, server } = make();
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(5));
+    await session.stop();
+    expect(server.transcribe).toHaveBeenCalledWith(expect.any(Buffer), 16000, {
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it("stays active until its stop has saved the last clip, so quitting waits for it", async () => {
+    const server = fakeServer();
+    let answer = () => {};
+    // No `detail` in the reply: the text alone still becomes a line.
+    const textOnly = { text: "a。", elapsed: 1, detail: null } as never;
+    server.transcribe.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve(textOnly)))
+    );
+    const { session, saveTranscript } = make({ server });
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(5));
+
+    const stopping = session.stop();
+    await new Promise((r) => setImmediate(r));
+    expect(session.isActive).toBe(true);
+    expect(session.stop()).toBe(stopping); // one stop
+
+    answer();
+    const result = await stopping;
+    expect(result.lines.map((l: { text: string }) => l.text)).toEqual(["a。"]);
+    expect(saveTranscript).toHaveBeenCalledWith(7, expect.stringContaining("a。"));
+    expect(session.isActive).toBe(false);
+  });
+
+  it("stops the model on quit while it is still loading", async () => {
+    const server = fakeServer();
+    let loaded = () => {};
+    server.start.mockImplementationOnce(() => new Promise<void>((r) => (loaded = r)));
+    const { session } = make({ server });
+    const starting = session.start({ noteId: 7 });
+
+    await session.shutdown();
+    expect(server.stop).toHaveBeenCalled();
+    loaded();
+    await expect(starting).rejects.toThrow();
+    expect(session.isActive).toBe(false);
+  });
+
+  it("stops the model on quit while a stop is finishing the last clip", async () => {
+    const server = fakeServer();
+    server.transcribe.mockImplementationOnce(() => new Promise(() => {}));
+    const { session } = make({ server });
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(5));
+    void session.stop();
+    await new Promise((r) => setImmediate(r));
+
+    await session.shutdown();
+    expect(server.stop).toHaveBeenCalled();
+    expect(session.isActive).toBe(false);
+  });
+
+  it("reports an incomplete transcript, without throwing, when saving throws", async () => {
+    const saveTranscript = vi.fn((_noteId: number, _transcript: string): boolean => {
+      throw new Error("Database not initialized");
+    });
+    const { session } = make({ saveTranscript });
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(5));
+    expect((await session.stop()).complete).toBe(false);
+  });
+
+  it("counts the transcript saved when a failed save is followed by a good one", async () => {
+    const saveTranscript = vi
+      .fn((_noteId: number, _transcript: string) => true)
+      .mockReturnValueOnce(false);
+    const { session } = make({ saveTranscript, clipTargetS: 10 });
+    await session.start({ noteId: 7 });
+    feed(session, "mic", speech(35));
+    await vi.waitFor(() => expect(saveTranscript).toHaveBeenCalledTimes(1));
+    expect((await session.stop()).complete).toBe(true);
+  });
+
+  it("runs its model in a server of its own: own pid file, own ports, no transcript text in the log", () => {
+    const server = createMeetingServer();
+    expect(server.pidKey).toBe("parakeet-meeting");
+    expect(server.logTranscripts).toBe(false);
+    const [from, to] = server.portRange;
+    const dictation = new ParakeetWsServer().portRange;
+    const live = new ParakeetWsServer({ stream: true }).portRange;
+    for (const [a, b] of [dictation, live]) expect(to < a || from > b).toBe(true);
   });
 
   it("saves to the note as clips finish, before the meeting ends", async () => {
