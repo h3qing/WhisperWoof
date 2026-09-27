@@ -5,6 +5,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Changed
+- **Sharing the site shows Mando.** The link preview (Messages, Slack, X, Discord…) was a dark card of small text. It's now a sticker of Mando's head on caramel (the app icon's cream die-cut edge, faint paw prints behind), tilting his head to listen as sound waves reach him, next to the WhisperWoof name and "psst… he's listening." Messages plays it as a short silent loop (`og:video`, 3.2 s, 0.3 MB); everywhere else shows the still. Both pages of the site carry the preview now, not just the home page. The card is an HTML page (`website/social-preview.html`); `node scripts/build-social-preview.js` renders `social-preview.png` and `social-preview.mp4` from it with headless Chrome and ffmpeg.
+
 ## [2.3.3] - 2026-09-27 — Encryption without the freeze
 
 ### Fixed
