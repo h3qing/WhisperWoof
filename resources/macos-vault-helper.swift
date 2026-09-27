@@ -1,4 +1,6 @@
-// macos-vault-helper — Touch ID for WhisperWoof's encryption.
+// macos-vault-helper — Touch ID for WhisperWoof's encryption. Built as the
+// app bundle resources/bin/WhisperWoof.app (with WhisperWoof's icon), because
+// macOS titles the Touch ID prompt with the calling app's name and icon.
 //
 // Holds a Secure Enclave P-256 key-agreement key that needs a fingerprint
 // every time it's used ([.privateKeyUsage, .biometryCurrentSet]). The private

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<title>Social Preview</title>
+<!-- The link preview card, 1200x630: Mando's head as a sticker on caramel,
+     tilting to listen while sound waves reach him. scripts/build-social-preview.js
+     renders it to social-preview.png (og:image) and social-preview.mp4
+     (og:video, which Messages autoplays in the link preview) by calling
+     draw(t) for each frame. Every motion repeats within LOOP so the video
+     loops without a seam. Open with #play to watch the loop, or #t=1.2 for
+     one moment. -->
+<style>
+  @font-face {
+    font-family: "Nunito"; font-style: normal; font-weight: 200 1000;
+    src: url("./fonts/Nunito-normal-latin.woff2") format("woff2");
+  }
+  :root { --ink: #2a211b; --cream: #fdfbf8; --edge: #fbf6ef; }
+  html, body { margin: 0; background: #d99c5c; }
+  .card {
+    position: relative; width: 1200px; height: 630px; overflow: hidden;
+    font-family: "Nunito", sans-serif; color: var(--ink);
+    background:
+      radial-gradient(700px 520px at 0% 0%, #f0c996 0%, transparent 62%),
+      radial-gradient(640px 480px at 100% 100%, #b9786a 0%, transparent 62%),
+      #d99c5c;
+  }
+  /* A faint scatter of paw prints. */
+  .paws {
+    position: absolute; inset: 0; opacity: 0.16;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='%23fff'%3E%3Cg transform='translate(34 42) rotate(-18)'%3E%3Cellipse cx='0' cy='11' rx='12' ry='10'/%3E%3Ccircle cx='-13' cy='-4' r='5'/%3E%3Ccircle cx='-4.5' cy='-11' r='5'/%3E%3Ccircle cx='5' cy='-11' r='5'/%3E%3Ccircle cx='13.5' cy='-4' r='5'/%3E%3C/g%3E%3Cg transform='translate(108 112) rotate(16)'%3E%3Cellipse cx='0' cy='11' rx='12' ry='10'/%3E%3Ccircle cx='-13' cy='-4' r='5'/%3E%3Ccircle cx='-4.5' cy='-11' r='5'/%3E%3Ccircle cx='5' cy='-11' r='5'/%3E%3Ccircle cx='13.5' cy='-4' r='5'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .words { position: absolute; left: 80px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding-top: 10px; }
+  .brand { margin: 0; font-weight: 800; font-size: 78px; line-height: 1; letter-spacing: -0.035em; white-space: nowrap; }
+  .brand span { color: var(--cream); }
+  .line { margin: 0; font-weight: 700; font-size: 34px; line-height: 1.2; color: #5a3a22; }
+  .waves { position: absolute; left: 590px; top: 228px; width: 110px; height: 180px; overflow: visible; }
+  .waves path { fill: none; stroke: var(--cream); stroke-width: 10; stroke-linecap: round; }
+  /* The die-cut sticker edge, as on the app icon. */
+  .head {
+    position: absolute; left: 576px; top: 31px; height: 560px; transform-origin: 62% 88%;
+    filter: drop-shadow(5px 0 0 var(--edge)) drop-shadow(-5px 0 0 var(--edge)) drop-shadow(0 5px 0 var(--edge))
+      drop-shadow(0 -5px 0 var(--edge)) drop-shadow(0 18px 22px rgba(58, 36, 20, 0.35));
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="paws"></div>
+  <div class="words">
+    <h1 class="brand">Whisper<span>Woof</span></h1>
+    <p class="line">psst… he’s listening.</p>
+  </div>
+  <svg class="waves" viewBox="-10 -90 110 180" aria-hidden="true">
+    <path id="w0" d="M 21.2 -21.2 A 30 30 0 0 1 21.2 21.2"/>
+    <path id="w1" d="M 38.9 -38.9 A 55 55 0 0 1 38.9 38.9"/>
+    <path id="w2" d="M 56.6 -56.6 A 80 80 0 0 1 56.6 56.6"/>
+  </svg>
+  <img class="head" id="head" src="./mando-head.svg" alt="">
+</div>
+<script>
+  const LOOP = 3.2;    // seconds; the tilt (3.2), bob (1.6) and waves (1.6) all divide it
+  const STILL = 0.8;   // the moment social-preview.png shows: head tilted, waves arriving
+
+  const $ = (id) => document.getElementById(id);
+  const TAU = Math.PI * 2;
+
+  function draw(seconds) {
+    const t = seconds % LOOP;
+    // A curious head tilt: lean one way, hold, lean the other.
+    const tilt = (9 * Math.tanh(3 * Math.sin((TAU * t) / 3.2))) / Math.tanh(3);
+    $("head").style.transform = `translateY(${Math.sin((TAU * t) / 1.6) * 5}px) rotate(${tilt}deg)`;
+    // The sound waves pulse outward, inner arc first.
+    ["w0", "w1", "w2"].forEach((id, i) => {
+      $(id).style.opacity = 0.2 + 0.8 * Math.max(0, Math.sin(TAU * (t / 1.6) - i * 0.9));
+    });
+  }
+
+  // #t=1.2 draws that moment; #play runs the loop, to preview it in a browser.
+  window.draw = draw;
+  window.ready = Promise.all([document.fonts.ready, $("head").decode()]);
+  if (location.hash === "#play") {
+    const start = performance.now();
+    requestAnimationFrame(function tick(now) { draw((now - start) / 1000); requestAnimationFrame(tick); });
+  } else {
+    const m = /t=([\d.]+)/.exec(location.hash);
+    draw(m ? parseFloat(m[1]) : STILL);
+  }
+</script>
+</body>
+</html>

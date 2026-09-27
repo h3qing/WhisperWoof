@@ -17,7 +17,21 @@ const plan = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const { applyKey } = require("./vault-db");
 const { SEALED_EXT, sealedPath, listNames } = require("./vault-files");
-const { vaultPaths, ensurePrivateDir, writeFileAtomic, keepTimes, removeIfExists, removeStaleTemps } = require("./vault-paths");
+const {
+  vaultPaths,
+  ensurePrivateDir,
+  writeFileAtomic,
+  writeTempAsync,
+  commitIfUnchanged,
+  removeIfUnchanged,
+  syncDirAsync,
+  inGroups,
+  CONVERT_BATCH,
+  CONVERT_PARALLEL,
+  keepTimes,
+  removeIfExists,
+  removeStaleTemps,
+} = require("./vault-paths");
 
 const WORK_EXT = ".vault-work";
 const OLD_EXT = ".vault-old";
@@ -184,6 +198,83 @@ function migrateFile(direction, { file, kind, mode }) {
   return true;
 }
 
+/** Deleted while we worked (clipboard retention, the user): nothing left to convert. */
+const isMissing = (err) => err && err.code === "ENOENT";
+
+/**
+ * First half of converting one file in a batch: write the converted copy
+ * (fsynced; its folder isn't synced yet). null when there's nothing to do, or
+ * when the file changed or went away meanwhile (the last pass redoes it).
+ */
+async function stageFile(direction, target) {
+  const { file, kind, mode } = target;
+  const sealed = sealedPath(file);
+  const step = plan.planFileStep(direction, { plain: fs.existsSync(file), sealed: fs.existsSync(sealed) });
+  if (step === "done") return null;
+  const [source, written] = direction === "enable" ? [file, sealed] : [sealed, file];
+  try {
+    const original = await fs.promises.stat(source);
+    const bytes = await fs.promises.readFile(source);
+    const plain = direction === "enable" ? bytes : openBytes(bytes);
+    const alreadyThere =
+      direction === "enable" ? step !== "convert" : step !== "convert" && sha256(await fs.promises.readFile(file)).equals(sha256(plain));
+    if (!alreadyThere) {
+      const converted = direction === "enable" ? sealBytes(plain, kind) : plain;
+      const tmp = await writeTempAsync(written, converted, direction === "enable" ? 0o600 : mode, original);
+      if (!commitIfUnchanged(tmp, written, source, original)) return null;
+    }
+    return { target, source, written, original, hash: sha256(plain) };
+  } catch (err) {
+    if (isMissing(err)) return null;
+    throw err;
+  }
+}
+
+/** Second half, after the batch's folders are synced: check the copy, then remove the original. */
+async function finishFile(direction, staged) {
+  try {
+    if (direction === "enable" && !sha256(openBytes(await fs.promises.readFile(staged.written))).equals(staged.hash)) {
+      // A copy left by an interrupted run that doesn't match: redo this one the careful way.
+      migrateFile(direction, staged.target);
+      return;
+    }
+    await fs.promises.utimes(staged.written, staged.original.atime, staged.original.mtime);
+    // Only if the original is still what was converted; otherwise the last pass redoes it.
+    removeIfUnchanged(staged.source, staged.original);
+  } catch (err) {
+    if (!isMissing(err)) throw err;
+  }
+}
+
+async function namingErrors(target, fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+  }
+}
+
+/** Convert `targets` in batches; the event loop gets a turn at every await. */
+async function convertInBatches(direction, targets, onDone) {
+  for (let start = 0; start < targets.length; start += CONVERT_BATCH) {
+    const batch = targets.slice(start, start + CONVERT_BATCH);
+    const staged = (
+      await inGroups(batch, CONVERT_PARALLEL, (target) => namingErrors(target, () => stageFile(direction, target)))
+    ).filter(Boolean);
+    await Promise.all([...new Set(staged.map((s) => path.dirname(s.written)))].map(syncDirAsync));
+    await inGroups(staged, CONVERT_PARALLEL, (s) => namingErrors(s.target, () => finishFile(direction, s)));
+    onDone(Math.min(start + CONVERT_BATCH, targets.length));
+  }
+}
+
+function convertNow(direction, target) {
+  try {
+    migrateFile(direction, target);
+  } catch (err) {
+    throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
+  }
+}
+
 // ---------- what gets encrypted ----------
 
 const JSON_STORES = [
@@ -280,29 +371,47 @@ function removePlaintextLeftovers(userData) {
  * opts: { Database, userData, notesDir, sealNotes, onProgress({direction, phase, done, total}) }
  */
 async function run(direction, opts) {
-  const { Database, userData, notesDir, sealNotes, onProgress = () => {} } = opts;
+  const {
+    Database,
+    userData,
+    notesDir,
+    sealNotes,
+    onProgress = () => {},
+    // The app keeps its databases open while files convert (so what you
+    // dictate or copy lands in history); only the database step closes them.
+    closeDatabases = async () => {},
+    openDatabases = async () => {},
+  } = opts;
   const existing = readJournal();
   let journal = existing && existing.direction === direction ? existing : writeJournal(plan.startJournal(direction));
   const keyHex = vault.requireKeys().dbKeyHex;
   const report = (done, total) => onProgress({ direction, phase: journal.phase, done, total });
 
+  const listTargets = () => targetsFor(direction, { userData, notesDir, sealNotes });
+  // Files the app rewrites in place (Memory and the other stores, notes).
+  // They're converted in one go before the app gets a turn, so a save can't
+  // land between reading a file and replacing it.
+  const rewritten = (target) => target.kind === "json" || target.kind === "note";
+
   const steps = {
-    db: () => {
+    db: async () => {
       report(0, 1);
+      await closeDatabases();
       migrateDatabase(Database, vaultPaths.dbFile(), direction, keyHex);
+      await openDatabases();
     },
-    files: () => {
-      const notes = direction === "disable" || sealNotes ? noteTargets(notesDir) : [];
-      const targets = [...userDataTargets(userData), ...notes];
+    files: async () => {
+      const targets = listTargets();
       for (const dir of new Set(targets.map((t) => path.dirname(t.file)))) removeStaleTemps(dir);
-      targets.forEach((target, i) => {
-        try {
-          migrateFile(direction, target);
-        } catch (err) {
-          throw new Error(`Couldn't convert ${path.basename(target.file)}: ${err.message}`);
-        }
-        if (i % 10 === 0 || i === targets.length - 1) report(i + 1, targets.length);
-      });
+      const first = targets.filter(rewritten);
+      first.forEach((target) => convertNow(direction, target));
+      report(first.length, targets.length);
+      await convertInBatches(direction, targets.filter((t) => !rewritten(t)), (done) =>
+        report(first.length + done, targets.length)
+      );
+      // Whatever the app saved meanwhile. While turning encryption off it still
+      // writes encrypted copies, and those must not be left behind.
+      sweep(direction, { userData, notesDir, sealNotes });
     },
     cleanup: () => {
       if (direction === "enable") removePlaintextLeftovers(userData);
@@ -310,12 +419,25 @@ async function run(direction, opts) {
     },
   };
   while (journal.phase !== "done") {
-    steps[journal.phase]();
+    if (journal.phase !== "db") await openDatabases();
+    await steps[journal.phase]();
     journal = writeJournal(plan.advanceJournal(journal));
   }
 
-  removeIfExists(vaultPaths.journal());
+  // Turning off keeps its (finished) journal until the caller has forgotten
+  // the keys: a crash before that resumes turning off, and the now-plain
+  // database stays openable (vault-db allows it only with that journal).
+  if (direction !== "disable") removeIfExists(vaultPaths.journal());
   report(1, 1);
+}
+
+function targetsFor(direction, { userData, notesDir, sealNotes }) {
+  return [...userDataTargets(userData), ...(direction === "disable" || sealNotes ? noteTargets(notesDir) : [])];
+}
+
+/** Convert, in one go, anything not yet converted (what the app saved meanwhile). */
+function sweep(direction, { userData, notesDir, sealNotes }) {
+  targetsFor(direction, { userData, notesDir, sealNotes }).forEach((target) => convertNow(direction, target));
 }
 
 /** Seal (seal=true) or unseal every note in the folder — for the "keep notes readable" switch. */
@@ -330,6 +452,7 @@ function convertNotes(notesDir, seal, onProgress = () => {}) {
 
 module.exports = {
   run,
+  sweep,
   openAs,
   settle,
   tableCounts,

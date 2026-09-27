@@ -8,6 +8,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Added
 - **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification or search. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events still to come are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, uploads, your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
 
+### Changed
+- **Sharing the site shows Mando.** The link preview (Messages, Slack, X, Discord…) was a dark card of small text. It's now a sticker of Mando's head on caramel (the app icon's cream die-cut edge, faint paw prints behind), tilting his head to listen as sound waves reach him, next to the WhisperWoof name and "psst… he's listening." Messages plays it as a short silent loop (`og:video`, 3.2 s, 0.3 MB); everywhere else shows the still. Both pages of the site carry the preview now, not just the home page. The card is an HTML page (`website/social-preview.html`); `node scripts/build-social-preview.js` renders `social-preview.png` and `social-preview.mp4` from it with headless Chrome and ffmpeg.
+
 ## [2.4.0] - 2026-09-27 — Meetings, transcribed on your Mac
 
 ### Added
@@ -18,6 +21,15 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 - **Debug logs no longer contain what was said in meetings.** With debug logging on, each meeting line was written to the plaintext log file, even with encryption on.
 - **A note shows only its own recording.** After recording into one note, opening another note showed the first note's transcript as its own, and AI actions ran on it.
 - **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window crashes or reloads, the recording stops instead of running on unseen. A recording transcribed on this Mac still saves its transcript to the note; one transcribed by OpenAI keeps its audio on disk for a day. (Closing the window only hides it, and the recording keeps going.)
+
+## [2.3.3] - 2026-09-27 — Encryption without the freeze
+
+### Fixed
+- **Turning on encryption no longer freezes WhisperWoof.** With a lot of data (tens of thousands of clipboard images), the app froze for minutes: every file was encrypted on the app's main thread, and each one waited for the disk twice. It now runs in the background, about three times faster, with a progress bar you can close, and WhisperWoof keeps working meanwhile. Turning encryption off and making a new recovery phrase work the same way.
+- **Touch ID is checked before anything is encrypted.** Setup asks for one touch when you click Turn on encryption. If Touch ID doesn't work, nothing is encrypted and your recovery phrase still holds, so you can try again or go on without Touch ID. Before, the check came at the very end.
+- **The Touch ID prompt says it's from WhisperWoof, with Mando on it.** It was titled "macos-vault-helper" with a blank icon. It now reads "WhisperWoof is trying to…", shows WhisperWoof's icon, and says what the touch is for: checking Touch ID before encrypting, unlocking your history and notes, or confirming it's you.
+- **A lock that comes while your data is being encrypted waits for it.** If your Mac sleeps part-way through, WhisperWoof locks as soon as encrypting finishes, instead of skipping the lock.
+- **Encryption settings wait for a conversion to finish.** While your data is being encrypted or decrypted, changing your password or Touch ID asks you to try again when it's done. If a conversion stopped part-way, Try again finishes it before anything else can change. Anything you dictate or copy meanwhile is kept, including while turning encryption off.
 
 ## [2.3.2] - 2026-09-26 — Fn+T says what it does
 
