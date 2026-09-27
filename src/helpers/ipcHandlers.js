@@ -13,6 +13,7 @@ const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
 const MeetingAudioBuffer = require("./meetingAudioBuffer");
 const MeetingTranscriptCheckpoint = require("./meetingTranscriptCheckpoint");
+const { MeetingLocalSession, LOCAL_MEETING_SAMPLE_RATE } = require("./meetingLocalSession");
 const {
   normalizeAudioRetentionDays,
   audioRetentionCutoffMs,
@@ -154,6 +155,17 @@ class IPCHandlers {
     this._meetingTranscriptCheckpoint = new MeetingTranscriptCheckpoint({
       databaseManager: this.databaseManager,
     });
+    // Meetings are transcribed on this Mac when the local model is downloaded.
+    this._meetingLocalSession = new MeetingLocalSession({
+      parakeetManager: this.parakeetManager,
+      saveTranscript: (noteId, transcript) => {
+        const result = this.databaseManager.updateNote(noteId, { transcript });
+        // No note back means it was deleted: nothing was saved.
+        if (!result?.success || !result.note) return false;
+        this.broadcastToWindows("note-updated", result.note);
+        return true;
+      },
+    });
     this._meetingSessionRotationTimer = null;
     this._meetingReconnecting = {};
     // Set when buffered meeting audio never reached the transcriber (stream
@@ -277,6 +289,11 @@ class IPCHandlers {
   /** With encryption on, a lock asked for while this is true waits until the meeting ends. */
   isMeetingRecording() {
     return Boolean(this._meetingAudioBuffer?.isActive);
+  }
+
+  /** A meeting is being transcribed on this Mac (its last clip is lost if the app just quits). */
+  isLocalMeetingRecording() {
+    return Boolean(this._meetingLocalSession?.isActive);
   }
 
   /** A meeting ended (stopped, failed to stop, or failed to start): run a lock that waited for it. */
@@ -4555,6 +4572,16 @@ class IPCHandlers {
     let meetingTranscriptionStartInProgress = false;
     let meetingTranscriptionPrepareInProgress = false;
     let meetingTranscriptionPreparePromise = null;
+    // Starts and stops run one after another: a stop while the local model
+    // loads waits for the start, and a start waits for the last meeting to
+    // finish its last clip. `pendingMeetingStop` is a stop no start has followed yet.
+    let meetingQueue = Promise.resolve();
+    let pendingMeetingStop = null;
+    const queueMeetingOp = (op) => {
+      const run = meetingQueue.then(op, op);
+      meetingQueue = run.catch(() => {});
+      return run;
+    };
 
     let meetingSegmentCounter = 0;
 
@@ -4775,6 +4802,11 @@ class IPCHandlers {
         return { success: false, error: "Operation in progress" };
       }
 
+      // A local meeting starts its model when it starts; nothing to warm up.
+      if (this._meetingLocalSession.isAvailable()) {
+        return { success: true, local: true };
+      }
+
       if (isMeetingStreamingConnected()) {
         debugLogger.debug("Meeting transcription already prepared (warm connections)");
         return { success: true, alreadyPrepared: true };
@@ -4826,7 +4858,10 @@ class IPCHandlers {
       };
     };
 
-    ipcMain.handle("meeting-transcription-start", async (event, options = {}) => {
+    const startMeetingTranscription = async (event, options = {}) => {
+      if (this._meetingAudioBuffer.isActive) {
+        return { success: false, error: "A meeting is already recording." };
+      }
       // A meeting saves its transcript to the encrypted database as it goes.
       if (vault.isOn() && !vault.isUnlocked()) {
         return { success: false, error: "Unlock WhisperWoof to record a meeting." };
@@ -4848,20 +4883,34 @@ class IPCHandlers {
       this._meetingRetiredStreams = { mic: [], system: [] };
       try {
         const systemAudioMode = getMeetingSystemAudioMode();
+        const local = this._meetingLocalSession.isAvailable();
 
         // Start local audio buffer for crash safety
-        this._meetingAudioBuffer.start();
+        this._meetingAudioBuffer.start(local ? { sampleRate: LOCAL_MEETING_SAMPLE_RATE } : {});
+        watchMeetingOwner(event.sender);
 
-        // Start transcript checkpoint if we have a noteId from the renderer
-        if (options.noteId) {
-          this._meetingTranscriptCheckpoint.start(options.noteId, {
-            audioBufferDir: this._meetingAudioBuffer.getSessionDir(),
-          });
+        // On this Mac: the window records at the model's rate and the model
+        // saves the transcript to the note as it goes.
+        if (local) {
+          await disconnectMeetingStreaming(); // cloud sessions warmed before the model was here
+          await startLocalMeeting(event, options);
+          if (systemAudioMode === "native") {
+            await startNativeMeetingSystemAudio(event, LOCAL_MEETING_SAMPLE_RATE);
+          }
+          return {
+            success: true,
+            systemAudioMode,
+            local: true,
+            sampleRate: LOCAL_MEETING_SAMPLE_RATE,
+          };
         }
+
+        // No transcript checkpoint for a cloud meeting: it writes into the
+        // note's content, which holds the user's own notes. The window saves
+        // the transcript when the meeting stops.
 
         // Start session rotation timer (rotate at 25min to avoid OpenAI's 30min limit)
         this._startMeetingSessionRotation(event, options);
-        watchMeetingOwner(event.sender);
 
         // If already prepared (warm connections from prepare), just re-attach handlers
         if (isMeetingStreamingConnected()) {
@@ -4887,6 +4936,7 @@ class IPCHandlers {
       } catch (error) {
         releaseMeetingOwner();
         await rollbackMeetingTranscriptionStart();
+        await this._meetingLocalSession.stop().catch(() => {});
         this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();
@@ -4896,6 +4946,11 @@ class IPCHandlers {
       } finally {
         meetingTranscriptionStartInProgress = false;
       }
+    };
+
+    ipcMain.handle("meeting-transcription-start", (event, options) => {
+      pendingMeetingStop = null;
+      return queueMeetingOp(() => startMeetingTranscription(event, options));
     });
 
     const sendMeetingAudio = (audioBuffer, source) => {
@@ -4905,6 +4960,11 @@ class IPCHandlers {
       // Always write to local audio buffer for crash safety
       if (this._meetingAudioBuffer.isActive) {
         this._meetingAudioBuffer.writeChunk(buf, source);
+      }
+
+      if (this._meetingLocalSession.isActive) {
+        this._meetingLocalSession.push(source, buf);
+        return;
       }
 
       const sent = streaming ? streaming.sendAudio(buf) : false;
@@ -4931,9 +4991,21 @@ class IPCHandlers {
       }
     };
 
-    const startNativeMeetingSystemAudio = async (event) => {
+    const startLocalMeeting = async (event, options) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      await this._meetingLocalSession.start({
+        noteId: options.noteId ?? null,
+        onLines: (lines) => {
+          if (!win || win.isDestroyed()) return;
+          lines.forEach((line) => win.webContents.send("meeting-transcription-segment", line));
+        },
+      });
+    };
+
+    const startNativeMeetingSystemAudio = async (event, sampleRate) => {
       const win = BrowserWindow.fromWebContents(event.sender);
       await this.audioTapManager.start({
+        sampleRate,
         onChunk: (chunk) => {
           sendMeetingAudio(chunk, "system");
         },
@@ -4949,7 +5021,22 @@ class IPCHandlers {
       sendMeetingAudio(audioBuffer, source);
     });
 
-    const stopMeetingTranscription = async () => {
+    // The window and the owner backstop can both ask; the meeting stops once.
+    const stopMeetingTranscription = () => {
+      if (!pendingMeetingStop) {
+        const stopping = queueMeetingOp(finishMeetingTranscription);
+        const settled = () => {
+          if (pendingMeetingStop === stopping) pendingMeetingStop = null;
+        };
+        stopping.then(settled, settled);
+        pendingMeetingStop = stopping;
+      }
+      return pendingMeetingStop;
+    };
+    // Quitting mid-meeting: a local meeting finishes its last clip first (main.js).
+    this.stopMeetingTranscription = stopMeetingTranscription;
+
+    const finishMeetingTranscription = async () => {
       releaseMeetingOwner();
       try {
         this._stopMeetingSessionRotation();
@@ -4957,6 +5044,11 @@ class IPCHandlers {
         if (this.audioTapManager) {
           await this.audioTapManager.stop();
         }
+
+        // The local model transcribes what's left and saves it to the note.
+        const local = this._meetingLocalSession.isActive
+          ? await this._meetingLocalSession.stop()
+          : null;
 
         // Force a final transcript checkpoint before disconnecting
         this._meetingTranscriptCheckpoint.forceCheckpoint();
@@ -4968,13 +5060,15 @@ class IPCHandlers {
         const checkpointResult = this._meetingTranscriptCheckpoint.stop();
         const audioKept = this._releaseMeetingAudio(
           audioResult,
-          checkpointResult.persisted && !this._meetingAudioUntranscribed
+          local ? local.complete : checkpointResult.persisted && !this._meetingAudioUntranscribed
         );
         this._afterMeetingStopped();
 
         return {
           success: true,
-          transcript: meetingTranscriptText(retired, results),
+          transcript: local ? local.transcript : meetingTranscriptText(retired, results),
+          // Every line, the last clip's too.
+          ...(local && { segments: local.lines }),
           audioBufferDir: audioKept ? audioResult.dir : undefined,
           audioFiles: audioKept ? audioResult.files : [],
           checkpointedSegments: checkpointResult.savedSegments,
@@ -4982,6 +5076,7 @@ class IPCHandlers {
       } catch (error) {
         debugLogger.error("Meeting transcription stop error", { error: error.message });
         // Still try to stop buffer/checkpoint on error; keep the audio for recovery
+        await this._meetingLocalSession.stop().catch(() => {});
         this._releaseMeetingAudio(this._meetingAudioBuffer.stop({ keepFiles: true }), false);
         this._meetingTranscriptCheckpoint.stop();
         this._stopMeetingSessionRotation();

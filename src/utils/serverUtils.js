@@ -5,7 +5,7 @@ const { killProcess } = require("./process");
 
 const GRACEFUL_STOP_TIMEOUT_MS = 5000;
 
-function isPortAvailable(port) {
+function canListen(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));
@@ -13,8 +13,15 @@ function isPortAvailable(port) {
       server.close();
       resolve(true);
     });
-    server.listen(port, "127.0.0.1");
+    server.listen(port, host);
   });
+}
+
+// Free only if both work: on macOS a listen on 127.0.0.1 succeeds while a
+// server (sherpa-onnx) holds the port on all interfaces, and a listen on
+// 0.0.0.0 succeeds while one holds it on 127.0.0.1 alone.
+async function isPortAvailable(port) {
+  return (await canListen(port, "127.0.0.1")) && (await canListen(port, "0.0.0.0"));
 }
 
 async function findAvailablePort(rangeStart, rangeEnd) {

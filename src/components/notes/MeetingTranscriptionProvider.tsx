@@ -13,29 +13,31 @@ import { MeetingRecordingContext, useMeetingRecording } from "./useMeetingRecord
 
 export function MeetingTranscriptionProvider({ children }: { children: React.ReactNode }) {
   const transcription = useMeetingTranscription();
-  const { isRecording, transcript, segments, startTranscription } = transcription;
+  const { isRecording, transcript, segments, savesToNote, startTranscription } = transcription;
   const [recording, setRecording] = useState<ActiveRecording | null>(null);
 
   const startRecording = useCallback(
     async (target: ActiveRecording) => {
       setRecording(target);
-      await startTranscription();
+      await startTranscription({ noteId: target.noteId });
     },
     [startTranscription]
   );
 
   // Save the transcript to its note as the recording stops. `recording` stays
   // set afterwards; it only counts while isRecording, and the next start replaces it.
+  // A recording transcribed on this Mac saves itself (the main process finishes
+  // its last clip first), so it isn't written from here.
   const wasRecordingRef = useRef(false);
   useEffect(() => {
-    if (wasRecordingRef.current && !isRecording) {
+    if (wasRecordingRef.current && !isRecording && !savesToNote) {
       const text = transcriptForNote(segments, transcript);
       if (recording?.noteId && text) {
         window.electronAPI.updateNote(recording.noteId, { transcript: text });
       }
     }
     wasRecordingRef.current = isRecording;
-  }, [isRecording, transcript, segments, recording]);
+  }, [isRecording, transcript, segments, recording, savesToNote]);
 
   const value = { ...transcription, recording, startRecording };
   return (

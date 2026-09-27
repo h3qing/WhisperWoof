@@ -10,6 +10,9 @@ export interface TranscriptSegment {
   timestamp?: number;
 }
 
+/** The note a meeting transcribed on this Mac saves itself into. */
+type RecordingTarget = { noteId?: number | null };
+
 interface UseMeetingTranscriptionReturn {
   isRecording: boolean;
   transcript: string;
@@ -18,8 +21,10 @@ interface UseMeetingTranscriptionReturn {
   micPartial: string;
   systemPartial: string;
   error: string | null;
+  /** The recording is transcribed on this Mac, and the main process saves it to its note. */
+  savesToNote: boolean;
   prepareTranscription: () => Promise<void>;
-  startTranscription: () => Promise<void>;
+  startTranscription: (target?: RecordingTarget) => Promise<void>;
   stopTranscription: () => Promise<void>;
 }
 
@@ -221,6 +226,7 @@ export function useMeetingTranscription(options?: {
   const [micPartial, setMicPartial] = useState("");
   const [systemPartial, setSystemPartial] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [savesToNote, setSavesToNote] = useState(false);
 
   const micContextRef = useRef<AudioContext | null>(null);
   const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -228,6 +234,8 @@ export function useMeetingTranscription(options?: {
   const micStreamRef = useRef<MediaStream | null>(null);
   const isRecordingRef = useRef(false);
   const isStartingRef = useRef(false);
+  // Counts recordings, so a stop that returns after the next one started leaves it alone.
+  const recordingRunRef = useRef(0);
   const isPreparedRef = useRef(false);
   const preparePromiseRef = useRef<Promise<void> | null>(null);
   const ipcCleanupsRef = useRef<Array<() => void>>([]);
@@ -267,8 +275,21 @@ export function useMeetingTranscription(options?: {
 
     await cleanup();
 
+    const run = recordingRunRef.current;
     try {
       const result = await window.electronAPI?.meetingTranscriptionStop?.();
+      if (run !== recordingRunRef.current) return;
+      // A local meeting transcribes its last clip as it stops: stop returns every line.
+      if (result?.success && result.segments) {
+        setSegments(
+          result.segments.map((s) => ({
+            id: `seg-${++segmentCounter}`,
+            text: s.text,
+            source: s.source,
+            timestamp: s.timestamp,
+          }))
+        );
+      }
       if (result?.success && result.transcript) {
         setTranscript(result.transcript);
       } else if (result?.error) {
@@ -336,222 +357,232 @@ export function useMeetingTranscription(options?: {
     await promise;
   }, []);
 
-  const startTranscription = useCallback(async () => {
-    if (isRecordingRef.current || isStartingRef.current) return;
-    isStartingRef.current = true;
+  const startTranscription = useCallback(
+    async (target?: RecordingTarget) => {
+      if (isRecordingRef.current || isStartingRef.current) return;
+      isStartingRef.current = true;
+      recordingRunRef.current += 1;
 
-    logger.info("Meeting transcription starting...", {}, "meeting");
-    setTranscript("");
-    setPartialTranscript("");
-    setSegments([]);
-    setMicPartial("");
-    setSystemPartial("");
-    setError(null);
+      logger.info("Meeting transcription starting...", {}, "meeting");
+      setTranscript("");
+      setPartialTranscript("");
+      setSegments([]);
+      setMicPartial("");
+      setSystemPartial("");
+      setError(null);
+      setSavesToNote(false);
 
-    // Set recording state immediately for instant UI feedback
-    isRecordingRef.current = true;
-    setIsRecording(true);
+      // Set recording state immediately for instant UI feedback
+      isRecordingRef.current = true;
+      setIsRecording(true);
 
-    // Wait for in-flight prepare to reuse the warm connection
-    if (preparePromiseRef.current) {
-      logger.debug("Waiting for in-flight prepare to finish...", {}, "meeting");
-      await preparePromiseRef.current;
-    }
+      // Wait for in-flight prepare to reuse the warm connection
+      if (preparePromiseRef.current) {
+        logger.debug("Waiting for in-flight prepare to finish...", {}, "meeting");
+        await preparePromiseRef.current;
+      }
 
-    try {
-      const startTime = performance.now();
+      try {
+        const startTime = performance.now();
 
-      const startOpts = { ...getMeetingTranscriptionOptions(), noteId: options?.noteId };
-      const [startResult, micResult] = await Promise.all([
-        window.electronAPI?.meetingTranscriptionStart?.(startOpts),
-        getMeetingMicConstraints().then((constraints) =>
-          navigator.mediaDevices.getUserMedia(constraints).catch((err) => {
-            logger.error(
-              "Mic capture failed, continuing with system audio only",
-              { error: (err as Error).message },
+        const startOpts = {
+          ...getMeetingTranscriptionOptions(),
+          noteId: target?.noteId ?? options?.noteId,
+        };
+        const [startResult, micResult] = await Promise.all([
+          window.electronAPI?.meetingTranscriptionStart?.(startOpts),
+          getMeetingMicConstraints().then((constraints) =>
+            navigator.mediaDevices.getUserMedia(constraints).catch((err) => {
+              logger.error(
+                "Mic capture failed, continuing with system audio only",
+                { error: (err as Error).message },
+                "meeting"
+              );
+              return null;
+            })
+          ),
+        ]);
+
+        const streamsMs = performance.now() - startTime;
+        // Abort if stop was called during setup
+        if (!isRecordingRef.current) {
+          logger.info("Meeting transcription aborted during setup (stop called)", {}, "meeting");
+          micResult?.getTracks().forEach((t) => t.stop());
+          isStartingRef.current = false;
+          return;
+        }
+
+        if (!startResult?.success) {
+          logger.error(
+            "Meeting transcription IPC start failed",
+            { error: startResult?.error },
+            "meeting"
+          );
+          setError(startResult?.error || "Failed to start meeting transcription");
+          micResult?.getTracks().forEach((track) => track.stop());
+          isRecordingRef.current = false;
+          isStartingRef.current = false;
+          setIsRecording(false);
+          return;
+        }
+
+        const systemAudioMode = startResult.systemAudioMode || "unsupported";
+        setSavesToNote(Boolean(startResult.local));
+
+        if (!micResult && systemAudioMode !== "native") {
+          logger.error("Meeting transcription has no available audio source", {}, "meeting");
+          setError(
+            "No microphone is available and system audio capture is unsupported on this device."
+          );
+          await window.electronAPI?.meetingTranscriptionStop?.();
+          isRecordingRef.current = false;
+          isStartingRef.current = false;
+          setIsRecording(false);
+          return;
+        }
+
+        const partialSetters = { mic: setMicPartial, system: setSystemPartial };
+
+        const segmentCleanup = window.electronAPI?.onMeetingTranscriptionSegment?.(
+          (data: {
+            text: string;
+            source: "mic" | "system";
+            type: "partial" | "final";
+            timestamp?: number;
+          }) => {
+            logger.debug(
+              "Meeting segment received in renderer",
+              {
+                source: data.source,
+                type: data.type,
+                text: data.text?.slice(0, 80),
+              },
               "meeting"
             );
-            return null;
-          })
-        ),
-      ]);
+            const setPartialForSource = partialSetters[data.source];
 
-      const streamsMs = performance.now() - startTime;
-      // Abort if stop was called during setup
-      if (!isRecordingRef.current) {
-        logger.info("Meeting transcription aborted during setup (stop called)", {}, "meeting");
-        micResult?.getTracks().forEach((t) => t.stop());
-        isStartingRef.current = false;
-        return;
-      }
-
-      if (!startResult?.success) {
-        logger.error(
-          "Meeting transcription IPC start failed",
-          { error: startResult?.error },
-          "meeting"
-        );
-        setError(startResult?.error || "Failed to start meeting transcription");
-        micResult?.getTracks().forEach((track) => track.stop());
-        isRecordingRef.current = false;
-        isStartingRef.current = false;
-        setIsRecording(false);
-        return;
-      }
-
-      const systemAudioMode = startResult.systemAudioMode || "unsupported";
-
-      if (!micResult && systemAudioMode !== "native") {
-        logger.error("Meeting transcription has no available audio source", {}, "meeting");
-        setError(
-          "No microphone is available and system audio capture is unsupported on this device."
-        );
-        await window.electronAPI?.meetingTranscriptionStop?.();
-        isRecordingRef.current = false;
-        isStartingRef.current = false;
-        setIsRecording(false);
-        return;
-      }
-
-      const partialSetters = { mic: setMicPartial, system: setSystemPartial };
-
-      const segmentCleanup = window.electronAPI?.onMeetingTranscriptionSegment?.(
-        (data: {
-          text: string;
-          source: "mic" | "system";
-          type: "partial" | "final";
-          timestamp?: number;
-        }) => {
-          logger.debug(
-            "Meeting segment received in renderer",
-            {
-              source: data.source,
-              type: data.type,
-              text: data.text?.slice(0, 80),
-            },
-            "meeting"
-          );
-          const setPartialForSource = partialSetters[data.source];
-
-          if (data.type === "partial") {
-            setPartialForSource(data.text);
-            setPartialTranscript(data.text);
-          } else {
-            const seg: TranscriptSegment = {
-              id: `seg-${++segmentCounter}`,
-              text: data.text,
-              source: data.source,
-              timestamp: data.timestamp,
-            };
-            setSegments((prev) => {
-              // Insert in chronological order — scan from the end since most
-              // segments arrive in order and this is O(1) in the common case.
-              const ts = seg.timestamp ?? Infinity;
-              let i = prev.length;
-              while (i > 0 && (prev[i - 1].timestamp ?? 0) > ts) i--;
-              if (i === prev.length) return [...prev, seg];
-              return [...prev.slice(0, i), seg, ...prev.slice(i)];
-            });
-            setPartialForSource("");
-            setTranscript((prev) => (prev ? prev + " " + data.text : data.text));
-            setPartialTranscript("");
-          }
-        }
-      );
-      if (segmentCleanup) ipcCleanupsRef.current.push(segmentCleanup);
-
-      const errorCleanup = window.electronAPI?.onMeetingTranscriptionError?.((err) => {
-        setError(err);
-        logger.error("Meeting transcription stream error", { error: err }, "meeting");
-      });
-      if (errorCleanup) ipcCleanupsRef.current.push(errorCleanup);
-
-      const pendingMicChunks: ArrayBuffer[] = [];
-      let socketReady = false;
-
-      let micPipelinePromise: Promise<void> | null = null;
-      if (micResult) {
-        micStreamRef.current = micResult;
-        const micContext = new AudioContext({ sampleRate: 24000 });
-        await detachFromOutputDevice(micContext);
-        micContextRef.current = micContext;
-
-        micPipelinePromise = createAudioPipeline({
-          stream: micResult,
-          context: micContext,
-          label: "Meeting mic",
-          onChunk: (chunk) => {
-            if (!isRecordingRef.current) return;
-            if (socketReady) {
-              window.electronAPI?.meetingTranscriptionSend?.(chunk, "mic");
-              return;
+            if (data.type === "partial") {
+              setPartialForSource(data.text);
+              setPartialTranscript(data.text);
+            } else {
+              const seg: TranscriptSegment = {
+                id: `seg-${++segmentCounter}`,
+                text: data.text,
+                source: data.source,
+                timestamp: data.timestamp,
+              };
+              setSegments((prev) => {
+                // Insert in chronological order — scan from the end since most
+                // segments arrive in order and this is O(1) in the common case.
+                const ts = seg.timestamp ?? Infinity;
+                let i = prev.length;
+                while (i > 0 && (prev[i - 1].timestamp ?? 0) > ts) i--;
+                if (i === prev.length) return [...prev, seg];
+                return [...prev.slice(0, i), seg, ...prev.slice(i)];
+              });
+              setPartialForSource("");
+              setTranscript((prev) => (prev ? prev + " " + data.text : data.text));
+              setPartialTranscript("");
             }
-            pendingMicChunks.push(chunk.slice(0));
-          },
-        }).then(({ source, processor }) => {
-          micSourceRef.current = source;
-          micProcessorRef.current = processor;
+          }
+        );
+        if (segmentCleanup) ipcCleanupsRef.current.push(segmentCleanup);
 
-          const micTrack = micResult.getAudioTracks()[0];
-          logger.info(
-            "Mic capture started for meeting transcription",
-            {
-              label: micTrack?.label,
-              settings: micTrack?.getSettings(),
+        const errorCleanup = window.electronAPI?.onMeetingTranscriptionError?.((err) => {
+          setError(err);
+          logger.error("Meeting transcription stream error", { error: err }, "meeting");
+        });
+        if (errorCleanup) ipcCleanupsRef.current.push(errorCleanup);
+
+        const pendingMicChunks: ArrayBuffer[] = [];
+        let socketReady = false;
+
+        let micPipelinePromise: Promise<void> | null = null;
+        if (micResult) {
+          micStreamRef.current = micResult;
+          // 24 kHz for OpenAI Realtime; a local model asks for its own rate (16 kHz).
+          const micContext = new AudioContext({ sampleRate: startResult.sampleRate ?? 24000 });
+          await detachFromOutputDevice(micContext);
+          micContextRef.current = micContext;
+
+          micPipelinePromise = createAudioPipeline({
+            stream: micResult,
+            context: micContext,
+            label: "Meeting mic",
+            onChunk: (chunk) => {
+              if (!isRecordingRef.current) return;
+              if (socketReady) {
+                window.electronAPI?.meetingTranscriptionSend?.(chunk, "mic");
+                return;
+              }
+              pendingMicChunks.push(chunk.slice(0));
             },
+          }).then(({ source, processor }) => {
+            micSourceRef.current = source;
+            micProcessorRef.current = processor;
+
+            const micTrack = micResult.getAudioTracks()[0];
+            logger.info(
+              "Mic capture started for meeting transcription",
+              {
+                label: micTrack?.label,
+                settings: micTrack?.getSettings(),
+              },
+              "meeting"
+            );
+          });
+        }
+
+        if (micPipelinePromise) {
+          await micPipelinePromise;
+        }
+
+        // Abort if stop was called during pipeline setup
+        if (!isRecordingRef.current) {
+          logger.info(
+            "Meeting transcription aborted during pipeline setup (stop called)",
+            {},
             "meeting"
           );
-        });
-      }
+          isStartingRef.current = false;
+          await cleanup();
+          return;
+        }
 
-      if (micPipelinePromise) {
-        await micPipelinePromise;
-      }
+        isStartingRef.current = false;
+        socketReady = true;
 
-      // Abort if stop was called during pipeline setup
-      if (!isRecordingRef.current) {
+        for (const chunk of pendingMicChunks) {
+          window.electronAPI?.meetingTranscriptionSend?.(chunk, "mic");
+        }
+
+        const totalMs = performance.now() - startTime;
         logger.info(
-          "Meeting transcription aborted during pipeline setup (stop called)",
-          {},
+          "Meeting transcription started successfully",
+          {
+            systemAudioMode,
+            bufferedChunks: pendingMicChunks.length,
+            streamsMs: Math.round(streamsMs),
+            totalMs: Math.round(totalMs),
+            wasPrepared: isPreparedRef.current,
+          },
           "meeting"
         );
+      } catch (err) {
+        logger.error(
+          "Meeting transcription setup failed",
+          { error: (err as Error).message },
+          "meeting"
+        );
+        setError((err as Error).message);
+        isRecordingRef.current = false;
         isStartingRef.current = false;
+        setIsRecording(false);
         await cleanup();
-        return;
       }
-
-      isStartingRef.current = false;
-      socketReady = true;
-
-      for (const chunk of pendingMicChunks) {
-        window.electronAPI?.meetingTranscriptionSend?.(chunk, "mic");
-      }
-
-      const totalMs = performance.now() - startTime;
-      logger.info(
-        "Meeting transcription started successfully",
-        {
-          systemAudioMode,
-          bufferedChunks: pendingMicChunks.length,
-          streamsMs: Math.round(streamsMs),
-          totalMs: Math.round(totalMs),
-          wasPrepared: isPreparedRef.current,
-        },
-        "meeting"
-      );
-    } catch (err) {
-      logger.error(
-        "Meeting transcription setup failed",
-        { error: (err as Error).message },
-        "meeting"
-      );
-      setError((err as Error).message);
-      isRecordingRef.current = false;
-      isStartingRef.current = false;
-      setIsRecording(false);
-      await cleanup();
-    }
-  }, [cleanup]);
+    },
+    [cleanup]
+  );
 
   useEffect(() => {
     getMeetingWorkletBlobUrl();
@@ -583,6 +614,7 @@ export function useMeetingTranscription(options?: {
     micPartial,
     systemPartial,
     error,
+    savesToNote,
     prepareTranscription,
     startTranscription,
     stopTranscription,

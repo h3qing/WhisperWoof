@@ -1254,21 +1254,31 @@ declare global {
         provider?: string;
         model?: string;
         language?: string;
-      }) => Promise<{ success: boolean; alreadyPrepared?: boolean; error?: string }>;
+      }) => Promise<{
+        success: boolean;
+        alreadyPrepared?: boolean;
+        local?: boolean;
+        error?: string;
+      }>;
       meetingTranscriptionStart?: (options: {
         provider?: string;
         model?: string;
         language?: string;
-        noteId?: string;
+        noteId?: number | string | null;
       }) => Promise<{
         success: boolean;
         error?: string;
         systemAudioMode?: "native" | "unsupported";
+        /** Transcribed on this Mac: record at `sampleRate`; it saves itself to the note. */
+        local?: boolean;
+        sampleRate?: number;
       }>;
       meetingTranscriptionSend?: (buffer: ArrayBuffer, source: "mic" | "system") => void;
       meetingTranscriptionStop?: () => Promise<{
         success: boolean;
         transcript?: string;
+        /** A local meeting's every line, the last clip's too. */
+        segments?: Array<{ text: string; source: "mic" | "system"; timestamp: number }>;
         error?: string;
         audioBufferDir?: string;
         audioFiles?: string[];

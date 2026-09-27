@@ -9,7 +9,7 @@
  */
 import { EventEmitter } from "events";
 import { createRequire } from "module";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { COMMIT_TRANSCRIPT, FakeWebSocket, injectModule, sockets } from "./fake-realtime-socket";
 
 const require = createRequire(import.meta.url);
@@ -31,6 +31,34 @@ injectModule("electron", {
   BrowserWindow: { fromWebContents: () => win, getAllWindows: () => [win] },
 });
 const IPCHandlers = require("../../../helpers/ipcHandlers");
+const { MeetingLocalSession } = require("../../../helpers/meetingLocalSession");
+
+/** The local model's server: one sentence per piece of audio. */
+function fakeModelServer() {
+  let n = 0;
+  return {
+    start: vi.fn(async () => {}),
+    stop: vi.fn(async () => {}),
+    transcribe: vi.fn(async () => {
+      const text = `line ${++n}.`;
+      return { text, detail: { text, tokens: ["▁line", "."], timestamps: [0.2, 0.4] } };
+    }),
+  };
+}
+
+function localSession({ downloaded }: { downloaded: boolean }) {
+  const server = fakeModelServer();
+  const saveTranscript = vi.fn((_noteId: number, _transcript: string) => true);
+  const session = new MeetingLocalSession({
+    parakeetManager: {
+      getModelsDir: () => "/models",
+      serverManager: { isAvailable: () => true, isModelDownloaded: () => downloaded },
+    },
+    createServer: () => server,
+    saveTranscript,
+  });
+  return { session, server, saveTranscript };
+}
 
 const MIN = 60 * 1000;
 // The control panel's webContents: it can close, reload, or navigate in-page.
@@ -55,10 +83,13 @@ describe("a meeting through the IPC handlers", () => {
     sockets.length = 0;
     handlers = Object.create(IPCHandlers.prototype);
     handlers.environmentManager = { getOpenAIKey: () => "sk-test-byok" };
+    handlers._meetingLocalSession = localSession({ downloaded: false }).session;
     handlers._meetingAudioBuffer = {
       isActive: false,
-      start() {
+      startedWith: null,
+      start(options: unknown) {
         this.isActive = true;
+        this.startedWith = options;
       },
       stop() {
         this.isActive = false;
@@ -170,5 +201,154 @@ describe("a meeting through the IPC handlers", () => {
     expect(sender.listenerCount("destroyed")).toBe(0);
     expect(sender.listenerCount("did-start-navigation")).toBe(0);
     expect(sender.listenerCount("render-process-gone")).toBe(0);
+  });
+});
+
+describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
+  let handlers: any;
+  let local: ReturnType<typeof localSession>;
+
+  beforeEach(() => {
+    sender.removeAllListeners();
+    ipc.clear();
+    sent.length = 0;
+    sockets.length = 0;
+    handlers = Object.create(IPCHandlers.prototype);
+    local = localSession({ downloaded: true });
+    handlers._meetingLocalSession = local.session;
+    handlers._meetingAudioBuffer = {
+      isActive: false,
+      startedWith: null,
+      start(options: unknown) {
+        this.isActive = true;
+        this.startedWith = options;
+      },
+      stop() {
+        this.isActive = false;
+        return { dir: null, files: [] };
+      },
+      writeChunk() {},
+      getSessionDir: () => null,
+    };
+    handlers._meetingTranscriptCheckpoint = {
+      isActive: false,
+      forceCheckpoint() {},
+      stop: () => ({ savedSegments: 0, persisted: true }),
+    };
+    handlers._meetingReconnecting = {};
+    handlers._meetingRetiredStreams = { mic: [], system: [] };
+    handlers.setupHandlers();
+  });
+
+  /** 3 s of tone, in the 100 ms chunks the window sends. */
+  const speak = () => {
+    const pcm = Buffer.alloc(3 * 16000 * 2);
+    for (let i = 0; i < pcm.length / 2; i++) {
+      pcm.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 220 * i) / 16000)), i * 2);
+    }
+    for (let i = 0; i < pcm.length; i += 3200) {
+      ipc.get("meeting-transcription-send")!(event, pcm.subarray(i, i + 3200), "mic");
+    }
+  };
+
+  it("needs no warm-up and opens no cloud connection", async () => {
+    const prepared = await ipc.get("meeting-transcription-prepare")!(event, {
+      provider: "openai-realtime",
+    });
+    expect(prepared).toMatchObject({ success: true, local: true });
+    expect(sockets).toHaveLength(0);
+  });
+
+  it("records at 16 kHz, and stop returns every line, saved to the meeting's note", async () => {
+    const started = await ipc.get("meeting-transcription-start")!(event, {
+      provider: "openai-realtime",
+      noteId: 7,
+    });
+    expect(started).toMatchObject({ success: true, local: true, sampleRate: 16000 });
+    expect(handlers._meetingAudioBuffer.startedWith).toEqual({ sampleRate: 16000 });
+    expect(sockets).toHaveLength(0);
+
+    speak();
+    const stopped: any = await ipc.get("meeting-transcription-stop")!();
+
+    expect(stopped).toMatchObject({ success: true, transcript: "line 1." });
+    expect(stopped.segments).toEqual([
+      expect.objectContaining({ text: "line 1.", source: "mic", type: "final" }),
+    ]);
+    expect(finals()).toEqual(["line 1."]);
+    expect(local.saveTranscript).toHaveBeenLastCalledWith(7, expect.stringContaining("line 1."));
+    expect(local.server.stop).toHaveBeenCalled();
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+  });
+
+  it("finishes once when the window and the backstop both stop it", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    speak();
+
+    const [a, b] = await Promise.all([
+      ipc.get("meeting-transcription-stop")!(),
+      ipc.get("meeting-transcription-stop")!(),
+    ]);
+
+    expect(a).toBe(b);
+    expect(local.server.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stop while the model is still loading waits for it, then stops everything", async () => {
+    let loaded = () => {};
+    local.server.start.mockImplementationOnce(() => new Promise<void>((r) => (loaded = r)));
+
+    const starting = ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    const stopping = ipc.get("meeting-transcription-stop")!();
+    await flush();
+    loaded();
+
+    expect(await starting).toMatchObject({ success: true, local: true });
+    expect(await stopping).toMatchObject({ success: true });
+    expect(local.session.isActive).toBe(false);
+    expect(local.server.stop).toHaveBeenCalled();
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+    expect(sender.listenerCount("destroyed")).toBe(0);
+  });
+
+  it("starts the next meeting once the last one has finished stopping, each in its own note", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    speak();
+
+    const stoppingA = ipc.get("meeting-transcription-stop")!();
+    const startingB = ipc.get("meeting-transcription-start")!(event, { noteId: 8 });
+    expect(await stoppingA).toMatchObject({ transcript: "line 1." });
+    expect(await startingB).toMatchObject({ success: true });
+
+    speak();
+    const stoppedB = await ipc.get("meeting-transcription-stop")!();
+
+    expect(stoppedB).toMatchObject({ transcript: "line 2." });
+    const saves = local.saveTranscript.mock.calls.map(([noteId, json]) => [
+      noteId,
+      JSON.parse(json)[0].text,
+    ]);
+    expect(saves.filter(([noteId]) => noteId === 7).every(([, text]) => text === "line 1.")).toBe(
+      true
+    );
+    expect(saves.at(-1)).toEqual([8, "line 2."]);
+  });
+
+  it("refuses a second start while a meeting is recording, and keeps that meeting going", async () => {
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    const again = await ipc.get("meeting-transcription-start")!(event, { noteId: 8 });
+    expect(again).toMatchObject({ success: false });
+    expect(local.session.isActive).toBe(true);
+    speak();
+    expect(await ipc.get("meeting-transcription-stop")!()).toMatchObject({ transcript: "line 1." });
+  });
+
+  it("fails to start, leaving nothing running, when the model won't load", async () => {
+    local.server.start.mockRejectedValueOnce(new Error("model missing"));
+    const started = await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    expect(started).toMatchObject({ success: false, error: "model missing" });
+    expect(local.session.isActive).toBe(false);
+    expect(handlers._meetingAudioBuffer.isActive).toBe(false);
+    expect(sender.listenerCount("destroyed")).toBe(0);
   });
 });

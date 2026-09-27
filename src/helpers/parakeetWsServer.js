@@ -12,7 +12,11 @@ const {
 const { getSafeTempDir } = require("./safeTempDir");
 const { createAbortError } = require("./abortError");
 const sidecarPidFile = require("./sidecarPidFile");
-const { parseOfflineMessage, createOnlineAccumulator } = require("./parakeetWsResult");
+const {
+  parseOfflineMessage,
+  parseOfflineDetail,
+  createOnlineAccumulator,
+} = require("./parakeetWsResult");
 const { pcm16ToFloat32 } = require("../utils/audioUtils");
 const {
   computeTranscriptionTimeoutMs,
@@ -42,11 +46,13 @@ const ONLINE_FINISH_IDLE_TIMEOUT_MS = 10000;
 const ONLINE_END_TAIL_PADDING_S = 1.0;
 
 class ParakeetWsServer {
-  constructor({ pidKey = "parakeet", stream = false } = {}) {
+  constructor({ pidKey = "parakeet", stream = false, portRange = null } = {}) {
     this.pidKey = pidKey;
-    this.portRange = stream
-      ? [STREAM_PORT_RANGE_START, STREAM_PORT_RANGE_END]
-      : [PORT_RANGE_START, PORT_RANGE_END];
+    this.portRange =
+      portRange ??
+      (stream
+        ? [STREAM_PORT_RANGE_START, STREAM_PORT_RANGE_END]
+        : [PORT_RANGE_START, PORT_RANGE_END]);
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -345,7 +351,7 @@ class ParakeetWsServer {
           resultPreview: result.slice(0, 200),
         });
 
-        resolve({ text: parseOfflineMessage(result), elapsed });
+        resolve({ text: parseOfflineMessage(result), elapsed, detail: parseOfflineDetail(result) });
       });
 
       ws.on("error", (error) => {
