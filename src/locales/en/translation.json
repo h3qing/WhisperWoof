@@ -6,7 +6,8 @@
       "uiLabel": "Interface language",
       "uiDescription": "Choose the language used throughout WhisperWoof's interface",
       "transcriptionLabel": "Transcription language",
-      "transcriptionDescription": "Choose the language you speak for more accurate transcription"
+      "transcriptionDescription": "Choose the language you speak for more accurate transcription",
+      "autoWhisperNote": "With Auto-detect, Whisper picks one language per recording from its first 30 seconds. A few words in another language are fine, but if you switch languages for a long stretch, that part may come out translated."
     }
   },
   "tray": {
@@ -1749,7 +1750,8 @@
       "switchToCloudForLargeFiles": "Switch to WhisperWoof Cloud to transcribe this file.",
       "createAccount": "Create Account",
       "upgrade": "Upgrade",
-      "switchToCloud": "WhisperWoof Cloud"
+      "switchToCloud": "WhisperWoof Cloud",
+      "autoLanguageNote": "Whisper picks one language for the whole file from its first 30 seconds. If the recording switches languages, the part in the other language may come out translated."
     },
     "meeting": {
       "title": "Meeting Notes",
@@ -1901,6 +1903,10 @@
       "accessibilityMissing": {
         "title": "Accessibility permissions required",
         "description": "WhisperWoof needs accessibility permissions to detect your hotkey and paste text. Please enable them in the Control Panel."
+      },
+      "mixedLanguageTip": {
+        "title": "Whisper hears one language per recording",
+        "description": "It picks the language from the first 30 seconds. A few words in another language are fine, but if you switch and keep talking, that part may come out translated. To switch languages, start a new recording."
       }
     },
     "mic": {

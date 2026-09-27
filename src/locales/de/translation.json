@@ -6,7 +6,8 @@
       "uiLabel": "Sprache der Oberfläche",
       "uiDescription": "Wählen Sie die Sprache für die WhisperWoof-Oberfläche",
       "transcriptionLabel": "Transkriptionssprache",
-      "transcriptionDescription": "Wählen Sie die Sprache, die Sie sprechen, für genauere Transkription"
+      "transcriptionDescription": "Wählen Sie die Sprache, die Sie sprechen, für genauere Transkription",
+      "autoWhisperNote": "Bei automatischer Erkennung wählt Whisper anhand der ersten 30 Sekunden eine Sprache pro Aufnahme. Einzelne Wörter in einer anderen Sprache sind kein Problem, aber wenn Sie länger in eine andere Sprache wechseln, kann dieser Teil übersetzt statt transkribiert werden."
     }
   },
   "tray": {
@@ -1619,7 +1620,8 @@
       "switchToCloudForLargeFiles": "Wechsle zu WhisperWoof Cloud, um diese Datei zu transkribieren.",
       "createAccount": "Konto erstellen",
       "upgrade": "Upgraden",
-      "switchToCloud": "WhisperWoof Cloud"
+      "switchToCloud": "WhisperWoof Cloud",
+      "autoLanguageNote": "Whisper wählt anhand der ersten 30 Sekunden eine Sprache für die ganze Datei. Wechselt die Aufnahme die Sprache, kann der Teil in der anderen Sprache übersetzt werden."
     },
     "meeting": {
       "title": "Besprechungsnotizen",
@@ -1809,6 +1811,10 @@
       "accessibilityMissing": {
         "title": "Bedienungshilfen-Berechtigungen erforderlich",
         "description": "WhisperWoof benötigt Bedienungshilfen-Berechtigungen, um Ihren Hotkey zu erkennen und Text einzufügen. Bitte aktivieren Sie diese in der Systemsteuerung."
+      },
+      "mixedLanguageTip": {
+        "title": "Whisper hört eine Sprache pro Aufnahme",
+        "description": "Die Sprache wird anhand der ersten 30 Sekunden gewählt. Einzelne Wörter in einer anderen Sprache sind kein Problem, aber wenn Sie wechseln und weitersprechen, kann dieser Teil übersetzt werden. Starten Sie für einen Sprachwechsel eine neue Aufnahme."
       }
     },
     "mic": {

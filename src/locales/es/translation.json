@@ -6,7 +6,8 @@
       "uiLabel": "Idioma de la interfaz",
       "uiDescription": "Elige el idioma usado en la interfaz de WhisperWoof",
       "transcriptionLabel": "Idioma de transcripción",
-      "transcriptionDescription": "Elige el idioma que hablas para mejorar la precisión"
+      "transcriptionDescription": "Elige el idioma que hablas para mejorar la precisión",
+      "autoWhisperNote": "Con la detección automática, Whisper elige un idioma por grabación a partir de sus primeros 30 segundos. Unas pocas palabras en otro idioma no son problema, pero si cambias de idioma durante un buen rato, esa parte puede salir traducida."
     }
   },
   "tray": {
@@ -1619,7 +1620,8 @@
       "switchToCloudForLargeFiles": "Cambia a WhisperWoof Cloud para transcribir este archivo.",
       "createAccount": "Crear cuenta",
       "upgrade": "Mejorar plan",
-      "switchToCloud": "WhisperWoof Cloud"
+      "switchToCloud": "WhisperWoof Cloud",
+      "autoLanguageNote": "Whisper elige un idioma para todo el archivo a partir de sus primeros 30 segundos. Si la grabación cambia de idioma, la parte en el otro idioma puede salir traducida."
     },
     "meeting": {
       "title": "Notas de reunión",
@@ -1809,6 +1811,10 @@
       "accessibilityMissing": {
         "title": "Se requieren permisos de accesibilidad",
         "description": "WhisperWoof necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."
+      },
+      "mixedLanguageTip": {
+        "title": "Whisper oye un idioma por grabación",
+        "description": "Elige el idioma a partir de los primeros 30 segundos. Unas pocas palabras en otro idioma no son problema, pero si cambias y sigues hablando, esa parte puede salir traducida. Para cambiar de idioma, empieza una nueva grabación."
       }
     },
     "mic": {

@@ -4,11 +4,12 @@ import { Button } from "./ui/button";
 import { useModelDownload } from "../hooks/useModelDownload";
 import { useSettings } from "../hooks/useSettings";
 import logger from "../utils/logger";
+import { RECOMMENDED_CLEANUP_MODEL } from "../whisperwoof/core/settings/recommended-models";
 
 // Recommended local cleanup model: small enough to download quickly and run
 // sub-second on Apple Silicon, capable enough for filler removal + grammar.
-const MODEL_ID = "qwen3.5-2b-q4_k_m";
-const MODEL_LABEL = "Qwen 2B";
+const MODEL_ID = RECOMMENDED_CLEANUP_MODEL;
+const MODEL_LABEL = "Qwen3.5 2B";
 const MODEL_SIZE = "1.3 GB";
 
 function formatMb(bytes: number): string {
