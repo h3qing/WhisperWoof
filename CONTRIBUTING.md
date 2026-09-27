@@ -23,6 +23,7 @@ npx vitest run            # Run tests once
 npx vitest run --coverage # Run with coverage report
 node scripts/build-mando-sprites.js [path/to/Mando-assets-v6]  # Rebuild Mando spritesheets from the gitignored source pack (needs ffmpeg, cwebp, img2webp)
 node scripts/build-app-icon.js  # Rebuild the app icon (PNG/ICNS/ICO) from src/assets/logo.svg (macOS; needs Google Chrome, sips, iconutil)
+node scripts/build-social-preview.js  # Rebuild the link preview (website/social-preview.png + .mp4) from website/social-preview.html (needs Google Chrome, ffmpeg)
 ```
 
 ## Architecture
