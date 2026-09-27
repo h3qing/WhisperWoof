@@ -965,7 +965,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
-          return { success: true, text: text || rawText, rawText, source: "local", timings };
+          return {
+            success: true,
+            text: text || rawText,
+            rawText,
+            source: "local",
+            timings,
+            // Auto mode only: the language Whisper heard (e.g. "chinese").
+            detectedLanguage: result.language,
+          };
         } else {
           throw new Error("No text transcribed");
         }

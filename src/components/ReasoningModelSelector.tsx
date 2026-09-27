@@ -27,6 +27,7 @@ import {
   DEFAULT_LOCAL_FAMILY,
   resolveLocalFamilyTab,
 } from "../whisperwoof/core/settings/local-reasoning-provider";
+import { pickDownloadedLocalModel } from "../whisperwoof/core/settings/recommended-models";
 
 type CloudModelOption = {
   value: string;
@@ -705,12 +706,7 @@ export default function ReasoningModelSelector({
       const provider = localProviders.find((p) => p.id === family);
       const models = provider?.models ?? [];
       if (models.length > 0) {
-        const firstDownloaded = models.find((m) => downloaded.has(m.id));
-        if (firstDownloaded) {
-          setReasoningModel(firstDownloaded.id);
-        } else {
-          setReasoningModel("");
-        }
+        setReasoningModel(pickDownloadedLocalModel(models, downloaded));
       }
     }
   };
@@ -746,12 +742,7 @@ export default function ReasoningModelSelector({
     const provider = localProviders.find((p) => p.id === providerId);
     const models = provider?.models ?? [];
     if (models.length > 0) {
-      const firstDownloaded = models.find((m) => downloaded.has(m.id));
-      if (firstDownloaded) {
-        setReasoningModel(firstDownloaded.id);
-      } else {
-        setReasoningModel("");
-      }
+      setReasoningModel(pickDownloadedLocalModel(models, downloaded));
     }
   };
 

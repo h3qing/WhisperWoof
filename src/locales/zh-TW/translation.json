@@ -6,7 +6,8 @@
       "uiLabel": "介面語言",
       "uiDescription": "選擇 WhisperWoof 介面使用的語言",
       "transcriptionLabel": "轉錄語言",
-      "transcriptionDescription": "選擇你說話的語言，以提高轉錄準確度"
+      "transcriptionDescription": "選擇你說話的語言，以提高轉錄準確度",
+      "autoWhisperNote": "自動偵測時，Whisper 會根據每段錄音的前 30 秒選定一種語言。夾幾個其他語言的詞沒問題；但如果中途換成另一種語言說一大段，這部分可能會被翻譯，而不是照原話轉寫。"
     }
   },
   "tray": {
@@ -1662,7 +1663,8 @@
       "switchToCloudForLargeFiles": "切換到 WhisperWoof Cloud 來轉錄此檔案。",
       "createAccount": "建立帳戶",
       "upgrade": "升級",
-      "switchToCloud": "WhisperWoof Cloud"
+      "switchToCloud": "WhisperWoof Cloud",
+      "autoLanguageNote": "Whisper 會根據檔案的前 30 秒為整個檔案選定一種語言。如果錄音中途換了語言，另一種語言的部分可能會被翻譯，而不是照原話轉寫。"
     },
     "meeting": {
       "title": "會議筆記",
@@ -1852,6 +1854,10 @@
       "accessibilityMissing": {
         "title": "需要輔助使用權限",
         "description": "WhisperWoof 需要輔助使用權限來偵測快捷鍵和貼上文字。請在控制面板中啟用。"
+      },
+      "mixedLanguageTip": {
+        "title": "Whisper 每段錄音只認一種語言",
+        "description": "它根據前 30 秒決定語言。夾幾個其他語言的詞沒問題；但如果中途換成另一種語言一直說下去，這部分可能會被翻譯，而不是照原話轉寫。要換語言時，建議另起一段錄音。"
       }
     },
     "mic": {
