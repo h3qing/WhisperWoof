@@ -3,7 +3,7 @@
  * under a divider per day, newest first, and the calendar events still to
  * come today.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { groupByDay, comingUpToday } from "./meetings-list";
 import type { CalendarEvent } from "../../../types/calendar";
 
@@ -35,6 +35,35 @@ describe("groupByDay", () => {
   });
 });
 
+describe("groupByDay, west of UTC", () => {
+  // CI runs in UTC, where a UTC-day bug can't show; Los Angeles makes it show.
+  const tz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "America/Los_Angeles";
+  });
+  afterAll(() => {
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
+  });
+
+  it("groups by the local day, not the UTC day", () => {
+    // 2026-09-27 05:30Z is Sep 26, 22:30 in Los Angeles.
+    const groups = groupByDay(
+      [note(1, "2026-09-27 05:30:00"), note(2, "2026-09-26 20:00:00")],
+      (d) => `Sep ${d.getDate()}`
+    );
+    expect(groups.map((g) => [g.label, g.notes.map((n) => n.id)])).toEqual([["Sep 26", [1, 2]]]);
+  });
+
+  it("puts every note with an unreadable date in one group at the end", () => {
+    const groups = groupByDay(
+      [note(1, "nope"), note(2, "2026-09-26 20:00:00"), note(3, "also nope")],
+      () => "day"
+    );
+    expect(groups.map((g) => g.notes.map((n) => n.id).sort())).toEqual([[2], [1, 3]]);
+  });
+});
+
 const event = (id: string, start: string, end: string, extra: Partial<CalendarEvent> = {}) =>
   ({
     id,
@@ -50,6 +79,12 @@ const event = (id: string, start: string, end: string, extra: Partial<CalendarEv
     attendees_count: 3,
     ...extra,
   }) as CalendarEvent;
+
+/** The same instant written as Google does with a +hh:00 offset, e.g. 2026-09-28T23:00:00+09:00. */
+function toOffsetString(d: Date, hours: number) {
+  const shifted = new Date(d.getTime() + hours * 3600_000);
+  return `${shifted.toISOString().slice(0, 19)}+${String(hours).padStart(2, "0")}:00`;
+}
 
 describe("comingUpToday", () => {
   const now = new Date(2026, 8, 28, 11, 0); // Sep 28, 11:00 local
@@ -74,6 +109,21 @@ describe("comingUpToday", () => {
       "running",
       "later",
     ]);
+  });
+
+  it("drops an event the moment it ends, and reads start times given with an offset", () => {
+    const endsNow = event(
+      "ends-now",
+      new Date(2026, 8, 28, 10, 0).toISOString(),
+      now.toISOString()
+    );
+    const utcPlus9 = new Date(2026, 8, 28, 14, 0);
+    const offset = event(
+      "offset",
+      toOffsetString(utcPlus9, 9),
+      toOffsetString(new Date(2026, 8, 28, 15, 0), 9)
+    );
+    expect(comingUpToday([endsNow, offset], now).map((e) => e.id)).toEqual(["offset"]);
   });
 
   it("leaves out tomorrow, all-day and cancelled events", () => {

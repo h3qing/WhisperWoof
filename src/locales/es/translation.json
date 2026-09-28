@@ -1549,7 +1549,6 @@
       "couldNotDelete": "No se pudo eliminar la carpeta"
     },
     "list": {
-      "title": "Notas",
       "newNote": "Nueva nota",
       "untitled": "Sin título",
       "untitledNote": "Nota sin título",

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Calendar } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../components/lib/utils";
@@ -7,15 +8,15 @@ import { comingUpToday } from "./meetings-list";
 
 const REFRESH_MS = 60_000;
 
-const startTime = (event: CalendarEvent) =>
-  new Date(event.start_time).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const startTime = (event: CalendarEvent) => TIME.format(new Date(event.start_time));
 
 /**
  * The Meetings tab's calendar: today's events still to come, the next one
  * highlighted, each with Record. Nothing shows without a connected calendar
  * or anything left today.
  */
-export function ComingUpToday({
+export const ComingUpToday = memo(function ComingUpToday({
   events,
   recordingDisabled,
   onRecord,
@@ -30,7 +31,8 @@ export function ComingUpToday({
     return () => clearInterval(timer);
   }, []);
 
-  const upcoming = comingUpToday(events, now);
+  const { t } = useTranslation();
+  const upcoming = useMemo(() => comingUpToday(events, now), [events, now]);
   if (upcoming.length === 0) return null;
 
   return (
@@ -40,7 +42,7 @@ export function ComingUpToday({
         <span className="text-[13px] font-bold text-foreground">Coming up today</span>
       </div>
       {upcoming.map((event, i) => {
-        const title = event.summary || "Untitled event";
+        const title = event.summary || t("upcoming.untitledEvent");
         return (
           <div
             key={event.id}
@@ -76,4 +78,4 @@ export function ComingUpToday({
       <div className="mx-2 mt-2 h-px bg-border" />
     </section>
   );
-}
+});

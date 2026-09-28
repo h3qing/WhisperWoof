@@ -123,7 +123,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 - **Transcribed on your Mac** *(new in 2.5)*: once the SenseVoice model is downloaded (155 MB, listed with the Parakeet models in Settings → Transcription; downloading it also switches dictation to it), your mic and the other side's audio are transcribed on this Mac and saved into the meeting's note as it goes. Nothing leaves your Mac. Lines arrive every couple of minutes, not word by word. SenseVoice covers Chinese, English, Japanese, Korean and Cantonese, and while it's downloaded every meeting uses it.
 - **Or live with OpenAI Realtime** when SenseVoice isn't downloaded, with your own OpenAI key or an OpenWhispr account. That sends the meeting's audio to OpenAI, and only when you start a meeting.
 - **Noticed for you**: calendar events, meeting apps and mic activity trigger a notification, about 90 seconds ahead for scheduled meetings.
-- **Keeps recording in any view** *(2.5)*: leave Notes and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
+- **Keeps recording in any view** *(2.5)*: leave Meetings and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
 - **Long meetings keep going** *(fixed in 2.3.1)*: with OpenAI, the session switches over before OpenAI's 30-minute limit without a gap, and reconnects after drops.
 - **Crash-safe audio**: recorded to disk in 5-minute segments while you talk (encrypted when encryption is on), and deleted once the meeting ends normally.
 

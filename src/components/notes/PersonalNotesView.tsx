@@ -17,6 +17,7 @@ import type { CalendarEvent } from "../../types/calendar";
 import { ComingUpToday } from "../../whisperwoof/ui/meetings/ComingUpToday";
 import { FolderFilter } from "../../whisperwoof/ui/meetings/FolderFilter";
 import { groupByDay } from "../../whisperwoof/ui/meetings/meetings-list";
+import { useStartMeeting } from "../../whisperwoof/ui/meetings/useStartMeeting";
 import { cn } from "../lib/utils";
 import logger from "../../utils/logger";
 import { parseTranscriptSegments } from "../../utils/parseTranscriptSegments";
@@ -249,20 +250,10 @@ export default function PersonalNotesView({
   );
 
   const { events: upcomingEvents } = useUpcomingEvents();
+  const { startMeeting, isStarting: isStartingMeeting } = useStartMeeting();
   const handleRecordEvent = useCallback(
-    async (event: CalendarEvent) => {
-      const result = await window.electronAPI?.startNewMeeting?.({
-        title: event.summary ?? undefined,
-      });
-      if (result && !result.success) {
-        toast({
-          title: "The meeting didn't start",
-          description: result.error,
-          variant: "destructive",
-        });
-      }
-    },
-    [toast]
+    (event: CalendarEvent) => startMeeting(event.summary ?? undefined),
+    [startMeeting]
   );
 
   const handleCreateFolderAndMove = useCallback(
@@ -389,7 +380,7 @@ export default function PersonalNotesView({
         <div className="w-[18rem] pt-2 h-[calc(100%-0.5rem)] shrink-0 rounded-[var(--radius-sheet)] glass-thick overflow-hidden flex flex-col">
           <ComingUpToday
             events={upcomingEvents}
-            recordingDisabled={isTranscribing}
+            recordingDisabled={isTranscribing || isStartingMeeting}
             onRecord={handleRecordEvent}
           />
           <div className="flex items-center gap-1.5 px-2.5 pt-1 pb-1">

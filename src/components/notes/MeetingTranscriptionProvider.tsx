@@ -8,7 +8,7 @@ import {
 import { MeetingRecordingContext, useMeetingRecording } from "./useMeetingRecording";
 
 // Meeting and note recordings belong to the control panel, not the Notes view:
-// leaving Notes keeps recording, the pill shows it and can stop it, and the
+// leaving Meetings keeps recording, the pill shows it and can stop it, and the
 // transcript is saved to its note whichever view is open when it stops.
 
 export function MeetingTranscriptionProvider({ children }: { children: React.ReactNode }) {

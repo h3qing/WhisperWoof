@@ -1180,12 +1180,16 @@ class DatabaseManager {
     }
   }
 
-  getUpcomingEvents(windowMinutes = 1440) {
+  /** `includeInProgress`: also events that started but haven't ended (for the lists people read). */
+  getUpcomingEvents(windowMinutes = 1440, { includeInProgress = false } = {}) {
     try {
       if (!this.db) throw new Error("Database not initialized");
+      const notOver = includeInProgress
+        ? "datetime(end_time) > datetime('now')"
+        : "datetime(start_time) > datetime('now')";
       return this.db
         .prepare(
-          "SELECT * FROM calendar_events WHERE datetime(start_time) > datetime('now') AND datetime(start_time) <= datetime('now', '+' || ? || ' minutes') AND is_all_day = 0 AND status = 'confirmed' ORDER BY start_time ASC"
+          `SELECT * FROM calendar_events WHERE ${notOver} AND datetime(start_time) <= datetime('now', '+' || ? || ' minutes') AND is_all_day = 0 AND status = 'confirmed' ORDER BY start_time ASC`
         )
         .all(windowMinutes);
     } catch (error) {

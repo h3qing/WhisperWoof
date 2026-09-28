@@ -1587,7 +1587,6 @@
       "couldNotDelete": "Impossible de supprimer le dossier"
     },
     "list": {
-      "title": "Notes",
       "newNote": "Nouvelle note",
       "untitled": "Sans titre",
       "untitledNote": "Note sans titre",

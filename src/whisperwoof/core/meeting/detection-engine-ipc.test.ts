@@ -17,7 +17,7 @@ vi.mock("../../../helpers/debugLogger", () => ({
 const MeetingDetectionEngineModule = await import("../../../helpers/meetingDetectionEngine");
 type EngineCtor = new (...args: unknown[]) => {
   setMeetingModeActive: (active: boolean, payload?: { noteId?: number; noteTitle?: string; trigger?: string }) => void;
-  startManualMeeting: (options?: { title?: string }) => Promise<void>;
+  startManualMeeting: (options?: { title?: string }) => Promise<boolean>;
   stop: () => void;
   _meetingModeActive: boolean;
   _meetingState: { isRecording: boolean; noteId: number | null; noteTitle: string | null; trigger: string | null };
@@ -180,7 +180,7 @@ describe("meeting-state IPC channel", () => {
     interface EngineWithDeps {
       databaseManager: { saveNote: ReturnType<typeof vi.fn> };
       _meetingModeActive: boolean;
-      startManualMeeting: (options?: { title?: string }) => Promise<void>;
+      startManualMeeting: (options?: { title?: string }) => Promise<boolean>;
     }
     const e = env.engine as unknown as EngineWithDeps;
     let flagDuringSaveNote: boolean | null = null;
@@ -202,16 +202,31 @@ describe("meeting-state IPC channel", () => {
     interface EngineWithDeps {
       databaseManager: { saveNote: ReturnType<typeof vi.fn> };
       _meetingModeActive: boolean;
-      startManualMeeting: (options?: { title?: string }) => Promise<void>;
+      startManualMeeting: (options?: { title?: string }) => Promise<boolean>;
     }
     const e = env.engine as unknown as EngineWithDeps;
     e.databaseManager.saveNote = vi.fn(() => ({ note: null }));
 
-    await e.startManualMeeting();
+    expect(await e.startManualMeeting()).toBe(false);
 
     expect(e._meetingModeActive).toBe(false);
     const stateMessages = env.sent.filter((m) => m.channel === "meeting-state");
     const last = stateMessages[stateMessages.length - 1];
     expect((last.payload as { isRecording: boolean }).isRecording).toBe(false);
+  });
+
+  it("startManualMeeting resets meeting mode, and says so, when the database throws (locked)", async () => {
+    interface EngineWithDeps {
+      databaseManager: { saveNote: ReturnType<typeof vi.fn> };
+      _meetingModeActive: boolean;
+      startManualMeeting: (options?: { title?: string }) => Promise<boolean>;
+    }
+    const e = env.engine as unknown as EngineWithDeps;
+    e.databaseManager.saveNote = vi.fn(() => {
+      throw new Error("Database not initialized");
+    });
+
+    expect(await e.startManualMeeting()).toBe(false);
+    expect(e._meetingModeActive).toBe(false);
   });
 });

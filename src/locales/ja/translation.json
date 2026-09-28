@@ -1548,7 +1548,6 @@
       "couldNotDelete": "フォルダを削除できませんでした"
     },
     "list": {
-      "title": "ノート",
       "newNote": "新規ノート",
       "untitled": "無題",
       "untitledNote": "無題のノート",

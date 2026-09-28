@@ -192,9 +192,9 @@ export function useFolderManagement(): UseFolderManagementReturn {
     async (folderId: number) => {
       const result = await window.electronAPI.deleteFolder(folderId);
       if (result.success) {
-        const personalFolder = findDefaultFolder(folders);
-        if (activeFolderId === folderId && personalFolder) {
-          setActiveFolderId(personalFolder.id);
+        const fallback = findMeetingsFolder(folders) ?? findDefaultFolder(folders);
+        if (activeFolderId === folderId && fallback) {
+          setActiveFolderId(fallback.id);
         }
         await loadFolders();
       } else if (result.error) {

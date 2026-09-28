@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Check, ChevronDown, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ export function FolderFilter({
   onRename: (folder: FolderItem) => void;
   onDelete: (folder: FolderItem) => void;
 }) {
+  const { t } = useTranslation();
   const active = folders.find((f) => f.id === activeFolderId) ?? null;
 
   return (
@@ -41,14 +43,21 @@ export function FolderFilter({
           className="press flex items-center gap-2 h-8 max-w-full pl-3 pr-2 rounded-full border border-border bg-card text-[13px] font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <FolderOpen size={14} className="shrink-0 text-primary" />
-          <span className="truncate">{active?.name ?? "Folders"}</span>
+          <span className="truncate">{active?.name ?? t("notes.folders.title")}</span>
           {active && (
             <span className="font-medium text-faint tabular-nums">{counts[active.id] || 0}</span>
           )}
           <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={6} className="min-w-56">
+      {/* Closing mustn't hand focus back to the capsule: New folder and
+          Rename open a name field that would lose focus and close at once. */}
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="min-w-56"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {folders.map((folder) => (
           <DropdownMenuItem
             key={folder.id}
@@ -66,20 +75,20 @@ export function FolderFilter({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onNewFolder} className="gap-2 text-[13px]">
           <Plus size={14} className="text-muted-foreground" />
-          New folder
+          {t("notes.context.newFolder")}
         </DropdownMenuItem>
         {active && !active.is_default && (
           <>
             <DropdownMenuItem onSelect={() => onRename(active)} className="gap-2 text-[13px]">
               <Pencil size={14} className="text-muted-foreground" />
-              Rename “{active.name}”
+              {t("notes.context.rename")} “{active.name}”
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => onDelete(active)}
               className="gap-2 text-[13px] text-destructive focus:text-destructive focus:bg-destructive/10"
             >
               <Trash2 size={14} />
-              Delete “{active.name}”
+              {t("notes.context.delete")} “{active.name}”
             </DropdownMenuItem>
           </>
         )}

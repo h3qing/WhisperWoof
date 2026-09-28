@@ -291,7 +291,10 @@ class MeetingDetectionEngine {
     }
   }
 
-  /** `title`: the note's title, e.g. the calendar event recorded from the Meetings tab. */
+  /**
+   * `title`: the note's title, e.g. the calendar event recorded from the
+   * Meetings tab. Resolves false when the meeting's note couldn't be made.
+   */
   async startManualMeeting({ title } = {}) {
     debugLogger.info("Starting manual meeting", {}, "meeting");
 
@@ -314,8 +317,14 @@ class MeetingDetectionEngine {
       attendees_count: 0,
     };
 
-    const noteResult = this.databaseManager.saveNote(event.summary, "", "meeting");
-    const meetingsFolder = this.databaseManager.getMeetingsFolder();
+    let noteResult = null;
+    let meetingsFolder = null;
+    try {
+      noteResult = this.databaseManager.saveNote(event.summary, "", "meeting");
+      meetingsFolder = this.databaseManager.getMeetingsFolder();
+    } catch (error) {
+      debugLogger.error("Manual meeting failed", { error: error.message }, "meeting");
+    }
 
     if (!noteResult?.note?.id || !meetingsFolder?.id) {
       debugLogger.error(
@@ -324,7 +333,7 @@ class MeetingDetectionEngine {
         "meeting"
       );
       this._setMeetingMode(false);
-      return;
+      return false;
     }
 
     this._setMeetingMode(true, {
@@ -344,6 +353,7 @@ class MeetingDetectionEngine {
       event,
       trigger: "manual",
     });
+    return true;
   }
 
   handleNotificationTimeout() {
