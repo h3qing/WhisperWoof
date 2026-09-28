@@ -600,7 +600,8 @@ class DatabaseManager {
         params.push(folderId);
       }
       const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-      const stmt = this.db.prepare(`SELECT * FROM notes ${where} ORDER BY updated_at DESC LIMIT ?`);
+      // Newest made first: the Meetings list shows notes by the day they were made.
+      const stmt = this.db.prepare(`SELECT * FROM notes ${where} ORDER BY created_at DESC LIMIT ?`);
       params.push(limit);
       return stmt.all(...params);
     } catch (error) {
@@ -1180,12 +1181,18 @@ class DatabaseManager {
     }
   }
 
-  getUpcomingEvents(windowMinutes = 1440) {
+  /** `includeInProgress`: also events that started but haven't ended (for the lists people read). */
+  getUpcomingEvents(windowMinutes = 1440, { includeInProgress = false } = {}) {
     try {
       if (!this.db) throw new Error("Database not initialized");
+      // In progress: started today (local day) and not over. A multi-day
+      // timed event that began earlier doesn't sit on top of every list.
+      const notOver = includeInProgress
+        ? "(datetime(start_time) > datetime('now') OR (datetime(end_time) > datetime('now') AND datetime(start_time) >= datetime('now', 'localtime', 'start of day', 'utc')))"
+        : "datetime(start_time) > datetime('now')";
       return this.db
         .prepare(
-          "SELECT * FROM calendar_events WHERE datetime(start_time) > datetime('now') AND datetime(start_time) <= datetime('now', '+' || ? || ' minutes') AND is_all_day = 0 AND status = 'confirmed' ORDER BY start_time ASC"
+          `SELECT * FROM calendar_events WHERE ${notOver} AND datetime(start_time) <= datetime('now', '+' || ? || ' minutes') AND is_all_day = 0 AND status = 'confirmed' ORDER BY start_time ASC`
         )
         .all(windowMinutes);
     } catch (error) {

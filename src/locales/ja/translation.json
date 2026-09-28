@@ -280,7 +280,7 @@
       "enableButton": "GPU を有効化",
       "dismissButton": "後で"
     },
-    "backToNotes": "ノートに戻る"
+    "backToMeetings": "ミーティングに戻る"
   },
   "reasoning": {
     "mode": {
@@ -1548,7 +1548,6 @@
       "couldNotDelete": "フォルダを削除できませんでした"
     },
     "list": {
-      "title": "ノート",
       "newNote": "新規ノート",
       "untitled": "無題",
       "untitledNote": "無題のノート",

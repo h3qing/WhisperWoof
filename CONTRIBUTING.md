@@ -46,6 +46,7 @@ src/whisperwoof/
     home/           Home summary and activity heatmap
     history/        Unified voice + clipboard history view
     notes/          Notes view
+    meetings/       Meetings tab column (coming up today, folder capsule, day dividers)
     smart-clipboard/ Clipboard view (text | images)
     memory/         Memory view (learned words, approved swaps)
     indicator/      MandoSprite (animated Mando), live typing panel, cancel button, meeting pill; indicator shell is src/App.jsx

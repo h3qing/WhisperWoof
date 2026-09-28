@@ -474,6 +474,71 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     await ipc.get("meeting-transcription-stop")!();
   });
 
+  it("starts a meeting from the Meetings tab's New meeting button", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => true) };
+    const result = await ipc.get("meeting-start-new")!();
+    expect(result).toEqual({ success: true });
+    expect(handlers.meetingDetectionEngine.startManualMeeting).toHaveBeenCalledWith({
+      title: undefined,
+    });
+  });
+
+  it("says a New meeting didn't start when its note couldn't be made", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => false) };
+    expect(await ipc.get("meeting-start-new")!()).toMatchObject({ success: false });
+    handlers.meetingDetectionEngine = {
+      startManualMeeting: vi.fn(async () => {
+        throw new Error("no window");
+      }),
+    };
+    expect(await ipc.get("meeting-start-new")!()).toEqual({ success: false, error: "no window" });
+  });
+
+  it("starts one meeting for a double click, not two", async () => {
+    let finish = (_: boolean) => {};
+    handlers.meetingDetectionEngine = {
+      startManualMeeting: vi.fn(() => new Promise<boolean>((r) => (finish = r))),
+    };
+    const first = ipc.get("meeting-start-new")!();
+    expect(await ipc.get("meeting-start-new")!()).toMatchObject({
+      success: false,
+      error: "A meeting is already starting.",
+    });
+    finish(true);
+    expect(await first).toEqual({ success: true });
+    expect(handlers.meetingDetectionEngine.startManualMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it("titles a meeting recorded from the calendar after the event", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => true) };
+    await ipc.get("meeting-start-new")!(event, { title: "  Standup  " });
+    await ipc.get("meeting-start-new")!(event, { title: "x".repeat(500) });
+    await ipc.get("meeting-start-new")!(event, { title: 42 });
+    expect(
+      handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(([o]: any) => o.title)
+    ).toEqual(["Standup", "x".repeat(200), undefined]);
+  });
+
+  it("passes the calendar event on, so its reminder doesn't come up again", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => true) };
+    await ipc.get("meeting-start-new")!(event, { title: "Standup", calendarEventId: "evt-1" });
+    await ipc.get("meeting-start-new")!(event, { calendarEventId: { not: "a string" } });
+    expect(
+      handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(
+        ([o]: any) => o.calendarEventId
+      )
+    ).toEqual(["evt-1", undefined]);
+  });
+
+  it("won't start a second meeting from New meeting while one is recording", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => true) };
+    await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });
+    const result = await ipc.get("meeting-start-new")!();
+    expect(result).toMatchObject({ success: false, error: "A meeting is already recording." });
+    expect(handlers.meetingDetectionEngine.startManualMeeting).not.toHaveBeenCalled();
+    await ipc.get("meeting-transcription-stop")!();
+  });
+
   it("fails to start, leaving nothing running, when the model won't load", async () => {
     local.server.start.mockRejectedValueOnce(new Error("model missing"));
     const started = await ipc.get("meeting-transcription-start")!(event, { noteId: 7 });

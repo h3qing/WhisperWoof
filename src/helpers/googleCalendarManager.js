@@ -381,8 +381,8 @@ class GoogleCalendarManager {
     this.scheduleNextMeeting();
   }
 
-  async getUpcomingEvents(windowMinutes) {
-    return this.databaseManager.getUpcomingEvents(windowMinutes);
+  async getUpcomingEvents(windowMinutes, options) {
+    return this.databaseManager.getUpcomingEvents(windowMinutes, options);
   }
 
   broadcastToWindows(channel, data) {
