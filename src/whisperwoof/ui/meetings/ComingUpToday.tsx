@@ -12,7 +12,7 @@ const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-di
 const startTime = (event: CalendarEvent) => TIME.format(new Date(event.start_time));
 
 /**
- * The Meetings tab's calendar: today's events still to come, the next one
+ * The Meetings tab's calendar: today's events that haven't ended, the next one
  * highlighted, each with Record. Nothing shows without a connected calendar
  * or anything left today.
  */

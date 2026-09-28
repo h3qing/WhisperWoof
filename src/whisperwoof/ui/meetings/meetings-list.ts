@@ -1,7 +1,7 @@
 /**
  * The Meetings tab's list: notes under a divider per day (the day they were
  * made, so a meeting stays on the day it happened), and the calendar events
- * still to come today, each of which can be recorded.
+ * today that haven't ended (the one under way too), each of which can be recorded.
  */
 import { normalizeDbDate } from "../../../utils/dateFormatting";
 import type { CalendarEvent } from "../../../types/calendar";

@@ -11,7 +11,7 @@ import type { FolderItem } from "../../../types/electron";
 
 /**
  * The Meetings tab's folder: a capsule naming the folder the list shows, with
- * every folder one click away (Meetings, Personal, uploads, the user's own).
+ * every folder one click away (Meetings, Personal, the user's own).
  * The folder being shown can be renamed or deleted from here unless it's one
  * of the built-in ones.
  */
