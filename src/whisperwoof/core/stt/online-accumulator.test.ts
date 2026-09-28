@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   createOnlineAccumulator,
   joinTranscriptSegments,
+  parseOfflineMessage,
 } from "../../../helpers/parakeetWsResult.js";
 
 const msg = (text: string, segment: number, isFinal = false) =>
@@ -81,5 +82,14 @@ describe("spelled-out acronyms from the streaming tokenizer", () => {
     const acc = createOnlineAccumulator();
     acc.push(msg("I think A is fine, check the API", 0));
     expect(acc.text()).toBe("I think A is fine, check the API");
+  });
+});
+
+describe("broken bytes from the engine", () => {
+  it("repairs a lost full-width comma in streamed and offline text", () => {
+    const acc = createOnlineAccumulator();
+    acc.push(msg("方便查询�看这个数据", 0, true));
+    expect(acc.text()).toBe("方便查询，看这个数据");
+    expect(parseOfflineMessage(JSON.stringify({ text: "好的�明天见" }))).toBe("好的，明天见");
   });
 });

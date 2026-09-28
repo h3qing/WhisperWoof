@@ -3,6 +3,9 @@ import { useSettingsStore, initializeSettings } from "../stores/settingsStore";
 import logger from "../utils/logger";
 import { useLocalStorage } from "./useLocalStorage";
 import { normalizeReasoningPrefsForSync } from "../whisperwoof/core/settings/startup-reasoning-prefs";
+import { resolveLiveDictationPlan } from "../whisperwoof/core/live/live-dictation";
+import { isOnlineParakeetModel } from "../models/ModelRegistry";
+import { validateLanguageForModel } from "../utils/languageSupport";
 import type { LocalTranscriptionProvider } from "../types/electron";
 
 export interface TranscriptionSettings {
@@ -158,6 +161,7 @@ function useSettingsInternal() {
     useReasoningModel,
     dictationMode,
     livePreviewModel,
+    preferredLanguage,
     audioRetentionDays,
   } = store;
 
@@ -168,6 +172,24 @@ function useSettingsInternal() {
     // The model picker may persist a local family id ("qwen", "llama", …) as the
     // provider; main keys prewarm on exactly "local", so normalize before syncing.
     const reasoningPrefs = normalizeReasoningPrefsForSync(reasoningProvider, reasoningModel);
+    // Live typing (the default) needs its streaming model; main fetches the
+    // one this plan would stream with if it isn't on disk yet.
+    const livePlan = resolveLiveDictationPlan(
+      {
+        useLocalWhisper,
+        localTranscriptionProvider,
+        parakeetModel,
+        preferredLanguage,
+        dictationMode,
+        livePreviewModel,
+        liveFinalPass: "transcription",
+      },
+      {
+        isOnlineModel: isOnlineParakeetModel,
+        supportsLanguage: (language, modelId) =>
+          !language || validateLanguageForModel(language, modelId) !== undefined,
+      }
+    );
     window.electronAPI
       .syncStartupPreferences({
         useLocalWhisper,
@@ -177,6 +199,7 @@ function useSettingsInternal() {
         reasoningModel: reasoningPrefs.reasoningModel,
         useReasoningModel,
         livePreviewModel: dictationMode === "live" ? livePreviewModel : undefined,
+        livePreviewFetch: livePlan.live ? (livePlan.previewModel ?? undefined) : undefined,
         audioRetentionDays,
       })
       .catch((err) =>
@@ -196,6 +219,7 @@ function useSettingsInternal() {
     useReasoningModel,
     dictationMode,
     livePreviewModel,
+    preferredLanguage,
     audioRetentionDays,
   ]);
 

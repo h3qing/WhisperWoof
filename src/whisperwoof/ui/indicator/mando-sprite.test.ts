@@ -5,6 +5,7 @@ import {
   mandoSpriteStyle,
   pickMandoAction,
   MANDO_CELEBRATION_MS,
+  MANDO_PUZZLED_FRAME,
   nextCelebration,
 } from './mando-sprite';
 import type { MandoAction } from './mando-sprite';
@@ -45,6 +46,15 @@ describe('mandoSpriteStyle', () => {
     expect(style.animation).toBe('none');
     expect(style.backgroundPosition).toBe('0 0');
   });
+
+  it('holds a chosen frame as a still, clamped to the sheet', () => {
+    const still = { size: 65, playing: false, loop: false, sheetUrl: 'x' };
+    expect(mandoSpriteStyle('wait', { ...still, frame: 12 }).backgroundPosition).toBe('-720px 0');
+    const last = manifest.wait.frameCount - 1;
+    expect(mandoSpriteStyle('wait', { ...still, frame: 99 }).backgroundPosition).toBe(`-${last * 60}px 0`);
+    // A playing sprite always starts from the first frame.
+    expect(mandoSpriteStyle('wait', { ...still, playing: true, frame: 12 }).backgroundPosition).toBe('0 0');
+  });
 });
 
 describe('pickMandoAction', () => {
@@ -56,6 +66,19 @@ describe('pickMandoAction', () => {
 
   it('tilts its head while waiting for voice', () => {
     expect(pickMandoAction({ ...idle, recordingSilent: true })).toEqual({ action: 'wait', playing: true, loop: true });
+  });
+
+  it('holds his most tilted "huh?" pose after hearing nothing', () => {
+    expect(pickMandoAction({ ...idle, heardNothing: true })).toEqual({
+      action: 'wait',
+      playing: false,
+      loop: false,
+      frame: MANDO_PUZZLED_FRAME,
+      puzzled: true,
+    });
+    expect(MANDO_PUZZLED_FRAME).toBeLessThan(manifest.wait.frameCount);
+    // A new recording wins over the reaction.
+    expect(pickMandoAction({ ...idle, heardNothing: true, recordingSilent: true }).puzzled).toBeUndefined();
   });
 
   it('thinks while transcribing or polishing', () => {

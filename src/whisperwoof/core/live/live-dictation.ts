@@ -93,7 +93,8 @@ export type LivePanelPhase =
   | "streaming"
   | "correcting"
   | "polishing"
-  | "done";
+  | "done"
+  | "heard-nothing";
 
 /** `text` is committed + partial already joined by the main process (CJK-aware). */
 export interface LiveSegments {
@@ -122,11 +123,13 @@ export function toLiveSegments(payload: unknown): LiveSegments {
  * Why a live capture shows no words. The panel says so instead of sitting on
  * "Start talking…"; the capture itself still pastes after release.
  */
-export type LiveNotice = "model-missing" | "unavailable";
+export type LiveNotice = "model-downloading" | "model-missing" | "unavailable";
 
 /** Map a stream-start error (main-process message) to what the panel tells the user. */
 export function liveNoticeForError(error: unknown): LiveNotice {
   const message = error instanceof Error ? error.message : String(error ?? "");
+  // Main fetches a missing streaming model in the background (ensureStreamModel).
+  if (/is downloading/i.test(message)) return "model-downloading";
   return /not downloaded/i.test(message) ? "model-missing" : "unavailable";
 }
 
@@ -137,6 +140,8 @@ export interface LivePanelInput {
   segments: LiveSegments;
   /** Set briefly after a capture lands, so the panel can show what was pasted. */
   finalText: string;
+  /** Set briefly after a capture with nobody talking: nothing was typed. */
+  heardNothing?: boolean;
 }
 
 export interface LivePanelView {
@@ -162,6 +167,7 @@ export function deriveLivePanelView(input: LivePanelInput): LivePanelView {
     return { phase, committed: text, partial: "" };
   }
   if (input.finalText) return { phase: "done", committed: input.finalText, partial: "" };
+  if (input.heardNothing) return { phase: "heard-nothing", committed: "", partial: "" };
   return { phase: "hidden", committed: "", partial: "" };
 }
 

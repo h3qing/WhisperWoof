@@ -571,6 +571,8 @@ declare global {
         reasoningModel?: string;
         useReasoningModel?: boolean;
         livePreviewModel?: string;
+        /** Streaming model live typing will use; main fetches it if missing. */
+        livePreviewFetch?: string;
         audioRetentionDays?: number;
       }) => Promise<void>;
 

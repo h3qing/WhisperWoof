@@ -61,13 +61,16 @@ export function LiveDictationPanel({
   const { phase, committed, partial } = view;
   const recording = phase === 'listening' || phase === 'streaming';
   const processing = phase === 'correcting' || phase === 'polishing';
+  const heardNothing = phase === 'heard-nothing';
   const mando = pickMandoAction({
     speaking: recording && speaking,
     recordingSilent: recording && !speaking,
     processing,
     celebrating,
+    heardNothing,
   });
-  const showNotice = notice !== null && !committed && !partial && phase !== 'done';
+  const showNotice =
+    notice !== null && !committed && !partial && phase !== 'done' && !heardNothing;
 
   const routed = route !== 'paste-at-cursor';
   // The pill is a sign, not prose: English in every UI language.
@@ -89,28 +92,38 @@ export function LiveDictationPanel({
       'save-as-markdown': t('app.live.doneNote', { ...en, defaultValue: 'Saved' }),
       project: t('app.live.doneProject', { ...en, defaultValue: 'Filed' }),
     }[route],
+    'heard-nothing': t('app.live.heardNothing', { ...en, defaultValue: 'No voice' }),
   }[phase as Exclude<typeof phase, 'hidden'>];
   // Status colors stay for status: done is success; a routed dictation wears
   // the accent (as the route chip did) until then.
   const pillClass =
     phase === 'done'
       ? 'bg-success/15 text-success'
-      : routed
-        ? 'bg-primary text-primary-foreground'
-        : processing
-          ? 'bg-foreground/8 text-muted-foreground'
-          : 'bg-mando/15 text-mando-deep';
-  const PillIcon = phase === 'done' ? Check : routed ? ROUTE_ICON[route] : null;
+      : heardNothing
+        ? 'bg-foreground/8 text-muted-foreground'
+        : routed
+          ? 'bg-primary text-primary-foreground'
+          : processing
+            ? 'bg-foreground/8 text-muted-foreground'
+            : 'bg-mando/15 text-mando-deep';
+  // Heard nothing: no icon, the sign needs the whole width (Mando's "?" says the rest).
+  const PillIcon =
+    phase === 'done' ? Check : heardNothing ? null : routed ? ROUTE_ICON[route] : null;
 
   const noticeText =
-    notice === 'model-missing'
-      ? t('app.live.noticeModelMissing', {
+    notice === 'model-downloading'
+      ? t('app.live.noticeModelDownloading', {
           defaultValue:
-            "Live preview model isn't downloaded (Settings → Transcription). Your text appears when you let go.",
+            'Getting live typing ready (downloading its model). Your text appears when you let go.',
         })
-      : t('app.live.noticeUnavailable', {
-          defaultValue: "Live preview didn't start. Your text appears when you let go.",
-        });
+      : notice === 'model-missing'
+        ? t('app.live.noticeModelMissing', {
+            defaultValue:
+              "Live preview model isn't downloaded (Settings → Transcription). Your text appears when you let go.",
+          })
+        : t('app.live.noticeUnavailable', {
+            defaultValue: "Live preview didn't start. Your text appears when you let go.",
+          });
 
   // Keep the end of the line (where new words land) in view: slide the line
   // left by however much it overflows.
@@ -150,7 +163,9 @@ export function LiveDictationPanel({
         <MandoSprite
           action={mando.action}
           playing={mando.playing}
+          frame={mando.frame}
           loop={mando.loop}
+          puzzled={mando.puzzled}
           onAnimationEnd={mando.action === 'hop' ? onCelebrationEnd : undefined}
           size={MANDO_SIZE_PX}
         />
@@ -163,7 +178,13 @@ export function LiveDictationPanel({
           <span className="truncate">{label}</span>
         </span>
       </div>
-      {showNotice ? (
+      {heardNothing ? (
+        <p className="m-0 ml-2 line-clamp-2 text-[13px] font-medium leading-[17px] text-muted-foreground">
+          {t('app.live.heardNothingText', {
+            defaultValue: "Didn't hear anything, so nothing was typed.",
+          })}
+        </p>
+      ) : showNotice ? (
         <p role="status" className="m-0 ml-2 line-clamp-2 text-[12px] font-medium leading-[16px] text-muted-foreground">
           {noticeText}
         </p>

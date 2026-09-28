@@ -18,6 +18,8 @@ import {
 
 // How long the live panel keeps showing the pasted text before it collapses.
 const LIVE_DONE_HOLD_MS = 1600;
+// How long Mando shows he didn't hear anything after a capture with no voice.
+const HEARD_NOTHING_HOLD_MS = 2200;
 
 const MandoToastIcon = React.createElement("img", {
   src: mandoHeadSvg,
@@ -54,7 +56,11 @@ export const useAudioRecording = (toast, options = {}) => {
   // True from the hotkey press until recording actually starts (mic open takes
   // 100-500ms), so the live panel can show "Listening" instead of the idle icon.
   const [isStarting, setIsStarting] = useState(false);
+  // True for a moment after a capture that had nobody talking in it: nothing
+  // was typed, and the indicator says so (Mando tilts his head).
+  const [heardNothing, setHeardNothing] = useState(false);
   const liveDoneTimerRef = useRef(null);
+  const heardNothingTimerRef = useRef(null);
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
@@ -185,6 +191,8 @@ export const useAudioRecording = (toast, options = {}) => {
         }
         if (isRecording) {
           clearTimeout(liveDoneTimerRef.current);
+          clearTimeout(heardNothingTimerRef.current);
+          setHeardNothing(false);
           setLiveFinalText("");
           setLiveSegments(EMPTY_LIVE_SEGMENTS);
           const live = !!audioManagerRef.current?.getLiveDictationPlan?.().live;
@@ -248,6 +256,14 @@ export const useAudioRecording = (toast, options = {}) => {
           const transcribedText = result.text?.trim();
 
           if (!transcribedText) {
+            if (result.noSpeech) {
+              clearTimeout(heardNothingTimerRef.current);
+              setHeardNothing(true);
+              heardNothingTimerRef.current = setTimeout(
+                () => setHeardNothing(false),
+                HEARD_NOTHING_HOLD_MS
+              );
+            }
             return;
           }
 
@@ -616,6 +632,11 @@ export const useAudioRecording = (toast, options = {}) => {
     });
 
     const handleNoAudioDetected = () => {
+      // Mando says it himself in the live panel and the full indicator; only
+      // the minimal indicators (dot, compact) still need a toast.
+      const mandoShows =
+        isLiveModeRef.current || (localStorage.getItem("indicatorStyle") || "full") === "full";
+      if (mandoShows) return;
       toast({
         title: t("hooks.audioRecording.noAudio.title"),
         description: t("hooks.audioRecording.noAudio.description"),
@@ -634,6 +655,7 @@ export const useAudioRecording = (toast, options = {}) => {
       disposeCancel?.();
       disposeNoAudio?.();
       clearTimeout(liveDoneTimerRef.current);
+      clearTimeout(heardNothingTimerRef.current);
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
       }
@@ -684,6 +706,7 @@ export const useAudioRecording = (toast, options = {}) => {
     liveNotice,
     dictationRoute,
     isStarting,
+    heardNothing,
     startRecording: performStartRecording,
     stopRecording: performStopRecording,
     cancelRecording,

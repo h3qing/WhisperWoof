@@ -12,6 +12,7 @@ const {
 const WhisperServerManager = require("./whisperServer");
 const { getModelsDirForService } = require("./modelDirUtils");
 const { WHISPER_FALLBACK_PREFERENCE, pickBestDownloadedModel } = require("./whisperModelFallback");
+const { repairLostPunctuation } = require("../whisperwoof/core/language/lost-punctuation");
 
 const modelRegistryData = require("../models/modelRegistryData.json");
 
@@ -366,9 +367,10 @@ class WhisperManager {
   }
 
   // Normalize whitespace: replace newlines with spaces and collapse multiple spaces
-  // whisper.cpp returns text with \n between audio segments which causes formatting issues
+  // whisper.cpp returns text with \n between audio segments which causes formatting issues.
+  // Also puts back the full-width comma Whisper sometimes breaks into "�".
   normalizeWhitespace(text) {
-    return text.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    return repairLostPunctuation(text.replace(/\n/g, " ").replace(/\s+/g, " ").trim());
   }
 
   parseWhisperResult(output) {

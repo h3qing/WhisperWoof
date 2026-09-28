@@ -1087,6 +1087,47 @@ body:has(.agent-overlay-window) #root {
   }
 }
 
+/* Mando didn't hear anything: he tilts his head and a "?" pops up by his ear
+   (HeardNothingMando). Reduced motion lands straight on the end pose. */
+@keyframes mandoPuzzledTilt {
+  0% {
+    transform: rotate(0deg);
+  }
+  45% {
+    transform: rotate(-9deg);
+  }
+  100% {
+    transform: rotate(-6deg);
+  }
+}
+
+@keyframes mandoHuh {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.5) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(8deg);
+  }
+}
+
+.mando-puzzled {
+  transform-origin: 50% 85%;
+  animation: mandoPuzzledTilt 0.45s cubic-bezier(0.3, 0.7, 0.4, 1.4) both;
+}
+
+.mando-huh {
+  position: absolute;
+  top: 0;
+  right: -0.15em;
+  color: var(--color-mando);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  animation: mandoHuh 0.32s cubic-bezier(0.3, 0.7, 0.4, 1.4) 0.12s both;
+}
+
 @keyframes agent-loading-dot {
   0%,
   80%,

@@ -519,11 +519,14 @@ class WhisperServerManager extends EventEmitter {
           timeout: 300000,
         },
         (res) => {
-          let data = "";
+          // Decode once at the end: a chunk boundary can split a multi-byte
+          // character (Chinese is 3 bytes), which per-chunk decoding turns into "�".
+          const chunks = [];
           res.on("data", (chunk) => {
-            data += chunk;
+            chunks.push(chunk);
           });
           res.on("end", () => {
+            const data = Buffer.concat(chunks).toString("utf8");
             debugLogger.debug("whisper-server transcription completed", {
               statusCode: res.statusCode,
               elapsed: Date.now() - startTime,

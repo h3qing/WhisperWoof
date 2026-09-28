@@ -32,6 +32,7 @@ import {
   recordSpeechWindow,
   speechGateDecision,
 } from "../whisperwoof/core/audio/speech-gate";
+import { isNonSpeechTranscript } from "../whisperwoof/core/audio/non-speech-transcript";
 import {
   getSettings,
   getEffectiveReasoningModel,
@@ -39,6 +40,9 @@ import {
 } from "../stores/settingsStore";
 
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
+// A capture with nobody talking in it: nothing is typed, and the indicator
+// says it didn't hear anything (Mando tilts his head).
+const NO_SPEECH_RESULT = Object.freeze({ success: true, text: "", noSpeech: true });
 // Auto language mode: hints are held back after they hijacked a CJK decode.
 // Module-level so it survives the AudioManager being recreated.
 let autoHintsSuppressed = false;
@@ -725,9 +729,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
       this.isProcessing = false;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
-      this.onTranscriptionComplete?.({ success: true, text: "" });
+      this.onTranscriptionComplete?.(NO_SPEECH_RESULT);
       return;
     }
+    // How much voice the capture held, for judging what the engine returns.
+    const voicedWindows = gate.reason === "unavailable" ? null : gate.speechWindowCount;
 
     try {
       const s = getSettings();
@@ -815,6 +821,18 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return;
       }
 
+      // Whatever still got through with nobody talking ("…", "[BLANK_AUDIO]",
+      // "字幕由Amara.org社区提供") is not what the user said: type nothing.
+      if (result?.success && isNonSpeechTranscript(result.rawText ?? result.text, voicedWindows)) {
+        logger.info(
+          "Transcript is not speech, typing nothing",
+          { speechWindows: voicedWindows, model: activeModel },
+          "audio"
+        );
+        this.onTranscriptionComplete?.(NO_SPEECH_RESULT);
+        return;
+      }
+
       this.lastAudioMetadata = {
         durationMs: metadata?.durationSeconds
           ? Math.round(metadata.durationSeconds * 1000)
@@ -863,7 +881,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "performance"
       );
 
-      if (error.message !== "No audio detected") {
+      if (error.message === "No audio detected") {
+        // The engine heard silence ([BLANK_AUDIO]): same as the gate skipping it.
+        if (this.isProcessing) this.onTranscriptionComplete?.(NO_SPEECH_RESULT);
+      } else {
         this.onError?.({
           title: "Transcription Error",
           description: `Transcription failed: ${error.message}`,
