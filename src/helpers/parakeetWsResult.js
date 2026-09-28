@@ -8,6 +8,16 @@ function parseOfflineMessage(message) {
   }
 }
 
+/** The offline server's whole reply (SenseVoice's has tokens and their times), or null. */
+function parseOfflineDetail(message) {
+  try {
+    const parsed = JSON.parse(String(message || ""));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 // CJK characters and full-width punctuation: a seam touching one of these
 // joins without a space (Chinese never spaces between clauses).
 const CJK_EDGE = /[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]/;
@@ -93,6 +103,7 @@ function parseOnlineMessages(messages) {
 
 module.exports = {
   parseOfflineMessage,
+  parseOfflineDetail,
   parseOnlineMessages,
   createOnlineAccumulator,
   joinTranscriptSegments,

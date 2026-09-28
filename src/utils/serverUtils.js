@@ -5,7 +5,7 @@ const { killProcess } = require("./process");
 
 const GRACEFUL_STOP_TIMEOUT_MS = 5000;
 
-function isPortAvailable(port) {
+function canListen(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));
@@ -13,8 +13,27 @@ function isPortAvailable(port) {
       server.close();
       resolve(true);
     });
-    server.listen(port, "127.0.0.1");
+    server.listen(port, host);
   });
+}
+
+function answers(port, host) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+// On macOS a listen on 127.0.0.1 succeeds while a server (sherpa-onnx) holds
+// the port on all interfaces, so the port must not answer either. (A test
+// listen on 0.0.0.0 would catch it too, but makes the macOS firewall ask
+// about WhisperWoof.)
+async function isPortAvailable(port) {
+  return (await canListen(port, "127.0.0.1")) && !(await answers(port, "127.0.0.1"));
 }
 
 async function findAvailablePort(rangeStart, rangeEnd) {

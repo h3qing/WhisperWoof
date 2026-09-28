@@ -4,7 +4,7 @@
  * the data is being encrypted waits for it to finish. Touch ID is a fake
  * Secure Enclave doing real P-256 ECDH, so the unlock math is the real one.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -12,6 +12,10 @@ import path from "path";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
+
+// Each test runs the real password KDF (scrypt 2^18) a few times: 2-4 s alone,
+// and past the 5 s default on a CI runner busy with the other vault files.
+vi.setConfig({ testTimeout: 30_000 });
 const Database = require("better-sqlite3-multiple-ciphers");
 const PASSWORD = "a good password";
 

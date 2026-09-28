@@ -43,6 +43,7 @@ class AudioTapManager {
     this.isStopping = false;
     this.permissionStatus = "unknown";
     this._requestPromise = null;
+    this.sampleRate = null;
   }
 
   isSupported() {
@@ -94,9 +95,13 @@ class AudioTapManager {
     return this._requestPromise;
   }
 
-  async start({ onChunk, onError } = {}) {
+  /** `sampleRate`: of the 16-bit mono PCM chunks (24 kHz for OpenAI Realtime, 16 kHz for local models). */
+  async start({ onChunk, onError, sampleRate = DEFAULT_SAMPLE_RATE } = {}) {
     if (!this.isSupported()) {
       throw new Error("macOS 14.2 or later is required for native system audio capture.");
+    }
+    if (this.process && this.sampleRate !== sampleRate) {
+      await this.stop();
     }
     if (this.process) {
       this.onChunk = onChunk || null;
@@ -116,10 +121,11 @@ class AudioTapManager {
 
     const child = spawn(
       binaryPath,
-      ["--sample-rate", String(DEFAULT_SAMPLE_RATE), "--chunk-ms", String(DEFAULT_CHUNK_MS)],
+      ["--sample-rate", String(sampleRate), "--chunk-ms", String(DEFAULT_CHUNK_MS)],
       { stdio: ["ignore", "pipe", "pipe"] }
     );
     this.process = child;
+    this.sampleRate = sampleRate;
 
     await new Promise((resolve, reject) => {
       let settled = false;

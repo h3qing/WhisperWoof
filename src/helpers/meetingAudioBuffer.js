@@ -8,7 +8,7 @@ const {
   findStaleMeetingAudioDirs,
 } = require("../whisperwoof/bridge/audio-retention-pure");
 
-const SAMPLE_RATE = 24000;
+const DEFAULT_SAMPLE_RATE = 24000; // OpenAI Realtime; local transcription records at 16 kHz
 const BITS_PER_SAMPLE = 16;
 const NUM_CHANNELS = 1;
 const BYTES_PER_SAMPLE = BITS_PER_SAMPLE / 8;
@@ -17,16 +17,18 @@ const WAV_HEADER_SIZE = 44;
 // Encryption on: segments are sealed streams (WWENC1) of raw PCM, written in
 // ~1 s chunks so a crash loses at most about a second. The vault's public key
 // is enough to write them, so recording keeps going while WhisperWoof is locked.
-const SEALED_CHUNK_BYTES = SAMPLE_RATE * BYTES_PER_SAMPLE * NUM_CHANNELS; // 1 s
+// Raw PCM has no header, so the sealed kind names a rate other than 24 kHz.
+const sealedKind = (sampleRate) =>
+  sampleRate === DEFAULT_SAMPLE_RATE ? "meeting-pcm" : `meeting-pcm-${sampleRate}`;
 const vaultService = () => require("../whisperwoof/bridge/vault/vault-service");
 const wwenc = () => require("../whisperwoof/bridge/vault/wwenc-pure");
 
 /**
  * Build a WAV header buffer for the given data size.
  */
-function buildWavHeader(dataSize) {
+function buildWavHeader(dataSize, sampleRate) {
   const header = Buffer.alloc(WAV_HEADER_SIZE);
-  const byteRate = SAMPLE_RATE * NUM_CHANNELS * BYTES_PER_SAMPLE;
+  const byteRate = sampleRate * NUM_CHANNELS * BYTES_PER_SAMPLE;
   const blockAlign = NUM_CHANNELS * BYTES_PER_SAMPLE;
 
   header.write("RIFF", 0);
@@ -36,7 +38,7 @@ function buildWavHeader(dataSize) {
   header.writeUInt32LE(16, 16); // PCM chunk size
   header.writeUInt16LE(1, 20); // PCM format
   header.writeUInt16LE(NUM_CHANNELS, 22);
-  header.writeUInt32LE(SAMPLE_RATE, 24);
+  header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(byteRate, 28);
   header.writeUInt16LE(blockAlign, 32);
   header.writeUInt16LE(BITS_PER_SAMPLE, 34);
@@ -50,8 +52,8 @@ function buildWavHeader(dataSize) {
  * Write WAV header at position 0 without advancing the file offset.
  * Used to patch the header after all data has been written.
  */
-function patchWavHeader(fd, dataSize) {
-  const header = buildWavHeader(dataSize);
+function patchWavHeader(fd, dataSize, sampleRate) {
+  const header = buildWavHeader(dataSize, sampleRate);
   fs.writeSync(fd, header, 0, WAV_HEADER_SIZE, 0);
 }
 
@@ -59,8 +61,8 @@ function patchWavHeader(fd, dataSize) {
  * Write WAV header at the current file position (advancing the offset).
  * Used when initially creating the file so subsequent writes go after the header.
  */
-function writeInitialWavHeader(fd) {
-  const header = buildWavHeader(0);
+function writeInitialWavHeader(fd, sampleRate) {
+  const header = buildWavHeader(0, sampleRate);
   fs.writeSync(fd, header);
 }
 
@@ -88,13 +90,16 @@ class MeetingAudioBuffer {
     this._sessionDir = null;
     this._sources = {}; // { mic: SourceState, system: SourceState }
     this._started = false;
+    this._sampleRate = DEFAULT_SAMPLE_RATE;
   }
 
   /**
    * Start a new recording session. Creates a temp directory for audio segments.
+   * @param {Object} [options]
+   * @param {number} [options.sampleRate] - Rate of the 16-bit mono PCM written to it
    * @returns {string} Session ID
    */
-  start() {
+  start({ sampleRate = DEFAULT_SAMPLE_RATE } = {}) {
     if (this._started) {
       debugLogger.log("[AudioBuffer] Already started, ignoring");
       return this._sessionId;
@@ -105,6 +110,7 @@ class MeetingAudioBuffer {
     fs.mkdirSync(this._sessionDir, { recursive: true });
 
     this._sources = {};
+    this._sampleRate = sampleRate;
     this._started = true;
 
     debugLogger.log("[AudioBuffer] Session started", {
@@ -318,15 +324,18 @@ class MeetingAudioBuffer {
 
     const fd = fs.openSync(filePath, "w", 0o600);
     if (sealed) {
-      const stream = wwenc().createStream(vaultService().sealPublicRaw(), { kind: "meeting-pcm" });
+      const stream = wwenc().createStream(vaultService().sealPublicRaw(), {
+        kind: sealedKind(this._sampleRate),
+      });
       fs.writeSync(fd, stream.header);
       state.stream = stream.state;
       state.chunkIndex = 0;
       state.pending = Buffer.alloc(0);
     } else {
-      writeInitialWavHeader(fd); // placeholder header, advances file offset to 44
+      writeInitialWavHeader(fd, this._sampleRate); // placeholder header, advances file offset to 44
     }
     state.sealed = sealed;
+    state.sampleRate = this._sampleRate;
 
     state.fd = fd;
     state.filePath = filePath;
@@ -346,7 +355,7 @@ class MeetingAudioBuffer {
         state.pending = Buffer.alloc(0);
       } else {
         // Patch WAV header with actual data size (pwrite — doesn't move offset)
-        patchWavHeader(state.fd, state.dataSize);
+        patchWavHeader(state.fd, state.dataSize, state.sampleRate);
       }
       fs.closeSync(state.fd);
 
@@ -378,10 +387,11 @@ class MeetingAudioBuffer {
   }
 
   _appendSealed(state, buf) {
+    const chunkBytes = state.sampleRate * BYTES_PER_SAMPLE * NUM_CHANNELS; // 1 s
     let pending = Buffer.concat([state.pending, buf]);
-    while (pending.length >= SEALED_CHUNK_BYTES) {
-      this._writeSealedChunk(state, pending.subarray(0, SEALED_CHUNK_BYTES), false);
-      pending = pending.subarray(SEALED_CHUNK_BYTES);
+    while (pending.length >= chunkBytes) {
+      this._writeSealedChunk(state, pending.subarray(0, chunkBytes), false);
+      pending = pending.subarray(chunkBytes);
     }
     state.pending = Buffer.from(pending);
   }

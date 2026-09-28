@@ -31,7 +31,7 @@ import {
   setActiveNoteId,
   setActiveFolderId,
 } from "../../stores/noteStore";
-import { useMeetingTranscription } from "../../hooks/useMeetingTranscription";
+import { useMeetingRecording } from "./useMeetingRecording";
 import { useNotesOnboarding } from "../../hooks/useNotesOnboarding";
 import NotesOnboarding from "./NotesOnboarding";
 
@@ -48,6 +48,8 @@ interface PersonalNotesViewProps {
   onMeetingRecordingRequestHandled?: () => void;
   isMeetingMode?: boolean;
 }
+
+const NO_SEGMENTS: ReturnType<typeof useMeetingRecording>["segments"] = [];
 
 export default function PersonalNotesView({
   onOpenSettings,
@@ -76,6 +78,8 @@ export default function PersonalNotesView({
   const effectiveModelId = useSettingsStore((s) => s.reasoningModel);
   const { isComplete: isOnboardingComplete, complete: completeOnboarding } = useNotesOnboarding();
 
+  // Recordings live in MeetingTranscriptionProvider (ControlPanel), so they keep
+  // going when this view closes and save to their note when they stop.
   const {
     isRecording: isTranscribing,
     transcript: realtimeTranscript,
@@ -83,10 +87,10 @@ export default function PersonalNotesView({
     micPartial: micPartial,
     systemPartial: systemPartial,
     prepareTranscription,
-    startTranscription,
     stopTranscription,
-  } = useMeetingTranscription();
-  const meetingNoteIdRef = useRef<number | null>(null);
+    recording,
+    startRecording: startRecordingInto,
+  } = useMeetingRecording();
 
   const {
     folders,
@@ -111,16 +115,21 @@ export default function PersonalNotesView({
   } = useFolderManagement();
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
+  // The recording's live transcript belongs to the note it records into, not
+  // to whichever note is open (it stays in the provider after it stops).
+  const isRecordingNote = recording?.noteId === activeNoteId;
+  const recordedTranscript = isRecordingNote ? realtimeTranscript : "";
+  const recordedSegments = isRecordingNote ? realtimeSegments : NO_SEGMENTS;
 
-  // Note recording uses the same meeting transcription pipeline.
-  // The `isMeetingMode` ref distinguishes whether the recording was triggered
-  // by the meeting hotkey (creates a separate note) or the note record button.
-  const isMeetingModeRef = useRef(false);
-
+  // Note recording uses the same meeting transcription pipeline, saving into the
+  // note that was open when it started.
   const startRecording = useCallback(async () => {
-    isMeetingModeRef.current = false;
-    await startTranscription();
-  }, [startTranscription]);
+    await startRecordingInto({
+      noteId: activeNoteRef.current,
+      noteTitle: localTitleRef.current || null,
+      isMeeting: false,
+    });
+  }, [startRecordingInto]);
 
   const stopRecording = useCallback(async () => {
     await stopTranscription();
@@ -334,40 +343,19 @@ export default function PersonalNotesView({
 
   useEffect(() => {
     if (!meetingRecordingRequest || activeNoteId !== meetingRecordingRequest.noteId) return;
-    meetingNoteIdRef.current = meetingRecordingRequest.noteId;
-    isMeetingModeRef.current = true;
-    startTranscription();
+    startRecordingInto({
+      noteId: meetingRecordingRequest.noteId,
+      noteTitle: activeNote?.title || null,
+      isMeeting: true,
+    });
     onMeetingRecordingRequestHandled?.();
-  }, [meetingRecordingRequest, activeNoteId, startTranscription, onMeetingRecordingRequestHandled]);
-
-  // Save transcript when any recording stops (meeting or note)
-  const prevTranscribingRef = useRef(false);
-
-  useEffect(() => {
-    if (
-      prevTranscribingRef.current &&
-      !isTranscribing &&
-      (realtimeTranscript || realtimeSegments.length > 0)
-    ) {
-      const transcript =
-        realtimeSegments.length > 0
-          ? JSON.stringify(
-              realtimeSegments.map(({ text, source, timestamp }) => ({ text, source, timestamp }))
-            )
-          : realtimeTranscript;
-
-      // Meeting mode saves to the meeting note; regular recording saves to the active note
-      const noteId = isMeetingModeRef.current ? meetingNoteIdRef.current : activeNoteRef.current;
-      if (noteId && transcript) {
-        window.electronAPI.updateNote(noteId, { transcript });
-      }
-      if (isMeetingModeRef.current) {
-        meetingNoteIdRef.current = null;
-      }
-      isMeetingModeRef.current = false;
-    }
-    prevTranscribingRef.current = isTranscribing;
-  }, [isTranscribing, realtimeTranscript, realtimeSegments]);
+  }, [
+    meetingRecordingRequest,
+    activeNoteId,
+    activeNote?.title,
+    startRecordingInto,
+    onMeetingRecordingRequestHandled,
+  ]);
 
   const editorNote = activeNote
     ? { ...activeNote, title: localTitle, content: localContent }
@@ -699,19 +687,19 @@ export default function PersonalNotesView({
                     }
                   : undefined
               }
-              isMeetingRecording={isTranscribing && isMeetingModeRef.current}
-              meetingTranscript={realtimeTranscript}
-              meetingSegments={realtimeSegments}
-              meetingMicPartial={micPartial}
-              meetingSystemPartial={systemPartial}
+              isMeetingRecording={isRecordingNote && isTranscribing && !!recording?.isMeeting}
+              meetingTranscript={recordedTranscript}
+              meetingSegments={recordedSegments}
+              meetingMicPartial={isRecordingNote ? micPartial : ""}
+              meetingSystemPartial={isRecordingNote ? systemPartial : ""}
               onStopMeetingRecording={stopTranscription}
-              liveTranscript={isTranscribing ? realtimeTranscript : ""}
+              liveTranscript={isTranscribing ? recordedTranscript : ""}
               actionProcessingState={actionProcessingState}
               actionName={actionName}
               actionPicker={
                 <ActionPicker
                   onRunAction={(action) => {
-                    const rawTranscript = realtimeTranscript || activeNote?.transcript;
+                    const rawTranscript = recordedTranscript || activeNote?.transcript;
                     const hasNotes = !!localContent.trim();
                     if (!hasNotes && !rawTranscript) return;
 
@@ -747,7 +735,7 @@ export default function PersonalNotesView({
                   }}
                   onManageActions={() => setShowActionManager(true)}
                   disabled={
-                    (!localContent.trim() && !realtimeTranscript && !activeNote?.transcript) ||
+                    (!localContent.trim() && !recordedTranscript && !activeNote?.transcript) ||
                     actionProcessingState === "processing"
                   }
                 />

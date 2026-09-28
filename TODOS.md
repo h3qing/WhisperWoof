@@ -16,7 +16,7 @@
 - New runtime dependency: ONNX runtime + speaker-embedding models.
 - SQLite schema migration: per-segment speaker IDs on `bf_entries` (or new `bf_entry_segments` table).
 - FTS5 reindex if schema changes affect transcript text storage.
-- Touches our customized meeting pipeline: `MeetingTranscriptCheckpoint`, `MeetingAudioBuffer`, `MeetingDetectionEngine`.
+- Touches our customized meeting pipeline: `MeetingAudioBuffer`, `MeetingDetectionEngine`, and both transcription paths (OpenAI Realtime in `ipcHandlers.js`; on this Mac in `meetingLocalSession.js` / `meetingLocalTranscriber.js`, which already keeps mic and system audio apart). `MeetingTranscriptCheckpoint` is no longer started.
 
 **Context:** Decision D1 in eng review on 2026-05-04 split this from the rest of the upstream cherry-pick bundle because it represents ~70% of the engineering effort. Other items (cancel button, no-paste toggle, TXT export, parakeet 0.6b, secretCrypto, meeting pill) ship first as small PRs.
 
