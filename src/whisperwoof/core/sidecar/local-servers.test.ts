@@ -8,6 +8,9 @@
  * - whisper-server registers /health, /inference and /load only under
  *   `--request-path` (OpenWhispr/whisper.cpp examples/server/server.cpp).
  *
+ * - sherpa-onnx's WebSocket servers (Parakeet, live dictation, meetings)
+ *   print "Listening on:" when ready.
+ *
  * Checks: hardening flags, the key never in argv, secrets stripped from the
  * sidecar env, and every app request carrying the key / prefix.
  */
@@ -21,6 +24,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const LlamaServerManager = require("../../../helpers/llamaServer.js");
 const WhisperServerManager = require("../../../helpers/whisperServer.js");
+const ParakeetWsServer = require("../../../helpers/parakeetWsServer.js");
 
 const FAKE_COMMON = `
 const http = require("http");
@@ -58,6 +62,11 @@ http.createServer((req, res) => {
   res.writeHead(404);
   res.end("File Not Found (" + req.url + ")");
 }).listen(Number(arg("--port")), arg("--host"));
+`;
+
+const FAKE_SHERPA = `${FAKE_COMMON}
+process.stderr.write("Listening on: 127.0.0.1:" + (args.find((a) => a.startsWith("--port=")) || "").slice(7) + "\\n");
+setInterval(() => {}, 1000);
 `;
 
 function writeFake(dir: string, name: string, body: string) {
@@ -183,5 +192,22 @@ describe.runIf(process.platform !== "win32")("loopback model servers", () => {
       mgr._clearIdleTimer();
     }
     expect(mgr.requestPath).toBeNull();
+  }, 20000);
+
+  it("sherpa-onnx servers (dictation, live, meetings) get no API keys", async () => {
+    const fake = writeFake(dir, "fake-sherpa-onnx-ws", FAKE_SHERPA);
+    const modelDir = fs.mkdtempSync(path.join(dir, "model-"));
+    const server = new ParakeetWsServer({ pidKey: "parakeet-test" });
+    server.getWsBinaryPath = () => fake;
+    server._warmUp = async () => {};
+    try {
+      await server.start("parakeet-tdt-0.6b-v3", modelDir, "offline");
+      const seen = JSON.parse(fs.readFileSync(report, "utf8"));
+      expect(seen.envNames).not.toContain("OPENAI_API_KEY");
+      expect(seen.envNames).not.toContain("GITHUB_TOKEN");
+      expect(seen.envNames).toContain("PATH");
+    } finally {
+      await server.stop();
+    }
   }, 20000);
 });
