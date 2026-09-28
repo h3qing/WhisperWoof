@@ -67,7 +67,7 @@ function buildEngine() {
 
   (engine as unknown as { broadcastToWindows: (...args: unknown[]) => void }).broadcastToWindows = vi.fn();
 
-  return { engine, sent, windowManager, databaseManager };
+  return { engine, sent, windowManager, databaseManager, audioActivityDetector };
 }
 
 describe("meeting-state IPC channel", () => {
@@ -228,5 +228,72 @@ describe("meeting-state IPC channel", () => {
 
     expect(await e.startManualMeeting()).toBe(false);
     expect(e._meetingModeActive).toBe(false);
+  });
+});
+
+describe("a meeting started from the Meetings tab", () => {
+  interface EngineInternals {
+    activeDetections: Map<string, unknown>;
+    _notificationQueue: unknown[];
+    _preMeetingNotifiedIds: Set<string>;
+    _meetingModeActive: boolean;
+    startManualMeeting: (options?: { title?: string; calendarEventId?: string }) => Promise<boolean>;
+    handleNotificationResponse: (id: string, action: string) => Promise<void>;
+    _showCalendarNotification: (event: { id: string; start_time: string; summary: string }) => void;
+    _schedulePreMeetingNotification: () => void;
+  }
+
+  it("answers the meeting prompt showing or queued, and that event isn't prompted for again", async () => {
+    const env = buildEngine();
+    const e = env.engine as unknown as EngineInternals;
+    e.activeDetections.set("det-1", { event: { summary: "Standup" } });
+    e._notificationQueue.push({ source: "audio" });
+
+    expect(await e.startManualMeeting({ title: "Standup", calendarEventId: "evt-1" })).toBe(true);
+
+    expect(e.activeDetections.size).toBe(0);
+    expect(e._notificationQueue).toEqual([]);
+    expect(e._preMeetingNotifiedIds.has("evt-1")).toBe(true);
+    expect(env.windowManager.dismissMeetingNotification).toHaveBeenCalled();
+    expect(env.audioActivityDetector.resetPrompt).toHaveBeenCalled();
+    env.engine.stop();
+  });
+
+  it("ignores a prompt's Start while a meeting is already open (no second note)", async () => {
+    const env = buildEngine();
+    const e = env.engine as unknown as EngineInternals;
+    await e.startManualMeeting({ title: "Standup" });
+    e.activeDetections.set("det-2", { event: { summary: "Standup" } });
+    env.databaseManager.saveNote.mockClear();
+
+    await e.handleNotificationResponse("det-2", "start");
+
+    expect(env.databaseManager.saveNote).not.toHaveBeenCalled();
+    expect(env.sent.filter((m) => m.channel === "navigate-to-meeting-note")).toHaveLength(1);
+    env.engine.stop();
+  });
+
+  it("settles a reminder that comes due mid-meeting instead of firing it again at once", () => {
+    const env = buildEngine();
+    const e = env.engine as unknown as EngineInternals;
+    e._meetingModeActive = true;
+    const scheduled = vi.spyOn(e, "_schedulePreMeetingNotification").mockImplementation(() => {});
+
+    e._showCalendarNotification({ id: "evt-2", start_time: new Date(Date.now() + 60_000).toISOString(), summary: "1:1" });
+
+    expect(e._preMeetingNotifiedIds.has("evt-2")).toBe(true);
+    expect(scheduled).toHaveBeenCalledTimes(1);
+    env.engine.stop();
+  });
+
+  it("makes no note when the Meetings folder is missing", async () => {
+    const env = buildEngine();
+    const e = env.engine as unknown as EngineInternals;
+    env.databaseManager.getMeetingsFolder.mockReturnValue(null as never);
+
+    expect(await e.startManualMeeting({ title: "Standup" })).toBe(false);
+    expect(env.databaseManager.saveNote).not.toHaveBeenCalled();
+    expect(e._meetingModeActive).toBe(false);
+    env.engine.stop();
   });
 });

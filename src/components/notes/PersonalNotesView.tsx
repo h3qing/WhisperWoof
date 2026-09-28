@@ -252,7 +252,7 @@ export default function PersonalNotesView({
   const { events: upcomingEvents } = useUpcomingEvents();
   const { startMeeting, isStarting: isStartingMeeting } = useStartMeeting();
   const handleRecordEvent = useCallback(
-    (event: CalendarEvent) => startMeeting(event.summary ?? undefined),
+    (event: CalendarEvent) => startMeeting(event.summary ?? undefined, event.id),
     [startMeeting]
   );
 

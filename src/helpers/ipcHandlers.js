@@ -6665,12 +6665,14 @@ class IPCHandlers {
       if (startingNewMeeting) {
         return { success: false, error: "A meeting is already starting." };
       }
-      const title =
-        typeof options?.title === "string" ? options.title.trim().slice(0, 200) : "";
+      const text = (v) => (typeof v === "string" ? v.trim().slice(0, 200) : "");
+      const title = text(options?.title);
+      const calendarEventId = text(options?.calendarEventId);
       startingNewMeeting = true;
       try {
         const started = await this.meetingDetectionEngine.startManualMeeting({
           title: title || undefined,
+          calendarEventId: calendarEventId || undefined,
         });
         return started
           ? { success: true }

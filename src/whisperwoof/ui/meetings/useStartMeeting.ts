@@ -12,12 +12,14 @@ export function useStartMeeting() {
   const startingRef = useRef(false);
 
   const startMeeting = useCallback(
-    async (title?: string) => {
+    async (title?: string, calendarEventId?: string) => {
       if (startingRef.current) return;
       startingRef.current = true;
       setIsStarting(true);
       try {
-        const result = await window.electronAPI?.startNewMeeting?.(title ? { title } : undefined);
+        const result = await window.electronAPI?.startNewMeeting?.(
+          title || calendarEventId ? { title, calendarEventId } : undefined
+        );
         if (result && !result.success) {
           toast({
             title: "The meeting didn't start",

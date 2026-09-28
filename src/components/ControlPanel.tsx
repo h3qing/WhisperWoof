@@ -195,6 +195,14 @@ function ControlPanelViews() {
   // "Saved as note → Open" from the dictation overlay.
   const [voiceNoteFocus, setVoiceNoteFocus] = useState<string | null>(null);
 
+  // A meeting note opens in its own folder, whichever folder Meetings showed.
+  const openMeetingNote = useCallback(async (noteId: number) => {
+    const note = await window.electronAPI?.getNote?.(noteId);
+    if (note?.folder_id) setActiveFolderId(note.folder_id);
+    setActiveNoteId(noteId);
+    setActiveView("personal-notes");
+  }, []);
+
   /** A ⌘K result: open it where it lives. */
   const openSearchResult = useCallback((to: PaletteNavigation) => {
     switch (to.kind) {
@@ -207,8 +215,7 @@ function ControlPanelViews() {
         setActiveView("voice-notes");
         break;
       case "open-meeting-note":
-        setActiveNoteId(to.id);
-        setActiveView("personal-notes");
+        void openMeetingNote(to.id);
         break;
       case "show-all":
         if (to.view === "history") {
@@ -220,7 +227,7 @@ function ControlPanelViews() {
         }
         break;
     }
-  }, []);
+  }, [openMeetingNote]);
   useEffect(() => {
     const cleanup = window.electronAPI?.onWhisperwoofNavigateVoiceNote?.((name) => {
       setVoiceNoteFocus(name);
@@ -546,10 +553,9 @@ function ControlPanelViews() {
 
   const handleMeetingPillJump = useCallback(
     (noteId: number) => {
-      setActiveNoteId(noteId);
-      setActiveView("personal-notes");
+      void openMeetingNote(noteId);
     },
-    [],
+    [openMeetingNote],
   );
 
   // The pill's Stop has already stopped the recording (ActiveRecordingPill);

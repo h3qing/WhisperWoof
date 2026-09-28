@@ -514,9 +514,20 @@ describe("a meeting transcribed on this Mac, through the IPC handlers", () => {
     await ipc.get("meeting-start-new")!(event, { title: "  Standup  " });
     await ipc.get("meeting-start-new")!(event, { title: "x".repeat(500) });
     await ipc.get("meeting-start-new")!(event, { title: 42 });
-    expect(handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(([o]: any) => o.title)).toEqual(
-      ["Standup", "x".repeat(200), undefined]
-    );
+    expect(
+      handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(([o]: any) => o.title)
+    ).toEqual(["Standup", "x".repeat(200), undefined]);
+  });
+
+  it("passes the calendar event on, so its reminder doesn't come up again", async () => {
+    handlers.meetingDetectionEngine = { startManualMeeting: vi.fn(async () => true) };
+    await ipc.get("meeting-start-new")!(event, { title: "Standup", calendarEventId: "evt-1" });
+    await ipc.get("meeting-start-new")!(event, { calendarEventId: { not: "a string" } });
+    expect(
+      handlers.meetingDetectionEngine.startManualMeeting.mock.calls.map(
+        ([o]: any) => o.calendarEventId
+      )
+    ).toEqual(["evt-1", undefined]);
   });
 
   it("won't start a second meeting from New meeting while one is recording", async () => {
