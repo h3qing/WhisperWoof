@@ -16,6 +16,11 @@ const Database = require("better-sqlite3-multiple-ciphers");
 const PASSWORD = "a good password";
 const FAST = { N: 1024, r: 8, p: 1 };
 
+// Real SQLCipher, real files and the real scrypt cost (N=2^18, about a
+// second per new vault or password): a few seconds per test alone, more on
+// a busy CI runner, so vitest's default 5 s isn't enough.
+vi.setConfig({ testTimeout: 20_000 });
+
 let userData = "";
 const clipboardWrites: string[] = [];
 

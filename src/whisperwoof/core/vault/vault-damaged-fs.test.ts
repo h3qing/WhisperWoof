@@ -4,7 +4,7 @@
  * only the right recovery phrase may rebuild the vault, and the damaged file
  * is moved aside, never overwritten.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -14,6 +14,11 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3-multiple-ciphers");
 const FAST = { N: 1024, r: 8, p: 1 };
+// Real SQLCipher, real files and the real scrypt cost (N=2^18, about a
+// second per new vault or password): a few seconds per test alone, more on
+// a busy CI runner, so vitest's default 5 s isn't enough.
+vi.setConfig({ testTimeout: 20_000 });
+
 let userData = "";
 
 function boot() {

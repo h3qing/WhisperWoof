@@ -3,7 +3,7 @@
  * stops working, the password keeps working, and a crash mid-way resumes on
  * the next unlock. Real SQLCipher database, real files.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -14,6 +14,11 @@ const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3-multiple-ciphers");
 const PASSWORD = "a good password";
 const FAST = { N: 1024, r: 8, p: 1 };
+
+// Real SQLCipher, real files and the real scrypt cost (N=2^18, about a
+// second per new vault or password): a few seconds per test alone, more on
+// a busy CI runner, so vitest's default 5 s isn't enough.
+vi.setConfig({ testTimeout: 20_000 });
 
 let userData = "";
 let notesDir = "";
@@ -115,7 +120,7 @@ describe("new recovery phrase", () => {
     const again = boot();
     await again.vault.unlockWithPassword(PASSWORD);
     expectEverythingOpens(again);
-  }, 20000); // three full-cost scrypt runs (the new vault uses the real KDF): ~4 s alone, more under load
+  });
 
   it("keeps each file's modified time", async () => {
     const { m } = await encryptedSetup();
