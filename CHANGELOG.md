@@ -15,10 +15,10 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ## [2.6.0] - 2026-09-28 — Meetings in the sidebar
 
 ### Added
-- **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification or search. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events still to come are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, uploads, your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
+- **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification, search or the recording pill. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events that haven't ended are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, where uploaded audio lands by default, and your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
 
 ### Fixed
-- **A meeting that's under way shows up.** Upcoming meetings (History, and Coming up today in Meetings) listed only meetings that hadn't started, so the one happening now had no "Now" badge and couldn't be recorded from the list. Meetings that started today and haven't ended are listed now; an event running for days isn't.
+- **A meeting that's under way shows up.** Upcoming meetings on Home listed only meetings that hadn't started, so the one happening now never got its "Now" badge. Meetings that started today and haven't ended are listed now, on Home and in Coming up today (where they can be recorded); an event running for days isn't.
 - **A meeting reminder that comes due during a meeting no longer spins.** The reminder was put off and retried at once, about 800 times a second, until the meeting started. It's now skipped for that event.
 
 ## [2.5.0] - 2026-09-28 — Meetings, transcribed on your Mac

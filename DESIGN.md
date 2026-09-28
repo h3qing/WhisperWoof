@@ -175,9 +175,9 @@ only on large type.
 - **Content:** sheets with 16px gaps. Home opens with a headline sentence and
   a row of facts (`src/whisperwoof/ui/home/home-summary.ts`); History is two
   sheets (the list, the entry it opens); Notes is a glass folder column next
-  to two sheets. Meetings is a glass column (today's calendar events still to
-  come, each with an outline Record capsule; a folder capsule; the notes
-  under a divider per day) next to the open meeting's sheet, with "New
+  to two sheets. Meetings is a glass column (today's calendar events that
+  haven't ended, each with an outline Record capsule; a folder capsule; the
+  notes under a divider per day) next to the open meeting's sheet, with "New
   meeting" as the view's one primary capsule.
 - **Settings:** a `glass-thick glass-rim` window (radius 26) with a capsule
   nav; the content is a sheet nested inside it (radius 18), and groups are
