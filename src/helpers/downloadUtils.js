@@ -1,11 +1,18 @@
 const fs = require("fs");
 const { promises: fsPromises } = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { net } = require("electron");
 const { execFile } = require("child_process");
 const { pipeline } = require("stream");
 const debugLogger = require("./debugLogger");
 const { runSystemTar } = require("./systemTar");
+const {
+  requireHttpsUrl,
+  resolveHttpsRedirect,
+  normalizeSha256,
+  checksumMismatchError,
+} = require("../whisperwoof/bridge/download-integrity-pure");
 
 const USER_AGENT = "OpenWhispr/1.0";
 const PROGRESS_THROTTLE_MS = 100;
@@ -119,10 +126,26 @@ function downloadAttempt(url, tempPath, options) {
       signal.onAbort = onAbort;
     }
 
-    request = net.request({ url, method: "GET" });
+    // Manual redirects: every hop must stay on https. Chromium would follow a
+    // downgrade to http://, letting a network attacker substitute the file.
+    request = net.request({ url, method: "GET", redirect: "manual" });
     for (const [name, value] of Object.entries(headers)) {
       request.setHeader(name, value);
     }
+
+    let currentUrl = url;
+    request.on("redirect", (statusCode, method, redirectUrl) => {
+      let next;
+      try {
+        next = resolveHttpsRedirect(currentUrl, redirectUrl);
+      } catch (redirectError) {
+        // Not following cancels the request; fail() reports why.
+        fail(redirectError);
+        return;
+      }
+      currentUrl = next;
+      request.followRedirect();
+    });
 
     request.on("response", (response) => {
       if (signal?.aborted) {
@@ -249,11 +272,13 @@ function downloadAttempt(url, tempPath, options) {
 
 async function fetchJson(url, options = {}) {
   const headers = { "User-Agent": USER_AGENT, ...(options.headers || {}) };
-  const response = await net.fetch(url, {
+  const response = await net.fetch(requireHttpsUrl(url), {
     method: "GET",
     headers,
     useSessionCookies: false,
   });
+  // net.fetch follows redirects itself; never trust a body that came over http.
+  if (response.url) requireHttpsUrl(response.url);
   if (!response.ok) {
     const err = new Error(`HTTP ${response.status} fetching ${url}`);
     err.isHttpError = true;
@@ -263,8 +288,27 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+async function sha256File(filePath) {
+  const hash = crypto.createHash("sha256");
+  await new Promise((resolve, reject) => {
+    fs.createReadStream(filePath)
+      .on("data", (chunk) => hash.update(chunk))
+      .on("end", resolve)
+      .on("error", reject);
+  });
+  return hash.digest("hex");
+}
+
+/**
+ * Downloads `url` to `destPath` over https only (every redirect hop too).
+ * With `sha256` (hex), the complete file is hashed before it is moved into
+ * place; on a mismatch it is deleted and the download fails — so a caller
+ * never chmods, extracts or runs an unverified file.
+ */
 async function downloadFile(url, destPath, options = {}) {
   const { onProgress, maxRetries = DEFAULT_MAX_RETRIES, signal, expectedSize = 0 } = options;
+  requireHttpsUrl(url);
+  const expectedSha256 = normalizeSha256(options.sha256);
 
   const tempPath = `${destPath}.tmp`;
 
@@ -309,6 +353,15 @@ async function downloadFile(url, destPath, options = {}) {
         startOffset,
         expectedSize,
       });
+
+      if (expectedSha256) {
+        // Hash the whole file, resumed bytes included.
+        const actual = await sha256File(tempPath);
+        if (actual !== expectedSha256) {
+          throw checksumMismatchError(expectedSha256, actual);
+        }
+        debugLogger.info("Download SHA-256 verified", { destPath });
+      }
 
       // Atomic move to final path
       try {
@@ -440,13 +493,17 @@ async function extractZipWindows(zipPath, destDir) {
     debugLogger.info("tar extraction failed, trying PowerShell", { error: error.message });
   }
 
+  // Single-quoted PowerShell literals: a quote in a path (C:\Users\O'Brien)
+  // must be doubled, or it ends the string and the rest runs as script.
+  // PowerShell also treats the typographic single quotes as quotes.
+  const psQuote = (value) => `'${String(value).replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`;
   return new Promise((resolve, reject) => {
     execFile(
       "powershell",
       [
         "-NoProfile",
         "-Command",
-        `Expand-Archive -Force -Path '${zipPath}' -DestinationPath '${destDir}'`,
+        `Expand-Archive -Force -LiteralPath ${psQuote(zipPath)} -DestinationPath ${psQuote(destDir)}`,
       ],
       (psError) => {
         if (psError) reject(new Error(`Zip extraction failed: ${psError.message}`));
@@ -524,6 +581,7 @@ async function findFiles(dir, pattern, maxDepth = 5, depth = 0) {
 
 module.exports = {
   downloadFile,
+  sha256File,
   fetchJson,
   createDownloadSignal,
   createDownloadInProgressError,

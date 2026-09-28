@@ -14,11 +14,13 @@ const TAG_LEN = 16;
 
 // scrypt costs we accept from a vault file: the floor stops a tampered vault
 // from downgrading the password KDF; the ceiling stops one from hanging the
-// app (1 GiB of memory at most).
+// app. Memory is 128·N·r bytes, so N·r ≤ 2^20·8 caps it at 1 GiB, and p ≤ 4
+// caps the number of passes over it.
 const MIN_SCRYPT_N = 1024;
 const MAX_SCRYPT_N = 2 ** 20;
 const MAX_SCRYPT_R = 16;
-const MAX_SCRYPT_P = 16;
+const MAX_SCRYPT_P = 4;
+const MAX_SCRYPT_NR = 2 ** 20 * 8;
 
 // DER prefixes for raw 32-byte X25519 keys (RFC 8410).
 const X25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b656e04220420", "hex");
@@ -88,7 +90,7 @@ function assertScryptParams(params) {
   const powerOfTwo = Number.isInteger(N) && N > 1 && (N & (N - 1)) === 0;
   const inRange =
     powerOfTwo && N >= MIN_SCRYPT_N && N <= MAX_SCRYPT_N &&
-    Number.isInteger(r) && r >= 8 && r <= MAX_SCRYPT_R &&
+    Number.isInteger(r) && r >= 8 && r <= MAX_SCRYPT_R && N * r <= MAX_SCRYPT_NR &&
     Number.isInteger(p) && p >= 1 && p <= MAX_SCRYPT_P;
   if (!inRange) {
     throw new VaultCryptoError("Password settings in the vault are invalid");
@@ -108,11 +110,12 @@ function scryptKey(password, salt, params) {
 }
 
 function x25519PrivateFromSeed(seed) {
-  return crypto.createPrivateKey({
-    key: unpooledConcat([X25519_PKCS8_PREFIX, seed]),
-    format: "der",
-    type: "pkcs8",
-  });
+  const der = unpooledConcat([X25519_PKCS8_PREFIX, seed]);
+  try {
+    return crypto.createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+  } finally {
+    der.fill(0);
+  }
 }
 
 function x25519PublicFromRaw(raw) {

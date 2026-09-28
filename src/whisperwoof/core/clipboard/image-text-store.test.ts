@@ -90,6 +90,54 @@ describe("bf_image_text", () => {
     expect(imageDb.deleteAllImageText(db)).toBe(2);
     expect(imageDb.countImageText(db).read).toBe(0);
   });
+
+  it("stores a screenshot's secrets as •••••, so they can't be searched", () => {
+    imageDb.recordImageText(db, "old", { text: "API key\nsk-proj-abcdefghijklmnopqrstuvwxyz0123\nCopy" });
+    expect(imageDb.imageTextFor(db, "old")).toEqual({ status: "done", text: "API key\n•••••\nCopy" });
+    const like = db.prepare(`SELECT COUNT(*) AS n FROM bf_entries WHERE ${imageDb.TEXT_MATCH_SQL}`);
+    expect(like.get("%sk-proj%").n).toBe(0);
+    expect(like.get("%API key%").n).toBe(1);
+  });
+});
+
+describe("bf_image_text made by v2.4.0 (before secrets were redacted)", () => {
+  function v240Db(): Db {
+    const db = new DatabaseSync(":memory:");
+    db.exec(`CREATE TABLE bf_entries (
+      id TEXT PRIMARY KEY, created_at TEXT, source TEXT, raw_text TEXT, polished TEXT,
+      audio_path TEXT, metadata TEXT, favorite INTEGER NOT NULL DEFAULT 0
+    )`);
+    db.exec(`CREATE TABLE bf_image_text (
+      entry_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK(status IN ('done','failed')),
+      text TEXT NOT NULL DEFAULT '',
+      read_at TEXT NOT NULL
+    )`);
+    const row = db.prepare("INSERT INTO bf_image_text (entry_id, status, text, read_at) VALUES (?, 'done', ?, 'then')");
+    row.run("key", "token ghp_abcdefghijklmnopqrstuvwxyz0123456789 here");
+    row.run("card", "Visa 4242 4242 4242 4242");
+    row.run("plain", "the bottleneck");
+    row.run("empty", "");
+    return db;
+  }
+
+  it("gets the column, then redacts the old rows once", () => {
+    const db = v240Db();
+    imageDb.createImageTextTable(db);
+    expect(imageDb.redactStoredImageText(db)).toBe(2);
+    const texts = Object.fromEntries(
+      db.prepare("SELECT entry_id, text, redacted FROM bf_image_text").all().map((r: { entry_id: string; text: string; redacted: number }) => [r.entry_id, [r.text, r.redacted]])
+    );
+    expect(texts).toEqual({
+      key: ["token ••••• here", 1],
+      card: ["Visa •••••", 1],
+      plain: ["the bottleneck", 1],
+      empty: ["", 1],
+    });
+    expect(imageDb.redactStoredImageText(db)).toBe(0); // done for good
+    imageDb.createImageTextTable(db); // and the next start leaves the table alone
+    expect(db.prepare("SELECT COUNT(*) AS n FROM bf_image_text").get().n).toBe(4);
+  });
 });
 
 describe("Clipboard search with words in images", () => {

@@ -20,6 +20,7 @@ const ww = require("./wwenc-pure");
 const planPure = require("./migration-plan-pure");
 const vault = require("./vault-service");
 const migrate = require("./vault-migrate");
+const journalStore = require("./vault-journal");
 const { SEALED_EXT, sealedPath } = require("./vault-files");
 const {
   vaultPaths,
@@ -35,7 +36,9 @@ const {
 } = require("./vault-paths");
 const debugLogger = require("../../../helpers/debugLogger");
 
-const PASSWORD_TTL_MS = 30 * 60 * 1000;
+// The password is held (as a JS string, which can't be wiped) only between
+// "confirm it's you" and confirming the new words.
+const PASSWORD_TTL_MS = 5 * 60 * 1000;
 const LINK_INFO = "whisperwoof/rotate/v1";
 
 let deps = null; // { Database, userData(), notesDir(), closeDatabases(), openDatabases(), onProgress(p) }
@@ -195,9 +198,24 @@ function finishedAlready(saved) {
   return saved.next.vaultId === vault.getVault()?.vaultId;
 }
 
+// Journal first: a journal without vault.next.json is dropped at the next
+// unlock, while vault.next.json without a journal is deleted at startup.
 function removeLeftovers() {
+  journalStore.remove();
   removeIfExists(vaultPaths.nextVaultFile());
-  removeIfExists(vaultPaths.journal());
+}
+
+/**
+ * The journal of a rotation that already adopted its new vault is signed with
+ * the old master key, so it no longer verifies. That's a crash between
+ * adopting and cleaning up, not tampering: delete vault.next.json too.
+ * Returns whether that's what it was.
+ */
+function discardFinished() {
+  const saved = readNext();
+  if (!saved || !finishedAlready(saved)) return false;
+  removeLeftovers();
+  return true;
 }
 
 /**
@@ -246,8 +264,8 @@ async function rotate(entropy) {
   const { next, link } = buildNextVault(oldVault, vault.requireMasterKey(), entropy, password);
   ensurePrivateDir(vaultPaths.dir());
   writeFileAtomic(vaultPaths.nextVaultFile(), JSON.stringify({ vault: next, link }));
-  writeFileAtomic(vaultPaths.journal(), JSON.stringify(planPure.startJournal("rotate")));
+  journalStore.write(planPure.startJournal("rotate"));
   await finish();
 }
 
-module.exports = { configure, rememberPassword, rotate, finish };
+module.exports = { configure, rememberPassword, rotate, finish, discardFinished };

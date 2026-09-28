@@ -13,7 +13,14 @@ const {
   findFile,
   findFiles,
 } = require("./downloadUtils");
-const { getSafeTempDir } = require("./safeTempDir");
+const { makePrivateTempDir, removeTempDir } = require("./safeTempDir");
+const {
+  parseGithubDigest,
+  resolveHttpsRedirect,
+  requireHttpsUrl,
+} = require("../whisperwoof/bridge/download-integrity-pure");
+
+const MAX_REDIRECTS = 5;
 
 const GITHUB_RELEASE_URL = "https://api.github.com/repos/OpenWhispr/whisper.cpp/releases/latest";
 
@@ -84,6 +91,9 @@ class WhisperCudaManager {
       url: asset.browser_download_url,
       size: asset.size,
       version: release.tag_name,
+      // GitHub's SHA-256 of the asset; null for assets published before
+      // GitHub recorded digests. Throws if present but malformed.
+      sha256: parseGithubDigest(asset.digest),
     };
   }
 
@@ -95,8 +105,7 @@ class WhisperCudaManager {
 
     this._downloading = true;
 
-    let zipPath = null;
-    let extractDir = null;
+    let workDir = null;
 
     try {
       const releaseInfo = await this.fetchReleaseInfo();
@@ -120,14 +129,24 @@ class WhisperCudaManager {
       const { signal, abort } = createDownloadSignal();
       this._downloadSignal = { abort };
 
-      const tempDir = getSafeTempDir();
-      zipPath = path.join(tempDir, `cuda-download-${Date.now()}.zip`);
-      extractDir = path.join(tempDir, `temp-extract-${Date.now()}`);
+      // One private dir (0700, unguessable) for the archive and its contents:
+      // fixed names in a shared temp folder let another local user plant the
+      // "extracted" binary we are about to install and run.
+      workDir = makePrivateTempDir("ww-cuda-");
+      const zipPath = path.join(workDir, "whisper-server-cuda.zip");
+      const extractDir = path.join(workDir, "extract");
+
+      if (!releaseInfo.sha256) {
+        debugLogger.warn("CUDA release asset has no published SHA-256; integrity unchecked", {
+          version: releaseInfo.version,
+        });
+      }
 
       await downloadFile(releaseInfo.url, zipPath, {
         timeout: 600000,
         signal,
         expectedSize: releaseInfo.size,
+        sha256: releaseInfo.sha256,
         onProgress: (downloaded, total) => {
           if (progressCallback) {
             progressCallback({
@@ -140,7 +159,7 @@ class WhisperCudaManager {
         },
       });
 
-      await fsPromises.mkdir(extractDir, { recursive: true });
+      await fsPromises.mkdir(extractDir);
       await extractArchive(zipPath, extractDir);
 
       const binaryName = PLATFORM_BINARY_NAMES[process.platform];
@@ -182,9 +201,7 @@ class WhisperCudaManager {
     } finally {
       this._downloading = false;
       this._downloadSignal = null;
-      if (zipPath) await fsPromises.unlink(zipPath).catch(() => {});
-      if (extractDir)
-        await fsPromises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+      removeTempDir(workDir);
     }
   }
 
@@ -239,8 +256,14 @@ class WhisperCudaManager {
     };
   }
 
-  _fetchJson(url) {
+  _fetchJson(url, redirectsLeft = MAX_REDIRECTS) {
     return new Promise((resolve, reject) => {
+      try {
+        requireHttpsUrl(url);
+      } catch (err) {
+        reject(err);
+        return;
+      }
       https
         .get(
           url,
@@ -253,13 +276,19 @@ class WhisperCudaManager {
           },
           (res) => {
             if (res.statusCode >= 300 && res.statusCode < 400) {
-              const location = res.headers.location;
-              if (!location) {
-                reject(new Error("Redirect without location header"));
+              res.resume();
+              if (redirectsLeft <= 0) {
+                reject(new Error("GitHub API: too many redirects"));
                 return;
               }
-              res.resume();
-              this._fetchJson(location).then(resolve, reject);
+              let next;
+              try {
+                next = resolveHttpsRedirect(url, res.headers.location);
+              } catch (err) {
+                reject(err);
+                return;
+              }
+              this._fetchJson(next, redirectsLeft - 1).then(resolve, reject);
               return;
             }
 

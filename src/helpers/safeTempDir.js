@@ -40,4 +40,20 @@ function getSafeTempDir() {
   }
 }
 
-module.exports = { getSafeTempDir };
+// A fresh directory only this user can enter (mkdtemp: unique name, 0700),
+// for transient audio and downloads. Predictable names in a shared /tmp let
+// another local user pre-create or symlink the path, or read the file.
+function makePrivateTempDir(prefix) {
+  return fs.mkdtempSync(path.join(getSafeTempDir(), prefix));
+}
+
+function removeTempDir(dir) {
+  if (!dir) return;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // best effort: a leftover private dir is swept with the temp folder
+  }
+}
+
+module.exports = { getSafeTempDir, makePrivateTempDir, removeTempDir };

@@ -136,7 +136,22 @@ function getStyleExamples() {
   return loadExamples();
 }
 
+/**
+ * Delete saved style examples. Recording stopped: nothing read them, and
+ * the "edited" half was whatever the target field held afterwards (other
+ * apps' text, or a password pasted in after a dictation). Works while
+ * locked (the file is removed, not rewritten).
+ */
+function purgeStyleExamples() {
+  try {
+    vaultFiles.unlink(STYLE_FILE);
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Couldn't delete style examples", { error: err.message });
+  }
+}
+
 module.exports = {
+  purgeStyleExamples,
   recordStyleExample,
   buildStylePrompt,
   getStyleStats,

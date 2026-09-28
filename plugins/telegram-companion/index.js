@@ -12,6 +12,9 @@
  * Environment:
  *   TELEGRAM_BOT_TOKEN (required) — from @BotFather
  *   OPENAI_API_KEY (required) — for Whisper transcription
+ *   TELEGRAM_ALLOWED_CHAT_IDS (required) — comma-separated chat ids allowed to use the bot.
+ *     Bot names are public: anyone can message it. Messages from other chats are
+ *     ignored (they're only told their own chat id, which is how you find yours).
  *   WHISPERWOOF_INBOX (optional) — path to inbox file, defaults to ~/.config/WhisperWoof/telegram-inbox.json
  *
  * The desktop app polls the inbox file and imports new entries into bf_entries.
@@ -41,6 +44,20 @@ function getBotToken() {
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN environment variable is required");
   return token;
 }
+
+/** Chats allowed to use the bot (TELEGRAM_ALLOWED_CHAT_IDS); empty means nobody yet. */
+function allowedChatIds() {
+  return new Set(
+    (process.env.TELEGRAM_ALLOWED_CHAT_IDS || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean)
+  );
+}
+
+// Voice notes longer or bigger than this aren't transcribed (they cost the owner's API credits).
+const MAX_AUDIO_SECONDS = 10 * 60;
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 function getOpenAIKey() {
   const key = process.env.OPENAI_API_KEY;
@@ -166,6 +183,14 @@ async function handleVoiceMessage(message) {
   const chatId = message.chat.id;
   const from = message.from?.first_name || "Unknown";
 
+  if ((voice.duration || 0) > MAX_AUDIO_SECONDS || (voice.file_size || 0) > MAX_AUDIO_BYTES) {
+    await telegramAPI("sendMessage", {
+      chat_id: chatId,
+      text: "❌ That's too long. Voice notes up to 10 minutes are transcribed.",
+    }).catch(() => {});
+    return;
+  }
+
   try {
     // Notify user we're processing
     await telegramAPI("sendMessage", {
@@ -208,9 +233,10 @@ async function handleVoiceMessage(message) {
       text: `✅ Captured:\n\n${transcript}\n\n📱 → 💻 Syncing to WhisperWoof...`,
     });
   } catch (err) {
+    console.error("[WhisperWoof Telegram] Voice message failed:", err.message);
     await telegramAPI("sendMessage", {
       chat_id: chatId,
-      text: `❌ Error: ${err.message}`,
+      text: "❌ Couldn't transcribe that. Try again in a moment.",
     }).catch(() => {});
   }
 }
@@ -238,7 +264,7 @@ async function handleTextMessage(message) {
     const pending = inbox.filter((e) => !e.imported).length;
     await telegramAPI("sendMessage", {
       chat_id: chatId,
-      text: `🟢 Bot running\n📬 ${pending} pending entries\n📍 Inbox: ${INBOX_PATH}`,
+      text: `🟢 Bot running\n📬 ${pending} pending entries`,
     });
     return;
   }
@@ -289,6 +315,16 @@ async function pollUpdates() {
       lastUpdateId = update.update_id;
       const message = update.message;
       if (!message) continue;
+
+      const chatId = message.chat?.id;
+      if (!allowedChatIds().has(String(chatId))) {
+        console.error(`[WhisperWoof Telegram] Ignored a message from chat ${chatId} (not in TELEGRAM_ALLOWED_CHAT_IDS)`);
+        await telegramAPI("sendMessage", {
+          chat_id: chatId,
+          text: `This bot is private. Your chat id is ${chatId}.`,
+        }).catch(() => {});
+        continue;
+      }
 
       if (message.voice || message.audio) {
         await handleVoiceMessage(message);

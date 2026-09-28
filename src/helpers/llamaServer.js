@@ -7,6 +7,8 @@ const debugLogger = require("./debugLogger");
 const { killProcess } = require("../utils/process");
 const { getSafeTempDir } = require("./safeTempDir");
 const { app } = require("electron");
+const { buildSidecarEnv } = require("../whisperwoof/bridge/sidecar-env-pure");
+const { newServerApiKey, bearerHeaders } = require("../whisperwoof/bridge/local-server-auth-pure");
 
 const PORT_RANGE_START = 8200;
 const PORT_RANGE_END = 8220;
@@ -28,6 +30,9 @@ class LlamaServerManager {
     this.healthCheckFailures = 0;
     this.cachedServerBinaryPaths = null;
     this.activeBackend = null;
+    // Per-process API key (see _doStart). Only main and the app's own
+    // renderer (via llama-server-start) ever hold it.
+    this.apiKey = null;
   }
 
   getServerBinaryPaths() {
@@ -135,6 +140,12 @@ class LlamaServerManager {
 
     this.port = await this.findAvailablePort();
     this.modelPath = modelPath;
+    // The server listens on 127.0.0.1 with CORS that echoes any Origin, so a
+    // web page (or a DNS-rebinding one) could otherwise drive it. The key goes
+    // in LLAMA_API_KEY (see _buildEnv), never argv: `ps` shows argv to other
+    // local users. /health stays public upstream, so the health checks work
+    // either way.
+    this.apiKey = newServerApiKey();
 
     // Let llama.cpp's auto-fit system choose --ctx-size based on available GPU memory
     const baseArgs = [
@@ -151,6 +162,10 @@ class LlamaServerManager {
       // default; say so explicitly so a differently built binary behaves
       // the same instead of burning the token budget on <think>.
       "--jinja",
+      // No bundled web UI and no /slots monitoring endpoint: the app uses
+      // neither, and /slots reports per-slot state to any caller.
+      "--no-webui",
+      "--no-slots",
     ];
 
     if (process.platform === "darwin") {
@@ -210,7 +225,9 @@ class LlamaServerManager {
 
   _buildEnv(binaryPath) {
     const binDir = path.dirname(binaryPath);
-    const env = { ...process.env };
+    // Without the user's cloud API keys and tokens; with our own key, which
+    // llama-server reads from LLAMA_API_KEY (the env of --api-key).
+    const env = buildSidecarEnv(process.env, { LLAMA_API_KEY: this.apiKey });
 
     if (process.platform === "darwin") {
       env.DYLD_LIBRARY_PATH = binDir + (env.DYLD_LIBRARY_PATH ? `:${env.DYLD_LIBRARY_PATH}` : "");
@@ -362,6 +379,7 @@ class LlamaServerManager {
           port: this.port,
           path: "/health",
           method: "GET",
+          headers: bearerHeaders(this.apiKey),
           timeout: HEALTH_CHECK_TIMEOUT_MS,
         },
         (res) => {
@@ -445,6 +463,7 @@ class LlamaServerManager {
           headers: {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(body),
+            ...bearerHeaders(this.apiKey),
           },
           timeout: 300000,
         },
@@ -528,6 +547,12 @@ class LlamaServerManager {
     this.port = null;
     this.modelPath = null;
     this.activeBackend = null;
+    this.apiKey = null;
+  }
+
+  /** Key for the running server, for the app's own renderer; null otherwise. */
+  getApiKey() {
+    return this.process ? this.apiKey : null;
   }
 
   getStatus() {

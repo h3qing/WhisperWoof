@@ -22,7 +22,7 @@ const PASSWORD = "a good password";
 let userData = "";
 let notesDir = "";
 let touchIdMode: "ok" | "cancel" = "ok";
-let atPrompt: { dbPlain: boolean; vaultExists: boolean; reason: string } | null = null;
+let atPrompt: { dbPlain: boolean; vaultExists: boolean; purpose: string } | null = null;
 let replayed: string[] = [];
 
 const dbFile = () => path.join(userData, "transcriptions.db");
@@ -35,8 +35,8 @@ const fakeTouchId = {
     ecdh.generateKeys();
     return { publicKey: ecdh.getPublicKey(), keyBlob: ecdh.getPrivateKey() };
   },
-  deriveSecret: async ({ keyBlob, peer, reason }: { keyBlob: Buffer; peer: Buffer; reason: string }) => {
-    atPrompt = { dbPlain: dbIsPlain(), vaultExists: fs.existsSync(path.join(userData, "vault", "vault.json")), reason };
+  deriveSecret: async ({ keyBlob, peer, purpose }: { keyBlob: Buffer; peer: Buffer; purpose: string }) => {
+    atPrompt = { dbPlain: dbIsPlain(), vaultExists: fs.existsSync(path.join(userData, "vault", "vault.json")), purpose };
     if (touchIdMode === "cancel") throw Object.assign(new Error("Touch ID was cancelled"), { code: "CANCELLED" });
     const ecdh = crypto.createECDH("prime256v1");
     ecdh.setPrivateKey(keyBlob);
@@ -69,6 +69,7 @@ function boot() {
     controller: require("../../bridge/vault/vault-controller.js"),
     inbox: require("../../bridge/vault/vault-inbox.js"),
     files: require("../../bridge/vault/vault-files.js"),
+    journal: require("../../bridge/vault/vault-journal.js"),
   };
   m.lifecycle.configure({
     Database,
@@ -80,8 +81,8 @@ function boot() {
       handlers: {
         "entry.save": async (data: { entry: { id: string } }) => void replayed.push(data.entry.id),
         // Like the real handler: Memory is rewritten, encrypted while encryption is on.
-        "vocab.correction": async (data: { word: string }) =>
-          m.files.writeJson(path.join(userData, "whisperwoof-vocabulary.json"), [{ word: data.word }]),
+        "vocab.correction": async (data: { newFieldValue: string }) =>
+          m.files.writeJson(path.join(userData, "whisperwoof-vocabulary.json"), [{ word: data.newFieldValue }]),
       },
       loadIdMap: () => ({}),
     }),
@@ -125,7 +126,8 @@ describe("turning encryption on with Touch ID", () => {
     const { result } = await turnOn(m, true);
     expect(result).toEqual({ success: true });
     expect(atPrompt).toMatchObject({ dbPlain: true, vaultExists: false });
-    expect(atPrompt?.reason).toMatch(/before encrypting/);
+    // The helper shows "WhisperWoof is trying to check that Touch ID works before encrypting your data."
+    expect(atPrompt?.purpose).toBe("setup");
     expect(m.vault.getPrefs().touchId).toBe(true);
     expect(dbIsPlain()).toBe(false);
   });
@@ -145,6 +147,11 @@ describe("turning encryption on with Touch ID", () => {
     const retried = await m.controller.completeSetup({ password: PASSWORD, confirmWords, useTouchId: true, notesReadable: false });
     expect(retried).toEqual({ success: true });
     expect(m.vault.isOn()).toBe(true);
+    // The phrase they wrote down on the first try still opens it (the retry
+    // must not build the vault from a wiped copy of its entropy).
+    await m.vault.lock({ force: true });
+    const recovered = await m.controller.recover({ phrase: begun.words.join(" "), newPassword: "a brand new password" });
+    expect(recovered).toEqual({ success: true });
   });
 });
 
@@ -188,7 +195,10 @@ describe("while files are being converted", () => {
     const m = boot();
     seed();
     await turnOn(m, false);
-    setImmediate(() => m.inbox.record("vocab.correction", { word: "Mando" }));
+    // The shape the app records (ipcHandlers _learnCorrections); replay checks it.
+    setImmediate(() =>
+      m.inbox.record("vocab.correction", { originalText: "mando", newFieldValue: "Mando", bundleId: null, swaps: [] })
+    );
     expect(await m.controller.disable({ password: PASSWORD })).toEqual({ success: true });
     const vocab = path.join(userData, "whisperwoof-vocabulary.json");
     expect(JSON.parse(fs.readFileSync(vocab, "utf8"))).toEqual([{ word: "Mando" }]);
@@ -215,7 +225,8 @@ describe("while files are being converted", () => {
     await turnOn(m, false);
     // Leave a half-done migration for the next unlock to finish.
     fs.writeFileSync(path.join(userData, "whisperwoof-images", "late.png"), crypto.randomBytes(2000));
-    fs.writeFileSync(path.join(userData, "vault", "migration.json"), JSON.stringify({ v: 1, direction: "enable", startedAt: new Date().toISOString(), phase: "files" }));
+    // Signed by this vault, as the app writes it (an unsigned one is dropped at unlock).
+    m.journal.write({ v: 1, direction: "enable", startedAt: new Date().toISOString(), phase: "files" });
     await m.vault.lock({ force: true });
     let unlockedInLastStep: boolean | null = null;
     m.vault.onUnlocked(async () => {
@@ -234,7 +245,7 @@ describe("while files are being converted", () => {
     seed();
     await turnOn(m, false);
     const journal = path.join(userData, "vault", "migration.json");
-    fs.writeFileSync(journal, JSON.stringify({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" }));
+    m.journal.write({ v: 1, direction: "disable", startedAt: new Date().toISOString(), phase: "db" });
     const begun = await m.controller.beginNewPhrase({ password: PASSWORD });
     const confirmWords = Object.fromEntries(begun.confirmIndexes.map((i: number) => [i, begun.words[i]]));
     expect(await m.controller.completeNewPhrase({ confirmWords })).toMatchObject({ success: false, code: "BUSY" });

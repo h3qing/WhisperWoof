@@ -42,6 +42,13 @@ let busy = false;
 let sealOverride = null;
 let extraOpenKeys = [];
 let extraDbKeyHexes = [];
+// vault.json can be edited while WhisperWoof is locked. Its prefs are trusted
+// once an unlock has checked their MAC (or a save while unlocked signed them).
+let prefsTrusted = false;
+let notesSealedBeforeCheck = false;
+// What the first unlock found changed in vault.json (or planted next to it),
+// for the Encryption settings to say: "sealKey" | "prefs" | "journal".
+const warnings = new Set();
 
 function readVaultFile(file) {
   try {
@@ -91,6 +98,7 @@ function load() {
   const exists = fs.existsSync(vaultPaths.vaultFile()) || fs.existsSync(vaultPaths.vaultBackup());
   vault = readVaultFile(vaultPaths.vaultFile()) || readVaultFile(vaultPaths.vaultBackup());
   damaged = !vault && (exists || databaseIsEncrypted() || sealedFilesOnDisk().length > 0);
+  prefsTrusted = false;
   removeStaleLeftovers();
   return status();
 }
@@ -119,12 +127,16 @@ function emptyTmp() {
 /** Do these keys open the encrypted data on disk? No data at all counts as yes. */
 function keysOpenData(keys) {
   if (databaseIsEncrypted()) {
+    let db = null;
     try {
       const Database = require("better-sqlite3-multiple-ciphers");
-      require("./vault-db").applyKey(new Database(vaultPaths.dbFile(), { readonly: true }), keys.dbKeyHex).close();
+      db = new Database(vaultPaths.dbFile(), { readonly: true });
+      require("./vault-db").applyKey(db, keys.dbKeyHex);
       return true;
     } catch {
       return false;
+    } finally {
+      db?.close();
     }
   }
   const sample = sealedFilesOnDisk()[0];
@@ -164,20 +176,43 @@ function getPrefs() {
   return vault ? vault.prefs : { ...vk.DEFAULT_PREFS };
 }
 
-/** Whether notes are written sealed (encryption on, "keep notes readable" off). */
+/**
+ * Whether notes are written sealed (encryption on, "keep notes readable" off).
+ * "Keep notes readable" is read from vault.json, which could have been edited
+ * while WhisperWoof was locked: until an unlock has checked it, notes are
+ * sealed anyway, and that unlock makes them plain again (takeNotesSealedBeforeCheck).
+ */
 function sealsNotes() {
-  return isOn() && !getPrefs().notesReadable;
+  if (!isOn()) return false;
+  if (!getPrefs().notesReadable) return true;
+  if (prefsTrusted) return false;
+  notesSealedBeforeCheck = true;
+  return true;
 }
 
-function saveVault(next, { notify = true } = {}) {
+/** Whether notes may have been sealed only because the prefs weren't checked yet (clears it). */
+function takeNotesSealedBeforeCheck() {
+  const sealed = notesSealedBeforeCheck;
+  notesSealedBeforeCheck = false;
+  return sealed;
+}
+
+/**
+ * Write vault.json and its backup. With the master key at hand (unlocked, or
+ * passed in), the prefs get a fresh MAC; without it (locked) the existing MAC
+ * is kept as it is, so a pref changed while locked fails the next check.
+ */
+function saveVault(next, { notify = true, masterKey: key = masterKey } = {}) {
+  const signed = key ? vk.signPrefs(next, key) : next;
   ensurePrivateDir(vaultPaths.dir());
-  const json = JSON.stringify(next, null, 2);
+  const json = JSON.stringify(signed, null, 2);
   writeFileAtomic(vaultPaths.vaultFile(), json);
   writeFileAtomic(vaultPaths.vaultBackup(), json);
-  vault = next;
+  vault = signed;
   damaged = false;
+  if (key) prefsTrusted = true;
   if (notify) notifyState();
-  return next;
+  return signed;
 }
 
 function deleteVaultFiles() {
@@ -243,13 +278,33 @@ async function runHooks(hooks, label) {
   }
 }
 
+/**
+ * vault.json can be edited while WhisperWoof is locked; the master key can
+ * check two things in it. The sealing public key is recomputed from MK (a
+ * swapped one means files sealed while locked went to someone else's key),
+ * and the prefs are checked against their MAC. Whatever was changed is put
+ * back and remembered for the Encryption settings to report.
+ */
+function checkVaultFile(nextMasterKey) {
+  let fixed = vault;
+  if (!vk.verifySealKey(vault, nextMasterKey)) {
+    debugLogger.error("[Vault] Sealing key in vault.json didn't match; restored it");
+    fixed = { ...fixed, sealPublicKey: vk.deriveKeys(nextMasterKey).sealPublicRaw.toString("base64") };
+    warnings.add("sealKey");
+  }
+  const prefs = vk.checkPrefs(fixed, nextMasterKey);
+  if (!prefs.ok) {
+    debugLogger.error("[Vault] Settings in vault.json didn't match their signature; restored them");
+    fixed = { ...fixed, prefs: prefs.prefs };
+    warnings.add("prefs");
+  }
+  if (fixed !== vault || prefs.unsigned) saveVault(fixed, { masterKey: nextMasterKey, notify: false });
+  prefsTrusted = true;
+}
+
 /** Accept a master key (already verified against the vault) and open everything. */
 async function becomeUnlocked(nextMasterKey) {
-  if (!vk.verifySealKey(vault, nextMasterKey)) {
-    // vault.json's public key was changed on disk. Put the real one back.
-    debugLogger.error("[Vault] Sealing key in vault.json didn't match; restored it");
-    saveVault({ ...vault, sealPublicKey: vk.deriveKeys(nextMasterKey).sealPublicRaw.toString("base64") });
-  }
+  checkVaultFile(nextMasterKey);
   vc.wipe(masterKey);
   masterKey = nextMasterKey;
   keys = vk.deriveKeys(masterKey);
@@ -303,6 +358,7 @@ async function lock({ force = false } = {}) {
   }
   await runHooks(lockingHooks, "lock");
   emptyTmp();
+  clearRotation();
   vc.wipe(masterKey);
   masterKey = null;
   keys = null;
@@ -347,15 +403,25 @@ async function exclusive(fn) {
  * Nobody sees a "locked" state in between.
  */
 async function adoptNewVault(nextVault, nextMasterKey, { beforeUnlock } = {}) {
-  saveVault(nextVault, { notify: false });
+  saveVault(nextVault, { notify: false, masterKey: nextMasterKey });
   if (beforeUnlock) beforeUnlock();
   return becomeUnlocked(nextMasterKey);
 }
 
-/** A new recovery phrase is in place: switch to its vault and keys, no unlock steps. */
+/**
+ * A new recovery phrase is in place: switch to its vault and keys, no unlock
+ * steps. vault.next.json is as editable as vault.json, so its sealing key is
+ * recomputed and the prefs are the current (checked) ones.
+ */
 function replaceVault(nextVault, nextMasterKey) {
   if (!vk.verifyMasterKey(nextVault, nextMasterKey)) throw new Error("Master key doesn't belong to the new vault");
-  saveVault(nextVault, { notify: false });
+  const { lockOnSleep, idleMinutes, notesReadable } = getPrefs();
+  const checked = {
+    ...nextVault,
+    sealPublicKey: vk.deriveKeys(nextMasterKey).sealPublicRaw.toString("base64"),
+    prefs: { ...nextVault.prefs, lockOnSleep, idleMinutes, notesReadable },
+  };
+  saveVault(checked, { notify: false, masterKey: nextMasterKey });
   vc.wipe(masterKey);
   masterKey = nextMasterKey;
   keys = vk.deriveKeys(masterKey);
@@ -363,13 +429,25 @@ function replaceVault(nextVault, nextMasterKey) {
   notifyState();
 }
 
-/** Turning encryption off finished: forget the vault. */
+/** Turning encryption off finished: forget the vault (and its journal). */
 async function forgetVault() {
+  clearRotation();
   vc.wipe(masterKey);
   masterKey = null;
   keys = null;
   deleteVaultFiles();
+  removeIfExists(vaultPaths.journal());
+  warnings.clear();
   notifyState();
+}
+
+/** What the first unlock found changed while locked ("sealKey" | "prefs" | "journal"). */
+function getWarnings() {
+  return [...warnings];
+}
+
+function addWarning(kind) {
+  warnings.add(kind);
 }
 
 function onUnlocked(fn) {
@@ -408,6 +486,9 @@ module.exports = {
   getVault,
   getPrefs,
   sealsNotes,
+  takeNotesSealedBeforeCheck,
+  getWarnings,
+  addWarning,
   saveVault,
   sealPublicRaw,
   openSealed,

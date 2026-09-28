@@ -62,6 +62,13 @@ describe("scryptKey", () => {
   it("rejects weak parameters", () => {
     expect(() => vc.scryptKey("pw", crypto.randomBytes(16), { N: 1000, r: 8, p: 1 })).toThrow();
   });
+
+  it("refuses costs a tampered vault could use to hang the app", () => {
+    // Memory (128·N·r) is capped at 1 GiB and passes at 4.
+    expect(() => vc.assertScryptParams({ N: 2 ** 20, r: 16, p: 1 })).toThrow();
+    expect(() => vc.assertScryptParams({ N: 2 ** 19, r: 16, p: 1 })).not.toThrow();
+    expect(() => vc.assertScryptParams({ N: 2 ** 18, r: 8, p: 5 })).toThrow();
+  });
 });
 
 describe("X25519 from a seed", () => {

@@ -98,6 +98,18 @@ describe("notes folder", () => {
     expect(folder.listNotes().notes.map((n: { title: string }) => n.title)).toEqual(["still listed"]);
   });
 
+  it("doesn't list a note that is a symlink to a file outside the folder", () => {
+    const { route, folder } = loadBridge();
+    route.saveAsMarkdown("still listed");
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ww-outside-"));
+    fs.writeFileSync(path.join(outside, "id_rsa"), "-----BEGIN OPENSSH PRIVATE KEY-----");
+    fs.symlinkSync(path.join(outside, "id_rsa"), path.join(dir, "key.md"));
+    const listed = folder.listNotes().notes;
+    expect(listed.map((n: { title: string }) => n.title)).toEqual(["still listed"]);
+    expect(JSON.stringify(listed)).not.toContain("PRIVATE KEY");
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+
   it("moves a note to the Trash through the OS, not a hard delete", async () => {
     const { route, folder } = loadBridge();
     const { name } = route.saveAsMarkdown("temp");

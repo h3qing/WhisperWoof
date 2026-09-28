@@ -89,7 +89,9 @@ function renderTemplateFromObject(template, values) {
   let output = template.outputFormat;
   for (const section of template.sections) {
     const value = (values[section.id] || "").trim() || "(none)";
-    output = output.replace(new RegExp(`\\{\\{${section.id}\\}\\}`, "g"), value);
+    // Literal replace: the id isn't a regex, and "$&" or "$'" in what the
+    // user said stays text instead of splicing in other parts of the template.
+    output = output.split(`{{${section.id}}}`).join(value);
   }
 
   return { success: true, output };

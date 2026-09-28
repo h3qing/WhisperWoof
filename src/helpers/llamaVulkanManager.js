@@ -12,6 +12,14 @@ const {
   findFile,
   findFiles,
 } = require("./downloadUtils");
+const {
+  parseGithubDigest,
+  resolveHttpsRedirect,
+  requireHttpsUrl,
+  githubTokenAllowed,
+} = require("../whisperwoof/bridge/download-integrity-pure");
+
+const MAX_REDIRECTS = 5;
 
 const GITHUB_RELEASE_URL = "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest";
 
@@ -101,17 +109,27 @@ class LlamaVulkanManager {
         );
       }
 
-      const archivePath = path.join(this.binDir, asset.name);
+      // GitHub's SHA-256 of the asset; null for assets published before
+      // GitHub recorded digests. Checked before anything is extracted or run.
+      const sha256 = parseGithubDigest(asset.digest);
+      if (!sha256) {
+        debugLogger.warn("Vulkan release asset has no published SHA-256; integrity unchecked", {
+          asset: asset.name,
+        });
+      }
+
+      const archivePath = path.join(this.binDir, path.basename(asset.name));
       await downloadFile(asset.browser_download_url, archivePath, {
         signal,
         expectedSize: asset.size,
+        sha256,
         onProgress,
       });
 
-      const extractDir = path.join(this.binDir, `temp-vulkan-${Date.now()}`);
-      await fsPromises.mkdir(extractDir, { recursive: true });
-
+      let extractDir = null;
       try {
+        // Unique name (swept by cleanupStaleDownloads if a crash leaves it).
+        extractDir = await fsPromises.mkdtemp(path.join(this.binDir, "temp-extract-"));
         await extractArchive(archivePath, extractDir);
 
         const binaryPath = await findFile(extractDir, config.binaryName);
@@ -130,7 +148,9 @@ class LlamaVulkanManager {
 
         debugLogger.info("Vulkan llama-server installed", { path: outputPath });
       } finally {
-        await fsPromises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        if (extractDir) {
+          await fsPromises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+        }
         await fsPromises.unlink(archivePath).catch(() => {});
       }
 
@@ -172,21 +192,39 @@ class LlamaVulkanManager {
     return { success: true, deletedCount };
   }
 
-  _fetchJson(url) {
+  _fetchJson(url, redirectsLeft = MAX_REDIRECTS) {
     const https = require("https");
     return new Promise((resolve, reject) => {
+      try {
+        requireHttpsUrl(url);
+      } catch (err) {
+        reject(err);
+        return;
+      }
       const headers = {
         "User-Agent": "OpenWhispr/1.0",
         Accept: "application/vnd.github+json",
       };
+      // The token goes to api.github.com only, never to a redirect target.
       const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-      if (token) headers.Authorization = `Bearer ${token}`;
+      if (token && githubTokenAllowed(url)) headers.Authorization = `Bearer ${token}`;
 
       https
         .get(url, { headers, timeout: 15000 }, (res) => {
           if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
             res.resume();
-            this._fetchJson(res.headers.location).then(resolve, reject);
+            if (redirectsLeft <= 0) {
+              reject(new Error("GitHub API: too many redirects"));
+              return;
+            }
+            let next;
+            try {
+              next = resolveHttpsRedirect(url, res.headers.location);
+            } catch (err) {
+              reject(err);
+              return;
+            }
+            this._fetchJson(next, redirectsLeft - 1).then(resolve, reject);
             return;
           }
           if (res.statusCode !== 200) {

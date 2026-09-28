@@ -97,6 +97,14 @@ def main():
         print("NO_ELEMENT", flush=True)
         sys.exit(1)
 
+    # Password fields are never read
+    try:
+        if focused.get_role() == Atspi.Role.PASSWORD_TEXT:
+            print("NO_VALUE", flush=True)
+            sys.exit(0)
+    except Exception:
+        pass
+
     # Check if the element supports the Text interface
     try:
         text_iface = focused.get_text_iface()

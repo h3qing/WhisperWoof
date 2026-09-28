@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { VaultErrorCode, VaultFailure, VaultMigration, VaultStatus } from "../../../types/electron";
 import {
+  TOO_EASY_PASSWORD,
   afterAuthFailure,
   callVault,
+  changedWhileLockedNotice,
   checkConfirmWords,
   checkNewPassword,
   confirmWordsPayload,
@@ -11,6 +13,7 @@ import {
   encryptionSummary,
   initialAuthMode,
   initialTurnOnState,
+  isTooEasyPassword,
   isVaultFailure,
   migrationErrorText,
   migrationLabel,
@@ -79,6 +82,16 @@ describe("checkNewPassword", () => {
       message: "The two passwords don't match.",
     });
     expect(checkNewPassword("correct horse", "x").message).toBe("The two passwords don't match.");
+  });
+
+  it("refuses a password every guessing list starts with, however it's capitalized", () => {
+    expect(checkNewPassword("password1", "password1")).toEqual({ ok: false, message: TOO_EASY_PASSWORD });
+    expect(checkNewPassword("IloveYou1", "").message).toBe(TOO_EASY_PASSWORD);
+    expect(checkNewPassword("aaaaaaaaaa", "aaaaaaaaaa").ok).toBe(false);
+    expect(isTooEasyPassword("12345678")).toBe(true);
+    expect(isTooEasyPassword("correct horse")).toBe(false);
+    // Too short is the hint's job, not an error.
+    expect(checkNewPassword("pass", "pass").message).toBeNull();
   });
 });
 
@@ -275,7 +288,7 @@ describe("Touch ID and error handling", () => {
     });
     expect(touchIdOutcome({ success: false, error: "", code: "INVALIDATED" })).toEqual({
       kind: "usePassword",
-      message: "Touch ID needs to be set up again. Use your password.",
+      message: "The fingerprints on this Mac changed, so Touch ID was turned off. Use your password.",
     });
     expect(touchIdOutcome({ success: false, error: "", code: "LOCKOUT" }).kind).toBe("usePassword");
     expect(touchIdOutcome({ success: false, error: "", code: "UNAVAILABLE" }).kind).toBe("usePassword");
@@ -355,6 +368,20 @@ describe("settings copy", () => {
     expect(encryptionSummary(status({ touchId: { available: false } }))).toBe(
       "Encrypted. Unlocks with your password."
     );
+  });
+
+  it("says so when the fingerprints changed and Touch ID was turned off", () => {
+    expect(touchIdRowDescription({ available: true }, { wasReset: true })).toMatch(/fingerprints on this Mac changed/);
+    expect(touchIdRowDescription({ available: false, reason: "lockout" }, { wasReset: true })).toMatch(/too many tries/);
+  });
+
+  it("reports what the unlock found changed while locked, and nothing otherwise", () => {
+    expect(changedWhileLockedNotice(status())).toBeNull();
+    const notice = (changes: string[]) =>
+      changedWhileLockedNotice({ ...status(), changedWhileLocked: changes } as VaultStatus);
+    expect(notice([])).toBeNull();
+    expect(notice(["journal"])).toBe("A request to decrypt your data appeared while WhisperWoof was locked. It was ignored.");
+    expect(notice(["prefs", "sealKey"])).toMatch(/^The encryption key .* put back\. .*Your encryption settings were changed/);
   });
 
   it("explains why Touch ID can't be used", () => {

@@ -123,6 +123,9 @@ class DatabaseManager {
         )
       `);
 
+      // Deleting a transcript or note erases it from the file and the index.
+      require("../whisperwoof/bridge/db-erase").enableSecureDelete(this.db, ["notes_fts"]);
+
       this.db.exec(`
         CREATE TRIGGER IF NOT EXISTS notes_fts_insert AFTER INSERT ON notes BEGIN
           INSERT INTO notes_fts(rowid, title, content, enhanced_content)

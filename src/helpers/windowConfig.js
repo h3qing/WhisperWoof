@@ -1,4 +1,11 @@
 const path = require("path");
+const { app } = require("electron");
+
+// DevTools can call every IPC channel of the page: at a locked WhisperWoof it
+// could plant code that captures the password or reads history once unlocked.
+// Release builds of the real profile don't have it. Development and the
+// staging/dev channels (separate profiles, see main.js) keep it.
+const DEVTOOLS_ALLOWED = !app?.isPackaged || process.env.OPENWHISPR_CHANNEL !== "production";
 
 const isGnomeWayland =
   process.platform === "linux" &&
@@ -61,6 +68,7 @@ const MAIN_WINDOW_CONFIG = {
   title: "WhisperWoof",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
+    devTools: DEVTOOLS_ALLOWED,
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
@@ -93,6 +101,7 @@ const CONTROL_PANEL_CONFIG = {
   height: 800,
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
+    devTools: DEVTOOLS_ALLOWED,
     nodeIntegration: false,
     contextIsolation: true,
     // sandbox: false is required because the preload script bridges IPC
@@ -137,6 +146,7 @@ const NOTIFICATION_WINDOW_CONFIG = {
   show: false,
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
+    devTools: DEVTOOLS_ALLOWED,
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
@@ -229,6 +239,7 @@ const AGENT_OVERLAY_CONFIG = {
   ...(process.platform === "darwin" && { vibrancy: "popover", visualEffectState: "active" }),
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
+    devTools: DEVTOOLS_ALLOWED,
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: false,
@@ -240,6 +251,7 @@ const AGENT_OVERLAY_CONFIG = {
 };
 
 module.exports = {
+  DEVTOOLS_ALLOWED,
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
   AGENT_OVERLAY_CONFIG,

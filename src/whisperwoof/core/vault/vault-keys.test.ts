@@ -171,3 +171,43 @@ describe("updatePrefs", () => {
     expect(vk.updatePrefs(vault, { touchId: true }).prefs.touchId).toBe(false);
   });
 });
+
+describe("prefs MAC (vault.json can be edited while locked)", () => {
+  it("a new vault's prefs verify with its master key, and survive a JSON round trip", () => {
+    const { vault, masterKey } = make();
+    expect(typeof vault.prefsMac).toBe("string");
+    expect(vk.checkPrefs(vk.parseVault(JSON.parse(JSON.stringify(vault))), masterKey)).toEqual({ ok: true });
+  });
+
+  it("finds the signed prefs again when one was flipped on disk", () => {
+    const { vault, masterKey } = make();
+    const signed = vk.signPrefs(vk.updatePrefs(vault, { idleMinutes: 15 }), masterKey);
+    const flipped = { ...signed, prefs: { ...signed.prefs, notesReadable: true, lockOnSleep: false, idleMinutes: 0 } };
+    expect(vk.checkPrefs(flipped, masterKey)).toEqual({
+      ok: false,
+      prefs: { touchId: false, lockOnSleep: true, idleMinutes: 15, notesReadable: false },
+    });
+  });
+
+  it("falls back to the defaults when the MAC matches nothing, and can't be made without the master key", () => {
+    const { vault, masterKey } = make();
+    const forged = vk.signPrefs(vk.updatePrefs(vault, { notesReadable: true }), crypto.randomBytes(32));
+    expect(vk.checkPrefs(forged, masterKey)).toEqual({
+      ok: false,
+      prefs: { touchId: false, lockOnSleep: true, idleMinutes: 0, notesReadable: false },
+    });
+  });
+
+  it("is tied to the vault id", () => {
+    const { vault, masterKey } = make();
+    const moved = { ...vault, vaultId: "0".repeat(32) };
+    expect(vk.checkPrefs(moved, masterKey).ok).toBe(false);
+  });
+
+  it("says when a vault has no MAC yet (made before it existed)", () => {
+    const { vault, masterKey } = make();
+    const { prefsMac, ...old } = vault;
+    expect(prefsMac).toBeTruthy();
+    expect(vk.checkPrefs(vk.parseVault(old), masterKey)).toEqual({ ok: true, unsigned: true });
+  });
+});

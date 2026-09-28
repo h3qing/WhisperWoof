@@ -14,6 +14,10 @@ on:
       - "LICENSE"
       - "docs/**"
 
+# Tests and builds only read the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests & Quality

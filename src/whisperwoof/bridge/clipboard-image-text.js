@@ -27,6 +27,8 @@ const store = require("./clipboard-image-text-db");
 const vault = require("./vault/vault-service");
 const vaultFiles = require("./vault/vault-files");
 const { resolveAppFile } = require("./app-files");
+const { buildSidecarEnv } = require("./sidecar-env-pure");
+const { checkpoint } = require("./db-erase");
 
 const BINARY = "macos-ocr-helper";
 const STARTUP_DELAY_MS = 20000;
@@ -35,6 +37,8 @@ const READ_TIMEOUT_MS = 60000;
 const HELPER_IDLE_MS = 30000;
 const BACKLOG_BATCH = 50;
 const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
+/** Longer than any answer the helper sends (its text is capped at 20,000 characters). */
+const MAX_ANSWER_CHARS = 1024 * 1024;
 /** A crash or timeout on the same image this often marks it unreadable. */
 const MAX_ATTEMPTS = 3;
 /** The helper failing to start this often in a row turns reading off for this session. */
@@ -132,7 +136,11 @@ function startHelper() {
   } catch {
     // keep English
   }
-  const child = spawn(resolveBinary(), ["--languages", languages.join(",")], { stdio: ["pipe", "pipe", "ignore"] });
+  // No API keys or loader-injection variables: it only needs to read images.
+  const child = spawn(resolveBinary(), ["--languages", languages.join(",")], {
+    stdio: ["pipe", "pipe", "ignore"],
+    env: buildSidecarEnv(process.env),
+  });
   // Without a pid (it didn't start) setPriority would lower WhisperWoof itself.
   if (child.pid) {
     try {
@@ -145,6 +153,14 @@ function startHelper() {
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
     h.buffer += chunk;
+    if (h.buffer.length > MAX_ANSWER_CHARS && !h.buffer.includes("\n")) {
+      // Not the helper's wire format: stop it rather than buffer without end.
+      h.buffer = "";
+      settle(h, { error: "failed", crashed: true });
+      if (helper === h) helper = null;
+      h.child.kill("SIGKILL");
+      return;
+    }
     let newline;
     while ((newline = h.buffer.indexOf("\n")) >= 0) {
       const answer = pure.parseHelperAnswer(h.buffer.slice(0, newline));
@@ -498,16 +514,26 @@ function stop() {
 /**
  * The database opened (startup, unlock, after an encryption change): carry
  * on reading, or delete words left from a time the feature was turned off.
+ * Words read before secrets were redacted are redacted first.
  */
 function onDatabaseAttached(db) {
   counts = null;
   cachedSettings = null;
   if (settings().enabled) {
+    try {
+      const changed = store.redactStoredImageText(db);
+      if (changed > 0) {
+        checkpoint(db);
+        debugLogger.log(`[WhisperWoof] Image text: hid secrets in the words of ${changed} image(s)`);
+      }
+    } catch (err) {
+      debugLogger.debug("[WhisperWoof] Image text redaction skipped", { error: err.message });
+    }
     if (started) schedule(5000);
     return;
   }
   try {
-    store.deleteAllImageText(db);
+    if (store.deleteAllImageText(db) > 0) checkpoint(db);
   } catch (err) {
     debugLogger.debug("[WhisperWoof] Image text cleanup skipped", { error: err.message });
   }
@@ -552,7 +578,10 @@ function setEnabled(raw) {
     backlog.length = 0;
     attempts.clear();
     const db = database();
-    if (db) deleted = store.deleteAllImageText(db);
+    if (db) {
+      deleted = store.deleteAllImageText(db);
+      if (deleted > 0) checkpoint(db); // and out of the WAL
+    }
     counts = null;
     setStatus("off", null);
     debugLogger.log(`[WhisperWoof] Image text turned off; removed text of ${deleted} image(s)`);

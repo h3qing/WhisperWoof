@@ -13,6 +13,11 @@ const {
   PARAKEET_MINIMUM_MACOS_VERSION,
   compareVersions,
 } = require("../src/helpers/parakeetCapability");
+const {
+  allowUnpatched,
+  buildPatchedWebsocketServers,
+  patchDigest,
+} = require("./lib/sherpa-ws-patch");
 
 const SHERPA_ONNX_VERSION = "1.13.4";
 const GITHUB_RELEASE_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/v${SHERPA_ONNX_VERSION}`;
@@ -226,6 +231,7 @@ function isCompleteInstall(markerPath, binaryPaths) {
     const marker = JSON.parse(fs.readFileSync(markerPath, "utf8"));
     return (
       marker.version === SHERPA_ONNX_VERSION &&
+      (marker.wsPatch === patchDigest(SHERPA_ONNX_VERSION) || allowUnpatched()) &&
       Array.isArray(marker.libraries) &&
       marker.libraries.every((lib) => fs.existsSync(path.join(BIN_DIR, lib)))
     );
@@ -320,9 +326,32 @@ async function downloadBinary(platformArch, config, isForce = false) {
       }
     }
 
+    // Upstream's WebSocket servers listen on every network interface and
+    // overflow the heap on a crafted message: replace them with patched
+    // builds (scripts/lib/sherpa-ws-patch.js), and never leave them behind.
+    let wsPatch = null;
+    const wsOutputs = { offline: outputPath, online: onlineOutputPath };
+    try {
+      wsPatch = buildPatchedWebsocketServers({
+        version: SHERPA_ONNX_VERSION,
+        platformArch,
+        outputs: wsOutputs,
+        onnxRuntimeDir: BIN_DIR,
+        finishBinary: (binaryPath) => adhocSign(binaryPath, platformArch),
+      });
+    } catch (error) {
+      if (!allowUnpatched()) {
+        for (const binaryPath of Object.values(wsOutputs)) fs.rmSync(binaryPath, { force: true });
+        throw new Error(`patched WebSocket servers not built (${error.message})`);
+      }
+      console.warn(
+        `  ${platformArch}: WARNING: keeping upstream's unpatched WebSocket servers (${error.message})`
+      );
+    }
+
     fs.writeFileSync(
       installMarkerPath,
-      JSON.stringify({ version: SHERPA_ONNX_VERSION, libraries: copiedLibraries })
+      JSON.stringify({ version: SHERPA_ONNX_VERSION, libraries: copiedLibraries, wsPatch })
     );
     return true;
   } catch (error) {

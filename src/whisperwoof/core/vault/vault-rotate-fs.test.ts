@@ -220,6 +220,8 @@ describe("new recovery phrase", () => {
     await restarted.vault.unlockWithPassword(PASSWORD);
     expect(fs.existsSync(path.join(userData, "vault", "vault.next.json"))).toBe(false);
     expect(fs.existsSync(path.join(userData, "vault", "migration.json"))).toBe(false);
+    // Its journal no longer verifies (signed with the old key), but that's expected, not tampering.
+    expect(restarted.vault.getWarnings()).toEqual([]);
     expectEverythingOpens(restarted);
   });
 

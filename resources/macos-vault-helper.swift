@@ -7,7 +7,8 @@
 // key never leaves the Secure Enclave; WhisperWoof stores only its opaque blob
 // and wraps the vault's master key to the public half. Unlocking = Touch ID +
 // one ECDH inside the enclave. Adding or removing a fingerprint invalidates
-// the key (WhisperWoof then asks for the password once and enrolls again).
+// the key (WhisperWoof then turns Touch ID off; turning it back on takes the
+// password).
 //
 // Works without entitlements, so unsigned (ad-hoc) builds can use it; the
 // Keychain with a biometry ACL would need keychain-access-groups.
@@ -15,17 +16,33 @@
 // Commands (one JSON object on stdout, errors as {"error": code, "message"}):
 //   status               → {"secureEnclave":bool,"biometry":"available"|"notEnrolled"|"lockout"|"unavailable"}
 //   create               → {"publicKey":b64 X9.63,"keyBlob":b64}
-//   unlock  (stdin JSON {"keyBlob","peer","reason","cancelTitle"})
-//                        → {"shared":b64}   or error cancelled|fallback|invalidated|lockout|failed
+//   unlock  (stdin JSON {"keyBlob","peer","purpose"})
+//                        → {"shared":b64}   or error cancelled|fallback|invalidated|lockout|unavailable|failed
+//           "purpose" (setup|enable|unlock|confirm) picks one of the prompts below;
+//           the prompt text never comes from the caller, so another program
+//           can't borrow this helper to ask for a fingerprint in its own words.
 //   copy    (stdin JSON {"text"}) → {"copied":true}
 //           Puts text on the clipboard marked concealed + transient
-//           (nspasteboard.org), so clipboard managers don't keep it.
+//           (nspasteboard.org), so clipboard managers don't keep it, and
+//           current-host-only, so it doesn't reach other devices through
+//           Universal Clipboard.
 
 import AppKit
 import CryptoKit
+import CryptoTokenKit
 import Foundation
 import LocalAuthentication
 import Security
+
+// macOS shows these as "WhisperWoof is trying to <prompt>." (this helper is
+// the WhisperWoof.app bundle), so each says what the touch is for.
+let touchIdPrompts: [String: String] = [
+  "setup": "check that Touch ID works before encrypting your data",
+  "enable": "turn on Touch ID for unlocking your data",
+  "enroll": "turn on Touch ID for unlocking your data",
+  "unlock": "unlock your history and notes",
+  "confirm": "confirm it's you",
+]
 
 func emit(_ object: [String: Any]) -> Never {
   let data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data("{}".utf8)
@@ -101,6 +118,30 @@ func authenticate(_ context: LAContext, reason: String) {
   }
 }
 
+// Whether an error means the enclave key itself is gone for good: the
+// fingerprints changed since enrollment (biometryCurrentSet), or the key no
+// longer exists. Only then does WhisperWoof drop its Touch ID wrap; any other
+// failure (a bad blob or peer, a busy enclave) is reported as plain "failed".
+func keyIsGone(_ error: Error) -> Bool {
+  let nsError = error as NSError
+  if nsError.domain == TKErrorDomain {
+    let gone: [TKError.Code] = [.objectNotFound, .tokenNotFound, .corruptedData]
+    return gone.map({ $0.rawValue }).contains(nsError.code)
+  }
+  if nsError.domain == NSOSStatusErrorDomain {
+    return nsError.code == Int(errSecItemNotFound)
+  }
+  if nsError.domain == LAErrorDomain {
+    return nsError.code == LAError.Code.biometryNotEnrolled.rawValue
+  }
+  return false
+}
+
+func failKeyUse(_ error: Error) -> Never {
+  if keyIsGone(error) { fail("invalidated", "Touch ID needs to be set up again") }
+  fail("failed", "Touch ID didn't work")
+}
+
 func unlock() -> Never {
   let input = readInput()
   guard
@@ -110,24 +151,24 @@ func unlock() -> Never {
   else {
     fail("failed", "Bad input")
   }
+  let reason = touchIdPrompts[input["purpose"] ?? "unlock"] ?? touchIdPrompts["unlock"]!
   let context = LAContext()
-  context.localizedCancelTitle = input["cancelTitle"] ?? "Cancel"
+  context.localizedCancelTitle = "Cancel"
   context.localizedFallbackTitle = "Use Password"
-  authenticate(context, reason: input["reason"] ?? "unlock WhisperWoof")
+  authenticate(context, reason: reason)
 
   let key: SecureEnclave.P256.KeyAgreement.PrivateKey
   do {
     key = try SecureEnclave.P256.KeyAgreement.PrivateKey(dataRepresentation: blob, authenticationContext: context)
   } catch {
-    fail("invalidated", "Touch ID needs to be set up again")
+    failKeyUse(error)
   }
   do {
     let shared = try key.sharedSecretFromKeyAgreement(with: peer)
     let bytes = shared.withUnsafeBytes { Data($0) }
     emit(["shared": bytes.base64EncodedString()])
   } catch {
-    // Fingerprints changed since enrollment (biometryCurrentSet) or the key is gone.
-    fail("invalidated", "Touch ID needs to be set up again")
+    failKeyUse(error)
   }
 }
 
@@ -136,7 +177,8 @@ func copySecret() -> Never {
   let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
   let transient = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
   let board = NSPasteboard.general
-  board.declareTypes([.string, concealed, transient], owner: nil)
+  // Clears the board; .currentHostOnly keeps the words off Universal Clipboard.
+  _ = board.prepareForNewContents(with: .currentHostOnly)
   guard board.setString(text, forType: .string) else { fail("failed", "Couldn't copy") }
   board.setData(Data(), forType: concealed)
   board.setData(Data(), forType: transient)

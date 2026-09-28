@@ -1120,6 +1120,9 @@ class ReasoningService extends BaseReasoningService {
         throw new Error(serverResult.error || "Failed to start local model server");
       }
       endpoint = `http://127.0.0.1:${serverResult.port}/v1/chat/completions`;
+      // llama-server requires the per-launch key main generated; it goes out
+      // as the Authorization: Bearer header below.
+      apiKey = serverResult.apiKey || "";
     } else {
       const providerKey = provider as "openai" | "groq" | "gemini" | "anthropic" | "custom";
       apiKey = await this.getApiKey(providerKey);

@@ -32,6 +32,8 @@ const vault = require("../whisperwoof/bridge/vault/vault-service");
 const vaultInbox = require("../whisperwoof/bridge/vault/vault-inbox");
 const vaultFiles = require("../whisperwoof/bridge/vault/vault-files");
 const { isProvisionalId } = require("../whisperwoof/bridge/vault/inbox-pure");
+const { resolveUserAudioFile } = require("../whisperwoof/bridge/user-audio-file");
+const { isSecureEndpoint } = require("../whisperwoof/bridge/endpoint-pure");
 
 /** Import sealed items now if WhisperWoof is unlocked (they arrived after the unlock). */
 function replaySoon() {
@@ -388,14 +390,6 @@ class IPCHandlers {
     } catch (error) {
       debugLogger.debug("[AutoLearn] Error processing corrections", { error: error.message });
     }
-
-    // WhisperWoof: Record style example for adaptive polish learning
-    try {
-      const { recordStyleExample } = require("../whisperwoof/bridge/style-learner");
-      recordStyleExample(originalText, newFieldValue);
-    } catch (styleError) {
-      debugLogger.debug("[WhisperWoof] Style learning failed", { error: styleError.message });
-    }
   }
 
   /**
@@ -658,6 +652,14 @@ class IPCHandlers {
     // Audio storage handlers
     ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
       if (!shouldStoreAudio(this._audioRetentionDays)) return { success: false, skipped: true };
+      // Real and stand-in (negative) ids are integers; anything else would end up in a file name.
+      if (!Number.isSafeInteger(id)) return { success: false, error: "Invalid transcription id" };
+      // Locked between saving the transcription and its audio: the sealed file
+      // can be written now (the inbox takes only stand-in ids, see
+      // inbox-pure.js); only its "has audio" mark in the database is skipped.
+      if (vault.isOn() && !this.databaseManager.db && !isProvisionalId(id)) {
+        return this.audioStorageManager.saveAudio(id, Buffer.from(audioBuffer), null);
+      }
       // A stand-in id (the transcription was sealed while locked) also goes
       // through the inbox, even if WhisperWoof was unlocked in between.
       if (vault.isOn() && (!this.databaseManager.db || isProvisionalId(id))) {
@@ -1034,15 +1036,9 @@ class IPCHandlers {
     ipcMain.handle("get-file-size", async (_event, filePath) => {
       const fs = require("fs");
       try {
-        // WhisperWoof security: validate path is not traversing outside expected directories
-        const resolved = path.resolve(filePath);
-        const userDataDir = app.getPath("userData");
-        const homeDir = app.getPath("home");
-        // Allow files in user data dir, home dir, or paths from file dialog (absolute)
-        if (!resolved.startsWith(userDataDir) && !resolved.startsWith(homeDir)) {
-          debugLogger.warn("get-file-size: blocked path outside home directory", { filePath: resolved });
-          return 0;
-        }
+        // WhisperWoof security: only an audio file the user could have picked or dropped
+        const resolved = resolveUserAudioFile(filePath);
+        if (!resolved) return 0;
         const stats = fs.statSync(resolved);
         return stats.size;
       } catch {
@@ -1053,12 +1049,9 @@ class IPCHandlers {
     ipcMain.handle("transcribe-audio-file", async (event, filePath, options = {}) => {
       const fs = require("fs");
       try {
-        // WhisperWoof security: validate file path and size
-        const resolved = path.resolve(filePath);
-        const homeDir = app.getPath("home");
-        if (!resolved.startsWith(homeDir)) {
-          return { success: false, error: "File path outside home directory" };
-        }
+        // WhisperWoof security: only an audio file the user picked or dropped, never any path
+        const resolved = resolveUserAudioFile(filePath);
+        if (!resolved) return { success: false, error: "Not an audio file" };
         const stats = fs.statSync(resolved);
         const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB max for local transcription
         if (stats.size > MAX_FILE_SIZE) {
@@ -2268,7 +2261,12 @@ class IPCHandlers {
       catch (error) { return null; }
     });
     ipcMain.handle("whisperwoof-prepare-action", async (_event, text, options) => {
-      try { const { prepareAction } = require("../whisperwoof/bridge/agentic-actions"); return await prepareAction(text, options || {}); }
+      // The intent model is local (Ollama): main never posts the text to a URL the page picked elsewhere.
+      const safeOptions = { ...(options || {}) };
+      if (safeOptions.baseUrl && !require("../whisperwoof/bridge/endpoint-pure").isLocalEndpoint(safeOptions.baseUrl)) {
+        return { success: false, error: "The action model must run on this computer or your local network" };
+      }
+      try { const { prepareAction } = require("../whisperwoof/bridge/agentic-actions"); return await prepareAction(text, safeOptions); }
       catch (error) { return { success: false, error: error.message }; }
     });
     ipcMain.handle("whisperwoof-get-available-actions", async () => {
@@ -2699,6 +2697,14 @@ class IPCHandlers {
     // WhisperWoof: Custom vocabulary
     // Memory stays in memory while locked (dictation uses it) but isn't handed out.
     const memoryLocked = () => vault.isOn() && !vault.isUnlocked();
+    // Dictation keeps working while locked, with Memory: the dictation window
+    // (and only it) still gets swaps and hints. Every other window gets nothing.
+    const fromDictationWindow = (event) => {
+      const win = this.windowManager?.mainWindow;
+      return Boolean(win && !win.isDestroyed() && event?.sender === win.webContents);
+    };
+    const memoryLockedFor = (event) => memoryLocked() && !fromDictationWindow(event);
+    const lockedEdit = () => ({ success: false, error: "WhisperWoof is locked. Unlock it to change Memory." });
     ipcMain.handle("whisperwoof-get-vocabulary", async (_event, options) => {
       if (memoryLocked()) return [];
       try {
@@ -2711,6 +2717,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-add-word", async (_event, word, options) => {
+      if (memoryLocked()) return lockedEdit();
       try {
         const { addWord } = require("../whisperwoof/bridge/vocabulary");
         return addWord(word, options || {});
@@ -2721,6 +2728,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-update-word", async (_event, id, updates) => {
+      if (memoryLocked()) return lockedEdit();
       try {
         const { updateWord } = require("../whisperwoof/bridge/vocabulary");
         return updateWord(id, updates);
@@ -2731,6 +2739,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-remove-word", async (_event, id) => {
+      if (memoryLocked()) return lockedEdit();
       try {
         const { removeWord } = require("../whisperwoof/bridge/vocabulary");
         const result = removeWord(id);
@@ -2755,6 +2764,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-import-words", async (_event, words, category) => {
+      if (memoryLocked()) return lockedEdit();
       try {
         const { importWords } = require("../whisperwoof/bridge/vocabulary");
         return importWords(words, category);
@@ -2776,6 +2786,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-get-stt-hints", async (_event, bundleId) => {
+      if (memoryLocked()) return [];
       try {
         const prompt = this._getSttHintPrompt(bundleId);
         return prompt ? prompt.split(", ") : [];
@@ -2846,7 +2857,8 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (_event, bundleId) => {
+    ipcMain.handle("whisperwoof-get-pack-enhanced-prompt", async (event, bundleId) => {
+      if (memoryLockedFor(event)) return "";
       try {
         // The app being dictated into, captured at hotkey press, boosts its words.
         return this._getSttHintPrompt(bundleId || this.textEditMonitor?.lastTargetBundleId);
@@ -2857,7 +2869,9 @@ class IPCHandlers {
     });
 
     // Memory: swap approved mishearings into a transcript before polish
-    ipcMain.handle("whisperwoof-apply-memory-replacements", async (_event, text) => {
+    ipcMain.handle("whisperwoof-apply-memory-replacements", async (event, text) => {
+      // While locked, no other window can use this to probe which words Memory swaps.
+      if (memoryLockedFor(event)) return { text: typeof text === "string" ? text : "", applied: [] };
       this._lastMemorySwaps = { swaps: [], at: 0 };
       if (typeof text !== "string" || !text) return { text: text || "", applied: [] };
       try {
@@ -2924,6 +2938,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("whisperwoof-get-tracked-apps", async () => {
+      if (memoryLocked()) return [];
       try {
         const { getTrackedApps } = require("../whisperwoof/bridge/vocabulary");
         return getTrackedApps();
@@ -3036,21 +3051,9 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("whisperwoof-set-notes-dir", async (_event, dir) => {
-      try {
-        require("../whisperwoof/bridge/markdown-route").assertNotesDirMovable();
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-      try {
-        const { setNotesDir } = require("../whisperwoof/bridge/markdown-route");
-        const result = setNotesDir(dir);
-        return { success: true, path: result };
-      } catch (error) {
-        return { success: false, error: `Failed to set notes directory: ${error.message}` };
-      }
-    });
-
+    // The notes folder is chosen only in the native folder dialog: a path sent
+    // by the page would let it write and trash .md files in any folder
+    // (e.g. a repo's AGENTS.md, ~/.claude/CLAUDE.md).
     ipcMain.handle("whisperwoof-pick-notes-dir", async () => {
       try {
         require("../whisperwoof/bridge/markdown-route").assertNotesDirMovable();
@@ -3215,7 +3218,16 @@ class IPCHandlers {
     ipcMain.handle("whisperwoof-delete-entry", async (_event, id) => {
       try {
         const { deleteWhisperWoofEntry } = require("../whisperwoof/bridge/app-init");
-        deleteWhisperWoofEntry(id);
+        const linked = deleteWhisperWoofEntry(id);
+        // Deleting a dictation deletes what was said: its transcript and recording too.
+        if (linked?.transcriptionId) {
+          const transcriptionId = linked.transcriptionId;
+          this.audioStorageManager.deleteAudio(transcriptionId);
+          const result = this.databaseManager.deleteTranscription(transcriptionId);
+          if (result?.success) {
+            setImmediate(() => this.broadcastToWindows("transcription-deleted", { id: transcriptionId }));
+          }
+        }
         return { success: true };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] delete-entry failed: ${error.message}`);
@@ -3461,6 +3473,13 @@ class IPCHandlers {
       clipboardCall((capture) => clipboardStore().setCapture(capture))
     );
     ipcMain.handle("whisperwoof-clipboard-reveal", clipboardCall((id) => clipboardStore().reveal(id)));
+    ipcMain.handle("whisperwoof-clipboard-monitoring", async () => {
+      try {
+        return { success: true, enabled: clipboardStore().getCapture().monitor };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
     // Search everything (⌘K): history, clipboard text, images (and their words), files.
     ipcMain.handle(
       "whisperwoof-search-everything",
@@ -3477,16 +3496,11 @@ class IPCHandlers {
       clipboardCall((id) => clipboardStore().copyImageText(id))
     );
 
-    // WhisperWoof: Toggle clipboard monitoring on/off
+    // WhisperWoof: Toggle clipboard monitoring on/off (saved, so it survives a restart)
     ipcMain.handle("whisperwoof-clipboard-toggle", async (_event, enabled) => {
       try {
-        const { startClipboardMonitor, stopClipboardMonitor } = require("../whisperwoof/bridge/app-init");
-        if (enabled) {
-          startClipboardMonitor();
-        } else {
-          stopClipboardMonitor();
-        }
-        return { success: true, enabled };
+        const result = clipboardStore().setMonitoring(enabled === true);
+        return { success: true, enabled: result.enabled };
       } catch (error) {
         debugLogger.log(`[WhisperWoof] clipboard-toggle failed: ${error.message}`);
         return { success: false, error: error.message };
@@ -3964,7 +3978,13 @@ class IPCHandlers {
         modelManager.currentServerModelId = modelId;
 
         this.environmentManager.saveAllKeysToEnvFile().catch(() => {});
-        return { success: true, port: modelManager.serverManager.port };
+        // The renderer streams from llama-server itself (ReasoningService
+        // processTextStreaming), so it needs the per-launch API key.
+        return {
+          success: true,
+          port: modelManager.serverManager.port,
+          apiKey: modelManager.serverManager.getApiKey(),
+        };
       } catch (error) {
         return { success: false, error: error.message };
       }
@@ -5527,8 +5547,11 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("transcribe-audio-file-cloud", async (event, filePath) => {
+    ipcMain.handle("transcribe-audio-file-cloud", async (event, requestedPath) => {
       const fs = require("fs");
+      // Only an audio file the user picked or dropped is uploaded, never any path.
+      const filePath = resolveUserAudioFile(requestedPath);
+      if (!filePath) return { success: false, error: "Not an audio file" };
       const os = require("os");
       const { splitAudioFile } = require("./ffmpegUtils");
       const FILE_SIZE_LIMIT = 25 * 1024 * 1024;
@@ -5548,8 +5571,9 @@ class IPCHandlers {
             filePath: path.basename(filePath),
           });
 
-          const chunkDir = path.join(os.tmpdir(), `ow-chunks-${Date.now()}`);
-          fs.mkdirSync(chunkDir, { recursive: true });
+          // mkdtemp: unguessable name, mode 0700 — the chunks are the user's
+          // audio, and a predictable dir in a shared /tmp can be pre-created.
+          const chunkDir = fs.mkdtempSync(path.join(os.tmpdir(), "ow-chunks-"));
 
           try {
             event.sender.send("upload-transcription-progress", {
@@ -5558,7 +5582,7 @@ class IPCHandlers {
               chunksCompleted: 0,
             });
 
-            const chunkPaths = await splitAudioFile(filePath, chunkDir, {
+            const { chunkPaths } = await splitAudioFile(filePath, chunkDir, {
               segmentDuration: 240, // ~3.75 MB/chunk, under Vercel's 4.5 MB payload limit
             });
             const totalChunks = chunkPaths.length;
@@ -5705,12 +5729,19 @@ class IPCHandlers {
 
     ipcMain.handle(
       "transcribe-audio-file-byok",
-      async (event, { filePath, apiKey, baseUrl, model }) => {
+      async (event, { filePath: requestedPath, apiKey, baseUrl, model }) => {
         const fs = require("fs");
         const BYOK_FILE_SIZE_LIMIT = 25 * 1024 * 1024; // 25 MB
         try {
           if (!apiKey) throw new Error("No API key configured. Add your key in Settings.");
           if (!baseUrl) throw new Error("No transcription endpoint configured.");
+          // Audio and the key go over HTTPS, or plain http to this machine / the LAN only.
+          if (!isSecureEndpoint(baseUrl)) {
+            throw new Error("The transcription endpoint must use HTTPS.");
+          }
+          // Only an audio file the user picked or dropped is uploaded, never any path.
+          const filePath = resolveUserAudioFile(requestedPath);
+          if (!filePath) throw new Error("Not an audio file");
 
           const fileSize = fs.statSync(filePath).size;
           if (fileSize > BYOK_FILE_SIZE_LIMIT) {

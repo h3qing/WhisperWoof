@@ -86,7 +86,6 @@
   ],
   "asarUnpack": ["**/node_modules/ffmpeg-static/**/*", "**/node_modules/better-sqlite3-multiple-ciphers/**/*"],
   "extraResources": [
-    ".env",
     "src/assets/**/*",
     "resources/bin/macos-audio-tap",
     "resources/bin/macos-globe-listener",

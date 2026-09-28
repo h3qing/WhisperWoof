@@ -23,7 +23,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Publish website/ to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        # Third-party action with write access: pinned to a commit (v4.1.0).
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./website

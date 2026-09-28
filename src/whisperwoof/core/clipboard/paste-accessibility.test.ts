@@ -86,3 +86,35 @@ describe("ClipboardManager accessibility prompt on the paste path", () => {
     expect(promptCalls()).toHaveLength(0);
   });
 });
+
+describe("ClipboardManager puts the earlier clipboard back only when it isn't private", () => {
+  const withHistory = (isPrivate: boolean | (() => boolean)) => {
+    const cm = new ClipboardManager();
+    cm._clipboardHistory = () => ({
+      isPrivateCopy: typeof isPrivate === "function" ? isPrivate : () => isPrivate,
+    });
+    return cm;
+  };
+
+  it("restores an ordinary copy", () => {
+    expect(withHistory(false)._shouldRestoreClipboard({})).toBe(true);
+  });
+
+  // Regression: the old paste read the password as plain text and wrote it
+  // back ~0.6 s later without its concealed marker, so the clipboard history
+  // saw a new, unmarked copy and kept the password.
+  it("never restores a password manager's copy", () => {
+    expect(withHistory(true)._shouldRestoreClipboard({})).toBe(false);
+  });
+
+  it("doesn't restore when it can't tell", () => {
+    const cm = withHistory(() => {
+      throw new Error("pasteboard busy");
+    });
+    expect(cm._shouldRestoreClipboard({})).toBe(false);
+  });
+
+  it("respects restoreClipboard: false", () => {
+    expect(withHistory(false)._shouldRestoreClipboard({ restoreClipboard: false })).toBe(false);
+  });
+});

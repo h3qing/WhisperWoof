@@ -188,6 +188,8 @@ const compileArgs = [
   "-framework",
   "CryptoKit",
   "-framework",
+  "CryptoTokenKit",
+  "-framework",
   "Foundation",
 ];
 

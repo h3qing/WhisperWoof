@@ -18,7 +18,7 @@ const { DatabaseSync } = require("node:sqlite");
 const imageDb = require("../../bridge/clipboard-image-text-db.js");
 
 type Db = InstanceType<typeof DatabaseSync>;
-type Answer = Record<string, unknown> | "crash";
+type Answer = Record<string, unknown> | "crash" | "flood";
 
 let base = "";
 let userData = "";
@@ -54,6 +54,7 @@ function fakeHelper() {
         received.push(bytes);
         const reply = answer(bytes);
         if (reply === "crash") close();
+        else if (reply === "flood") setImmediate(() => stdout.write("x".repeat(1_100_000))); // no newline, ever
         else setImmediate(() => stdout.write(`${JSON.stringify(reply)}\n`));
       }
       done();
@@ -303,6 +304,47 @@ describe("the image text reader", () => {
     expect(spawn).toHaveBeenCalledTimes(3);
     // Never os.setPriority(undefined, …): that would lower WhisperWoof's own priority.
     expect(os.setPriority).not.toHaveBeenCalled();
+  });
+
+  it("gives the helper no API keys", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-not-for-the-helper";
+    try {
+      reader.setEnabled({ enabled: true });
+      await runUntil(() => read() === 2);
+      const env = spawn.mock.calls[0][2].env as Record<string, string>;
+      expect(env.OPENAI_API_KEY).toBeUndefined();
+      expect(env.PATH).toBe(process.env.PATH);
+    } finally {
+      delete process.env.OPENAI_API_KEY;
+    }
+  });
+
+  it("stores a secret in a screenshot as •••••", async () => {
+    answer = (bytes) => ({ text: bytes === "NEW" ? "Your key\nsk-proj-abcdefghijklmnopqrstuvwxyz0123" : "fine" });
+    reader.setEnabled({ enabled: true });
+    await runUntil(() => read() === 2);
+    expect(imageDb.imageTextFor(db, "new")).toEqual({ status: "done", text: "Your key\n•••••" });
+  });
+
+  it("stops a helper that sends endless output instead of an answer", async () => {
+    answer = (bytes) => (bytes === "NEW" ? "flood" : { text: "fine" });
+    reader.setEnabled({ enabled: true });
+    await runUntil(() => received.includes("NEW"));
+    // Stopped at once, not after the 60 s read timeout with a growing buffer.
+    await runUntil(() => spawn.mock.results[0].value.kill.mock.calls.length > 0, 3);
+    await runUntil(() => read() === 2);
+    expect(received.filter((b) => b === "NEW")).toHaveLength(3);
+    expect(imageDb.imageTextFor(db, "new").status).toBe("failed");
+    expect(imageDb.imageTextFor(db, "old")).toEqual({ status: "done", text: "fine" });
+  });
+
+  it("redacts words stored by v2.4.0 when the database opens", () => {
+    settingsFile.clipboardImageText = { enabled: true };
+    db!.prepare("INSERT INTO bf_image_text (entry_id, status, text, read_at, redacted) VALUES ('old', 'done', ?, 'then', 0)").run(
+      "Visa 4242 4242 4242 4242"
+    );
+    reader.onDatabaseAttached(db);
+    expect(imageDb.imageTextFor(db, "old")).toEqual({ status: "done", text: "Visa •••••" });
   });
 
   it("deletes words left from a time it was off when the database opens", () => {

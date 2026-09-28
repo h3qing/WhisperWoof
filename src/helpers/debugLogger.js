@@ -75,13 +75,14 @@ class DebugLogger {
     try {
       const logsDir = path.join(app.getPath("userData"), "logs");
       if (!fs.existsSync(logsDir)) {
-        fs.mkdirSync(logsDir, { recursive: true });
+        fs.mkdirSync(logsDir, { recursive: true, mode: 0o700 });
       }
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       this.logFile = path.join(logsDir, `debug-${timestamp}.log`);
 
-      this.logStream = fs.createWriteStream(this.logFile, { flags: "a" });
+      // Debug logs can hold what the user dictated: this user only.
+      this.logStream = fs.createWriteStream(this.logFile, { flags: "a", mode: 0o600 });
       this.fileLoggingEnabled = true;
       this.fileLoggingPending = false;
 

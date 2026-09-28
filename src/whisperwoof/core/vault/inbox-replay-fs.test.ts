@@ -145,6 +145,59 @@ describe("sealed inbox replay", () => {
     expect(m.inbox.count()).toBe(0);
   });
 
+  it("never lets an item replace an existing recording (a real transcription id)", async () => {
+    const m = boot();
+    const { vault: v, masterKey } = m.keys.createVault({ entropy: crypto.randomBytes(16), password: "a good password", kdf: FAST });
+    await m.vault.adoptNewVault(v, masterKey);
+    m.inbox.record("transcription.audio", { pid: 42, audio: Buffer.from("planted").toString("base64"), metadata: null });
+    const w = world(db);
+    const run = m.handlersFor(w.deps);
+    expect(await m.inbox.replay(run.handlers, { idMap: run.loadIdMap() })).toEqual({ applied: 0, failed: 1 });
+    expect(w.audio.size).toBe(0);
+    // The handler refuses it too, should an item ever get past the shape check.
+    expect(() => run.handlers["transcription.audio"]({ pid: 42, audio: "" }, { idMap: new Map(), failedPids: new Set() })).toThrow();
+  });
+
+  it("keeps an entry's file path only inside the app's own folders", async () => {
+    const m = boot();
+    const { vault: v, masterKey } = m.keys.createVault({ entropy: crypto.randomBytes(16), password: "a good password", kdf: FAST });
+    await m.vault.adoptNewVault(v, masterKey);
+    const outside = path.join(userData, "..", `not-the-app-${crypto.randomUUID()}.txt`);
+    fs.writeFileSync(outside, "someone's own file");
+    const inside = path.join(userData, "whisperwoof-images", "a.png");
+    require("../../bridge/vault/vault-files.js").writeFile(inside, Buffer.from("png"), { kind: "image" }); // sealed, as with encryption on
+    m.inbox.record("entry.save", { entry: { id: "e-out", source: "clipboard", audioPath: outside } });
+    m.inbox.record("entry.save", { entry: { id: "e-in", source: "clipboard", audioPath: inside } });
+    const saved = new Map<string, { audioPath?: string | null }>();
+    const w = world(db);
+    w.deps.appInit.saveWhisperWoofEntry = (e: { id: string; audioPath?: string | null }) => {
+      saved.set(e.id, e);
+      return { id: e.id };
+    };
+    const run = m.handlersFor(w.deps);
+    try {
+      expect(await m.inbox.replay(run.handlers, { idMap: run.loadIdMap() })).toEqual({ applied: 2, failed: 0 });
+    } finally {
+      fs.rmSync(outside, { force: true });
+    }
+    expect(saved.get("e-out")?.audioPath).toBeNull();
+    expect(saved.get("e-in")?.audioPath).toBe(inside);
+  });
+
+  it("moves an item it can't open out of the way when turning off, instead of getting stuck", async () => {
+    const m = boot();
+    await lockedDictation(m);
+    const ww = require("../../bridge/vault/wwenc-pure.js");
+    const vc = require("../../bridge/vault/vault-crypto-pure.js");
+    const stranger = vc.x25519FromSeed(crypto.randomBytes(32));
+    const name = "000001758794400000-000009-0b8f7c52-8d0a-4f8e-9b1e-2f6c1f0a9d11.wwenc";
+    fs.writeFileSync(path.join(userData, "vault", "inbox", name), ww.encrypt(Buffer.from("{}"), stranger.publicRaw, { kind: "inbox" }));
+    const out = path.join(userData, "unimported-while-locked");
+    expect(m.inbox.exportRemaining(out)).toBe(4);
+    expect(m.inbox.count()).toBe(0);
+    expect(fs.existsSync(path.join(out, name))).toBe(true);
+  });
+
   it("writes leftovers out as plain JSON when encryption is turned off", async () => {
     const m = boot();
     await lockedDictation(m);

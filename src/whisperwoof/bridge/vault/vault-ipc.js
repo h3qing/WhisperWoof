@@ -55,7 +55,11 @@ function registerVaultIpc(ipcMain) {
   handle("vault-change-password", (a) =>
     controller.changePassword({ currentPassword: str(obj(a).currentPassword), newPassword: str(obj(a).newPassword) })
   );
-  handle("vault-set-touchid", (enabled) => controller.setTouchIdEnabled(enabled === true));
+  // `true`/`false`, or { enabled, reauth } — turning Touch ID on needs the password.
+  handle("vault-set-touchid", (a) => {
+    const args = typeof a === "boolean" ? { enabled: a } : obj(a);
+    return controller.setTouchIdEnabled(args.enabled === true, reauthArg(args.reauth));
+  });
   handle("vault-retry", () => controller.retry());
   handle("vault-set-prefs", (prefs, reauth) => {
     const p = obj(prefs);

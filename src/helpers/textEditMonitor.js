@@ -4,6 +4,15 @@ const EventEmitter = require("events");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");
 const { FRONTMOST_APP_JXA, parseFrontmostApp } = require("../whisperwoof/core/context/frontmost-app");
+const { isPrivateInputApp } = require("../whisperwoof/bridge/clipboard-pure");
+
+// What the native monitor printed, without the field text: "CHANGED (812 chars)".
+function describeMonitorOutput(chunk) {
+  return String(chunk)
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => `${line.split(":")[0]} (${line.length} chars)`);
+}
 
 const POLL_INTERVAL_MS = 500;
 const INITIAL_QUERY_DELAY_MS = 500; // Wait for paste to settle in target app
@@ -31,6 +40,13 @@ const MACOS_AX_SCRIPT_BY_PID = (pid) =>
   `\tset targetProc to first application process whose unix id is ${pid}\n` +
   `\tset focAttr to value of attribute "AXFocusedUIElement" of targetProc\n` +
   `\tif focAttr is missing value then return ""\n` +
+  // Password fields are never read.
+  `\ttry\n` +
+  `\t\tif (value of attribute "AXSubrole" of focAttr) is "AXSecureTextField" then return ""\n` +
+  `\tend try\n` +
+  `\ttry\n` +
+  `\t\tif (value of attribute "AXRole" of focAttr) is "AXSecureTextField" then return ""\n` +
+  `\tend try\n` +
   `\ttry\n` +
   `\t\tset val to value of attribute "AXValue" of focAttr\n` +
   `\t\tif val is not missing value and val is not "" then return val\n` +
@@ -86,6 +102,13 @@ class TextEditMonitor extends EventEmitter {
    */
   startMonitoring(originalText, timeoutMs = 30000, options = {}) {
     this.stopMonitoring();
+    // Terminals (the "field" is the whole scrollback) and password managers
+    // are never read.
+    const bundleId = options.targetBundleId ?? this.lastTargetBundleId;
+    if (isPrivateInputApp(bundleId)) {
+      debugLogger.debug("[TextEditMonitor] Not monitoring a terminal or password manager", { bundleId });
+      return;
+    }
     this.currentOriginalText = originalText;
 
     if (process.platform === "darwin") {
@@ -136,7 +159,7 @@ class TextEditMonitor extends EventEmitter {
     this._stdoutBuffer = "";
     this.process.stdout.setEncoding("utf8");
     this.process.stdout.on("data", (chunk) => {
-      debugLogger.debug("[TextEditMonitor] stdout", { data: chunk.trim() });
+      debugLogger.debug("[TextEditMonitor] stdout", { lines: describeMonitorOutput(chunk) });
       this._handleProcessStdoutChunk(chunk);
     });
 
@@ -302,7 +325,7 @@ class TextEditMonitor extends EventEmitter {
     this._stdoutBuffer = "";
     this.process.stdout.setEncoding("utf8");
     this.process.stdout.on("data", (chunk) => {
-      debugLogger.debug("[TextEditMonitor] stdout", { data: chunk.trim() });
+      debugLogger.debug("[TextEditMonitor] stdout", { lines: describeMonitorOutput(chunk) });
       this._handleProcessStdoutChunk(chunk);
     });
 
