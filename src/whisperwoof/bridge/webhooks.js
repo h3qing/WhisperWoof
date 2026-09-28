@@ -56,8 +56,13 @@ function saveWebhooks(data) {
 
 // --- CRUD ---
 
+/** For the page: whether a secret is set, never the secret itself. */
+function withoutSecret({ secret, ...webhook }) {
+  return { ...webhook, hasSecret: Boolean(secret) };
+}
+
 function getWebhooks() {
-  return loadWebhooks().webhooks;
+  return loadWebhooks().webhooks.map(withoutSecret);
 }
 
 function addWebhook(config) {
@@ -90,8 +95,8 @@ function addWebhook(config) {
   data.webhooks.push(webhook);
   saveWebhooks(data);
 
-  debugLogger.info("[WhisperWoof] Webhook added", { id: webhook.id, url: webhook.url });
-  return { success: true, webhook };
+  debugLogger.info("[WhisperWoof] Webhook added", { id: webhook.id, host: new URL(webhook.url).host });
+  return { success: true, webhook: withoutSecret(webhook) };
 }
 
 function updateWebhook(id, updates) {
@@ -209,10 +214,12 @@ async function fireWebhook(webhook, payload) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10000);
 
+      // A redirect would re-POST the entry wherever the server points it.
       const response = await fetch(webhook.url, {
         method: "POST",
         headers,
         body,
+        redirect: "manual",
         signal: controller.signal,
       });
 

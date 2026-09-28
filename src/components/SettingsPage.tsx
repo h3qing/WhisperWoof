@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import SafeHtml from "./ui/SafeHtml";
 const VoicePolishSettings = React.lazy(() => import("../whisperwoof/ui/settings/WhisperWoofSettings"));
 const EncryptionSettings = React.lazy(() => import("../whisperwoof/ui/vault/EncryptionSettings"));
 import { useTranslation } from "react-i18next";
@@ -3598,9 +3599,9 @@ EOF`,
                           version: updateInfo.version,
                         })}
                       </p>
-                      <div
+                      <SafeHtml
                         className="text-xs text-muted-foreground [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:space-y-1 [&_li]:pl-1 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_a]:text-link [&_a]:underline"
-                        dangerouslySetInnerHTML={{ __html: updateInfo.releaseNotes }}
+                        html={updateInfo.releaseNotes}
                       />
                     </div>
                   )}

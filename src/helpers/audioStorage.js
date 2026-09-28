@@ -41,6 +41,12 @@ class AudioStorageManager {
   }
 
   saveAudio(transcriptionId, audioBuffer, timestamp) {
+    // The id becomes part of the file name: a renderer-sent "../../x" would
+    // write outside the audio folder. Real ids are integers.
+    if (!Number.isSafeInteger(transcriptionId)) {
+      debugLogger.warn("Refused to save audio for a non-numeric id", {}, "audio-storage");
+      return { success: false };
+    }
     try {
       const filename = this._buildFilename(transcriptionId, timestamp);
       const filePath = path.join(this.audioDir, filename);

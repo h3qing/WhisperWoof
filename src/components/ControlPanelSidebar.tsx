@@ -16,6 +16,7 @@ import {
   Puzzle,
   Copy,
   HardDrive,
+  Users,
 } from "lucide-react";
 import logoIcon from "../assets/mando-head.svg";
 import { useTranslation } from "react-i18next";
@@ -76,6 +77,7 @@ export default function ControlPanelSidebar({
         { id: "home", label: t("sidebar.home"), icon: Home },
         { id: "whisperwoof-history", label: "History", icon: Clock },
         { id: "voice-notes", label: "Notes", icon: FileText },
+        { id: "personal-notes", label: "Meetings", icon: Users },
         { id: "smart-clipboard", label: "Clipboard", icon: Copy },
       ],
     },

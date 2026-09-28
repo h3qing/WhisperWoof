@@ -7,7 +7,15 @@
  * original to ".vault-old" → rename the copy into place → delete the old one.
  * Files: write "x.wwenc.tmp" → fsync → rename → verify → delete the source.
  * A source is deleted only after its converted copy is on disk and checked.
+ *
+ * The journal carries a MAC keyed from the master key (signJournal): it
+ * decides what the next unlock does — up to decrypting everything and
+ * forgetting the vault — so one planted while WhisperWoof is locked must
+ * not verify.
  */
+
+const crypto = require("crypto");
+const vc = require("./vault-crypto-pure");
 
 const SQLITE_MAGIC = Buffer.from("SQLite format 3\0", "latin1");
 // "rotate" (new recovery phrase) has its own steps in vault-rotate.js; it only shares the journal.
@@ -73,6 +81,7 @@ function advanceJournal(journal) {
   return { ...journal, phase: next };
 }
 
+/** Its shape only. Whether this vault wrote it is verifyJournal's question. */
 function parseJournal(json) {
   const ok =
     json &&
@@ -81,7 +90,38 @@ function parseJournal(json) {
     PHASES.includes(json.phase) &&
     typeof json.startedAt === "string";
   if (!ok) throw new Error("Migration journal is damaged");
-  return { v: 1, direction: json.direction, startedAt: json.startedAt, phase: json.phase };
+  const journal = { v: 1, direction: json.direction, startedAt: json.startedAt, phase: json.phase };
+  return typeof json.mac === "string" ? { ...journal, mac: json.mac } : journal;
+}
+
+// ---------- journal MAC ----------
+
+const JOURNAL_INFO = "whisperwoof/journal/v1";
+
+/** HMAC over every field and the vault id, in a fixed order. */
+function journalMac(journal, masterKey, vaultId) {
+  const key = vc.hkdf(masterKey, JOURNAL_INFO);
+  try {
+    const bytes = JSON.stringify([JOURNAL_INFO, String(vaultId), journal.v, journal.direction, journal.phase, journal.startedAt]);
+    return vc.hmac(key, bytes);
+  } finally {
+    vc.wipe(key);
+  }
+}
+
+/** The journal as written to disk: its fields plus a MAC only this vault's master key can make. */
+function signJournal(journal, masterKey, vaultId) {
+  const { v, direction, startedAt, phase } = journal;
+  const fields = { v, direction, startedAt, phase };
+  return { ...fields, mac: journalMac(fields, masterKey, vaultId).toString("base64") };
+}
+
+/** Whether this vault (its master key and id) wrote `journal`. No MAC → no. */
+function verifyJournal(journal, masterKey, vaultId) {
+  if (!journal || typeof journal.mac !== "string") return false;
+  const expected = journalMac(journal, masterKey, vaultId);
+  const actual = Buffer.from(journal.mac, "base64");
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
 module.exports = {
@@ -92,4 +132,6 @@ module.exports = {
   startJournal,
   advanceJournal,
   parseJournal,
+  signJournal,
+  verifyJournal,
 };

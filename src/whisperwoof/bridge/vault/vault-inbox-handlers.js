@@ -6,8 +6,14 @@
  * the provisional id to the real one. The other ops are idempotent by
  * themselves (fixed entry ids with INSERT OR IGNORE, overwriting the same
  * audio file, setting the same frontmatter field).
+ *
+ * Items are sealed with the public key, so anyone who can write the folder
+ * can plant one: inbox-pure checks each item's shape, recordings only attach
+ * to transcriptions saved while locked, and an entry only keeps a file path
+ * inside the app's own folders.
  */
 
+const path = require("path");
 const { isProvisionalId, remapEntry } = require("./inbox-pure");
 
 const APPLIED_TABLE = `CREATE TABLE IF NOT EXISTS bf_vault_applied (
@@ -20,6 +26,18 @@ const APPLIED_TABLE = `CREATE TABLE IF NOT EXISTS bf_vault_applied (
 const sqliteTime = (iso) => new Date(iso).toISOString().replace("T", " ").slice(0, 19);
 
 class WaitingError extends Error {}
+
+/**
+ * An entry's file path, kept only when it's inside the app's own folders (the
+ * entry's file is read and deleted later): same rule as whisperwoof-save-entry.
+ */
+function appFilePath(candidate) {
+  if (candidate === undefined || candidate === null) return null;
+  const { resolveAppFile } = require("../app-files");
+  const { appFileDirs } = require("../app-file-paths-pure");
+  const { vaultPaths } = require("./vault-paths");
+  return resolveAppFile(candidate, appFileDirs(path.dirname(vaultPaths.dir())));
+}
 
 /** Ops about a note that has since been deleted (or an entry that never made it) have nothing left to do. */
 const isGoneError = (err) => /Unknown entry|Invalid note name|ENOENT|no such file/i.test(err.message);
@@ -47,7 +65,8 @@ function createInboxHandlers(deps) {
   }
 
   function realTranscriptionId(pid, { idMap, failedPids }) {
-    if (!isProvisionalId(pid)) return pid;
+    // A real id would let a planted item replace an existing recording.
+    if (!isProvisionalId(pid)) throw new Error("A recording can only join a transcription saved while locked");
     if (idMap.has(pid)) return idMap.get(pid);
     if (failedPids.has(pid)) throw new WaitingError("Its transcription hasn't been imported yet");
     return null; // there never was a transcription (history saving was off)
@@ -96,7 +115,8 @@ function createInboxHandlers(deps) {
       if (isProvisionalId(tid) && ctx.failedPids.has(tid)) {
         throw new WaitingError("Its transcription hasn't been imported yet");
       }
-      const saved = appInit.saveWhisperWoofEntry(remapEntry(entry, ctx.idMap));
+      const audioPath = appFilePath(entry.audioPath);
+      const saved = appInit.saveWhisperWoofEntry(remapEntry({ ...entry, audioPath }, ctx.idMap));
       if (!saved || saved.sealed) throw new Error("Database is closed");
       deps.broadcast("whisperwoof-entry-saved", { id: saved.id, source: entry.source });
     },

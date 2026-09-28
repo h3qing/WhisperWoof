@@ -39,6 +39,21 @@ func readCurrentValue() -> String? {
     return str
 }
 
+// Password fields are never read. They report the secure-text-field role or
+// subrole (kAXSecureTextFieldSubrole); apps normally mask the value, but
+// nothing enforces that.
+func isSecureField(_ element: AXUIElement) -> Bool {
+    for attribute in [kAXSubroleAttribute, kAXRoleAttribute] {
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+           let name = value as? String,
+           name == "AXSecureTextField" {
+            return true
+        }
+    }
+    return false
+}
+
 func observerCallback(
     _ observer: AXObserver,
     _ element: AXUIElement,
@@ -99,6 +114,12 @@ for attempt in 1...maxRetries {
 guard let resolvedElement = focusedElement else {
     writeOutput("NO_ELEMENT")
     exit(1)
+}
+
+if isSecureField(resolvedElement) {
+    writeError("Focused element is a password field; not reading it")
+    writeOutput("NO_VALUE")
+    exit(0)
 }
 
 monitoredElement = resolvedElement

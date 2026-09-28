@@ -198,6 +198,15 @@ int main(void) {
         return 1;
     }
 
+    /* Password fields are never read. */
+    if (atspi_accessible_get_role(focused, NULL) == ATSPI_ROLE_PASSWORD_TEXT) {
+        fprintf(stderr, "Focused element is a password field; not reading it\n");
+        printf("NO_VALUE\n");
+        fflush(stdout);
+        g_object_unref(focused);
+        return 0;
+    }
+
     /* Get the Text interface */
     AtspiText *text_iface = atspi_accessible_get_text_iface(focused);
     if (!text_iface) {

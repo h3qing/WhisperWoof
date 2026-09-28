@@ -24,6 +24,7 @@ const {
 } = require("./transcriptionTimeout");
 const { getModelKind, getTransducerFileNames } = require("./parakeetModelInfo");
 const { buildServerArgs } = require("./sherpaServerArgs");
+const { buildSidecarEnv } = require("../whisperwoof/bridge/sidecar-env-pure");
 
 const PORT_RANGE_START = 6006;
 const PORT_RANGE_END = 6029;
@@ -138,6 +139,8 @@ class ParakeetWsServer {
     const child = spawn(wsBinary, args, {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
+      // No API keys or loader-injection variables: it only needs its model.
+      env: buildSidecarEnv(process.env),
       cwd: getSafeTempDir(),
       detached: process.platform !== "win32",
     });

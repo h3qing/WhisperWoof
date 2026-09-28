@@ -83,6 +83,11 @@ function validateWebhookUrl(url) {
     if (!["http:", "https:"].includes(parsed.protocol)) {
       return "URL must use http or https";
     }
+    // Entries (what you said and copied) never cross the internet in clear
+    // text: plain http only to this computer or your local network (n8n…).
+    if (!require("./endpoint-pure").isSecureEndpoint(parsed.href)) {
+      return "Use https (plain http only works for this computer or your local network)";
+    }
     return null;
   } catch {
     return "Invalid URL format";

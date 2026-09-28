@@ -4,6 +4,17 @@
  * and misheard -> corrected pairs (for Memory replacements).
  */
 
+const { sensitiveKind } = require("../whisperwoof/bridge/clipboard-pure");
+
+/**
+ * A correction that may be a secret typed over the dictation ("the wifi
+ * password is blue horse" -> "BlueHorse42!"). Learned words go to Memory, the
+ * Dictionary and cloud speech-to-text hints, so these are never learned.
+ */
+function looksSecret(word) {
+  return sensitiveKind(word) !== null || (/\d/.test(word) && /[^\p{L}\p{N}\s'.-]/u.test(word));
+}
+
 /** Levenshtein edit distance between two strings */
 function editDistance(a, b) {
   const m = a.length;
@@ -196,6 +207,8 @@ function findSubstitutions(origWords, editedWords) {
 function extractCorrectionPairs(originalText, fieldValue) {
   if (!originalText || !fieldValue) return [];
   if (originalText === fieldValue) return [];
+  // Someone typed or pasted a secret into the field: learn nothing from it.
+  if (fieldValue.split(/\s+/).some((token) => sensitiveKind(token) !== null)) return [];
 
   const editedRegion = findEditedRegion(originalText, fieldValue);
   if (editedRegion === originalText) return [];
@@ -222,6 +235,7 @@ function extractCorrectionPairs(originalText, fieldValue) {
     if (fromKey === toKey) continue;
     if (toKey.length < 3) continue;
     if (phraseDistance(from, to) > MAX_DISTANCE) continue;
+    if (looksSecret(to)) continue;
 
     const pairKey = `${from.toLowerCase()}\u0000${to}`;
     if (seen.has(pairKey)) continue;

@@ -280,7 +280,7 @@
       "enableButton": "Enable GPU",
       "dismissButton": "Not now"
     },
-    "backToNotes": "Back to notes"
+    "backToMeetings": "Back to meetings"
   },
   "reasoning": {
     "mode": {
@@ -1679,7 +1679,6 @@
       "couldNotDelete": "Couldn't delete folder"
     },
     "list": {
-      "title": "Notes",
       "newNote": "New note",
       "untitled": "Untitled",
       "untitledNote": "Untitled Note",

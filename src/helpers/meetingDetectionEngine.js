@@ -240,7 +240,10 @@ class MeetingDetectionEngine {
     try {
       const detection = this.activeDetections.get(detectionId);
 
-      if (action === "start" && detection) {
+      if (action === "start" && detection && this._meetingModeActive) {
+        debugLogger.info("Ignoring Start: a meeting is already open", { detectionId }, "meeting");
+        this.activeDetections.delete(detectionId);
+      } else if (action === "start" && detection) {
         // Flip the suppression flag synchronously so any concurrent
         // _handleDetection call sees we're already in a meeting and bails.
         // The IPC emission with the full payload happens below, once we
@@ -291,7 +294,12 @@ class MeetingDetectionEngine {
     }
   }
 
-  async startManualMeeting() {
+  /**
+   * `title`: the note's title, e.g. the calendar event recorded from the
+   * Meetings tab (`calendarEventId`, which then isn't prompted for again).
+   * Resolves false when the meeting's note couldn't be made.
+   */
+  async startManualMeeting({ title, calendarEventId } = {}) {
     debugLogger.info("Starting manual meeting", {}, "meeting");
 
     // Suppression flag flips synchronously so any concurrent auto-detect
@@ -302,7 +310,7 @@ class MeetingDetectionEngine {
     const event = {
       id: `manual-${Date.now()}`,
       calendar_id: "__manual__",
-      summary: "New note",
+      summary: title || "New note",
       start_time: new Date().toISOString(),
       end_time: new Date(Date.now() + 3600000).toISOString(),
       is_all_day: 0,
@@ -313,8 +321,17 @@ class MeetingDetectionEngine {
       attendees_count: 0,
     };
 
-    const noteResult = this.databaseManager.saveNote(event.summary, "", "meeting");
-    const meetingsFolder = this.databaseManager.getMeetingsFolder();
+    let noteResult = null;
+    let meetingsFolder = null;
+    try {
+      // The folder first: without it the note would be saved where nobody sees it.
+      meetingsFolder = this.databaseManager.getMeetingsFolder();
+      if (meetingsFolder?.id) {
+        noteResult = this.databaseManager.saveNote(event.summary, "", "meeting");
+      }
+    } catch (error) {
+      debugLogger.error("Manual meeting failed", { error: error.message }, "meeting");
+    }
 
     if (!noteResult?.note?.id || !meetingsFolder?.id) {
       debugLogger.error(
@@ -323,7 +340,7 @@ class MeetingDetectionEngine {
         "meeting"
       );
       this._setMeetingMode(false);
-      return;
+      return false;
     }
 
     this._setMeetingMode(true, {
@@ -333,6 +350,7 @@ class MeetingDetectionEngine {
     });
 
     this.broadcastToWindows("note-added", noteResult.note);
+    this._settlePromptsForStartedMeeting(calendarEventId);
 
     await this.windowManager.createControlPanelWindow();
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -343,6 +361,16 @@ class MeetingDetectionEngine {
       event,
       trigger: "manual",
     });
+    return true;
+  }
+
+  /** A meeting started from the Meetings tab answers any meeting prompt showing or queued. */
+  _settlePromptsForStartedMeeting(calendarEventId) {
+    if (calendarEventId) this._preMeetingNotifiedIds.add(calendarEventId);
+    this.activeDetections.clear();
+    this._notificationQueue = [];
+    this.audioActivityDetector.resetPrompt();
+    this.windowManager.dismissMeetingNotification();
   }
 
   handleNotificationTimeout() {
@@ -492,6 +520,8 @@ class MeetingDetectionEngine {
         meetingMode: this._meetingModeActive,
         recording: this._userRecording,
       }, "meeting");
+      // Settled for this event: rescheduling it would fire again at once, in a loop.
+      this._preMeetingNotifiedIds.add(event.id);
       this._schedulePreMeetingNotification();
       return;
     }

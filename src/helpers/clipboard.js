@@ -8,6 +8,15 @@ const debugLogger = require("./debugLogger");
 
 const CACHE_TTL_MS = 30000;
 
+// The clipboard history lives in WhisperWoof's app-init (main process only).
+function clipboardHistory() {
+  try {
+    return require("../whisperwoof/bridge/app-init");
+  } catch {
+    return null;
+  }
+}
+
 // isTrustedAccessibilityClient() is a cheap synchronous syscall, so the cache
 // only exists to debounce the dialog shown on denial.
 const ACCESSIBILITY_CHECK_TTL_MS = 5000;
@@ -89,7 +98,7 @@ class ClipboardManager {
     process.on("exit", () => {
       if (this._kwinScriptPath) {
         try {
-          fs.unlinkSync(this._kwinScriptPath);
+          fs.rmSync(path.dirname(this._kwinScriptPath), { recursive: true, force: true });
         } catch {}
       }
     });
@@ -139,7 +148,14 @@ class ClipboardManager {
     if (this.commandExists("wl-copy")) {
       try {
         const isHyprland = !!process.env.HYPRLAND_INSTANCE_SIGNATURE;
-        const result = spawnSync("wl-copy", ["--", text], { timeout: isHyprland ? 50 : 1 });
+        // Text on stdin, never argv: the forked wl-copy keeps its command line
+        // for as long as it owns the clipboard, and `ps` shows it to every user.
+        // No stdout/stderr pipes, so spawnSync doesn't wait for that fork.
+        const result = spawnSync("wl-copy", [], {
+          input: text,
+          stdio: ["pipe", "ignore", "ignore"],
+          timeout: isHyprland ? 200 : 100,
+        });
         if (result.status === 0) {
           clipboard.writeText(text);
           return;
@@ -447,11 +463,17 @@ class ClipboardManager {
       const journalMarker = `OW_CLASS_${process.pid}`;
       try {
         if (!this._kwinScriptPath) {
-          this._kwinScriptPath = path.join(os.tmpdir(), `kwin-active-class-${process.pid}.js`);
+          // A private 0700 folder with an unguessable name: KWin runs this
+          // file, so nobody else may create or swap it (a fixed /tmp name could).
+          const base = process.env.XDG_RUNTIME_DIR || os.tmpdir();
+          const dir = fs.mkdtempSync(path.join(base, "whisperwoof-kwin-"));
+          const scriptPath = path.join(dir, "active-class.js");
           fs.writeFileSync(
-            this._kwinScriptPath,
-            `print("${journalMarker}:" + (workspace.activeWindow ? workspace.activeWindow.resourceClass : ""))`
+            scriptPath,
+            `print("${journalMarker}:" + (workspace.activeWindow ? workspace.activeWindow.resourceClass : ""))`,
+            { flag: "wx", mode: 0o600 }
           );
+          this._kwinScriptPath = scriptPath;
         }
         const loadResult = spawnSync(
           qdbus,
@@ -528,6 +550,8 @@ class ClipboardManager {
     if (cached && now < cached.expiresAt) {
       return cached.exists;
     }
+    // Only plain tool names reach the shell below.
+    if (!/^[A-Za-z0-9._+-]+$/.test(String(cmd))) return false;
     try {
       const res = spawnSync("sh", ["-c", `command -v ${cmd}`], {
         stdio: "ignore",
@@ -547,6 +571,38 @@ class ClipboardManager {
     }
   }
 
+  // Seam: WhisperWoof's clipboard history (tests replace it).
+  _clipboardHistory() {
+    return clipboardHistory();
+  }
+
+  /**
+   * Whether to put the user's earlier clipboard back after pasting. Never a
+   * password manager's copy: rewriting it drops its "concealed" marker, and
+   * every clipboard history (ours included) would then keep the password.
+   */
+  _shouldRestoreClipboard(options = {}) {
+    if (options.restoreClipboard === false) return false;
+    try {
+      return this._clipboardHistory()?.isPrivateCopy?.() !== true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Put the user's earlier clipboard text back after a paste. It was either
+   * captured already or deliberately skipped, so the history must not take
+   * it as a new copy.
+   */
+  _restoreClipboard(text, { wayland = false, webContents } = {}) {
+    const history = this._clipboardHistory();
+    history?.skipClipboardCapture?.(text);
+    if (wayland) this._writeClipboardWayland(text, webContents);
+    else clipboard.writeText(text);
+    history?.adoptCurrentClipboard?.();
+  }
+
   async pasteText(text, options = {}) {
     const startTime = Date.now();
     const platform = process.platform;
@@ -554,7 +610,7 @@ class ClipboardManager {
     const webContents = options.webContents;
 
     try {
-      const shouldRestore = options.restoreClipboard !== false;
+      const shouldRestore = this._shouldRestoreClipboard(options);
       const originalClipboard = shouldRestore ? clipboard.readText() : null;
       if (shouldRestore) {
         this.safeLog(
@@ -651,7 +707,7 @@ class ClipboardManager {
             this.safeLog(`Text pasted successfully via ${useFastPaste ? "CGEvent" : "osascript"}`);
             if (originalClipboard != null) {
               setTimeout(() => {
-                clipboard.writeText(originalClipboard);
+                this._restoreClipboard(originalClipboard);
               }, RESTORE_DELAYS.darwin);
             }
             resolve();
@@ -717,7 +773,7 @@ class ClipboardManager {
           this.safeLog("Text pasted successfully via osascript fallback");
           if (originalClipboard != null) {
             setTimeout(() => {
-              clipboard.writeText(originalClipboard);
+              this._restoreClipboard(originalClipboard);
             }, RESTORE_DELAYS.darwin);
           }
           resolve();
@@ -797,7 +853,7 @@ class ClipboardManager {
             });
             if (originalClipboard != null) {
               setTimeout(() => {
-                clipboard.writeText(originalClipboard);
+                this._restoreClipboard(originalClipboard);
                 this.safeLog("🔄 Clipboard restored");
               }, RESTORE_DELAYS.win32_nircmd);
             }
@@ -872,7 +928,7 @@ class ClipboardManager {
             });
             if (originalClipboard != null) {
               setTimeout(() => {
-                clipboard.writeText(originalClipboard);
+                this._restoreClipboard(originalClipboard);
                 this.safeLog("🔄 Clipboard restored");
               }, restoreDelay);
             }
@@ -950,7 +1006,7 @@ class ClipboardManager {
             });
             if (originalClipboard != null) {
               setTimeout(() => {
-                clipboard.writeText(originalClipboard);
+                this._restoreClipboard(originalClipboard);
                 this.safeLog("🔄 Clipboard restored");
               }, restoreDelay);
             }
@@ -1034,11 +1090,7 @@ class ClipboardManager {
     const restoreClipboard = () => {
       if (originalClipboard == null) return;
       setTimeout(() => {
-        if (isWayland) {
-          this._writeClipboardWayland(originalClipboard, webContents);
-        } else {
-          clipboard.writeText(originalClipboard);
-        }
+        this._restoreClipboard(originalClipboard, { wayland: isWayland, webContents });
       }, RESTORE_DELAYS.linux);
     };
 
@@ -1490,7 +1542,8 @@ class ClipboardManager {
       } catch (error) {
         const fallbackFailure = {
           tool: "xdotool type",
-          args: typeArgs,
+          // Not the args: they hold the dictated text.
+          textLength: textToType.length,
           error: error?.message || String(error),
         };
         failedAttempts.push(fallbackFailure);

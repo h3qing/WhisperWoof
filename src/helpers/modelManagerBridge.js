@@ -211,6 +211,9 @@ class ModelManager {
 
       await sharedDownloadFile(downloadUrl, modelPath, {
         signal,
+        // Verified before the file is moved into place when the registry
+        // pins a hash for this model.
+        sha256: model.sha256,
         onProgress: (downloadedBytes, totalBytes) => {
           const progress = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0;
           this.downloadProgress.set(modelId, {

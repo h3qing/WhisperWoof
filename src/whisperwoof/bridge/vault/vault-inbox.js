@@ -84,15 +84,27 @@ async function replay(handlers, { idMap = new Map(), log = () => {} } = {}) {
 /**
  * Turning encryption off with items that still won't import: write them out as
  * plain JSON in `dir` (everything becomes plain anyway) so nothing is lost.
+ * An item this vault can't open (sealed to another key, damaged) can't block
+ * turning off: it's moved there as it is, still sealed.
  */
 function exportRemaining(dir) {
-  const files = listItemFiles();
+  vault.requireKeys();
+  const inboxDir = vaultPaths.inboxDir();
+  const files = fs.existsSync(inboxDir) ? fs.readdirSync(inboxDir).filter((n) => n.endsWith(".wwenc")).sort() : [];
   if (files.length === 0) return 0;
-  require("fs").mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true });
   for (const file of files) {
-    const item = readItem(file);
-    writeFileAtomic(path.join(dir, `${file.replace(/\.wwenc$/, "")}.json`), JSON.stringify(item, null, 2));
-    removeIfExists(path.join(vaultPaths.inboxDir(), file));
+    const source = path.join(inboxDir, file);
+    let json = null;
+    try {
+      const bytes = fs.readFileSync(source);
+      json = JSON.parse(vault.openSealed(bytes).plaintext.toString("utf8"));
+    } catch {
+      json = null;
+    }
+    if (json) writeFileAtomic(path.join(dir, `${file.replace(/\.wwenc$/, "")}.json`), JSON.stringify(json, null, 2));
+    else fs.copyFileSync(source, path.join(dir, file));
+    removeIfExists(source);
   }
   return files.length;
 }

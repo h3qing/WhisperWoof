@@ -80,11 +80,15 @@ async function createKey() {
   return { publicKey: Buffer.from(result.publicKey, "base64"), keyBlob: Buffer.from(result.keyBlob, "base64") };
 }
 
-/** Ask for a fingerprint and do the ECDH in the enclave. → shared secret Buffer */
-async function deriveSecret({ keyBlob, peer, reason }) {
+/**
+ * Ask for a fingerprint and do the ECDH in the enclave. → shared secret Buffer
+ * `purpose` ("unlock" | "enroll" | "confirm") picks one of the prompts built
+ * into the helper; the prompt text itself never comes from outside it.
+ */
+async function deriveSecret({ keyBlob, peer, purpose = "unlock" }) {
   const result = await run(
     "unlock",
-    { keyBlob: keyBlob.toString("base64"), peer: peer.toString("base64"), reason, cancelTitle: "Cancel" },
+    { keyBlob: keyBlob.toString("base64"), peer: peer.toString("base64"), purpose },
     UNLOCK_TIMEOUT_MS
   );
   if (result.error) throw Object.assign(new Error(result.message), { code: result.error.toUpperCase() });

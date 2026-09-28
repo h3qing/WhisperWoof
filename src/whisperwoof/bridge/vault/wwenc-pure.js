@@ -182,29 +182,32 @@ function decrypt(buf, privateKey, { allowPartial = false } = {}) {
   let off = h.bodyStart;
   let index = 0;
   let complete = false;
-  while (off < buf.length) {
-    if (complete) throw tampered(); // data after the final chunk
-    if (off + 4 > buf.length) break; // torn length prefix
-    const len = buf.readUInt32BE(off);
-    if (len < vc.TAG_LEN || len > MAX_CHUNK_CT) {
-      if (allowPartial) break;
-      throw tampered();
+  try {
+    while (off < buf.length) {
+      if (complete) throw tampered(); // data after the final chunk
+      if (off + 4 > buf.length) break; // torn length prefix
+      const len = buf.readUInt32BE(off);
+      if (len < vc.TAG_LEN || len > MAX_CHUNK_CT) {
+        if (allowPartial) break;
+        throw tampered();
+      }
+      const end = off + 4 + len;
+      if (end > buf.length) break; // torn chunk
+      const ct = buf.subarray(off + 4, end);
+      const middle = tryOpen(payloadKey, h.noncePrefix, index, ct, false);
+      const final = middle ? null : tryOpen(payloadKey, h.noncePrefix, index, ct, true);
+      if (!middle && !final) {
+        if (allowPartial && end === buf.length) break; // garbage tail after a crash
+        throw tampered();
+      }
+      parts.push(middle || final);
+      complete = Boolean(final);
+      off = end;
+      index += 1;
     }
-    const end = off + 4 + len;
-    if (end > buf.length) break; // torn chunk
-    const ct = buf.subarray(off + 4, end);
-    const middle = tryOpen(payloadKey, h.noncePrefix, index, ct, false);
-    const final = middle ? null : tryOpen(payloadKey, h.noncePrefix, index, ct, true);
-    if (!middle && !final) {
-      if (allowPartial && end === buf.length) break; // garbage tail after a crash
-      throw tampered();
-    }
-    parts.push(middle || final);
-    complete = Boolean(final);
-    off = end;
-    index += 1;
+  } finally {
+    vc.wipe(payloadKey);
   }
-  vc.wipe(payloadKey);
   if (!complete && !allowPartial) throw new WwencError("TRUNCATED", "This file is incomplete");
   return { plaintext: vc.unpooledConcat(parts), complete, kind: h.kind };
 }

@@ -685,6 +685,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   meetingNotificationReady: () => ipcRenderer.invoke("meeting-notification-ready"),
   meetingNotificationRespond: (detectionId, action) =>
     ipcRenderer.invoke("meeting-notification-respond", detectionId, action),
+  startNewMeeting: (options) => ipcRenderer.invoke("meeting-start-new", options),
   onNavigateToMeetingNote: registerListener(
     "navigate-to-meeting-note",
     (callback) => (_event, data) => callback(data)
@@ -855,7 +856,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // WhisperWoof: Markdown notes (Fn+N)
   whisperwoofSaveMarkdown: (text) => ipcRenderer.invoke("whisperwoof-save-markdown", text),
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
-  whisperwoofSetNotesDir: (dir) => ipcRenderer.invoke("whisperwoof-set-notes-dir", dir),
   whisperwoofPickNotesDir: () => ipcRenderer.invoke("whisperwoof-pick-notes-dir"),
   whisperwoofNotesList: () => ipcRenderer.invoke("whisperwoof-notes-list"),
   whisperwoofNotesUpdate: (name, body) => ipcRenderer.invoke("whisperwoof-notes-update", name, body),
@@ -910,6 +910,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofGetFavorites: (limit) => ipcRenderer.invoke("whisperwoof-get-favorites", limit),
   whisperwoofGetImage: (imagePath) => ipcRenderer.invoke("whisperwoof-get-image", imagePath),
   whisperwoofClipboardToggle: (enabled) => ipcRenderer.invoke("whisperwoof-clipboard-toggle", enabled),
+  whisperwoofClipboardMonitoring: () => ipcRenderer.invoke("whisperwoof-clipboard-monitoring"),
   // Clipboard view (items by id; see bridge/clipboard-store.js)
   whisperwoofClipboardList: (options) => ipcRenderer.invoke("whisperwoof-clipboard-list", options),
   whisperwoofClipboardSummary: () => ipcRenderer.invoke("whisperwoof-clipboard-summary"),

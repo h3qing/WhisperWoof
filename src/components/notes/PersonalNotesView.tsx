@@ -1,14 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Loader2, FolderOpen, MoreHorizontal, Pencil, Trash2, Check } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "../ui/dropdown-menu";
 import { useToast } from "../ui/Toast";
 import NoteListItem from "./NoteListItem";
 import NoteEditor from "./NoteEditor";
@@ -18,9 +11,14 @@ import AddNotesToFolderDialog from "./AddNotesToFolderDialog";
 import { useActionProcessing } from "../../hooks/useActionProcessing";
 import { useSettingsStore, selectIsCloudReasoningMode } from "../../stores/settingsStore";
 import { useFolderManagement } from "../../hooks/useFolderManagement";
-import { useNoteDragAndDrop } from "../../hooks/useNoteDragAndDrop";
+import { useUpcomingEvents } from "../../hooks/useUpcomingEvents";
+import { formatDateGroup } from "../../utils/dateFormatting";
+import type { CalendarEvent } from "../../types/calendar";
+import { ComingUpToday } from "../../whisperwoof/ui/meetings/ComingUpToday";
+import { FolderFilter } from "../../whisperwoof/ui/meetings/FolderFilter";
+import { groupByDay } from "../../whisperwoof/ui/meetings/meetings-list";
+import { useStartMeeting } from "../../whisperwoof/ui/meetings/useStartMeeting";
 import { cn } from "../lib/utils";
-import { MEETINGS_FOLDER_NAME } from "./shared";
 import logger from "../../utils/logger";
 import { parseTranscriptSegments } from "../../utils/parseTranscriptSegments";
 import {
@@ -245,10 +243,18 @@ export default function PersonalNotesView({
     [activeFolderId, loadFolders]
   );
 
-  const { dragState, noteDragHandlers, folderDropHandlers } = useNoteDragAndDrop({
-    onMoveToFolder: handleMoveToFolder,
-    currentFolderId: activeFolderId,
-  });
+  // The Meetings tab's list: a divider per day, newest first.
+  const noteGroups = useMemo(
+    () => groupByDay(notes, (day) => formatDateGroup(day, t)),
+    [notes, t]
+  );
+
+  const { events: upcomingEvents } = useUpcomingEvents();
+  const { startMeeting, isStarting: isStartingMeeting } = useStartMeeting();
+  const handleRecordEvent = useCallback(
+    (event: CalendarEvent) => startMeeting(event.summary ?? undefined, event.id),
+    [startMeeting]
+  );
 
   const handleCreateFolderAndMove = useCallback(
     async (noteId: number, folderName: string) => {
@@ -369,191 +375,75 @@ export default function PersonalNotesView({
     <div className="flex h-full">
       <div
         className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
-        style={{ width: isMeetingMode ? 0 : "13rem" }}
+        style={{ width: isMeetingMode ? 0 : "18.5rem" }}
       >
-        <div className="w-[12.5rem] h-[calc(100%-0.5rem)] shrink-0 rounded-[var(--radius-sheet)] glass-thick overflow-hidden flex flex-col">
-          {/* Folders */}
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium text-foreground/50">
-              {t("notes.folders.title")}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCreatingFolder(true)}
-              aria-label={t("notes.context.newFolder")}
-              className="h-5 w-5 rounded-md text-muted-foreground/50 hover:text-foreground/60 hover:bg-foreground/5"
-            >
-              <Plus size={13} />
-            </Button>
-          </div>
-
-          <div className="px-1.5 space-y-px">
-            {folders.map((folder) => {
-              const isActive = folder.id === activeFolderId;
-              const isMeetings = folder.name === MEETINGS_FOLDER_NAME;
-              const count = folderCounts[folder.id] || 0;
-              const isRenaming = renamingFolderId === folder.id;
-
-              if (isRenaming) {
-                return (
-                  <div key={folder.id} className="px-2">
-                    <input
-                      ref={renameInputRef}
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleConfirmRename();
-                        if (e.key === "Escape") {
-                          setRenamingFolderId(null);
-                          setRenameValue("");
-                        }
-                      }}
-                      onBlur={handleConfirmRename}
-                      className={FOLDER_INPUT_CLASS}
-                    />
-                  </div>
-                );
-              }
-
-              const isDragOver = dragState.dragOverFolderId === folder.id;
-              const isDropSuccess = dragState.dropSuccessFolderId === folder.id;
-
-              return (
-                <button
-                  key={folder.id}
-                  onClick={() => setActiveFolderId(folder.id)}
-                  {...folderDropHandlers(folder.id, folder.name)}
-                  className={cn(
-                    "group relative flex items-center gap-2 w-full h-7 px-2 rounded-md cursor-pointer text-left transition-all duration-150",
-                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
-                    isActive
-                      ? "bg-primary/15"
-                      : "hover:bg-foreground/5",
-                    isDragOver &&
-                      !isMeetings &&
-                      "bg-primary/15 ring-1 ring-primary/25 scale-[1.02]",
-                    isDropSuccess &&
-                      "bg-success/10 ring-1 ring-success/20"
-                  )}
-                >
-                  <FolderOpen
-                    size={13}
-                    className={cn(
-                      "shrink-0 transition-colors duration-150",
-                      isDragOver || isActive
-                        ? "text-primary"
-                        : "text-foreground/35 group-hover:text-foreground/50"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs truncate flex-1 transition-colors duration-150",
-                      isDragOver || isActive
-                        ? "text-foreground font-medium"
-                        : "text-foreground/50 group-hover:text-foreground/70"
-                    )}
-                  >
-                    {folder.name}
-                  </span>
-
-                  {isDropSuccess ? (
-                    <Check
-                      size={10}
-                      className="text-success shrink-0 animate-[scale-in_200ms_ease-out]"
-                    />
-                  ) : (
-                    <span
-                      className={cn(
-                        "text-xs tabular-nums shrink-0 transition-colors group-hover:opacity-0",
-                        isActive
-                          ? "text-foreground/50"
-                          : "text-foreground/35"
-                      )}
-                    >
-                      {count > 0 ? count : ""}
-                    </span>
-                  )}
-                  {!folder.is_default && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <span
-                          role="button"
-                          tabIndex={-1}
-                          onClick={(e) => e.stopPropagation()}
-                          className="h-4 w-4 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity absolute right-1.5 text-foreground/25 hover:text-foreground/50 cursor-pointer"
-                        >
-                          <MoreHorizontal size={11} />
-                        </span>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" sideOffset={4} className="min-w-32">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenamingFolderId(folder.id);
-                            setRenameValue(folder.name);
-                          }}
-                          className="text-xs gap-2 rounded-md px-2 py-1"
-                        >
-                          <Pencil size={11} className="text-muted-foreground/60" />
-                          {t("notes.context.rename")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(folder.id);
-                          }}
-                          className="text-xs gap-2 rounded-md px-2 py-1 text-destructive focus:text-destructive focus:bg-destructive/10"
-                        >
-                          <Trash2 size={11} />
-                          {t("notes.context.delete")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </button>
-              );
-            })}
-
-            {isCreatingFolder && (
-              <div className="px-2">
-                <input
-                  ref={newFolderInputRef}
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateFolder();
-                    if (e.key === "Escape") {
-                      setIsCreatingFolder(false);
-                      setNewFolderName("");
-                    }
-                  }}
-                  onBlur={handleCreateFolder}
-                  placeholder={t("notes.folders.folderName")}
-                  className={cn(FOLDER_INPUT_CLASS, "placeholder:text-foreground/20")}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="mx-3 h-px bg-border/10 my-2" />
-
-          {/* Notes list */}
-          <div className="flex items-center justify-between px-3 py-1">
-            <span className="text-xs font-medium text-foreground/50">
-              {t("notes.list.title")}
-            </span>
+        <div className="w-[18rem] pt-2 h-[calc(100%-0.5rem)] shrink-0 rounded-[var(--radius-sheet)] glass-thick overflow-hidden flex flex-col">
+          <ComingUpToday
+            events={upcomingEvents}
+            recordingDisabled={isTranscribing || isStartingMeeting}
+            onRecord={handleRecordEvent}
+          />
+          <div className="flex items-center gap-1.5 px-2.5 pt-1 pb-1">
+            <FolderFilter
+              folders={folders}
+              counts={folderCounts}
+              activeFolderId={activeFolderId}
+              onSelect={setActiveFolderId}
+              onNewFolder={() => setIsCreatingFolder(true)}
+              onRename={(folder) => {
+                setRenamingFolderId(folder.id);
+                setRenameValue(folder.name);
+              }}
+              onDelete={(folder) => handleDeleteFolder(folder.id)}
+            />
+            <div className="flex-1" />
             <Button
               variant="ghost"
               size="icon"
               onClick={handleNewNote}
               aria-label={t("notes.list.newNote")}
-              className="h-5 w-5 rounded-md text-muted-foreground/50 hover:text-foreground/60 hover:bg-foreground/5"
+              className="h-7 w-7 rounded-full text-muted-foreground hover:text-foreground"
             >
-              <Plus size={13} />
+              <Plus size={15} />
             </Button>
           </div>
+          {isCreatingFolder && (
+            <div className="px-3 pb-1">
+              <input
+                ref={newFolderInputRef}
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateFolder();
+                  if (e.key === "Escape") {
+                    setIsCreatingFolder(false);
+                    setNewFolderName("");
+                  }
+                }}
+                onBlur={handleCreateFolder}
+                placeholder={t("notes.folders.folderName")}
+                className={cn(FOLDER_INPUT_CLASS, "placeholder:text-foreground/20")}
+              />
+            </div>
+          )}
+          {renamingFolderId !== null && (
+            <div className="px-3 pb-1">
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleConfirmRename();
+                  if (e.key === "Escape") {
+                    setRenamingFolderId(null);
+                    setRenameValue("");
+                  }
+                }}
+                onBlur={handleConfirmRename}
+                className={FOLDER_INPUT_CLASS}
+              />
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto">
             {isLoading ? (
@@ -640,20 +530,26 @@ export default function PersonalNotesView({
                 </div>
               </div>
             ) : (
-              notes.map((note) => (
-                <NoteListItem
-                  key={note.id}
-                  note={note}
-                  isActive={note.id === activeNoteId}
-                  onClick={() => setActiveNoteId(note.id)}
-                  onDelete={handleDelete}
-                  folders={folders}
-                  currentFolderId={activeFolderId}
-                  onMoveToFolder={handleMoveToFolder}
-                  onCreateFolderAndMove={handleCreateFolderAndMove}
-                  dragHandlers={noteDragHandlers(note.id, note.title)}
-                  isDragging={dragState.draggingNoteId === note.id}
-                />
+              noteGroups.map((group) => (
+                <div key={group.label || "undated"}>
+                  <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
+                    <span className="text-xs font-bold text-muted-foreground">{group.label}</span>
+                    <span className="flex-1 h-px bg-border" />
+                  </div>
+                  {group.notes.map((note) => (
+                    <NoteListItem
+                      key={note.id}
+                      note={note}
+                      isActive={note.id === activeNoteId}
+                      onClick={() => setActiveNoteId(note.id)}
+                      onDelete={handleDelete}
+                      folders={folders}
+                      currentFolderId={activeFolderId}
+                      onMoveToFolder={handleMoveToFolder}
+                      onCreateFolderAndMove={handleCreateFolderAndMove}
+                    />
+                  ))}
+                </div>
               ))
             )}
           </div>

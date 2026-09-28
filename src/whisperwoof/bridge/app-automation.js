@@ -106,13 +106,19 @@ const AUTOMATION_COMMANDS = {
 
 // --- Helpers ---
 
-function runAppleScript(script) {
+/**
+ * Run AppleScript. `script` is one line or a list of lines; `args` reach the
+ * script as `argv` (data, never source text, so an app name can't inject code).
+ */
+function runAppleScript(script, args = []) {
   if (process.platform !== "darwin") {
     return Promise.resolve({ success: false, error: "macOS only" });
   }
 
+  const lines = Array.isArray(script) ? script : [script];
+  const osaArgs = [...lines.flatMap((line) => ["-e", line]), ...args.map(String)];
   return new Promise((resolve) => {
-    execFile("osascript", ["-e", script], { timeout: 5000 }, (err, stdout, stderr) => {
+    execFile("osascript", osaArgs, { timeout: 5000 }, (err, stdout, stderr) => {
       if (err) {
         debugLogger.debug("[WhisperWoof] AppleScript error", { error: err.message });
         resolve({ success: false, error: err.message });
@@ -123,14 +129,18 @@ function runAppleScript(script) {
   });
 }
 
+// The app name arrives as data: quotes (straight or curly), backslashes and
+// newlines in it can't end the string and run `do shell script`.
+const ACTIVATE_APP_SCRIPT = ["on run argv", "tell application (item 1 of argv) to activate", "end run"];
+
 function openApp(appName) {
-  const clean = appName.trim().replace(/['"]/g, "");
-  return runAppleScript(`tell application "${clean}" to activate`);
+  const name = String(appName ?? "").trim();
+  if (!name) return Promise.resolve({ success: false, error: "No app name" });
+  return runAppleScript(ACTIVATE_APP_SCRIPT, [name]);
 }
 
 function switchToApp(appName) {
-  const clean = appName.trim().replace(/['"]/g, "");
-  return runAppleScript(`tell application "${clean}" to activate`);
+  return openApp(appName);
 }
 
 // --- Detection ---

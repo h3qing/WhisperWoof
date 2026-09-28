@@ -112,3 +112,35 @@ describe("journal", () => {
     expect(() => plan.parseJournal({ ...j, direction: "up" })).toThrow();
   });
 });
+
+describe("journal MAC", () => {
+  const crypto = require("crypto");
+  const mk = crypto.randomBytes(32);
+  const vaultId = "a".repeat(32);
+
+  it("verifies a journal this vault signed, after a trip through JSON", () => {
+    const signed = plan.signJournal(plan.startJournal("disable", new Date()), mk, vaultId);
+    const parsed = plan.parseJournal(JSON.parse(JSON.stringify(signed)));
+    expect(parsed.mac).toBe(signed.mac);
+    expect(plan.verifyJournal(parsed, mk, vaultId)).toBe(true);
+  });
+
+  it("rejects a journal without a MAC, with another key or vault, or with any field changed", () => {
+    const journal = plan.startJournal("enable", new Date());
+    const signed = plan.signJournal(journal, mk, vaultId);
+    expect(plan.verifyJournal(journal, mk, vaultId)).toBe(false);
+    expect(plan.verifyJournal(signed, crypto.randomBytes(32), vaultId)).toBe(false);
+    expect(plan.verifyJournal(signed, mk, "b".repeat(32))).toBe(false);
+    expect(plan.verifyJournal({ ...signed, direction: "disable" }, mk, vaultId)).toBe(false);
+    expect(plan.verifyJournal({ ...signed, phase: "done" }, mk, vaultId)).toBe(false);
+    expect(plan.verifyJournal({ ...signed, startedAt: "x" }, mk, vaultId)).toBe(false);
+    expect(plan.verifyJournal({ ...signed, mac: "AAAA" }, mk, vaultId)).toBe(false);
+  });
+
+  it("a moved-on journal needs signing again", () => {
+    const signed = plan.signJournal(plan.startJournal("enable", new Date()), mk, vaultId);
+    const next = plan.advanceJournal(signed);
+    expect(plan.verifyJournal(next, mk, vaultId)).toBe(false);
+    expect(plan.verifyJournal(plan.signJournal(next, mk, vaultId), mk, vaultId)).toBe(true);
+  });
+});

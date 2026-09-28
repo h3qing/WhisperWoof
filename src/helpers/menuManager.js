@@ -1,5 +1,11 @@
 const { Menu } = require("electron");
 const { i18nMain } = require("./i18nMain");
+const { DEVTOOLS_ALLOWED } = require("./windowConfig");
+
+// DevTools can drive every IPC channel of the page (see windowConfig.js).
+function devToolsItems() {
+  return DEVTOOLS_ALLOWED ? [{ role: "toggleDevTools" }] : [];
+}
 
 class MenuManager {
   static setupMainMenu() {
@@ -67,7 +73,7 @@ class MenuManager {
           submenu: [
             { role: "reload" },
             { role: "forceReload" },
-            { role: "toggleDevTools" },
+            ...devToolsItems(),
             { type: "separator" },
             { role: "resetZoom" },
             { role: "zoomIn" },
@@ -128,7 +134,7 @@ class MenuManager {
           submenu: [
             { role: "reload" },
             { role: "forceReload" },
-            { role: "toggleDevTools" },
+            ...devToolsItems(),
             { type: "separator" },
             { role: "resetZoom" },
             { role: "zoomIn" },

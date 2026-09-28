@@ -252,7 +252,7 @@
       "enableButton": "Ativar GPU",
       "dismissButton": "Agora não"
     },
-    "backToNotes": "Voltar para notas"
+    "backToMeetings": "Voltar para reuniões"
   },
   "reasoning": {
     "mode": {
@@ -1549,7 +1549,6 @@
       "couldNotDelete": "Não foi possível excluir a pasta"
     },
     "list": {
-      "title": "Notas",
       "newNote": "Nova nota",
       "untitled": "Sem título",
       "untitledNote": "Nota sem título",

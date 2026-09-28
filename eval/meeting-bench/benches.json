@@ -1,0 +1,15 @@
+{
+  "bench-a": {
+    "description": "Two-person conversation, casual, recorded on a computer. Mandarin with English product and company names and finance terms; overlapping speech and some background noise.",
+    "durationS": 649.5,
+    "language": "zh (Mandarin) + en code-switching",
+    "speakers": 2,
+    "channels": "one mixed mono track (16 kHz mp3); no separate mic/system tracks",
+    "reference": "silver: export of a third-party meeting transcriber (docx), speaker-labelled with per-line timestamps; has its own errors and keeps filler repetitions",
+    "files": { "audio": "audio.mp3", "reference": "reference.txt", "referenceSource": "reference.docx" },
+    "audioSha256": "d03142ff0903de47ee5f4b73108dfb153c33fec9b2e348f38e153de2c932d2c1",
+    "referenceSourceSha256": "af7ce60a51bf345fb45c81e462289d0c6f3c3129034ad7a7e0525beeb31129d8",
+    "private": true,
+    "added": "2026-09-27"
+  }
+}

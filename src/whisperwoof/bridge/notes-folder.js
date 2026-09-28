@@ -38,8 +38,11 @@ function listNotes() {
     .listNames(dir)
     .filter(pure.isSafeNoteName)
     .map((name) => {
-      // Broken symlinks, or files iCloud/Obsidian replace mid-scan, are skipped.
+      // Broken symlinks, or files iCloud/Obsidian replace mid-scan, are skipped;
+      // so is a *.md symlink leading out of the folder (a synced vault could
+      // hold `x.md -> ~/.ssh/id_rsa`): notePath checks that.
       try {
+        notePath(name);
         return { name, stat: vaultFiles.statFile(path.join(dir, name)) };
       } catch {
         return null;

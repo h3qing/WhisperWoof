@@ -11,7 +11,7 @@ const {
   wavToFloat32Samples,
   computeFloat32RMS,
 } = require("./ffmpegUtils");
-const { getSafeTempDir } = require("./safeTempDir");
+const { makePrivateTempDir, removeTempDir } = require("./safeTempDir");
 const { createAbortError } = require("./abortError");
 const ParakeetWsServer = require("./parakeetWsServer");
 const { getModelRuntime, getRequiredModelFiles } = require("./parakeetModelInfo");
@@ -91,20 +91,23 @@ class ParakeetServerManager {
       debugLogger.debug("Pipe conversion failed, using temp files", { error: err.message });
     }
 
-    const tempDir = getSafeTempDir();
-    const timestamp = Date.now();
-    const tempInputPath = path.join(tempDir, `parakeet-input-${timestamp}.webm`);
-    const tempWavPath = path.join(tempDir, `parakeet-${timestamp}.wav`);
+    // A private dir (0700, unguessable name) and an owner-only file, removed
+    // as soon as the WAV is in memory — also when ffmpeg fails.
+    const tempDir = makePrivateTempDir("ww-parakeet-");
+    const tempInputPath = path.join(tempDir, "input.webm");
+    const tempWavPath = path.join(tempDir, "output.wav");
 
-    fs.writeFileSync(tempInputPath, audioBuffer);
+    try {
+      fs.writeFileSync(tempInputPath, audioBuffer, { mode: 0o600 });
+      debugLogger.debug("Converting audio to WAV", { inputSize: audioBuffer?.length || 0 });
 
-    const inputStats = fs.statSync(tempInputPath);
-    debugLogger.debug("Converting audio to WAV", { inputSize: inputStats.size });
+      await convertToWav(tempInputPath, tempWavPath, { sampleRate: 16000, channels: 1 });
 
-    await convertToWav(tempInputPath, tempWavPath, { sampleRate: 16000, channels: 1 });
-
-    const wavBuffer = fs.readFileSync(tempWavPath);
-    return { wavBuffer, filesToCleanup: [tempInputPath, tempWavPath] };
+      const wavBuffer = fs.readFileSync(tempWavPath);
+      return { wavBuffer, filesToCleanup: [] };
+    } finally {
+      removeTempDir(tempDir);
+    }
   }
 
   async transcribe(audioBuffer, options = {}) {

@@ -218,10 +218,26 @@ function getCapture() {
 /** Whether copied files (PDFs, documents…) are kept in full. Off by default. */
 function setCapture(raw) {
   const { updateSettings } = require("./markdown-route");
-  const capture = pure.normalizeCapture(raw);
+  const keepFiles = Boolean(raw && typeof raw === "object" && raw.keepFiles === true);
+  const capture = pure.normalizeCapture({ ...getCapture(), keepFiles });
   updateSettings({ clipboardCapture: capture });
   notifyChanged();
   return { capture };
+}
+
+/**
+ * Turn clipboard monitoring on or off, now and after every restart. Saved in
+ * main: a setting only the renderer remembered came back on at launch.
+ */
+function setMonitoring(enabled) {
+  const { updateSettings } = require("./markdown-route");
+  const appInit = require("./app-init");
+  const capture = pure.normalizeCapture({ ...getCapture(), monitor: enabled === true });
+  updateSettings({ clipboardCapture: capture });
+  if (capture.monitor) appInit.startClipboardMonitor();
+  else appInit.stopClipboardMonitor();
+  notifyChanged();
+  return { enabled: capture.monitor };
 }
 
 function summary() {
@@ -284,6 +300,8 @@ function deleteIds(ids) {
     }
   })();
   for (const row of removed) removeClipboardFiles(row);
+  // The deleted text must not linger in the WAL's old page images.
+  if (removed.length > 0) require("./db-erase").checkpoint(db());
   notifyChanged();
   return { deleted: removed.length };
 }
@@ -468,6 +486,7 @@ module.exports = {
   setRetention,
   getCapture,
   setCapture,
+  setMonitoring,
   setImageText,
   imageText,
   copyImageText,

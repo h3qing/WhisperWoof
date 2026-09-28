@@ -4,8 +4,23 @@ const os = require("os");
 const path = require("path");
 const debugLogger = require("./debugLogger");
 const { createAbortError } = require("./abortError");
+const { buildSidecarEnv } = require("../whisperwoof/bridge/sidecar-env-pure");
 
 let cachedFFmpegPath = null;
+
+// Input options for every ffmpeg input. The whitelist stops a crafted file
+// (an HLS/concat playlist, an .ffconcat, a SDP) from making ffmpeg open other
+// protocols — http:, tcp:, rtp:, a second file — on the user's behalf.
+const PROTOCOL_WHITELIST = ["-protocol_whitelist", "file,pipe"];
+
+function ffmpegInputArgs(input) {
+  return [...PROTOCOL_WHITELIST, "-i", input];
+}
+
+// ffmpeg gets the environment without the user's cloud API keys and tokens.
+function ffmpegSpawnOptions(stdio) {
+  return { stdio, windowsHide: true, env: buildSidecarEnv(process.env) };
+}
 
 function getFFmpegPath() {
   if (cachedFFmpegPath) return cachedFFmpegPath;
@@ -145,8 +160,7 @@ function convertBufferToWav(inputBuffer, options = {}) {
       "-hide_banner",
       "-loglevel",
       "error",
-      "-i",
-      "pipe:0",
+      ...ffmpegInputArgs("pipe:0"),
       "-ar",
       String(sampleRate),
       "-ac",
@@ -157,7 +171,7 @@ function convertBufferToWav(inputBuffer, options = {}) {
       "pcm_s16le",
       "pipe:1",
     ];
-    const proc = spawn(ffmpegPath, args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const proc = spawn(ffmpegPath, args, ffmpegSpawnOptions(["pipe", "pipe", "pipe"]));
     const out = [];
     let stderr = "";
     proc.stdout.on("data", (chunk) => out.push(chunk));
@@ -194,8 +208,7 @@ function convertToWav(inputPath, outputPath, options = {}) {
     }
 
     const args = [
-      "-i",
-      inputPath,
+      ...ffmpegInputArgs(inputPath),
       "-ar",
       String(sampleRate),
       "-ac",
@@ -213,10 +226,7 @@ function convertToWav(inputPath, outputPath, options = {}) {
       channels,
     });
 
-    const proc = spawn(ffmpegPath, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const proc = spawn(ffmpegPath, args, ffmpegSpawnOptions(["ignore", "pipe", "pipe"]));
 
     let stderr = "";
 
@@ -360,8 +370,7 @@ function splitAudioFile(inputPath, outputDir, options = {}) {
     const outputPattern = path.join(outputDir, "chunk-%03d.mp3");
 
     const args = [
-      "-i",
-      inputPath,
+      ...ffmpegInputArgs(inputPath),
       "-f",
       "segment",
       "-segment_time",
@@ -385,10 +394,7 @@ function splitAudioFile(inputPath, outputDir, options = {}) {
       audioBitrate,
     });
 
-    const proc = spawn(ffmpegPath, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const proc = spawn(ffmpegPath, args, ffmpegSpawnOptions(["ignore", "pipe", "pipe"]));
 
     let stderr = "";
 
@@ -466,7 +472,7 @@ async function mergeAudioSegments(segments) {
           ? "m4a"
           : "webm";
       const inputPath = path.join(tempDir, `segment-${index}.${extension}`);
-      fs.writeFileSync(inputPath, Buffer.from(segment.buffer));
+      fs.writeFileSync(inputPath, Buffer.from(segment.buffer), { mode: 0o600 });
       return inputPath;
     });
 
@@ -479,7 +485,7 @@ async function mergeAudioSegments(segments) {
     );
 
     await new Promise((resolve, reject) => {
-      const args = inputPaths.flatMap((inputPath) => ["-i", inputPath]);
+      const args = inputPaths.flatMap((inputPath) => ffmpegInputArgs(inputPath));
       args.push(
         "-filter_complex",
         filters.join(";"),
@@ -492,10 +498,7 @@ async function mergeAudioSegments(segments) {
         "-y",
         outputPath
       );
-      const proc = spawn(ffmpegPath, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
+      const proc = spawn(ffmpegPath, args, ffmpegSpawnOptions(["ignore", "pipe", "pipe"]));
       let stderr = "";
       proc.stderr.on("data", (data) => {
         stderr += data.toString();
@@ -525,6 +528,7 @@ function clearCache() {
 
 module.exports = {
   getFFmpegPath,
+  ffmpegInputArgs,
   isWavFormat,
   parseWavFormat,
   convertToWav,

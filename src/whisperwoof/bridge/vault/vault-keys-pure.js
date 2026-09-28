@@ -11,9 +11,9 @@
 
 const crypto = require("crypto");
 const vc = require("./vault-crypto-pure");
+const { MIN_PASSWORD_LENGTH, passwordProblem } = require("./password-policy-pure");
 
 const VAULT_VERSION = 1;
-const MIN_PASSWORD_LENGTH = 8;
 const DEFAULT_KDF = Object.freeze({ name: "scrypt", N: 262144, r: 8, p: 1 }); // 256 MiB
 const IDLE_CHOICES = Object.freeze([0, 15, 60]);
 const DEFAULT_PREFS = Object.freeze({ touchId: false, lockOnSleep: true, idleMinutes: 0, notesReadable: false });
@@ -45,18 +45,23 @@ function checkValue(masterKey) {
 }
 
 function deriveKeys(masterKey) {
-  const seal = vc.x25519FromSeed(vc.hkdf(masterKey, "whisperwoof/seal/v1"));
-  return {
-    dbKeyHex: vc.hkdf(masterKey, "whisperwoof/db/v1").toString("hex"),
-    sealPrivateKey: seal.privateKey,
-    sealPublicRaw: seal.publicRaw,
-  };
+  const seed = vc.hkdf(masterKey, "whisperwoof/seal/v1");
+  const dbKey = vc.hkdf(masterKey, "whisperwoof/db/v1");
+  try {
+    const seal = vc.x25519FromSeed(seed);
+    return {
+      dbKeyHex: dbKey.toString("hex"),
+      sealPrivateKey: seal.privateKey,
+      sealPublicRaw: seal.publicRaw,
+    };
+  } finally {
+    vc.wipe(seed, dbKey);
+  }
 }
 
 function assertPassword(password) {
-  if (typeof password !== "string" || [...password].length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`);
-  }
+  const problem = passwordProblem(password);
+  if (problem) throw Object.assign(new Error(problem), { code: "INVALID" });
 }
 
 function verifyMasterKey(vault, masterKey) {
@@ -103,7 +108,7 @@ function createVault({ entropy, password, kdf = DEFAULT_KDF, now = new Date() })
     touchId: null,
     prefs: { ...DEFAULT_PREFS },
   };
-  return { vault, masterKey };
+  return { vault: signPrefs(vault, masterKey), masterKey };
 }
 
 function unlockWithPassword(vault, password) {
@@ -182,6 +187,64 @@ function verifySealKey(vault, masterKey) {
   return deriveKeys(masterKey).sealPublicRaw.equals(sealPublicKey(vault));
 }
 
+// ---------- prefs MAC ----------
+//
+// vault.json is plain and can be edited while WhisperWoof is locked. The prefs
+// that weaken protection when flipped ("keep notes readable", "lock when my
+// Mac sleeps", the idle lock) carry a MAC keyed from MK, checked at unlock.
+// Touch ID isn't signed: turning it on needs an enrolled key anyway.
+
+const PREFS_INFO = "whisperwoof/prefs/v1";
+const SIGNED_PREFS = Object.freeze(["lockOnSleep", "idleMinutes", "notesReadable"]);
+
+function prefsMacWith(key, vaultId, prefs) {
+  const bytes = JSON.stringify([PREFS_INFO, vaultId, ...SIGNED_PREFS.map((name) => prefs[name])]);
+  return vc.hmac(key, bytes);
+}
+
+/** The vault with a fresh MAC over its prefs. */
+function signPrefs(vault, masterKey) {
+  const key = vc.hkdf(masterKey, PREFS_INFO);
+  try {
+    return { ...vault, prefsMac: b64(prefsMacWith(key, vault.vaultId, vault.prefs)) };
+  } finally {
+    vc.wipe(key);
+  }
+}
+
+/** Every combination the signed prefs can take (2 × 3 × 2). */
+function signedPrefsChoices() {
+  return [true, false].flatMap((lockOnSleep) =>
+    IDLE_CHOICES.flatMap((idleMinutes) => [false, true].map((notesReadable) => ({ lockOnSleep, idleMinutes, notesReadable })))
+  );
+}
+
+/**
+ * Check vault.json's prefs against their MAC.
+ * → { ok: true }                 they match
+ *   { ok: true, unsigned: true } no MAC yet (a vault from before the MAC): sign it now
+ *   { ok: false, prefs }         changed: `prefs` are the ones the MAC was made
+ *                                for (there are only 12 combinations to try),
+ *                                or the defaults if the MAC matches none
+ */
+function checkPrefs(vault, masterKey) {
+  if (typeof vault.prefsMac !== "string") return { ok: true, unsigned: true };
+  const stored = unb64(vault.prefsMac);
+  const key = vc.hkdf(masterKey, PREFS_INFO);
+  try {
+    const matches = (prefs) => {
+      const mac = prefsMacWith(key, vault.vaultId, prefs);
+      return mac.length === stored.length && crypto.timingSafeEqual(mac, stored);
+    };
+    if (matches(vault.prefs)) return { ok: true };
+    const signed = signedPrefsChoices().find(matches);
+    const restored = signed || Object.fromEntries(SIGNED_PREFS.map((name) => [name, DEFAULT_PREFS[name]]));
+    return { ok: false, prefs: { ...vault.prefs, ...restored } };
+  } finally {
+    vc.wipe(key);
+  }
+}
+
 function normalizePrefs(prefs, current = DEFAULT_PREFS) {
   const p = prefs && typeof prefs === "object" ? prefs : {};
   return {
@@ -238,6 +301,7 @@ function parseVault(json) {
         }
       : null,
     prefs: { ...normalizePrefs(json.prefs), touchId: Boolean(tid) && json.prefs?.touchId !== false },
+    ...(typeof json.prefsMac === "string" ? { prefsMac: json.prefsMac } : {}),
   };
 }
 
@@ -263,5 +327,7 @@ module.exports = {
   verifySealKey,
   verifyMasterKey,
   updatePrefs,
+  signPrefs,
+  checkPrefs,
   parseVault,
 };

@@ -280,7 +280,7 @@
       "enableButton": "启用 GPU",
       "dismissButton": "暂不启用"
     },
-    "backToNotes": "返回笔记"
+    "backToMeetings": "返回会议"
   },
   "reasoning": {
     "mode": {
@@ -1592,7 +1592,6 @@
       "couldNotDelete": "无法删除文件夹"
     },
     "list": {
-      "title": "笔记",
       "newNote": "新建笔记",
       "untitled": "无标题",
       "untitledNote": "无标题笔记",

@@ -280,7 +280,7 @@
       "enableButton": "啟用 GPU",
       "dismissButton": "暫時不要"
     },
-    "backToNotes": "返回筆記"
+    "backToMeetings": "返回會議"
   },
   "reasoning": {
     "mode": {
@@ -1592,7 +1592,6 @@
       "couldNotDelete": "無法刪除資料夾"
     },
     "list": {
-      "title": "筆記",
       "newNote": "新增筆記",
       "untitled": "未命名",
       "untitledNote": "未命名筆記",
