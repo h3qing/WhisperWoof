@@ -6,7 +6,8 @@
       "uiLabel": "インターフェース言語",
       "uiDescription": "WhisperWoof のインターフェースで使用する言語を選択",
       "transcriptionLabel": "文字起こし言語",
-      "transcriptionDescription": "より正確な文字起こしのために話す言語を選択"
+      "transcriptionDescription": "より正確な文字起こしのために話す言語を選択",
+      "autoWhisperNote": "自動検出では、Whisper は録音ごとに最初の 30 秒から言語を 1 つ選びます。別の言語の単語が少し混ざる程度なら問題ありませんが、途中で別の言語に切り替えて長く話すと、その部分が書き起こされずに翻訳されることがあります。"
     }
   },
   "tray": {
@@ -1598,7 +1599,8 @@
       "switchToCloudForLargeFiles": "このファイルを文字起こしするには WhisperWoof Cloud に切り替えてください。",
       "createAccount": "アカウント作成",
       "upgrade": "アップグレード",
-      "switchToCloud": "WhisperWoof Cloud"
+      "switchToCloud": "WhisperWoof Cloud",
+      "autoLanguageNote": "Whisper はファイルの最初の 30 秒から、ファイル全体の言語を 1 つ選びます。録音の途中で言語が変わると、もう一方の言語の部分が翻訳されることがあります。"
     },
     "meeting": {
       "title": "議事録",
@@ -1809,6 +1811,10 @@
       "accessibilityMissing": {
         "title": "アクセシビリティの許可が必要です",
         "description": "WhisperWoof がホットキーの検出とテキストの貼り付けを行うには、アクセシビリティの許可が必要です。コントロールパネルで有効にしてください。"
+      },
+      "mixedLanguageTip": {
+        "title": "Whisper は録音ごとに 1 つの言語で聞き取ります",
+        "description": "言語は最初の 30 秒で決まります。別の言語の単語が少し混ざる程度なら問題ありませんが、途中で切り替えて話し続けると、その部分が翻訳されることがあります。言語を切り替えるときは、新しく録音を始めてください。"
       }
     },
     "mic": {

@@ -8,6 +8,7 @@ import {
   AGENT_LOCAL_FAMILY_STORAGE_KEY,
 } from "../whisperwoof/core/settings/local-reasoning-provider";
 import { ensureAgentNameInDictionary } from "../utils/agentName";
+import { RECOMMENDED_WHISPER_MODEL } from "../whisperwoof/core/settings/recommended-models";
 import logger from "../utils/logger";
 import type { LocalTranscriptionProvider } from "../types/electron";
 import type { GoogleCalendarAccount } from "../types/calendar";
@@ -312,7 +313,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   // eval/dictation-bench (zh/en code-switching): turbo 24.8% MER vs small
   // 34.9%, and small leaks Traditional characters on Simplified speech where
   // turbo does not. 1.6GB vs 0.5GB on disk is the cost.
-  whisperModel: readString("whisperModel", "turbo"), // multilingual; handles Chinese + 90+ languages
+  whisperModel: readString("whisperModel", RECOMMENDED_WHISPER_MODEL), // turbo: multilingual, handles Chinese + 90+ languages
   // WhisperWoof: default to Whisper — it's multilingual (incl. Chinese/CJK), so it's the safe
   // default for everyone. Parakeet TDT is faster but only covers English + 24 European languages
   // (no CJK), so it's offered as an opt-in speed choice in Settings, not the default. When a user
