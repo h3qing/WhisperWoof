@@ -30,6 +30,17 @@ A full red-team review of the app (details: `docs/security/red-team-2026-09-27.m
 ### Added
 - **A heads-up that Whisper hears one language per recording.** In Auto-detect, Whisper picks the language from the first 30 seconds and transcribes the whole recording in it. A few English words inside Chinese are fine, but if you start in Chinese and then switch to a long stretch of English, the Chinese part can come out translated into English. WhisperWoof doesn't fix this for you yet. A real fix means running the model several extra times on every dictation. Instead, it now tells you once, after your first dictation in Chinese, Japanese or Korean. The same note appears under Transcription language in Settings and on Upload audio, where a long recording in several languages gets one language for the whole file.
 
+## [2.5.0] - 2026-09-28 — Meetings, transcribed on your Mac
+
+### Added
+- **Meetings are transcribed on your Mac.** Once the SenseVoice speech model is downloaded (the same one dictation can use), recording a meeting no longer needs OpenAI or an internet connection: your mic and the other side's audio are transcribed on this Mac, two minutes at a time, and nothing leaves it. The transcript is saved into the meeting's note as it goes, so a crash loses at most the last few minutes, and their audio is kept for recovery. Lines appear every two minutes rather than word by word; when you stop, or quit WhisperWoof mid-meeting, the last part takes a few seconds. On a 10-minute test recording of two people talking in Chinese and English, with overlapping speech and some background noise, about 16 words in 100 (characters, for Chinese) differed from another meeting transcriber's transcript, and on an M5 Pro transcribing ran about 30 times faster than the meeting itself. Without SenseVoice, meetings use OpenAI as before.
+
+### Fixed
+- **Parakeet and SenseVoice servers no longer start on a port that's taken.** The check for a free port missed a sherpa-onnx server already listening on it (they listen on every network interface), so a second one could start on the same port and die. It now checks both ways.
+- **Debug logs no longer contain what was said in meetings.** With debug logging on, each meeting line was written to the plaintext log file, even with encryption on.
+- **A note shows only its own recording.** After recording into one note, opening another note showed the first note's transcript as its own, and AI actions ran on it.
+- **Leaving Notes no longer cuts a recording off.** Switching to another view used to stop the mic and lose the transcript while the transcription kept running in the background with no way to stop it. Recordings now keep going in any view, the recording pill shows them and can stop them, and the transcript is saved to the note that was open when you started. If the WhisperWoof window crashes or reloads, the recording stops instead of running on unseen. A recording transcribed on this Mac still saves its transcript to the note; one transcribed by OpenAI keeps its audio on disk for a day. (Closing the window only hides it, and the recording keeps going.)
+
 ## [2.4.0] - 2026-09-27 — ⌘K searches everything, even the words in your images
 
 ### Added

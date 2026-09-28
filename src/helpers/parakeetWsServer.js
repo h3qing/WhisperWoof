@@ -12,7 +12,11 @@ const {
 const { getSafeTempDir } = require("./safeTempDir");
 const { createAbortError } = require("./abortError");
 const sidecarPidFile = require("./sidecarPidFile");
-const { parseOfflineMessage, createOnlineAccumulator } = require("./parakeetWsResult");
+const {
+  parseOfflineMessage,
+  parseOfflineDetail,
+  createOnlineAccumulator,
+} = require("./parakeetWsResult");
 const { pcm16ToFloat32 } = require("../utils/audioUtils");
 const {
   computeTranscriptionTimeoutMs,
@@ -43,11 +47,17 @@ const ONLINE_FINISH_IDLE_TIMEOUT_MS = 10000;
 const ONLINE_END_TAIL_PADDING_S = 1.0;
 
 class ParakeetWsServer {
-  constructor({ pidKey = "parakeet", stream = false } = {}) {
+  // Local meeting transcription runs its own offline server (meetingLocalSession.js).
+  static MEETING_PORT_RANGE = [6050, 6069];
+
+  constructor({ pidKey = "parakeet", stream = false, portRange = null, logTranscripts = true } = {}) {
     this.pidKey = pidKey;
-    this.portRange = stream
-      ? [STREAM_PORT_RANGE_START, STREAM_PORT_RANGE_END]
-      : [PORT_RANGE_START, PORT_RANGE_END];
+    this.logTranscripts = logTranscripts;
+    this.portRange =
+      portRange ??
+      (stream
+        ? [STREAM_PORT_RANGE_START, STREAM_PORT_RANGE_END]
+        : [PORT_RANGE_START, PORT_RANGE_END]);
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -345,10 +355,10 @@ class ParakeetWsServer {
           elapsed,
           code,
           resultLength: result.length,
-          resultPreview: result.slice(0, 200),
+          ...(this.logTranscripts && { resultPreview: result.slice(0, 200) }),
         });
 
-        resolve({ text: parseOfflineMessage(result), elapsed });
+        resolve({ text: parseOfflineMessage(result), elapsed, detail: parseOfflineDetail(result) });
       });
 
       ws.on("error", (error) => {
@@ -406,7 +416,7 @@ class ParakeetWsServer {
         elapsed,
         truncated,
         resultLength: text.length,
-        resultPreview: text.slice(0, 200),
+        ...(this.logTranscripts && { resultPreview: text.slice(0, 200) }),
       });
       return truncated ? { text, elapsed, truncated } : { text, elapsed };
     } finally {

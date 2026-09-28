@@ -14,10 +14,9 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3-multiple-ciphers");
 const FAST = { N: 1024, r: 8, p: 1 };
-// Real SQLCipher, real files and the real scrypt cost (N=2^18, about a
-// second per new vault or password): a few seconds per test alone, more on
-// a busy CI runner, so vitest's default 5 s isn't enough.
-vi.setConfig({ testTimeout: 20_000 });
+// Each test runs the real password KDF (scrypt 2^18) a few times: 2-4 s alone,
+// and past the 5 s default on a CI runner busy with the other vault files.
+vi.setConfig({ testTimeout: 30_000 });
 
 let userData = "";
 

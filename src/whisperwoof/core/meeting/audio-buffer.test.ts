@@ -199,6 +199,22 @@ describe("MeetingAudioBuffer", () => {
       expect(header.blockAlign).toBe(NUM_CHANNELS * BYTES_PER_SAMPLE);
     });
 
+    it("records the session's sample rate (local transcription captures at 16 kHz)", () => {
+      buffer.start({ sampleRate: 16000 });
+      buffer.writeChunk(makePcmChunk(3200), "mic");
+
+      const result = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      const header = parseWavHeader(fs.readFileSync(result.files[0]!));
+
+      expect(header.sampleRate).toBe(16000);
+      expect(header.byteRate).toBe(16000 * NUM_CHANNELS * BYTES_PER_SAMPLE);
+
+      buffer.start();
+      buffer.writeChunk(makePcmChunk(3200), "mic");
+      const next = buffer.stop({ keepFiles: true }) as BufferStopResult;
+      expect(parseWavHeader(fs.readFileSync(next.files[0]!)).sampleRate).toBe(SAMPLE_RATE);
+    });
+
     it("patches the data size in header after segment close", () => {
       buffer.start();
       buffer.writeChunk(makePcmChunk(9600), "mic");

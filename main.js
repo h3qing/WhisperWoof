@@ -1358,6 +1358,19 @@ if (gotSingleInstanceLock) {
     }
   });
 
+  // A meeting transcribed on this Mac finishes its last clip and saves it to
+  // its note before WhisperWoof quits: a few seconds, 20 at most.
+  let meetingStoppedForQuit = false;
+  app.on("before-quit", (event) => {
+    // The updater emits a bare before-quit first; its real quit comes after it
+    // closes the windows, which starts the meeting's stop, and waits here.
+    if (!event || meetingStoppedForQuit || !ipcHandlers?.isLocalMeetingRecording()) return;
+    event.preventDefault();
+    meetingStoppedForQuit = true;
+    const timeout = new Promise((resolve) => setTimeout(resolve, 20_000));
+    Promise.race([ipcHandlers.stopMeetingTranscription(), timeout]).finally(() => app.quit());
+  });
+
   app.on("will-quit", () => {
     // WhisperWoof: Flush vocabulary cache to disk
     try {
@@ -1398,6 +1411,7 @@ if (gotSingleInstanceLock) {
     }
     if (ipcHandlers) {
       ipcHandlers._cleanupTextEditMonitor();
+      ipcHandlers.shutdownLocalMeeting().catch(() => {});
     }
     if (textEditMonitor) {
       textEditMonitor.stopMonitoring();
