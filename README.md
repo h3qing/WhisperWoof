@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.6.0-C87B3A?style=flat-square" alt="v2.6.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.7.0-C87B3A?style=flat-square" alt="v2.7.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1759%20passing-brightgreen?style=flat-square" alt="1759 tests passing">
+  <img src="https://img.shields.io/badge/tests-1976%20passing-brightgreen?style=flat-square" alt="1976 tests passing">
 </p>
 
 <p align="center">
@@ -97,7 +97,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 <td width="50%" valign="top">
 
 ### Dictation
-- **Live typing** *(new in 1.18, a one-line ticker since 2.1)*: text streams in as you talk, IME-style, from a local Chinese + English streaming model (X-ASR, 134 MB). On release the whole recording is re-checked by your transcription model (or the live text is pasted as is, your choice), then cleaned up. Off by default; turn it on in Settings → Transcription.
+- **Live typing** *(new in 1.18, a one-line ticker since 2.1)*: text streams in as you talk, IME-style, from a local Chinese + English streaming model (X-ASR, 134 MB). On release the whole recording is re-checked by your transcription model (or the live text is pasted as is, your choice), then cleaned up. On by default since 2.7 (its model downloads in the background); switch to "After you finish" in Settings → Transcription.
 - **Local speech-to-text**: Whisper large-v3 turbo by default (1.6 GB, many languages including Chinese), or NVIDIA Parakeet for fast English and European dictation, or Distil-Whisper for English, or SenseVoice for mixed Chinese and English. Nothing leaves your Mac.
 - **Smart Cleanup**: a small bundled model (Qwen3.5 2B, 1.3 GB, run by llama-server) removes filler, fixes grammar, assembles spoken emails, and keeps your voice. Spoken enumerations ("第一… 第二…") become numbered lists; silent captures are dropped instead of guessed at. One click in onboarding sets it up; the prompt is yours to edit in Prompt Studio.
 - **Memory**: learns names and jargon from the fixes you already make. Fix the same mishearing twice and it offers to fix it for you from then on, with every engine. It only swaps what you approve.
@@ -134,7 +134,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 - **Agent mode**: voice chat with an LLM, streamed. Give it a hotkey in Settings; it uses a cloud model (Groq by default).
 - **MCP plugins** *(early)*: the Plugins page sets up Todoist, TickTick, Notion, Calendar and Slack servers, and asks before any plugin command runs. Sending dictation to a plugin isn't wired up yet.
 - **Glass in Mando's colors** *(new in 2.0)*: liquid glass only for what's still moving (the sidebar, menus, the dictation overlay), solid sheets for what has landed, pill-shaped controls, the rounded Nunito font, and a brown-black dark mode. Design rules live in [DESIGN.md](DESIGN.md).
-- **Animated Mando**: the floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while it's transcribed and polished, and a little hop when it lands.
+- **Animated Mando**: the floating indicator is Mando himself: a head-tilt while he waits for your voice, a nod while you speak, a thoughtful chin-scratch while it's transcribed and polished, a little hop when it lands, and a puzzled head tilt with a "?" when he didn't hear anything (then nothing is typed).
 
 </td>
 </tr>
@@ -206,7 +206,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 - [x] **Phases 4–10**: Competitive features, AI intelligence, vibe coding, streaming, templates
 - [x] **Meeting recording**: crash-safe audio buffer, Granola-style detection, long-meeting session rotation
 - [x] **Agent mode**: voice-driven AI chat with streaming LLM responses
-- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **⌘K search** (2.4), **Meetings transcribed on your Mac** (2.5), **Meetings tab** (2.6)
+- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **⌘K search** (2.4), **Meetings transcribed on your Mac** (2.5), **Meetings tab** (2.6), **Live typing by default** (2.7)
 - [ ] **Phase 2, MCP plugins**: the plugin servers and Plugins page are in; sending dictation to Todoist, Notion, Slack and Calendar is next
 - [ ] **Distribution**: code signing, notarization, auto-update
 

@@ -1,10 +1,12 @@
+const { repairLostPunctuation } = require("../whisperwoof/core/language/lost-punctuation");
+
 function parseOfflineMessage(message) {
   const text = String(message || "").trim();
   try {
     const parsed = JSON.parse(text);
-    return typeof parsed?.text === "string" ? parsed.text.trim() : text;
+    return repairLostPunctuation(typeof parsed?.text === "string" ? parsed.text.trim() : text);
   } catch {
-    return text;
+    return repairLostPunctuation(text);
   }
 }
 
@@ -71,7 +73,9 @@ function createOnlineAccumulator() {
       }
       if (!parsed || typeof parsed !== "object") return text();
 
-      const messageText = joinSpelledAcronyms(String(parsed.text ?? "").trim());
+      const messageText = repairLostPunctuation(
+        joinSpelledAcronyms(String(parsed.text ?? "").trim())
+      );
       if (!messageText) return text();
 
       if (!parsed.is_final) {

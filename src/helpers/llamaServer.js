@@ -9,6 +9,7 @@ const { getSafeTempDir } = require("./safeTempDir");
 const { app } = require("electron");
 const { buildSidecarEnv } = require("../whisperwoof/bridge/sidecar-env-pure");
 const { newServerApiKey, bearerHeaders } = require("../whisperwoof/bridge/local-server-auth-pure");
+const { repairLostPunctuation } = require("../whisperwoof/core/language/lost-punctuation");
 
 const PORT_RANGE_START = 8200;
 const PORT_RANGE_END = 8220;
@@ -468,11 +469,14 @@ class LlamaServerManager {
           timeout: 300000,
         },
         (res) => {
-          let data = "";
+          // Decode once at the end: per-chunk decoding turns a multi-byte
+          // character split across chunks into "�".
+          const chunks = [];
           res.on("data", (chunk) => {
-            data += chunk;
+            chunks.push(chunk);
           });
           res.on("end", () => {
+            const data = Buffer.concat(chunks).toString("utf8");
             debugLogger.debug("llama-server inference completed", {
               statusCode: res.statusCode,
               elapsed: Date.now() - startTime,
@@ -486,7 +490,8 @@ class LlamaServerManager {
             try {
               const response = JSON.parse(data);
               const text = response.choices?.[0]?.message?.content || "";
-              resolve(text.trim());
+              // A small model can emit a broken byte sequence too.
+              resolve(repairLostPunctuation(text.trim()));
             } catch (e) {
               reject(new Error(`Failed to parse llama-server response: ${e.message}`));
             }

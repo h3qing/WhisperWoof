@@ -1884,6 +1884,9 @@
       "polishing": "润色中…",
       "done": "已粘贴",
       "startTalking": "开始说话吧…",
+      "heardNothingText": "没听到声音，这次就不打字啦。",
+      "heardNothingShort": "没听到声音",
+      "noticeModelDownloading": "正在准备实时输入（下载模型中）。松开后文字照常出现。",
       "noticeModelMissing": "实时预览模型还没下载（设置 → 转录）。松开后文字照常出现。",
       "noticeUnavailable": "实时预览没能启动。松开后文字照常出现。"
     }

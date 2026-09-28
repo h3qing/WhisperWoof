@@ -36,10 +36,14 @@ interface MandoSpriteProps {
   action: MandoAction;
   /** CSS height in px. */
   size: number;
-  /** false holds the first frame as a still. */
+  /** false holds `frame` (the first by default) as a still. */
   playing?: boolean;
+  /** Which frame a still shows. */
+  frame?: number;
   /** false plays one pass, then settles back on the first frame. */
   loop?: boolean;
+  /** Mando didn't hear anything: he tilts his head and a "?" pops up. */
+  puzzled?: boolean;
   /** Fires when a one-shot (loop=false) pass completes. */
   onAnimationEnd?: AnimationEventHandler<HTMLDivElement>;
   style?: CSSProperties;
@@ -49,15 +53,28 @@ interface MandoSpriteProps {
 // The div is intentionally NOT keyed on `action`: the speaking/silent flip
 // happens per audio sample, and remounting on each flip would restart the
 // loop at frame 0 every few hundred ms. Same-length loops carry their phase.
-export function MandoSprite({ action, size, playing = true, loop = true, onAnimationEnd, style, className }: MandoSpriteProps) {
+export function MandoSprite({ action, size, playing = true, frame, loop = true, puzzled = false, onAnimationEnd, style, className }: MandoSpriteProps) {
   useEffect(preloadSheets, []);
-  const spriteStyle = mandoSpriteStyle(action, { size, playing, loop, sheetUrl: SHEETS[action] });
+  const spriteStyle = mandoSpriteStyle(action, { size, playing, loop, frame, sheetUrl: SHEETS[action] });
+  const sprite = (
+    <div
+      aria-hidden="true"
+      className={puzzled ? undefined : className}
+      style={puzzled ? spriteStyle : { ...spriteStyle, ...style }}
+      onAnimationEnd={onAnimationEnd}
+    />
+  );
+  if (!puzzled) return sprite;
+  // The tilt sits on a wrapper: the sprite's own inline `animation` would
+  // override a class animation on it.
   return (
     <div
       aria-hidden="true"
-      className={className}
-      style={{ ...spriteStyle, ...style }}
-      onAnimationEnd={onAnimationEnd}
-    />
+      className={`relative shrink-0 ${className ?? ''}`}
+      style={{ ...style, fontSize: `${Math.round(size * 0.4)}px` }}
+    >
+      <div className="mando-puzzled">{sprite}</div>
+      <span className="mando-huh">?</span>
+    </div>
   );
 }

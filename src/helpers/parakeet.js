@@ -37,6 +37,8 @@ function getValidModelNames() {
 class ParakeetManager {
   constructor() {
     this.currentDownloadProcess = null;
+    // Streaming models fetched in the background this session (ensureStreamModel).
+    this.backgroundFetched = new Set();
     this.isInitialized = false;
     this.serverManager = new ParakeetServerManager();
   }
@@ -221,6 +223,29 @@ class ParakeetManager {
     debugLogger.info("Live preview model pre-warm", { model: modelName, ...started });
   }
 
+  /**
+   * Live typing is the default, and it can't show a word without its streaming
+   * model. Fetch a missing one quietly: once a session, never next to another
+   * download. A download the user starts takes this one over (same model) or
+   * replaces it (another model) — see downloadParakeetModel. Returns whether a
+   * fetch started.
+   */
+  ensureStreamModel(modelName) {
+    if (getModelRuntime(modelName) !== "online") return false;
+    if (!getParakeetCapability().supported || !this.serverManager.isAvailable("online")) return false;
+    if (this.serverManager.isModelDownloaded(modelName)) return false;
+    if (this.currentDownloadProcess || this.backgroundFetched.has(modelName)) return false;
+    this.backgroundFetched.add(modelName);
+    debugLogger.info("Fetching the live preview model in the background", { model: modelName });
+    this.downloadParakeetModel(modelName, null, { background: true }).catch((err) => {
+      debugLogger.warn("Background live preview fetch failed", {
+        model: modelName,
+        error: err.message,
+      });
+    });
+    return true;
+  }
+
   getServerStatus() {
     return this.serverManager.getServerStatus();
   }
@@ -232,6 +257,13 @@ class ParakeetManager {
   async createOnlineStream(modelName, options = {}) {
     this.validateModelName(modelName);
     assertParakeetSupported();
+    if (!this.serverManager.isModelDownloaded(modelName)) {
+      this.ensureStreamModel(modelName);
+      if (this.currentDownloadProcess?.model === modelName) {
+        // liveNoticeForError tells "downloading" from "not downloaded".
+        throw new Error(`Streaming model "${modelName}" is downloading`);
+      }
+    }
     const started = await this.serverManager.startServer(modelName);
     if (!started.success) {
       throw new Error(started.reason || "Failed to start parakeet streaming server");
@@ -331,23 +363,37 @@ class ParakeetManager {
       : { success: true, text };
   }
 
-  async downloadParakeetModel(modelName, progressCallback = null) {
+  async downloadParakeetModel(modelName, progressCallback = null, { background = false } = {}) {
     this.validateModelName(modelName);
     assertParakeetSupported();
-    const modelConfig = getParakeetModelConfig(modelName);
-
-    const modelPath = this.getModelPath(modelName);
-    const modelsDir = this.getModelsDir();
 
     if (this.serverManager.isModelDownloaded(modelName)) {
-      return { model: modelName, downloaded: true, path: modelPath, success: true };
+      return {
+        model: modelName,
+        downloaded: true,
+        path: this.getModelPath(modelName),
+        success: true,
+      };
+    }
+
+    // A background fetch (ensureStreamModel) never stands in the user's way.
+    const active = this.currentDownloadProcess;
+    if (active?.background && !background) {
+      if (active.model === modelName) {
+        active.background = false;
+        if (progressCallback) active.listeners.add(progressCallback);
+        return active.promise;
+      }
+      active.abort();
+      await active.promise.catch(() => {});
+      // Not a failure: let the next live capture or settings sync fetch it again.
+      this.backgroundFetched.delete(active.model);
     }
 
     if (this.currentDownloadProcess) {
       throw createDownloadInProgressError(modelName, this.currentDownloadProcess.model);
     }
 
-    const archivePath = path.join(modelsDir, `${modelName}.tar.bz2`);
     const { signal, abort } = createDownloadSignal();
     const downloadProcess = {
       abort,
@@ -356,8 +402,21 @@ class ParakeetManager {
       percentage: 0,
       downloadedBytes: 0,
       totalBytes: 0,
+      background,
+      listeners: new Set(progressCallback ? [progressCallback] : []),
+      promise: null,
     };
     this.currentDownloadProcess = downloadProcess;
+    downloadProcess.promise = this._downloadAndInstall(modelName, downloadProcess, signal);
+    return downloadProcess.promise;
+  }
+
+  async _downloadAndInstall(modelName, downloadProcess, signal) {
+    const modelConfig = getParakeetModelConfig(modelName);
+    const modelPath = this.getModelPath(modelName);
+    const modelsDir = this.getModelsDir();
+    const archivePath = path.join(modelsDir, `${modelName}.tar.bz2`);
+    const emit = (data) => downloadProcess.listeners.forEach((listener) => listener(data));
 
     try {
       await fsPromises.mkdir(modelsDir, { recursive: true });
@@ -394,24 +453,20 @@ class ParakeetManager {
               totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
             downloadProcess.downloadedBytes = downloadedBytes;
             downloadProcess.totalBytes = totalBytes;
-            if (progressCallback) {
-              progressCallback({
-                type: "progress",
-                model: modelName,
-                downloaded_bytes: downloadedBytes,
-                total_bytes: totalBytes,
-                percentage: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
-              });
-            }
+            emit({
+              type: "progress",
+              model: modelName,
+              downloaded_bytes: downloadedBytes,
+              total_bytes: totalBytes,
+              percentage: downloadProcess.percentage,
+            });
           },
         });
       }
 
       downloadProcess.phase = "installing";
       downloadProcess.percentage = 100;
-      if (progressCallback) {
-        progressCallback({ type: "installing", model: modelName, percentage: 100 });
-      }
+      emit({ type: "installing", model: modelName, percentage: 100 });
 
       const MAX_EXTRACT_RETRIES = 2;
       for (let attempt = 1; attempt <= MAX_EXTRACT_RETRIES; attempt++) {
@@ -435,9 +490,7 @@ class ParakeetManager {
       }
       await fsPromises.unlink(archivePath).catch(() => {});
 
-      if (progressCallback) {
-        progressCallback({ type: "complete", model: modelName, percentage: 100 });
-      }
+      emit({ type: "complete", model: modelName, percentage: 100 });
 
       // Pre-warm the downloaded model, but never hijack a server that is already
       // serving (or starting) another model — e.g. mid-dictation.

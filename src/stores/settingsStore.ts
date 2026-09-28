@@ -340,7 +340,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   cloudReasoningBaseUrl: readString("cloudReasoningBaseUrl", API_ENDPOINTS.OPENAI_BASE),
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
-  dictationMode: (readString("dictationMode", "batch") === "live" ? "live" : "batch") as DictationMode,
+  // Live typing is the default: words appear while you speak. Its streaming
+  // preview model is fetched in the background after onboarding (see
+  // `livePreviewFetch` in useSettings); only an explicit "batch" opts out.
+  dictationMode: (readString("dictationMode", "live") === "batch" ? "batch" : "live") as DictationMode,
   livePreviewModel: readString("livePreviewModel", DEFAULT_LIVE_PREVIEW_MODEL),
   liveFinalPass: (readString("liveFinalPass", "transcription") === "preview"
     ? "preview"

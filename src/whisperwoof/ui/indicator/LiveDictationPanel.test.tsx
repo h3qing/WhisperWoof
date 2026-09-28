@@ -50,6 +50,12 @@ describe('LiveDictationPanel notice', () => {
     expect(html).not.toContain('didn&#x27;t start');
   });
 
+  it('says the live model is on its way while it downloads', () => {
+    const html = renderWith(listening, 'model-downloading');
+    expect(html).toContain('Getting live typing ready');
+    expect(html).not.toContain('Start talking');
+  });
+
   it('shows the pasted text, not the notice, once it lands', () => {
     const html = renderWith({ phase: 'done', committed: '今天下午三点开个会。', partial: '' }, 'unavailable');
     expect(html).toContain('今天下午三点开个会。');
@@ -83,5 +89,34 @@ describe('LiveDictationPanel ticker', () => {
     expect(renderWith({ view: { phase: 'listening', committed: '', partial: '' } })).toContain('Listening');
     const done = renderWith({ view: { phase: 'done', committed: '好。', partial: '' }, route: 'copy-to-clipboard' });
     expect(done).toContain('Copied');
+  });
+});
+
+describe('LiveDictationPanel after a capture with nobody talking', () => {
+  const heardNothing: LivePanelView = { phase: 'heard-nothing', committed: '', partial: '' };
+
+  it('shows a puzzled Mando, a "No voice" sign and says nothing was typed', () => {
+    const html = renderToStaticMarkup(
+      createElement(LiveDictationPanel, { view: heardNothing, speaking: false, celebrating: false })
+    );
+    expect(html).toContain('mando-puzzled');
+    expect(html).toContain('>?</span>');
+    expect(html).toContain('>No voice<');
+    expect(html).toContain('nothing was typed');
+  });
+
+  it('keeps the sign neutral even for a routed dictation, and drops the stream notice', () => {
+    const html = renderToStaticMarkup(
+      createElement(LiveDictationPanel, {
+        view: heardNothing,
+        speaking: false,
+        celebrating: false,
+        route: 'copy-to-clipboard',
+        notice: 'model-missing',
+      })
+    );
+    expect(html).toContain('>No voice<');
+    expect(html).not.toContain('bg-primary');
+    expect(html).not.toContain('isn&#x27;t downloaded');
   });
 });

@@ -156,6 +156,18 @@ describe("deriveLivePanelView", () => {
     expect(deriveLivePanelView({ ...idle, isRecording: true }).phase).toBe("listening");
   });
 
+  it("says it heard nothing after a capture with nobody talking", () => {
+    expect(deriveLivePanelView({ ...idle, heardNothing: true })).toEqual({
+      phase: "heard-nothing",
+      committed: "",
+      partial: "",
+    });
+    // A new recording takes over at once.
+    expect(deriveLivePanelView({ ...idle, heardNothing: true, isRecording: true }).phase).toBe(
+      "listening"
+    );
+  });
+
   it("streams committed and provisional text while recording", () => {
     const view = deriveLivePanelView({
       ...idle,
@@ -300,6 +312,12 @@ describe("liveNoticeForError", () => {
   it("names a missing preview model so the panel can point to Settings", () => {
     expect(liveNoticeForError('Model "x-asr-zh-en-streaming-160ms" not downloaded')).toBe("model-missing");
     expect(liveNoticeForError(new Error("Parakeet model not downloaded"))).toBe("model-missing");
+  });
+
+  it("says the model is on its way while main fetches it in the background", () => {
+    expect(
+      liveNoticeForError(new Error('Streaming model "x-asr-zh-en-streaming-160ms" is downloading'))
+    ).toBe("model-downloading");
   });
 
   it("treats anything else as a stream that didn't start", () => {

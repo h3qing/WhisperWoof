@@ -2157,6 +2157,12 @@ class IPCHandlers {
         });
       }
 
+      // Live typing is the default: fetch its streaming model if it's missing
+      // (in the background, once a session; a user download takes over).
+      if (prefs.livePreviewFetch) {
+        this.parakeetManager.ensureStreamModel(prefs.livePreviewFetch);
+      }
+
       // Live dictation keeps its streaming preview model warm; turning live
       // mode off frees it unless the transcription model itself streams.
       if (prefs.useLocalWhisper && prefs.livePreviewModel) {

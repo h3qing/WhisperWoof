@@ -10,9 +10,16 @@ export interface MandoPlayback {
   action: MandoAction;
   playing: boolean;
   loop: boolean;
+  /** Hold this frame of the sheet as a still (only when not playing). */
+  frame?: number;
+  /** Mando didn't hear anything: head tilted, a "?" by his ear. */
+  puzzled?: boolean;
 }
 
-interface SpriteStyleOptions extends Omit<MandoPlayback, 'action'> {
+/** The `wait` frame where Mando's head is tilted furthest: "huh?". */
+export const MANDO_PUZZLED_FRAME = 12;
+
+interface SpriteStyleOptions extends Omit<MandoPlayback, 'action' | 'puzzled'> {
   /** CSS height of the sprite box in px; width follows the 12:13 cell aspect. */
   size: number;
   sheetUrl: string;
@@ -21,7 +28,7 @@ interface SpriteStyleOptions extends Omit<MandoPlayback, 'action'> {
 // Pairs with `@keyframes mandoSprite` in src/index.css.
 export function mandoSpriteStyle(
   action: MandoAction,
-  { size, playing, loop, sheetUrl }: SpriteStyleOptions
+  { size, playing, loop, sheetUrl, frame = 0 }: SpriteStyleOptions
 ): CSSProperties & { '--mando-sheet-w': string } {
   const { frameCount, frameDurationMs, cellWidth, cellHeight } = manifest[action];
   const width = Math.round((size * cellWidth) / cellHeight);
@@ -30,6 +37,7 @@ export function mandoSpriteStyle(
   const animation = !playing
     ? 'none'
     : `mandoSprite ${durationMs}ms steps(${frameCount}) ${loop ? 'infinite' : '1'}`;
+  const still = playing ? 0 : Math.min(Math.max(0, Math.round(frame)), frameCount - 1);
 
   return {
     width: `${width}px`,
@@ -37,7 +45,7 @@ export function mandoSpriteStyle(
     backgroundImage: `url(${sheetUrl})`,
     backgroundRepeat: 'no-repeat',
     backgroundSize: `${sheetWidth}px ${size}px`,
-    backgroundPosition: '0 0',
+    backgroundPosition: still ? `-${still * width}px 0` : '0 0',
     animation,
     '--mando-sheet-w': `-${sheetWidth}px`,
   };
@@ -49,6 +57,8 @@ interface IndicatorMood {
   processing: boolean;
   /** True for a moment after a dictation finished and pasted. */
   celebrating: boolean;
+  /** True for a moment after a capture with nobody talking (nothing typed). */
+  heardNothing?: boolean;
 }
 
 export function pickMandoAction(mood: IndicatorMood): MandoPlayback {
@@ -56,6 +66,9 @@ export function pickMandoAction(mood: IndicatorMood): MandoPlayback {
   if (mood.recordingSilent) return { action: 'wait', playing: true, loop: true };
   if (mood.processing) return { action: 'think', playing: true, loop: true };
   if (mood.celebrating) return { action: 'hop', playing: true, loop: false };
+  if (mood.heardNothing) {
+    return { action: 'wait', playing: false, loop: false, frame: MANDO_PUZZLED_FRAME, puzzled: true };
+  }
   return { action: 'wait', playing: false, loop: true };
 }
 

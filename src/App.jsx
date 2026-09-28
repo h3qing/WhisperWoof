@@ -46,12 +46,15 @@ function pickProcessingVerb() {
   return PROCESSING_VERBS[Math.floor(Math.random() * PROCESSING_VERBS.length)];
 }
 
-const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, celebrating = false, onCelebrationEnd, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing', route = 'paste-at-cursor' }) => {
+const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, speaking = false, recording = false, celebrating = false, heardNothing = false, onCelebrationEnd, lastText = '', mode = 'full', partialTranscript = '', processingPhase = 'transcribing', route = 'paste-at-cursor' }) => {
+  const { t } = useTranslation();
   const isSpeaking = speaking;
   const isRecordingSilent = recording && !speaking;
   const isProcessing = state === 'processing';
   const isIdle = !recording && !isProcessing;
-  const mando = pickMandoAction({ speaking: isSpeaking, recordingSilent: isRecordingSilent, processing: isProcessing, celebrating });
+  // A capture with nobody talking: nothing was typed, Mando tilts his head.
+  const isPuzzled = isIdle && heardNothing;
+  const mando = pickMandoAction({ speaking: isSpeaking, recordingSilent: isRecordingSilent, processing: isProcessing, celebrating, heardNothing: isPuzzled });
   const showLiveTranscript = localStorage.getItem("whisperwoof-live-transcript") !== "false";
 
   // Keep the dog-pun flavor for the transcription phase, switch to a clear
@@ -132,12 +135,14 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
       <MandoSprite
         action={mando.action}
         playing={mando.playing}
+        frame={mando.frame}
         loop={mando.loop}
+        puzzled={mando.puzzled}
         onAnimationEnd={mando.action === 'hop' ? onCelebrationEnd : undefined}
         size={64}
         style={{
           filter: `drop-shadow(0 2px 8px rgba(0,0,0,0.3))`,
-          opacity: isIdle && !celebrating ? 0.6 : isSpeaking ? 0.95 : 0.85,
+          opacity: isIdle && !celebrating && !isPuzzled ? 0.6 : isSpeaking ? 0.95 : 0.85,
           transition: 'opacity 0.3s',
         }}
       />
@@ -182,6 +187,10 @@ const WhisperWoofIndicator = ({ state = 'idle', size = 48, animated = false, spe
           <span style={{ color: 'rgba(232,213,195,0.5)' }}>Waiting for voice...</span>
         ) : isProcessing ? (
           <span style={{ color: '#A06A3C', animation: 'mandoBreath 1.5s ease-in-out infinite' }}>{processingLabel}</span>
+        ) : isPuzzled ? (
+          <span style={{ color: 'rgba(232,213,195,0.75)' }}>
+            {t('app.live.heardNothingShort', { defaultValue: "Didn't hear anything" })}
+          </span>
         ) : (
           <span style={{ color: 'rgba(232,213,195,0.35)' }}>Hold Fn to record</span>
         )}
@@ -427,7 +436,7 @@ export default function App() {
     setWindowInteractivity(false);
   }, [setWindowInteractivity]);
 
-  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, liveNotice, dictationRoute, isStarting, toggleListening, cancelRecording, cancelProcessing } =
+  const { isRecording, isProcessing, completedCount, processingPhase, isSpeaking, partialTranscript, liveSegments, isLiveMode, liveFinalText, liveNotice, dictationRoute, isStarting, heardNothing, toggleListening, cancelRecording, cancelProcessing } =
     useAudioRecording(toast, {
       onToggle: handleDictationToggle,
     });
@@ -438,6 +447,7 @@ export default function App() {
     processingPhase,
     segments: liveSegments,
     finalText: liveFinalText,
+    heardNothing,
   });
   // A live capture is actually running (recording, final pass, or Pasted hold).
   const liveBusy = isLiveMode && livePanelView.phase !== "hidden";
@@ -532,6 +542,8 @@ export default function App() {
   }, [completedCount, isProcessing, isRecording, endCelebration]);
   // Only the full indicator renders the hop; dot/compact users shouldn't wait for it.
   const hopShowing = celebrating && (indicatorMode === "full" || isLiveMode);
+  // Same for Mando's "didn't hear anything" head tilt.
+  const puzzledShowing = heardNothing && (indicatorMode === "full" || isLiveMode);
 
   // Auto-hide the floating icon when idle (setting enabled or dictation cycle completed)
   useEffect(() => {
@@ -542,6 +554,7 @@ export default function App() {
       !isRecording &&
       !isProcessing &&
       !hopShowing &&
+      !puzzledShowing &&
       !liveBusy &&
       toastCount === 0
     ) {
@@ -556,7 +569,7 @@ export default function App() {
 
     prevAutoHideRef.current = floatingIconAutoHide;
     return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, hopShowing, liveBusy, liveModeEnabled, floatingIconAutoHide, toastCount]);
+  }, [isRecording, isProcessing, hopShowing, puzzledShowing, liveBusy, liveModeEnabled, floatingIconAutoHide, toastCount]);
 
   const handleClose = () => {
     window.electronAPI.hideWindow();
@@ -781,6 +794,7 @@ export default function App() {
                   speaking={isSpeaking}
                   recording={isRecording}
                   celebrating={celebrating}
+                  heardNothing={heardNothing}
                   onCelebrationEnd={endCelebration}
                   animated={isRecording || isProcessing}
                   mode={indicatorMode}
