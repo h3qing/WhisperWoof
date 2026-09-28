@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.5.0-C87B3A?style=flat-square" alt="v2.5.0"></a>
+  <a href="https://github.com/h3qing/whisperwoof/releases/latest"><img src="https://img.shields.io/badge/download-v2.6.0-C87B3A?style=flat-square" alt="v2.6.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue?style=flat-square" alt="macOS">
-  <img src="https://img.shields.io/badge/tests-1731%20passing-brightgreen?style=flat-square" alt="1731 tests passing">
+  <img src="https://img.shields.io/badge/tests-1759%20passing-brightgreen?style=flat-square" alt="1759 tests passing">
 </p>
 
 <p align="center">
@@ -123,6 +123,7 @@ Voice ──▶ Local speech-to-text (Whisper / Parakeet / Distil-Whisper)
 - **Transcribed on your Mac** *(new in 2.5)*: once the SenseVoice model is downloaded (155 MB, listed with the Parakeet models in Settings → Transcription; downloading it also switches dictation to it), your mic and the other side's audio are transcribed on this Mac and saved into the meeting's note as it goes. Nothing leaves your Mac. Lines arrive every couple of minutes, not word by word. SenseVoice covers Chinese, English, Japanese, Korean and Cantonese, and while it's downloaded every meeting uses it.
 - **Or live with OpenAI Realtime** when SenseVoice isn't downloaded, with your own OpenAI key or an OpenWhispr account. That sends the meeting's audio to OpenAI, and only when you start a meeting.
 - **Noticed for you**: calendar events, meeting apps and mic activity trigger a notification, about 90 seconds ahead for scheduled meetings.
+- **A Meetings tab** *(new in 2.6)*: New meeting starts recording right away; today's calendar events still to come sit on top with a Record button each (the note is named after the event), and meetings are listed under a divider per day. The folder capsule switches to Personal, uploads and your own folders.
 - **Keeps recording in any view** *(2.5)*: leave Meetings and the recording pill shows the meeting and can stop it. The transcript goes to the note that was open when you started.
 - **Long meetings keep going** *(fixed in 2.3.1)*: with OpenAI, the session switches over before OpenAI's 30-minute limit without a gap, and reconnects after drops.
 - **Crash-safe audio**: recorded to disk in 5-minute segments while you talk (encrypted when encryption is on), and deleted once the meeting ends normally.
@@ -205,7 +206,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development setup.
 - [x] **Phases 4–10**: Competitive features, AI intelligence, vibe coding, streaming, templates
 - [x] **Meeting recording**: crash-safe audio buffer, Granola-style detection, long-meeting session rotation
 - [x] **Agent mode**: voice-driven AI chat with streaming LLM responses
-- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **⌘K search** (2.4), **Meetings transcribed on your Mac** (2.5)
+- [x] **Live typing** (1.18), **Clipboard** (2.2), **Encryption** (2.3), **⌘K search** (2.4), **Meetings transcribed on your Mac** (2.5), **Meetings tab** (2.6)
 - [ ] **Phase 2, MCP plugins**: the plugin servers and Plugins page are in; sending dictation to Todoist, Notion, Slack and Calendar is next
 - [ ] **Distribution**: code signing, notarization, auto-update
 

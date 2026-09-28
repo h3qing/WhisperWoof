@@ -6,12 +6,20 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ## [Unreleased]
 
 ### Added
-- **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification or search. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events still to come are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, uploads, your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
 - **A heads-up that Whisper hears one language per recording.** In Auto-detect, Whisper picks the language from the first 30 seconds and transcribes the whole recording in it. A few English words inside Chinese are fine, but if you start in Chinese and then switch to a long stretch of English, the Chinese part can come out translated into English. WhisperWoof doesn't fix this for you yet. A real fix means running the model several extra times on every dictation. Instead, it now tells you once, after your first dictation in Chinese, Japanese or Korean. The same note appears under Transcription language in Settings and on Upload audio, where a long recording in several languages gets one language for the whole file.
 
 ### Changed
 - **Whisper Turbo and Qwen3.5 2B are the recommended models.** They're the most stable pair in daily Chinese + English dictation, so they're now the only on-device models marked Recommended: Whisper Turbo for speech-to-text, Qwen3.5 2B for cleanup. New users already start on Turbo, and onboarding offers the 2B for cleanup. Before, the pickers recommended Base, the English-only Distil models, Parakeet and Qwen3.5 9B instead. When WhisperWoof chooses a cleanup model for you (switching to local mode, or to another model family), it now picks the recommended one if you've downloaded it, instead of the first one in the list.
 - **Sharing the site shows Mando.** The link preview (Messages, Slack, X, Discord…) was a dark card of small text. It's now a sticker of Mando's head on caramel (the app icon's cream die-cut edge, faint paw prints behind), tilting his head to listen as sound waves reach him, next to the WhisperWoof name and "psst… he's listening." Messages plays it as a short silent loop (`og:video`, 3.2 s, 0.3 MB); everywhere else shows the still. Both pages of the site carry the preview now, not just the home page. The card is an HTML page (`website/social-preview.html`); `node scripts/build-social-preview.js` renders `social-preview.png` and `social-preview.mp4` from it with headless Chrome and ffmpeg.
+
+## [2.6.0] - 2026-09-28 — Meetings in the sidebar
+
+### Added
+- **Meetings has its own place in the sidebar.** Your recorded meetings used to open only from a meeting notification or search. Meetings now sits under Notes: "New meeting" starts recording right away, today's calendar events still to come are listed on top with a Record button each (the note gets the event's name), and meetings are listed under a divider per day. The folder capsule above the list switches to your other folders (Personal, uploads, your own), and renaming, deleting and new folders are in it too. To move a note, use its menu's Move to folder; dragging it onto a folder went with the folder list.
+
+### Fixed
+- **A meeting that's under way shows up.** Upcoming meetings (History, and Coming up today in Meetings) listed only meetings that hadn't started, so the one happening now had no "Now" badge and couldn't be recorded from the list. Meetings that started today and haven't ended are listed now; an event running for days isn't.
+- **A meeting reminder that comes due during a meeting no longer spins.** The reminder was put off and retried at once, about 800 times a second, until the meeting started. It's now skipped for that event.
 
 ## [2.5.0] - 2026-09-28 — Meetings, transcribed on your Mac
 
