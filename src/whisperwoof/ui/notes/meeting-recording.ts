@@ -1,7 +1,7 @@
 /**
  * Meeting and note recordings outlive the Notes view: an always-mounted
  * provider (components/notes/MeetingTranscriptionProvider.tsx) owns them, so
- * leaving Notes keeps recording and the recording pill can show and stop it.
+ * leaving Meetings keeps recording and the recording pill can show and stop it.
  * These are its decisions.
  */
 import type { MeetingState } from "../indicator/MeetingRecordingPill";

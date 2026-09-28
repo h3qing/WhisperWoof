@@ -6645,7 +6645,10 @@ class IPCHandlers {
       try {
         return {
           success: true,
-          events: await this.googleCalendarManager.getUpcomingEvents(windowMinutes),
+          // A meeting under way still shows ("Now", and Record in Meetings).
+          events: await this.googleCalendarManager.getUpcomingEvents(windowMinutes, {
+            includeInProgress: true,
+          }),
         };
       } catch (error) {
         return { success: false, events: [] };
@@ -6675,6 +6678,40 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         return { success: false, error: error.message };
+      }
+    });
+
+    // The Meetings tab's "New meeting" (or Record on an event coming up): a note
+    // in Meetings, meeting mode, recording.
+    let startingNewMeeting = false;
+    ipcMain.handle("meeting-start-new", async (_event, options = {}) => {
+      if (this.isMeetingRecording()) {
+        return { success: false, error: "A meeting is already recording." };
+      }
+      // Its note goes into the encrypted database.
+      if (vault.isOn() && !vault.isUnlocked()) {
+        return { success: false, error: "Unlock WhisperWoof to record a meeting." };
+      }
+      // A second click before the first meeting's recording has begun.
+      if (startingNewMeeting) {
+        return { success: false, error: "A meeting is already starting." };
+      }
+      const text = (v) => (typeof v === "string" ? v.trim().slice(0, 200) : "");
+      const title = text(options?.title);
+      const calendarEventId = text(options?.calendarEventId);
+      startingNewMeeting = true;
+      try {
+        const started = await this.meetingDetectionEngine.startManualMeeting({
+          title: title || undefined,
+          calendarEventId: calendarEventId || undefined,
+        });
+        return started
+          ? { success: true }
+          : { success: false, error: "The meeting's note couldn't be made." };
+      } catch (error) {
+        return { success: false, error: error.message };
+      } finally {
+        startingNewMeeting = false;
       }
     });
 

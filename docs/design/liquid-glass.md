@@ -17,8 +17,9 @@ The design system itself (principles, palette, type, layout, components) is in
    minus its inset (14px for settings groups). Never glass.
 3. **Functional layer: glass.**
    - `glass`: popovers, toasts, the non-native live panel, capsule groups.
-   - `glass-thick`: the sidebar, the notes folder column, the settings
-     window, menus and select lists (text-heavy, so more opaque).
+   - `glass-thick`: the sidebar, the notes folder column, the Meetings
+     column, the settings window, menus and select lists (text-heavy, so
+     more opaque).
    - `glass-rim`: the 1px specular gradient ring. It uses `::before`, so add
      it only to an element that is already positioned (relative, absolute or
      fixed): the sidebar, the settings window, dialogs, the live panel.

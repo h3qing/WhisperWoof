@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "../components/ui/Toast";
 import logger from "../utils/logger";
 import type { FolderItem } from "../types/electron";
-import { findDefaultFolder } from "../components/notes/shared";
+import { findDefaultFolder, findMeetingsFolder } from "../components/notes/shared";
 import {
   useActiveFolderId,
   setActiveFolderId,
@@ -89,7 +89,7 @@ export function useFolderManagement(): UseFolderManagementReturn {
 
         const initialFolderId = isPresetValid
           ? presetFolderId
-          : (findDefaultFolder(items)?.id ?? items[0]?.id ?? null);
+          : (findMeetingsFolder(items)?.id ?? findDefaultFolder(items)?.id ?? items[0]?.id ?? null);
 
         if (initialFolderId !== presetFolderId) {
           setActiveFolderId(initialFolderId);
@@ -192,6 +192,7 @@ export function useFolderManagement(): UseFolderManagementReturn {
     async (folderId: number) => {
       const result = await window.electronAPI.deleteFolder(folderId);
       if (result.success) {
+        // Show Personal, where the deleted folder's notes went.
         const personalFolder = findDefaultFolder(folders);
         if (activeFolderId === folderId && personalFolder) {
           setActiveFolderId(personalFolder.id);

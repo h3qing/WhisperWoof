@@ -280,7 +280,7 @@
       "enableButton": "GPU aktivieren",
       "dismissButton": "Nicht jetzt"
     },
-    "backToNotes": "Zurück zu Notizen"
+    "backToMeetings": "Zurück zu Meetings"
   },
   "reasoning": {
     "mode": {
@@ -1549,7 +1549,6 @@
       "couldNotDelete": "Ordner konnte nicht gelöscht werden"
     },
     "list": {
-      "title": "Notizen",
       "newNote": "Neue Notiz",
       "untitled": "Unbenannt",
       "untitledNote": "Unbenannte Notiz",

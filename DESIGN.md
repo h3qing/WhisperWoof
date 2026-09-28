@@ -156,6 +156,7 @@ only on large type.
 │(Home        )│  │ them today.                            │  ▦▦▦▦▦
 │ History      │  │ Streak  Average recording  Voice  …    │
 │ Notes        │  ╰────────────────────────────────────────╯
+│ Meetings     │
 │ Clipboard    │  ╭──────────────── sheet ─────────────────╮
 │ Tools        │  │ 04:57 PM  We need a place for …        │
 │ Memory       │  │ ────────────────────────────────────── │
@@ -174,7 +175,10 @@ only on large type.
 - **Content:** sheets with 16px gaps. Home opens with a headline sentence and
   a row of facts (`src/whisperwoof/ui/home/home-summary.ts`); History is two
   sheets (the list, the entry it opens); Notes is a glass folder column next
-  to two sheets.
+  to two sheets. Meetings is a glass column (today's calendar events that
+  haven't ended, each with an outline Record capsule; a folder capsule; the
+  notes under a divider per day) next to the open meeting's sheet, with "New
+  meeting" as the view's one primary capsule.
 - **Settings:** a `glass-thick glass-rim` window (radius 26) with a capsule
   nav; the content is a sheet nested inside it (radius 18), and groups are
   flat nested panels on `surface-1` (radius 14), not cards on cards.
@@ -265,6 +269,7 @@ grid (824 on a 1024 canvas) so macOS 26 doesn't put it in a gray tile. Source
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
+| 2026-09-28 | Meetings tab: the folder view with Coming up today on top, folders in one capsule, notes under day dividers; Record buttons are outline (New meeting is the one primary) | Owner picked "A + C with dates as divider" and a folder filter from three drawn options |
 | 2026-09-27 | Link preview: Mando's head (`mando-head.svg`) as a sticker with the app icon's cream die-cut edge, on caramel with faint paw prints, tilting to listen as three sound waves pulse in; wordmark with "Woof" in cream, and "psst… he's listening."; plays as a silent loop in Messages (`og:video`) | The old dark text card didn't look like Mando or invite a tap. The owner shares the site in iMessage, wanted it cute, and picked this from eight animated versions: the caramel stands out among gray chat bubbles and the head tilt reads at thumbnail size |
 | 2026-09-26 | Site: Clipboard and Encryption sections. The Clipboard view is drawn as a still sheet (text rows, image tiles with Mando art, no fake screenshots); the lock screen is shown as the app draws it, one glass card on the backdrop | Show shipped features with the product's own surfaces instead of new illustrations |
 | 2026-09-25 | Encryption UI: lock screen replaces the panel; the phrase copies only through its Copy button; Home offers encryption once with a real "no" | Owner asked for one-click copy and an explicit opt-out that says it can be turned on later |
