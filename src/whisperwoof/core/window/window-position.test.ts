@@ -58,8 +58,10 @@ describe("native vibrancy per overlay size", () => {
     // Idle live mode shows only Mando in the same rectangle: no material.
     expect(vibrancyForSize("LIVE")).toBeNull();
     expect(vibrancyForSize("BASE")).toBeNull();
-    expect(vibrancyForSize("WITH_TOAST")).toBeNull();
     expect(vibrancyForSize("WITH_MENU")).toBeNull();
+    // Every size the overlay asks for (pickOverlaySize), and nothing else: an
+    // unknown key silently falls back to BASE in resizeMainWindow.
+    expect(Object.keys(WINDOW_SIZES).sort()).toEqual(["BASE", "LIVE", "LIVE_PANEL", "WITH_MENU"]);
     expect(WINDOW_SIZES.LIVE_PANEL).toEqual({ width: 360, height: 72 });
     // Idle live mode keeps the panel's width (a capture start never redraws
     // the panel into a narrower window) and is tall enough for the full icon.

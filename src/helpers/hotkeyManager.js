@@ -785,8 +785,21 @@ class HotkeyManager {
     }
   }
 
+  // The overlay may be hidden (auto-hide, or never shown at launch), and a
+  // notice waits until it shows: bring it up so the user sees this one.
+  _showOverlayForNotice() {
+    if (!this.mainWindow.isVisible()) {
+      if (typeof this.mainWindow.showInactive === "function") {
+        this.mainWindow.showInactive();
+      } else {
+        this.mainWindow.show();
+      }
+    }
+  }
+
   notifyHotkeyFallback(originalHotkey, fallbackHotkey) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this._showOverlayForNotice();
       this.mainWindow.webContents.send("hotkey-fallback-used", {
         original: originalHotkey,
         fallback: fallbackHotkey,
@@ -797,6 +810,7 @@ class HotkeyManager {
 
   notifyHotkeyFailure(hotkey, result) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this._showOverlayForNotice();
       this.mainWindow.webContents.send("hotkey-registration-failed", {
         hotkey,
         error: result?.error || `Could not register "${hotkey}"`,

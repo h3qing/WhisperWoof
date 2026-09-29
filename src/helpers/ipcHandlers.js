@@ -395,7 +395,7 @@ class IPCHandlers {
   /**
    * Learn from one edit of a pasted transcript: every misheard -> corrected
    * pair goes to Memory (it can become a replacement rule), and words new to
-   * the Dictionary are added there and announced with the undo toast.
+   * the Dictionary are added there and announced with an undo notice.
    */
   _learnCorrections(originalText, newFieldValue, bundleId) {
     if (vault.isOn() && (!vault.isUnlocked() || !this.databaseManager.db)) {
@@ -446,7 +446,7 @@ class IPCHandlers {
     }
 
     if (corrections.length === 0 && offers.length === 0) return;
-    // Show the overlay so the toasts are visible (it may have been hidden after dictation)
+    // Show the overlay so the notices are visible (it may have been hidden after dictation)
     this.windowManager.showDictationPanel();
     if (corrections.length > 0) {
       this.broadcastToWindows("corrections-learned", corrections);

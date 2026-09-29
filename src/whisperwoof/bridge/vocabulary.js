@@ -288,7 +288,7 @@ function applyMemoryReplacements(text) {
   return applyCompiledReplacements(text, getCompiledRules());
 }
 
-/** Undo auto-learned corrections (the "Learned X — undo" toast). */
+/** Undo auto-learned corrections (the overlay's "Learned" notice, Undo). */
 function forgetLearnedWords(words) {
   const entries = loadVocabulary();
   const kept = removeLearnedWords(entries, words);

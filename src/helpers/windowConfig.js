@@ -38,21 +38,19 @@ const FLOATING_OVERLAY_TYPE =
 const WINDOW_SIZES = {
   BASE: { width: 220, height: 188 }, // WhisperWoof: Mando head + status + waveform (vertical, bottom-anchored). Tall enough that the head (topmost) isn't clipped in the taller "speaking" layout.
   WITH_MENU: { width: 240, height: 280 },
-  WITH_TOAST: { width: 470, height: 500 }, // Wide enough for the live dictation panel's "Pasted" hold.
-  EXPANDED: { width: 400, height: 500 },
   // Live mode while idle with the icon kept on screen (auto-hide off): the
   // Mando indicator at its bottom edge needs this height. Same width as the
   // panel, so a capture start only trims the top (resizes are bottom-anchored
   // and the panel sits on the bottom edge).
   LIVE: { width: 360, height: 112 },
-  // The live dictation panel (a one-line ticker), and nothing else: on macOS
-  // this size carries a native material that fills the whole window, so the
-  // window is the panel.
+  // The live dictation panel (a one-line ticker), or a notice from Mando in
+  // the same capsule, and nothing else: on macOS this size carries a native
+  // material that fills the whole window, so the window is the panel.
   LIVE_PANEL: { width: 360, height: 72 },
 };
 
 // Native macOS material per overlay size (null = none). Only sizes whose
-// window is exactly one panel qualify; toasts/menus need transparent margins.
+// window is exactly one panel qualify; the menu needs transparent margins.
 // "hud" is the translucent heads-up material: the app behind shows through,
 // blurred, where "popover" read as an opaque grey slab.
 const WINDOW_VIBRANCY = { LIVE_PANEL: "hud" };
