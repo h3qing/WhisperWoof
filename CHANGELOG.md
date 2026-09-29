@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-30 — Mando says it in the panel, no more pop-up box
+
+### Changed
+- **Mando tells you things in the panel, not in a pop-up box.** Tips, learned words, "Always change X to Y?", errors and "Saved as note" used to open an old-style box above the dictation panel: it covered a big part of the screen, caught every click around it for up to 15 seconds, and turned the panel see-through. Now Mando says them in the panel's own capsule, one at a time and never during a dictation, for 3.5–8 seconds (point at one to keep it). Only the capsule itself catches clicks. The "one language per recording" tip is down to two short lines, and the "Text polished" pop-up is gone.
+- **Setup warnings don't vanish unseen.** "Hotkey unavailable" and "Accessibility access needed" now bring the overlay up (with auto-hide on they used to run out while it was hidden), and a message never counts down while the overlay is hidden.
+
 ## [2.7.0] - 2026-09-28 — Live typing by default, and a full security review
 
 ### Changed
