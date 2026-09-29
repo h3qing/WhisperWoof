@@ -1800,7 +1800,7 @@
       },
       "hotkeyUnavailable": {
         "title": "Scorciatoia non disponibile",
-        "description": "Non è stato possibile registrare la scorciatoia selezionata. Scegline un’altra nelle impostazioni."
+        "description": "Scegline un'altra nelle impostazioni."
       },
       "addedToDict": "{{words}} aggiunto al tuo dizionario",
       "undo": "Annulla",
@@ -1808,12 +1808,12 @@
       "swapAlways": "Sempre",
       "swapNotNow": "Non ora",
       "accessibilityMissing": {
-        "title": "Autorizzazioni di accessibilità richieste",
-        "description": "WhisperWoof necessita delle autorizzazioni di accessibilità per rilevare il tasto di scelta rapida e incollare il testo. Abilitale nel Pannello di controllo."
+        "title": "Serve l'accessibilità",
+        "description": "Attivala nel Pannello di controllo per scorciatoia e incolla."
       },
       "mixedLanguageTip": {
-        "title": "Whisper sente una lingua per registrazione",
-        "description": "Sceglie la lingua in base ai primi 30 secondi. Qualche parola in un'altra lingua va bene, ma se cambi lingua e continui a parlare, quella parte può uscire tradotta. Per cambiare lingua, avvia una nuova registrazione."
+        "title": "Una lingua per registrazione",
+        "description": "Cambi lingua? Avvia una nuova registrazione, o potrebbe uscire tradotta."
       }
     },
     "mic": {

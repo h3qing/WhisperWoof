@@ -1800,7 +1800,7 @@
       },
       "hotkeyUnavailable": {
         "title": "Atajo no disponible",
-        "description": "No se pudo registrar el atajo seleccionado. Elige otro en la configuración."
+        "description": "Elige otro en la configuración."
       },
       "addedToDict": "{{words}} añadido a tu diccionario",
       "undo": "Deshacer",
@@ -1808,12 +1808,12 @@
       "swapAlways": "Siempre",
       "swapNotNow": "Ahora no",
       "accessibilityMissing": {
-        "title": "Se requieren permisos de accesibilidad",
-        "description": "WhisperWoof necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."
+        "title": "Falta el permiso de accesibilidad",
+        "description": "Actívalo en el Panel de Control para usar el atajo y pegar."
       },
       "mixedLanguageTip": {
-        "title": "Whisper oye un idioma por grabación",
-        "description": "Elige el idioma a partir de los primeros 30 segundos. Unas pocas palabras en otro idioma no son problema, pero si cambias y sigues hablando, esa parte puede salir traducida. Para cambiar de idioma, empieza una nueva grabación."
+        "title": "Un idioma por grabación",
+        "description": "¿Cambias de idioma? Empieza otra, o puede salir traducido."
       }
     },
     "mic": {

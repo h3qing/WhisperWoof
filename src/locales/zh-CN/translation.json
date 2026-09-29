@@ -1843,7 +1843,7 @@
       },
       "hotkeyUnavailable": {
         "title": "快捷键不可用",
-        "description": "无法注册所选快捷键。请在设置中选择其他快捷键。"
+        "description": "请在设置中换一个。"
       },
       "addedToDict": "已将 {{words}} 添加到你的词典",
       "undo": "撤消",
@@ -1852,11 +1852,11 @@
       "swapNotNow": "暂不",
       "accessibilityMissing": {
         "title": "需要辅助功能权限",
-        "description": "WhisperWoof 需要辅助功能权限来检测快捷键和粘贴文本。请在控制面板中启用。"
+        "description": "在控制面板中开启，快捷键和粘贴才能用。"
       },
       "mixedLanguageTip": {
-        "title": "Whisper 每段录音只认一种语言",
-        "description": "它根据前 30 秒决定语言。夹几个其他语言的词没问题；但如果中途换成另一种语言一直说下去，这部分可能会被翻译，而不是照原话转写。要换语言时，建议另起一段录音。"
+        "title": "每段录音只认一种语言",
+        "description": "要换语言就另录一段，不然那部分可能会被翻译。"
       }
     },
     "mic": {

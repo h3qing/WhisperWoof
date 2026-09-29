@@ -1800,7 +1800,7 @@
       },
       "hotkeyUnavailable": {
         "title": "Raccourci indisponible",
-        "description": "Le raccourci sélectionné n’a pas pu être enregistré. Veuillez en choisir un autre dans les paramètres."
+        "description": "Choisissez-en un autre dans les paramètres."
       },
       "addedToDict": "{{words}} ajouté à votre dictionnaire",
       "undo": "Annuler",
@@ -1808,12 +1808,12 @@
       "swapAlways": "Toujours",
       "swapNotNow": "Pas maintenant",
       "accessibilityMissing": {
-        "title": "Autorisations d'accessibilité requises",
-        "description": "WhisperWoof a besoin des autorisations d'accessibilité pour détecter votre raccourci et coller du texte. Veuillez les activer dans le Panneau de configuration."
+        "title": "Accès d'accessibilité requis",
+        "description": "Activez-le dans le Panneau de configuration pour le raccourci et le collage."
       },
       "mixedLanguageTip": {
-        "title": "Whisper entend une langue par enregistrement",
-        "description": "La langue est choisie d'après les 30 premières secondes. Quelques mots dans une autre langue ne posent pas de problème, mais si vous changez de langue et continuez, ce passage peut ressortir traduit. Pour changer de langue, lancez un nouvel enregistrement."
+        "title": "Une langue par enregistrement",
+        "description": "Changer de langue ? Relancez un enregistrement, sinon il peut être traduit."
       }
     },
     "mic": {
