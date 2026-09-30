@@ -79,9 +79,10 @@ the panel's corners.
 
 - Dictation overlay: only `LIVE_PANEL` (360 x 72) carries a material, the
   translucent `hud` (`vibrancyForSize` in `src/helpers/windowConfig.js`;
-  `popover` read as an opaque grey slab). Idle live mode (`LIVE`, same rectangle,
-  just Mando) and the toast/menu sizes stay transparent, and the live panel
-  falls back to CSS `glass` there. That transparent window has no desktop to
+  `popover` read as an opaque grey slab); overlay notices (`MandoNotice`) use
+  the same size and material. Idle live mode (`LIVE`, same rectangle, just
+  Mando) and the menu size stay transparent, and the live panel falls back to
+  CSS `glass` there. That transparent window has no desktop to
   blur, so its CSS glass is made nearly opaque (`:root:has(.dictation-window)`).
 - Agent overlay: the panel fills the window, so the window is the material.
 - Meeting/update notifications keep CSS glass: they have a margin and slide in.

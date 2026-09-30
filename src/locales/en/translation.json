@@ -1892,7 +1892,7 @@
       },
       "hotkeyUnavailable": {
         "title": "Hotkey unavailable",
-        "description": "The selected hotkey could not be registered. Please choose a different one in settings."
+        "description": "Choose a different one in Settings."
       },
       "addedToDict": "Added {{words}} to your dictionary",
       "undo": "Undo",
@@ -1900,12 +1900,12 @@
       "swapAlways": "Always",
       "swapNotNow": "Not now",
       "accessibilityMissing": {
-        "title": "Accessibility permissions required",
-        "description": "WhisperWoof needs accessibility permissions to detect your hotkey and paste text. Please enable them in the Control Panel."
+        "title": "Accessibility access needed",
+        "description": "Turn it on in the Control Panel so your hotkey and paste work."
       },
       "mixedLanguageTip": {
-        "title": "Whisper hears one language per recording",
-        "description": "It picks the language from the first 30 seconds. A few words in another language are fine, but if you switch and keep talking, that part may come out translated. To switch languages, start a new recording."
+        "title": "One language per recording",
+        "description": "Switching languages? Start a new recording, or it may come out translated."
       }
     },
     "mic": {

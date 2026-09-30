@@ -1327,7 +1327,7 @@ body:has(.agent-overlay-window) #root {
 }
 
 /* The dictation overlay is a transparent window: backdrop-filter has no
-   desktop to blur there, so its CSS glass (toasts, the non-native live panel)
+   desktop to blur there, so its CSS glass (the non-native live panel and notices)
    would read as thin tint over whatever app is behind. Nearly opaque instead. */
 :root:has(.dictation-window) {
   --glass-regular: rgb(253 251 248 / 0.94);

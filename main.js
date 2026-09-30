@@ -1104,6 +1104,8 @@ async function startApp() {
           windowManager.controlPanelWindow.webContents.send("accessibility-missing");
         }
         if (isLiveWindow(windowManager.mainWindow)) {
+          // The overlay's notice waits while it's hidden (auto-hide).
+          windowManager.showDictationPanel();
           windowManager.mainWindow.webContents.send("accessibility-missing");
         }
       }

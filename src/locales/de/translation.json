@@ -1800,7 +1800,7 @@
       },
       "hotkeyUnavailable": {
         "title": "Tastenkombination nicht verfügbar",
-        "description": "Die ausgewählte Tastenkombination konnte nicht registriert werden. Bitte wähle eine andere in den Einstellungen."
+        "description": "Wähle in den Einstellungen eine andere."
       },
       "addedToDict": "{{words}} zu deinem Wörterbuch hinzugefügt",
       "undo": "Rückgängig",
@@ -1808,12 +1808,12 @@
       "swapAlways": "Immer",
       "swapNotNow": "Nicht jetzt",
       "accessibilityMissing": {
-        "title": "Bedienungshilfen-Berechtigungen erforderlich",
-        "description": "WhisperWoof benötigt Bedienungshilfen-Berechtigungen, um Ihren Hotkey zu erkennen und Text einzufügen. Bitte aktivieren Sie diese in der Systemsteuerung."
+        "title": "Bedienungshilfen nötig",
+        "description": "In der Systemsteuerung aktivieren, damit Hotkey und Einfügen gehen."
       },
       "mixedLanguageTip": {
-        "title": "Whisper hört eine Sprache pro Aufnahme",
-        "description": "Die Sprache wird anhand der ersten 30 Sekunden gewählt. Einzelne Wörter in einer anderen Sprache sind kein Problem, aber wenn Sie wechseln und weitersprechen, kann dieser Teil übersetzt werden. Starten Sie für einen Sprachwechsel eine neue Aufnahme."
+        "title": "Eine Sprache pro Aufnahme",
+        "description": "Sprache wechseln? Neue Aufnahme starten, sonst wird es evtl. übersetzt."
       }
     },
     "mic": {

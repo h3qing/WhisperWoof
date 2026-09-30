@@ -16,15 +16,15 @@ import type { DictationRoute } from '../../core/router/dictation-route';
 // settles while the final pass + polish run, then the pasted text shows for a
 // beat before the panel collapses.
 
-// Fits WINDOW_SIZES.LIVE_PANEL (360 x 72).
-const PANEL_WIDTH_PX = 360;
-const PANEL_HEIGHT_PX = 72;
-const MANDO_SIZE_PX = 36;
+// Fits WINDOW_SIZES.LIVE_PANEL (360 x 72). MandoNotice shares the geometry.
+export const PANEL_WIDTH_PX = 360;
+export const PANEL_HEIGHT_PX = 72;
+export const MANDO_SIZE_PX = 36;
 // Mando and the pill under him; fixed so the words don't shift when the pill
 // changes from "Listening" to "Polishing…".
-const SIDE_WIDTH_PX = 76;
+export const SIDE_WIDTH_PX = 76;
 // Room at the right for the cancel button App.jsx lays over the panel.
-const CANCEL_GUTTER_PX = 34;
+export const CANCEL_GUTTER_PX = 34;
 const FADE_PX = 28;
 
 const ROUTE_ICON = {

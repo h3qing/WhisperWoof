@@ -16,7 +16,6 @@ export interface ToastProps {
 export interface ToastContextType {
   toast: (props: Omit<ToastProps, "id">) => void;
   dismiss: (id?: string) => void;
-  toastCount: number;
 }
 
 const ToastContext = React.createContext<ToastContextType | undefined>(undefined);
@@ -119,7 +118,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toast, dismiss, toastCount: toasts.length }}>
+    <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
       <ToastViewport
         toasts={toasts}
@@ -137,23 +136,13 @@ const ToastViewport: React.FC<{
   onPauseTimer: (id: string) => void;
   onResumeTimer: (id: string, remainingTime: number) => void;
 }> = ({ toasts, onDismiss, onPauseTimer, onResumeTimer }) => {
-  const isDictationPanel = React.useMemo(() => {
-    return (
-      window.location.pathname.indexOf("control") === -1 &&
-      window.location.search.indexOf("panel=true") === -1
-    );
-  }, []);
-
   if (toasts.length === 0) return null;
 
   return (
     <div
       role="region"
       aria-label="Notifications"
-      className={cn(
-        "fixed z-[100] flex flex-col gap-1.5 pointer-events-none",
-        isDictationPanel ? "bottom-20 right-6" : "bottom-5 right-5"
-      )}
+      className="fixed z-[100] flex flex-col gap-1.5 pointer-events-none bottom-5 right-5"
     >
       {toasts.map((toast) => (
         <Toast

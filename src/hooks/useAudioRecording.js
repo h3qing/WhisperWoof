@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import AudioManager from "../helpers/audioManager";
 import logger from "../utils/logger";
@@ -7,8 +7,8 @@ import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle } from "../utils/recordingErrors";
 import { LatencyTracker } from "../whisperwoof/core/latency/latency-tracker";
 import { PERCEIVED_LATENCY_BUDGET_MS } from "../whisperwoof/core/latency/types";
-import mandoHeadSvg from "../assets/mando-head.svg";
 import { EMPTY_LIVE_SEGMENTS, toLiveSegments } from "../whisperwoof/core/live/live-dictation";
+import { NOTICE_MS, noticeExcerpt } from "../whisperwoof/core/indicator/notices";
 import { copyTextFromOverlay } from "../whisperwoof/core/router/copy-to-clipboard";
 import { routeForHotkey } from "../whisperwoof/core/router/dictation-route";
 import {
@@ -21,15 +21,10 @@ const LIVE_DONE_HOLD_MS = 1600;
 // How long Mando shows he didn't hear anything after a capture with no voice.
 const HEARD_NOTHING_HOLD_MS = 2200;
 
-const MandoToastIcon = React.createElement("img", {
-  src: mandoHeadSvg,
-  alt: "",
-  width: 18,
-  height: 18,
-  style: { borderRadius: 4, opacity: 0.9 },
-});
+// Anything the overlay says goes through `notify` (core/indicator/notices.ts):
+// Mando says it in the live panel's capsule once the overlay is free.
 
-export const useAudioRecording = (toast, options = {}) => {
+export const useAudioRecording = (notify, options = {}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -213,12 +208,11 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsSpeaking((prev) => (prev ? rms > 0.012 : rms > 0.02));
       },
       onError: (error) => {
-        const title = getRecordingErrorTitle(error, t);
-        toast({
-          title,
+        notify({
+          sign: "Error",
+          tone: "error",
+          title: getRecordingErrorTitle(error, t),
           description: error.description,
-          variant: "destructive",
-          duration: error.code === "AUTH_EXPIRED" ? 8000 : undefined,
         });
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.resumeMediaPlayback?.();
@@ -286,25 +280,7 @@ export const useAudioRecording = (toast, options = {}) => {
           // See audioManager.js:648 for the canonical polish call.
           const textToPaste = result.text;
           const rawText = result.rawText ?? result.text;
-          const wasPolished = !!result.rawText && result.rawText !== result.text;
           timings.polishMs = result.timings?.reasoningProcessingDurationMs ?? 0;
-
-          if (wasPolished) {
-            const captureCount = parseInt(localStorage.getItem("whisperwoof_capture_count") || "0", 10);
-            const isLearningMode = captureCount < 20;
-            localStorage.setItem("whisperwoof_capture_count", String(captureCount + 1));
-
-            // The live panel already shows the polished text as it lands.
-            const liveShowsResult = !!audioManagerRef.current?.getLiveDictationPlan?.().live;
-            if (isLearningMode && !liveShowsResult) {
-              toast({
-                title: "\u2728 Text polished",
-                description: `"${textToPaste.slice(0, 60)}${textToPaste.length > 60 ? "..." : ""}"`,
-                variant: "default",
-                duration: 5000,
-              });
-            }
-          }
 
           // WhisperWoof: Log full pipeline timing
           timings.totalMs = Math.round(performance.now() - pipelineStart);
@@ -312,11 +288,11 @@ export const useAudioRecording = (toast, options = {}) => {
 
           // Show timing in debug mode
           if (localStorage.getItem("whisperwoof-debug") === "true") {
-            toast({
+            notify({
+              sign: "Debug",
               title: `Pipeline: ${timings.totalMs}ms`,
               description: `Polish: ${timings.polishMs ?? "?"}ms`,
-              variant: "default",
-              duration: 3000,
+              durationMs: NOTICE_MS.brief,
             });
           }
 
@@ -342,11 +318,10 @@ export const useAudioRecording = (toast, options = {}) => {
           ) {
             try {
               localStorage.setItem(MIXED_LANGUAGE_TIP_KEY, "1");
-              toast({
+              notify({
+                sign: "Tip",
                 title: t("app.toasts.mixedLanguageTip.title"),
                 description: t("app.toasts.mixedLanguageTip.description"),
-                icon: MandoToastIcon,
-                duration: 15000,
               });
             } catch {
               // Couldn't remember it was shown; better no tip than one every time.
@@ -356,23 +331,15 @@ export const useAudioRecording = (toast, options = {}) => {
           // WhisperWoof: Route based on active hotkey combo
           const hotkeyUsed = activeHotkeyRef.current ?? "Fn";
           const routedTo = routeForHotkey(hotkeyUsed);
-          // The live panel already says "Copied" / "Saved as note"; a toast
-          // on top of it would just cover it.
-          const showRouteToast = !isLiveModeRef.current;
+          // The live panel already says "Copied" / "Saved as note".
+          const showRouteNotice = !isLiveModeRef.current;
           // The note fn+N / fn+P just wrote; linked to this dictation's entry
           // once that's saved below, so the Notes view can play the recording.
           let savedNoteName = null;
-          const openNoteAction = (name) =>
-            React.createElement(
-              "button",
-              {
-                type: "button",
-                onClick: () => window.electronAPI?.whisperwoofOpenVoiceNote?.(name ?? null),
-                className:
-                  "text-[11px] font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-              },
-              "Open"
-            );
+          const openNoteAction = (name) => ({
+            label: "Open",
+            onClick: () => window.electronAPI?.whisperwoofOpenVoiceNote?.(name ?? null),
+          });
 
           const isStreaming = result.source?.includes("streaming");
           const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
@@ -384,13 +351,13 @@ export const useAudioRecording = (toast, options = {}) => {
               navigator.clipboard.writeText(text)
             );
             logger.info("WhisperWoof routed to clipboard", { hotkeyUsed, textLength: textToPaste.length }, "whisperwoof");
-            if (showRouteToast) {
-              toast({
-                icon: MandoToastIcon,
+            if (showRouteNotice) {
+              notify({
+                sign: "Copied",
+                tone: "success",
                 title: t("hooks.audioRecording.copied", "Copied to clipboard"),
-                description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-                variant: "default",
-                duration: 3000,
+                description: noticeExcerpt(textToPaste),
+                durationMs: NOTICE_MS.brief,
               });
             }
           } else if (routedTo === "save-as-markdown") {
@@ -399,19 +366,19 @@ export const useAudioRecording = (toast, options = {}) => {
             if (saveResult?.success) {
               savedNoteName = saveResult.name ?? null;
               logger.info("WhisperWoof routed to markdown", { hotkeyUsed, filePath: saveResult.filePath }, "whisperwoof");
-              if (showRouteToast) {
-                toast({
-                  icon: MandoToastIcon,
+              if (showRouteNotice) {
+                notify({
+                  sign: "Saved",
+                  tone: "success",
                   title: "Saved as note",
-                  description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-                  variant: "default",
-                  duration: 5000,
-                  action: openNoteAction(saveResult.name),
+                  description: noticeExcerpt(textToPaste),
+                  durationMs: NOTICE_MS.withDetail,
+                  actions: [openNoteAction(saveResult.name)],
                 });
               }
             } else {
               logger.error(`WhisperWoof markdown save failed: ${saveResult?.error || "unknown"}`);
-              toast({ title: "Failed to save note", description: saveResult?.error, variant: "destructive", duration: 5000 });
+              notify({ sign: "Error", tone: "error", title: "Failed to save note", description: saveResult?.error });
             }
           } else if (routedTo === "project") {
             // Fn+P: save as a note in the default project (Inbox until the
@@ -420,19 +387,19 @@ export const useAudioRecording = (toast, options = {}) => {
             if (saveResult?.success) {
               savedNoteName = saveResult.name ?? null;
               logger.info("WhisperWoof routed to project", { hotkeyUsed, project: saveResult.project?.name }, "whisperwoof");
-              if (showRouteToast) {
-                toast({
-                  icon: MandoToastIcon,
+              if (showRouteNotice) {
+                notify({
+                  sign: "Filed",
+                  tone: "success",
                   title: `Saved to ${saveResult.project?.name ?? "project"}`,
-                  description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-                  variant: "default",
-                  duration: 5000,
-                  action: openNoteAction(saveResult.name),
+                  description: noticeExcerpt(textToPaste),
+                  durationMs: NOTICE_MS.withDetail,
+                  actions: [openNoteAction(saveResult.name)],
                 });
               }
             } else {
               logger.error(`WhisperWoof project note save failed: ${saveResult?.error || "unknown"}`);
-              toast({ title: "Couldn't save to project", description: saveResult?.error, variant: "destructive", duration: 5000 });
+              notify({ sign: "Error", tone: "error", title: "Couldn't save to project", description: saveResult?.error });
             }
           } else if (autoPasteEnabled) {
             const pasteStart = performance.now();
@@ -460,12 +427,11 @@ export const useAudioRecording = (toast, options = {}) => {
               { hotkeyUsed, textLength: textToPaste.length, copiedToClipboard: keepTranscriptionInClipboard },
               "whisperwoof"
             );
-            toast({
-              icon: MandoToastIcon,
+            notify({
+              sign: "Done",
               title: t("hooks.audioRecording.autoPasteDisabled", "Transcribed (auto-paste off)"),
-              description: textToPaste.length > 80 ? textToPaste.slice(0, 80) + "…" : textToPaste,
-              variant: "default",
-              duration: 3000,
+              description: noticeExcerpt(textToPaste),
+              durationMs: NOTICE_MS.brief,
             });
           }
           tracker?.mark("pasteEnd");
@@ -534,10 +500,10 @@ export const useAudioRecording = (toast, options = {}) => {
           }
 
           if (result.source === "openai" && getSettings().useLocalWhisper) {
-            toast({
+            notify({
+              sign: "Cloud",
               title: t("hooks.audioRecording.fallback.title"),
               description: t("hooks.audioRecording.fallback.description"),
-              variant: "default",
             });
           }
 
@@ -633,14 +599,15 @@ export const useAudioRecording = (toast, options = {}) => {
 
     const handleNoAudioDetected = () => {
       // Mando says it himself in the live panel and the full indicator; only
-      // the minimal indicators (dot, compact) still need a toast.
+      // the minimal indicators (dot, compact) still need a notice.
       const mandoShows =
         isLiveModeRef.current || (localStorage.getItem("indicatorStyle") || "full") === "full";
       if (mandoShows) return;
-      toast({
+      notify({
+        sign: "No voice",
+        puzzled: true,
         title: t("hooks.audioRecording.noAudio.title"),
         description: t("hooks.audioRecording.noAudio.description"),
-        variant: "default",
       });
     };
 
@@ -660,7 +627,7 @@ export const useAudioRecording = (toast, options = {}) => {
         audioManagerRef.current.cleanup();
       }
     };
-  }, [toast, onToggle, performStartRecording, performStopRecording, t]);
+  }, [notify, onToggle, performStartRecording, performStopRecording, t]);
 
   const cancelRecording = async () => {
     if (audioManagerRef.current) {
