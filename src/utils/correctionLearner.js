@@ -5,6 +5,7 @@
  */
 
 const { sensitiveKind } = require("../whisperwoof/bridge/clipboard-pure");
+const { isChineseClause } = require("../whisperwoof/core/vocabulary/hint-shape");
 
 /**
  * A correction that may be a secret typed over the dictation ("the wifi
@@ -236,6 +237,8 @@ function extractCorrectionPairs(originalText, fieldValue) {
     if (toKey.length < 3) continue;
     if (phraseDistance(from, to) > MAX_DISTANCE) continue;
     if (looksSecret(to)) continue;
+    // A Chinese clause is one "word" here (no spaces): a fix inside it is not a term.
+    if (isChineseClause(from) || isChineseClause(to)) continue;
 
     const pairKey = `${from.toLowerCase()}\u0000${to}`;
     if (seen.has(pairKey)) continue;

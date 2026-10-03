@@ -12,6 +12,7 @@
  */
 
 const { validatePack, packSummary } = require("./pack-types");
+const { isChineseClause } = require("./hint-shape");
 
 /**
  * Maximum tokens Whisper reads from initial_prompt. whisper.cpp and the
@@ -253,7 +254,10 @@ function truncateHintsToPrompt(hints, maxChars = MAX_HINT_CHARS) {
  * @returns {string} Comma-separated prompt, "" when there is nothing to hint
  */
 function buildSttPrompt(memoryHints, dictionaryWords, packStates, maxChars = MAX_HINT_CHARS) {
-  const userHints = [...(memoryHints || []), ...[...(dictionaryWords || [])].reverse()];
+  // Clauses an earlier auto-learn stored as words stay on disk: keep them out.
+  const userHints = [...(memoryHints || []), ...[...(dictionaryWords || [])].reverse()].filter(
+    (hint) => !isChineseClause(hint)
+  );
   const kept = truncateHintsToPrompt(mergePackHints(userHints, packStates), maxChars);
   return kept ? kept.split(", ").reverse().join(", ") : "";
 }
