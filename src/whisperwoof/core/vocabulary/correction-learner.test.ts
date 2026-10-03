@@ -167,3 +167,45 @@ describe("secrets are never learned", () => {
     ]);
   });
 });
+
+describe("Chinese clauses are never learned as words", () => {
+  // Words are split on spaces and Chinese has none: a clause between two
+  // English words is one "word", and editing it used to store the clause.
+  it("learns nothing from a fix inside a Chinese clause", () => {
+    expect(
+      extractCorrectionPairs(
+        "好的 我打算明天上午和David开会 然后再说",
+        "好的 我打算明天上午和david开会之后 然后再说",
+      ),
+    ).toEqual([]);
+  });
+
+  it("learns nothing from a short clause either", () => {
+    expect(
+      extractCorrectionPairs("let me 看一下这个问题 then reply", "let me 看一下那个问题 then reply"),
+    ).toEqual([]);
+  });
+
+  it("skips the pair when only one side is a clause", () => {
+    // only the corrected side ("…和他打电话吧")
+    expect(
+      extractCorrectionPairs("好的 今天晚上打电话 然后", "好的 今天晚上和他打电话吧 然后"),
+    ).toEqual([]);
+    // only the misheard side ("我准备…")
+    expect(
+      extractCorrectionPairs("好的 我准备今天晚上打电话 然后", "好的 准备今天晚上打电话 然后"),
+    ).toEqual([]);
+  });
+
+  it("still learns a Chinese term fixed between English words", () => {
+    expect(
+      extractCorrectionPairs("I use 通一千问 for code every day", "I use 通义千问 for code every day"),
+    ).toEqual([{ from: "通一千问", to: "通义千问" }]);
+  });
+
+  it("still learns an English word fixed in a mixed dictation", () => {
+    expect(
+      extractCorrectionPairs("我们用 super base 做后端", "我们用 Supabase 做后端"),
+    ).toEqual([{ from: "super base", to: "Supabase" }]);
+  });
+});

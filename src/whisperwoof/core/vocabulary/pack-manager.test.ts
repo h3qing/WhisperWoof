@@ -609,3 +609,21 @@ describe("constants", () => {
     expect(PACK_CATEGORIES).toContain("tech");
   });
 });
+
+describe("buildSttPrompt leaves out Chinese clauses", () => {
+  // Earlier auto-learn stored whole Chinese clauses as words; as hints they
+  // made Whisper write English speech in Chinese. Terms still go in.
+  it("drops clauses from Memory and the Dictionary, keeps terms", () => {
+    expect(
+      buildSttPrompt(
+        ["我在上海的课都是一节一节的", "paragraph", "上海"],
+        ["不用管这个url的跳转的时间", "王小明"],
+        [],
+      ),
+    ).toBe("王小明, 上海, paragraph");
+  });
+
+  it("is empty when every word is a clause", () => {
+    expect(buildSttPrompt(["我在上海的课都是一节一节的"], ["不用管这个url的跳转的时间"], [])).toBe("");
+  });
+});

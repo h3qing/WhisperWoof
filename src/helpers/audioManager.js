@@ -383,7 +383,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     try {
       if (window.electronAPI?.whisperwoofGetPackEnhancedPrompt) {
         const prompt = await window.electronAPI.whisperwoofGetPackEnhancedPrompt();
-        if (prompt) return prompt;
+        // "" is an answer (nothing to hint, or Memory locked), not a failure:
+        // the raw Dictionary below would bring back the clauses main left out.
+        if (typeof prompt === "string") return prompt || null;
       }
     } catch {
       // Fall through to basic dictionary
