@@ -5,6 +5,12 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-10-04 — Dictation hears simple words again
+
+### Fixed
+- **English dictation no longer comes out as Chinese gibberish.** When you fixed a word in a pasted dictation that mixed Chinese and English, Memory learned the whole Chinese clause around it as a single "word" (Chinese has no spaces between words), for example "我打算明天上午和david开会之后". Those clauses are sent to Whisper as hints, and a few of them were enough to make it write English speech in Chinese: on Whisper Turbo, "Please check the latest version and let me know." came out as "请订阅明明明的内容…", and 3 of 4 simple English sentences broke. Memory now never learns a Chinese clause, and clauses it learned before are left out of the hints, so you don't have to delete them by hand (you can still remove them in Memory). Chinese names and terms, long ones included (国家发展和改革委员会), are still learned and still sent, and Japanese and Korean words are left alone.
+- **Hints stay off when there is nothing to send.** If all your saved words were clauses, the dictation fell back to your raw word list and sent the clauses anyway. Now it sends no hints. The raw list is used only when the hint list can't be fetched at all.
+
 ## [2.8.0] - 2026-09-30 — Mando says it in the panel, no more pop-up box
 
 ### Changed
