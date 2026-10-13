@@ -6730,6 +6730,10 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle("meeting-take-pending-navigation", async () => {
+      return this.meetingDetectionEngine?.takePendingNavigation?.() ?? null;
+    });
+
     ipcMain.handle("get-meeting-notification-data", async () => {
       return this.windowManager?._pendingNotificationData ?? null;
     });

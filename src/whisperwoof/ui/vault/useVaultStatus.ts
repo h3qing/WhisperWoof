@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { createVaultStatusStore, type VaultSnapshot } from "./vault-status-store";
 import { needsLockScreen, shouldReloadOnTransition } from "./vault-ui-pure";
 
@@ -22,11 +22,18 @@ export function useVaultStatus(): { status: VaultSnapshot; refresh: () => Promis
 export function useVaultGate() {
   const { status, refresh } = useVaultStatus();
   const previous = useRef<VaultSnapshot>(status);
+  const reloading = useRef(false);
 
   useEffect(() => {
-    if (shouldReloadOnTransition(previous.current, status)) window.location.reload();
+    if (shouldReloadOnTransition(previous.current, status)) {
+      reloading.current = true;
+      window.location.reload();
+    }
     previous.current = status;
   }, [status]);
 
-  return { pending: status === undefined, locked: needsLockScreen(status), status, refresh };
+  // For effects and listeners declared after this hook: this page is about to go.
+  const isReloading = useCallback(() => reloading.current, []);
+
+  return { pending: status === undefined, locked: needsLockScreen(status), status, refresh, isReloading };
 }
