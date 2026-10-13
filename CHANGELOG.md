@@ -5,6 +5,14 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-10-13 — Start on the meeting prompt works while WhisperWoof is locked
+
+### Fixed
+- **Start on the meeting prompt records the meeting, even while WhisperWoof is locked.** With encryption on, WhisperWoof locks when your Mac sleeps, and dictation keeps working, so it's easy to be locked for days without noticing. A meeting prompt's Start then did nothing at all: no note, no recording, no transcript, and nothing saying so. Now Start asks for Touch ID right away and the meeting starts recording. Without Touch ID you get the unlock screen, and the meeting starts once you unlock within 5 minutes. Cancelling Touch ID means "not now": nothing starts later by surprise.
+- **The meeting still opens after unlocking.** Unlocking reloads the WhisperWoof window, and a meeting started right then used to vanish with it, leaving an empty note and meeting prompts switched off until a restart. Main now holds on to the meeting until the reloaded window takes it.
+- **No meeting prompt every few seconds while it waits for you to unlock**, and a meeting that couldn't start no longer turns meeting prompts off for the rest of the session.
+- **Auto-start never asks to unlock by itself.** While locked, it shows the prompt instead.
+
 ## [2.8.0] - 2026-09-30 — Mando says it in the panel, no more pop-up box
 
 ### Changed
