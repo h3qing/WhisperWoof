@@ -297,3 +297,99 @@ describe("a meeting started from the Meetings tab", () => {
     env.engine.stop();
   });
 });
+
+describe("a meeting prompt's Start while WhisperWoof is locked", () => {
+  interface EngineInternals {
+    activeDetections: Map<string, unknown>;
+    _meetingModeActive: boolean;
+    handleNotificationResponse: (id: string, action: string) => Promise<void>;
+    setUnlockForMeeting: (fn: () => Promise<boolean>) => void;
+    startAfterUnlock: () => Promise<void>;
+    _schedulePreMeetingNotification: () => void;
+  }
+
+  function lockedEngine(unlock: () => Promise<boolean>) {
+    const env = buildEngine();
+    const e = env.engine as unknown as EngineInternals;
+    vi.spyOn(e, "_schedulePreMeetingNotification").mockImplementation(() => {});
+    e.setUnlockForMeeting(unlock);
+    e.activeDetections.set("det-1", { event: { summary: "Standup" } });
+    return { env, e };
+  }
+
+  const navigations = (env: ReturnType<typeof buildEngine>) =>
+    env.sent.filter((m) => m.channel === "navigate-to-meeting-note");
+
+  it("unlocks before the note is made, then starts the meeting", async () => {
+    const order: string[] = [];
+    const { env, e } = lockedEngine(async () => {
+      order.push("unlock");
+      return true;
+    });
+    env.databaseManager.saveNote.mockImplementation((title: string) => {
+      order.push("save");
+      return { note: { id: 42, title } };
+    });
+
+    await e.handleNotificationResponse("det-1", "start");
+
+    expect(order).toEqual(["unlock", "save"]);
+    expect(navigations(env)).toHaveLength(1);
+    expect(e._meetingModeActive).toBe(true);
+    env.engine.stop();
+  });
+
+  it("still locked: no note and no meeting yet, and other prompts wait while it unlocks", async () => {
+    let activeDuringUnlock = false;
+    const { env, e } = lockedEngine(async () => {
+      activeDuringUnlock = e._meetingModeActive;
+      return false;
+    });
+
+    await e.handleNotificationResponse("det-1", "start");
+
+    expect(activeDuringUnlock).toBe(true);
+    expect(env.databaseManager.saveNote).not.toHaveBeenCalled();
+    expect(navigations(env)).toHaveLength(0);
+    expect(e._meetingModeActive).toBe(false);
+    expect(env.windowManager.dismissMeetingNotification).toHaveBeenCalled();
+    env.engine.stop();
+  });
+
+  it("starts the meeting once it's unlocked from the lock screen, and only once", async () => {
+    const { env, e } = lockedEngine(async () => false);
+    await e.handleNotificationResponse("det-1", "start");
+
+    await e.startAfterUnlock();
+    await e.startAfterUnlock();
+
+    expect(env.databaseManager.saveNote).toHaveBeenCalledTimes(1);
+    expect(env.databaseManager.saveNote).toHaveBeenCalledWith("Standup", "", "meeting");
+    expect(navigations(env)).toHaveLength(1);
+    expect((navigations(env)[0].payload as { trigger: string }).trigger).toBe("calendar-join");
+    env.engine.stop();
+  });
+
+  it("an unlock long after the prompt starts nothing", async () => {
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000);
+    const { env, e } = lockedEngine(async () => false);
+    await e.handleNotificationResponse("det-1", "start");
+
+    now.mockReturnValue(1_000_000 + 6 * 60_000);
+    await e.startAfterUnlock();
+
+    expect(env.databaseManager.saveNote).not.toHaveBeenCalled();
+    now.mockRestore();
+    env.engine.stop();
+  });
+
+  it("an unlock with nothing pending starts nothing", async () => {
+    const { env, e } = lockedEngine(async () => true);
+
+    await e.startAfterUnlock();
+
+    expect(env.databaseManager.saveNote).not.toHaveBeenCalled();
+    env.engine.stop();
+  });
+});
