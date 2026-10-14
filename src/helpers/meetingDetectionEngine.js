@@ -3,6 +3,10 @@ const debugLogger = require("./debugLogger");
 
 const IMMINENT_THRESHOLD_MS = 5 * 60 * 1000;
 const PRE_MEETING_LEAD_MS = 90 * 1000; // show notification 90s before calendar event
+// A Start that waited for the lock screen still starts if unlocked within this.
+const START_AFTER_UNLOCK_MS = 5 * 60 * 1000;
+// How long the control panel has to take the meeting note it should open.
+const NAVIGATION_PICKUP_MS = 60 * 1000;
 
 class MeetingDetectionEngine {
   constructor(
@@ -32,7 +36,20 @@ class MeetingDetectionEngine {
     this._runningMeetingProcesses = new Set();
     this._preMeetingTimer = null;
     this._preMeetingNotifiedIds = new Set();
+    this._vaultGate = null;
+    this._pendingPromptStart = null;
+    this._pendingNavigation = null;
     this._bindListeners();
+  }
+
+  /** `{ ready, unlock }` from unlock-for-meeting.js: whether a meeting can be saved now, and asking to unlock. */
+  setVaultGate(gate) {
+    this._vaultGate = gate;
+  }
+
+  /** Locked, a meeting isn't started unasked: that would mean an unlock prompt nobody asked for. */
+  _canAutoStart() {
+    return this.preferences.autoStart && (this._vaultGate?.ready() ?? true);
   }
 
   _emitMeetingState(next) {
@@ -201,7 +218,7 @@ class MeetingDetectionEngine {
     }
 
     // Auto-start: skip notification and immediately begin recording
-    if (this.preferences.autoStart) {
+    if (this._canAutoStart()) {
       debugLogger.info("Auto-starting meeting recording", { detectionId }, "meeting");
       this.handleNotificationResponse(detectionId, "start");
       return;
@@ -245,36 +262,30 @@ class MeetingDetectionEngine {
         this.activeDetections.delete(detectionId);
       } else if (action === "start" && detection) {
         // Flip the suppression flag synchronously so any concurrent
-        // _handleDetection call sees we're already in a meeting and bails.
-        // The IPC emission with the full payload happens below, once we
-        // have the noteId from saveNote().
+        // _handleDetection call sees we're already in a meeting and bails,
+        // also while it waits for an unlock. A second click finds no detection.
         this._meetingModeActive = true;
-
-        const eventSummary = detection.event?.summary || "New note";
-
-        const noteResult = this.databaseManager.saveNote(eventSummary, "", "meeting");
-        const meetingsFolder = this.databaseManager.getMeetingsFolder();
-
-        this._setMeetingMode(true, {
-          noteId: noteResult?.note?.id ?? null,
-          noteTitle: eventSummary,
-          trigger: "calendar-join",
-        });
-
-        if (noteResult?.note?.id && meetingsFolder?.id) {
-          await this.windowManager.createControlPanelWindow();
-          this.windowManager.snapControlPanelToMeetingMode();
-          this.windowManager.sendToControlPanel("navigate-to-meeting-note", {
-            noteId: noteResult.note.id,
-            folderId: meetingsFolder.id,
-            event: detection.event,
-            trigger: "calendar-join",
-          });
-        }
-
-        this.audioActivityDetector.resetPrompt();
-
         this.activeDetections.delete(detectionId);
+        this.windowManager.dismissMeetingNotification();
+        const clickedAt = Date.now();
+
+        // The note goes into the encrypted database: a locked WhisperWoof is
+        // unlocked first (unlock-for-meeting.js).
+        const unlocked = this._vaultGate ? await this._vaultGate.unlock() : "ready";
+        if (unlocked === "ready") {
+          // A start that failed isn't asked again at once either.
+          if (await this._startFromPrompt(detection.event)) this.audioActivityDetector.resetPrompt();
+          else this._dismiss();
+        } else {
+          this._meetingModeActive = false;
+          // Not asked again for a while; at the lock screen, the meeting starts
+          // once it's unlocked (startAfterUnlock).
+          this._dismiss();
+          if (unlocked === "waiting") {
+            this._pendingPromptStart = { event: detection.event, at: clickedAt };
+          }
+          debugLogger.info("Start waits for an unlock", { detectionId, unlocked }, "meeting");
+        }
       } else if (action === "dismiss") {
         if (detection) {
           this._dismiss();
@@ -292,6 +303,81 @@ class MeetingDetectionEngine {
       this.windowManager.dismissMeetingNotification();
       this._schedulePreMeetingNotification();
     }
+  }
+
+  /** A prompt's Start: its note, meeting mode, and the control panel recording into it. False when the note couldn't be made. */
+  async _startFromPrompt(event) {
+    // The IPC emission with the full payload waits for the noteId from saveNote().
+    this._meetingModeActive = true;
+
+    const eventSummary = event?.summary || "New note";
+
+    // The folder first: without it the note would be saved where nobody sees it.
+    const meetingsFolder = this.databaseManager.getMeetingsFolder();
+    const noteResult = meetingsFolder?.id
+      ? this.databaseManager.saveNote(eventSummary, "", "meeting")
+      : null;
+    if (!noteResult?.note?.id) {
+      debugLogger.error(
+        "Meeting from prompt failed — missing note or folder",
+        { noteId: noteResult?.note?.id, folderId: meetingsFolder?.id },
+        "meeting"
+      );
+      this._setMeetingMode(false);
+      return false;
+    }
+
+    this._setMeetingMode(true, {
+      noteId: noteResult.note.id,
+      noteTitle: eventSummary,
+      trigger: "calendar-join",
+    });
+
+    await this.windowManager.createControlPanelWindow();
+    this.windowManager.snapControlPanelToMeetingMode();
+    this._sendMeetingNavigation({
+      noteId: noteResult.note.id,
+      folderId: meetingsFolder.id,
+      event,
+      trigger: "calendar-join",
+    });
+    return true;
+  }
+
+  /** A prompt's Start that waited for the lock screen: start it now, unless that was long ago. */
+  async startAfterUnlock() {
+    const pending = this._pendingPromptStart;
+    this._pendingPromptStart = null;
+    if (!pending) return;
+    if (this._meetingModeActive) {
+      debugLogger.info("Pending Start dropped: a meeting is already open", {}, "meeting");
+      return;
+    }
+    if (Date.now() - pending.at > START_AFTER_UNLOCK_MS) {
+      debugLogger.info("Pending Start expired", {}, "meeting");
+      return;
+    }
+    try {
+      await this._startFromPrompt(pending.event);
+    } catch (error) {
+      this._setMeetingMode(false);
+      debugLogger.error("Starting meeting after unlock failed", { error: error?.message }, "meeting");
+    }
+  }
+
+  // The control panel reloads as it unlocks, which loses a message sent just
+  // before: it also takes the meeting to open from here once it's ready.
+  _sendMeetingNavigation(payload) {
+    this._pendingNavigation = { payload, at: Date.now() };
+    this.windowManager.sendToControlPanel("navigate-to-meeting-note", payload);
+  }
+
+  /** The meeting note the control panel should open and record into, given once. */
+  takePendingNavigation() {
+    const pending = this._pendingNavigation;
+    this._pendingNavigation = null;
+    if (!pending || Date.now() - pending.at > NAVIGATION_PICKUP_MS) return null;
+    return pending.payload;
   }
 
   /**
@@ -355,7 +441,7 @@ class MeetingDetectionEngine {
     await this.windowManager.createControlPanelWindow();
     await new Promise((resolve) => setTimeout(resolve, 50));
     this.windowManager.snapControlPanelToMeetingMode();
-    this.windowManager.sendToControlPanel("navigate-to-meeting-note", {
+    this._sendMeetingNavigation({
       noteId: noteResult.note.id,
       folderId: meetingsFolder.id,
       event,
@@ -554,7 +640,7 @@ class MeetingDetectionEngine {
     }, "meeting");
 
     // Auto-start if preference is set
-    if (this.preferences.autoStart) {
+    if (this._canAutoStart()) {
       debugLogger.info("Auto-starting from calendar event", { detectionId }, "meeting");
       this.handleNotificationResponse(detectionId, "start");
       return;

@@ -236,17 +236,32 @@ function ControlPanelViews() {
     return () => cleanup?.();
   }, []);
 
+  // The meeting note to open and record into is taken from main, once, by a
+  // page that can show it: one locked, or reloading as it unlocks, would lose it.
+  const { pending: vaultPending, locked: vaultLocked, isReloading } = vaultGate;
+  const meetingNavReadyRef = useRef(false);
+  const takeMeetingNavigation = useCallback(async () => {
+    const data = await window.electronAPI?.takePendingMeetingNavigation?.();
+    if (!data) return;
+    setActiveFolderId(data.folderId);
+    setActiveNoteId(data.noteId);
+    setActiveView("personal-notes");
+    setIsMeetingMode(true);
+    setMeetingRecordingRequest(data);
+    initializeNotes(null, 50, data.folderId);
+  }, []);
+
   useEffect(() => {
-    const cleanup = window.electronAPI?.onNavigateToMeetingNote?.((data) => {
-      setActiveFolderId(data.folderId);
-      setActiveNoteId(data.noteId);
-      setActiveView("personal-notes");
-      setIsMeetingMode(true);
-      setMeetingRecordingRequest(data);
-      initializeNotes(null, 50, data.folderId);
+    meetingNavReadyRef.current = !vaultPending && !vaultLocked && !isReloading();
+    if (meetingNavReadyRef.current) void takeMeetingNavigation();
+  }, [vaultPending, vaultLocked, isReloading, takeMeetingNavigation]);
+
+  useEffect(() => {
+    const cleanup = window.electronAPI?.onNavigateToMeetingNote?.(() => {
+      if (meetingNavReadyRef.current && !isReloading()) void takeMeetingNavigation();
     });
     return () => cleanup?.();
-  }, []);
+  }, [isReloading, takeMeetingNavigation]);
 
   // When accessibility is missing on macOS, open the permissions settings page
   useEffect(() => {

@@ -1349,6 +1349,13 @@ declare global {
           trigger?: "manual" | "calendar-join" | "auto-detect";
         }) => void
       ) => () => void;
+      /** The meeting note to open and record into, given once (survives the reload on unlock). */
+      takePendingMeetingNavigation?: () => Promise<{
+        noteId: number;
+        folderId: number;
+        event: any;
+        trigger?: "manual" | "calendar-join" | "auto-detect";
+      } | null>;
       onMeetingState?: (
         callback: (data: {
           isRecording: boolean;

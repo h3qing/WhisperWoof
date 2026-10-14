@@ -690,6 +690,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     "navigate-to-meeting-note",
     (callback) => (_event, data) => callback(data)
   ),
+  takePendingMeetingNavigation: () => ipcRenderer.invoke("meeting-take-pending-navigation"),
 
   onMeetingState: registerListener(
     "meeting-state",

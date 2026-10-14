@@ -461,11 +461,22 @@ function setupVault() {
       }
     },
   });
+  // A meeting prompt's Start while locked: Touch ID, else the lock screen.
+  const { createUnlockForMeeting } = require("./src/whisperwoof/bridge/vault/unlock-for-meeting");
+  meetingDetectionEngine?.setVaultGate?.(
+    createUnlockForMeeting({
+      vault,
+      controller,
+      databaseOpen: () => Boolean(databaseManager.db),
+      showLockScreen: () => windowManager.createControlPanelWindow(),
+    })
+  );
   // Registered after lifecycle.configure, so these run once the databases are open.
   // Calendar accounts and events are in the database: pause while locked.
   vault.onUnlocked(async () => {
     googleCalendarManager?.start();
     meetingDetectionEngine?._schedulePreMeetingNotification?.();
+    meetingDetectionEngine?.startAfterUnlock?.();
     try {
       ipcHandlers.runAudioSweep?.();
     } catch (err) {
