@@ -191,7 +191,9 @@ pipeline: "WhisperWoof/2.9.0 · sensevoice-zh-en-int8-2024-07 · qwen3.5-2b-q4_k
 Links point at the transcript line nearest the time; empty sections say
 `（无）`. A model call that fails is retried 3 times (2 s, 10 s, 30 s); if the
 summary still can't be made, the session ends at `level: "transcript"` (the
-transcript is kept, delete `result.json` to try again).
+transcript is kept, delete `result.json` to try again). Every attempt first
+checks the folder: once it is gone (hand-off rule 6) or has a `result.json`,
+no more calls are made and nothing is written.
 
 ### Errors and retries
 

@@ -20,7 +20,7 @@ const { joinTranscriptSegments } = require("../../../helpers/parakeetWsResult");
 const prompts = require("../../bridge/cardputer-prompts");
 const summary = require("../../bridge/cardputer-summary-pure");
 const pure = require("../../bridge/cardputer-inbox-pure");
-const { isTaken } = require("../../bridge/cardputer-writeback");
+const { assertOpen, isGone, isTaken } = require("../../bridge/cardputer-writeback");
 
 const LLM_RETRY_DELAYS_MS = Object.freeze([2_000, 10_000, 30_000]);
 const MEMO_CHUNK_CHARS = 400; // one cleanup answer stays well under 512 tokens
@@ -30,26 +30,35 @@ const REDUCE_TOKENS = 1024;
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isAbort = (error) => error?.name === "AbortError";
+// Stopped, the folder gone (cancelled) or result.json there: no retry, no fallback.
+const isStop = (error) => isAbort(error) || isGone(error) || isTaken(error);
 
 async function withRetries(fn, { signal, sleep }) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (error) {
-      if (isAbort(error) || signal.aborted || attempt >= LLM_RETRY_DELAYS_MS.length) throw error;
+      if (isStop(error) || signal.aborted || attempt >= LLM_RETRY_DELAYS_MS.length) throw error;
       await sleep(LLM_RETRY_DELAYS_MS[attempt]);
     }
   }
 }
 
-/** A model call for this session: status blocked/busy while dictation has the model, retries. */
+/**
+ * A model call for this session: status blocked/busy while dictation has the
+ * model, retries. Every attempt first checks the folder is still there and
+ * unfinished, so a deleted session costs at most the call in flight.
+ */
 async function askModel(session, text, options) {
   const { ctx, llm, model, sleep } = session;
   const { systemPrompt } = options;
   const purpose = options.purpose ?? "map";
   const maxTokens = options.maxTokens ?? MAP_TOKENS;
   if (ctx.deps.gateDelayMs() > 0) await ctx.setStatus("blocked", "busy");
-  const call = () => llm(text, { systemPrompt, purpose, maxTokens, model, signal: ctx.signal });
+  const call = () => {
+    assertOpen(ctx.dir);
+    return llm(text, { systemPrompt, purpose, maxTokens, model, signal: ctx.signal });
+  };
   const answer = await withRetries(call, { signal: ctx.signal, sleep });
   await ctx.setStatus("summarizing");
   return String(answer ?? "");
@@ -202,7 +211,7 @@ function createSummaryStage({ llm, model, sleep = defaultSleep }) {
       const make = mode === "memo" ? summarizeMemo : summarizeMeeting;
       made = await make({ ctx, sentences, ask, pipeline });
     } catch (error) {
-      if (isAbort(error) || ctx.signal.aborted || isTaken(error)) throw error;
+      if (isStop(error) || ctx.signal.aborted) throw error;
       return transcriptOnly(ctx, outputs); // the summary failed; the transcript stands
     }
     const sha256 = writeFile("summary.md", made.markdown);

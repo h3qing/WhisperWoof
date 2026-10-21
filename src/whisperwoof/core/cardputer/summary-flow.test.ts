@@ -334,4 +334,47 @@ describe("Cardputer summaries", () => {
     expect(fs.existsSync(path.join(dir, "result.json"))).toBe(false);
     expect(llm).toHaveBeenCalledTimes(1);
   });
+
+  it("folder removed while summarising: no more model calls, no result.json, nothing recreated", async () => {
+    const holder = { dir: "" };
+    const model = fakeModel();
+    const llm = vi.fn(async (text: string, o: any) => {
+      fs.rmSync(holder.dir, { recursive: true, force: true }); // deleted, or moved to the Trash
+      return model.llm(text, o);
+    });
+    const { root, runner } = setup({ llm });
+    // two 5-minute windows: map, map, reduce if nothing stopped it
+    const { dir } = writeSession(root, {
+      mode: "meeting",
+      segments: [
+        { i: 0, seconds: 3, t0_ms: 0 },
+        { i: 2, seconds: 3, t0_ms: 600_000 },
+      ],
+      gaps: [1],
+    });
+    holder.dir = dir;
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect(fs.existsSync(dir)).toBe(false);
+    expect(await runner.runOnce()).toEqual([]);
+  });
+
+  it("doesn't retry a failed model call once the folder is gone", async () => {
+    const holder = { dir: "" };
+    const llm = vi.fn(async () => {
+      fs.rmSync(holder.dir, { recursive: true, force: true });
+      throw new Error("llama-server request failed");
+    });
+    const { root, runner } = setup({ llm });
+    const { dir } = writeSession(root, {
+      mode: "memo",
+      segments: [{ i: 0, seconds: 2, t0_ms: 0 }],
+    });
+    holder.dir = dir;
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(llm).toHaveBeenCalledTimes(1);
+    expect(fs.existsSync(dir)).toBe(false);
+  });
 });
