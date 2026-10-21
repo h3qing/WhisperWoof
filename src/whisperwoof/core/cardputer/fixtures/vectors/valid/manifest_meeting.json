@@ -4,7 +4,7 @@
   "data": {
     "v": 1,
     "kind": "cardputer.recording",
-    "session": "K3M9Q2T-00042-0A1C",
+    "session": "3QZK1M7-00042-0A1C",
     "attempt": 1,
     "mode": "meeting",
     "project": {"key": "cpa", "name": "Cardputer 助手"},
@@ -17,7 +17,7 @@
       {
         "i": 0,
         "file": "seg-000.wav",
-        "id": "K3M9Q2T-00042-0A1C",
+        "id": "3QZK1M7-00042-0A1C",
         "t0_ms": 0,
         "samples": 4800000,
         "bytes": 9600044,
@@ -28,7 +28,7 @@
       {
         "i": 1,
         "file": "seg-001.wav",
-        "id": "K3M9Q2T-00042-0A1D",
+        "id": "3QZK1M7-00042-0A1D",
         "t0_ms": 300000,
         "samples": 4800000,
         "bytes": 9600044,
@@ -39,7 +39,7 @@
       {
         "i": 2,
         "file": "seg-002.wav",
-        "id": "K3M9Q2T-00042-0A1E",
+        "id": "3QZK1M7-00042-0A1E",
         "t0_ms": 600000,
         "samples": 1200000,
         "bytes": 2400044,
