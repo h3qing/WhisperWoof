@@ -24,6 +24,15 @@ function dir() {
   return d;
 }
 
+function codeOf(fn: () => unknown): string | undefined {
+  try {
+    fn();
+  } catch (error) {
+    return (error as { code?: string }).code;
+  }
+  return undefined;
+}
+
 describe("cardputer writeback", () => {
   it("writes 0600 files atomically and returns their sha256", () => {
     const d = dir();
@@ -57,6 +66,49 @@ describe("cardputer writeback", () => {
     writeback.writeAtomic(d, "result.json", "ours");
     expect(fs.readFileSync(path.join(d, "result.json"), "utf8")).toBe("ours");
     expect(fs.readdirSync(d)).toEqual(["result.json"]);
+  });
+
+  it("never recreates a session folder that is gone: every write and check says CARDPUTER_GONE", () => {
+    const d = dir();
+    const session = path.join(d, "1402-session");
+    fs.mkdirSync(session);
+    expect(() => writeback.assertOpen(session)).not.toThrow(); // there, no result.json: open
+    fs.rmSync(session, { recursive: true });
+    for (const name of ["status.json", "transcript.json", "result.json"]) {
+      expect(
+        codeOf(() => writeback.writeAtomic(session, name, "{}")),
+        name
+      ).toBe("CARDPUTER_GONE");
+    }
+    expect(codeOf(() => writeback.assertOpen(session))).toBe("CARDPUTER_GONE");
+    expect(fs.readdirSync(d)).toEqual([]); // nothing recreated
+  });
+
+  it("calls a folder gone once it is moved away (to the Trash) or replaced by a file", () => {
+    const d = dir();
+    const session = path.join(d, "1402-session");
+    fs.mkdirSync(session);
+    expect(writeback.folderGone(session)).toBe(false);
+    fs.renameSync(session, path.join(d, "trashed"));
+    expect(writeback.folderGone(session)).toBe(true);
+    fs.writeFileSync(session, "not a folder");
+    expect(writeback.folderGone(session)).toBe(true);
+    expect(codeOf(() => writeback.assertOpen(session))).toBe("CARDPUTER_GONE");
+  });
+
+  it("says CARDPUTER_GONE when the folder goes between the temp file and the rename", () => {
+    const d = dir();
+    const session = path.join(d, "1402-session");
+    fs.mkdirSync(session);
+    const rename = fs.renameSync;
+    vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      fs.rmSync(session, { recursive: true });
+      return rename(from, to);
+    });
+    expect(codeOf(() => writeback.writeAtomic(session, "transcript.md", "x"))).toBe(
+      "CARDPUTER_GONE"
+    );
+    expect(fs.readdirSync(d)).toEqual([]);
   });
 
   it("doesn't follow a symlink planted at the temp name", () => {

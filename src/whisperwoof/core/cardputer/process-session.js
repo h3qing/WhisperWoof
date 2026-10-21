@@ -9,7 +9,7 @@
 
 const MeetingLocalTranscriber = require("../../../helpers/meetingLocalTranscriber");
 const pure = require("../../bridge/cardputer-inbox-pure");
-const { assertOpen, RESULT } = require("../../bridge/cardputer-writeback");
+const { assertOpen, isGone, RESULT } = require("../../bridge/cardputer-writeback");
 const { firstShaMismatch, readPart } = require("./session-files");
 const transcriptDoc = require("./transcript-doc");
 
@@ -27,7 +27,7 @@ function abortError() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Throws when the inbox was stopped or result.json appeared. */
+/** Throws when the inbox was stopped, result.json appeared or the folder is gone. */
 function checkpoint(ctx) {
   if (ctx.signal.aborted) throw abortError();
   assertOpen(ctx.dir);
@@ -47,23 +47,36 @@ async function waitForGate(ctx) {
 }
 
 async function transcribeRun(ctx, run) {
+  let gone = null; // the folder went: every piece left is skipped quietly, then this is thrown
   const transcriber = new MeetingLocalTranscriber({
     sampleRate: pure.SAMPLE_RATE,
     zeroMs: run.zeroMs,
     silenceRms: ctx.deps.silenceRms,
     transcribe: async (samples, sampleRate) => {
-      await waitForGate(ctx);
-      checkpoint(ctx);
+      if (gone) return null; // no model call, no failed piece, no warning
+      try {
+        await waitForGate(ctx);
+        checkpoint(ctx);
+      } catch (error) {
+        if (!isGone(error)) throw error;
+        gone = error;
+        return null;
+      }
       return ctx.deps.transcribe(samples, sampleRate);
     },
   });
   for (const part of run.parts) {
     for await (const chunk of readPart(ctx.dir, part)) {
       if (ctx.signal.aborted) throw abortError();
-      if (transcriber.push("mic", chunk)) await transcriber.idle();
+      if (transcriber.push("mic", chunk)) {
+        await transcriber.idle();
+        if (gone) throw gone;
+        checkpoint(ctx); // a clip of silence never reaches the callback
+      }
     }
   }
   const lines = await transcriber.finish();
+  if (gone) throw gone; // even if the folder is back by now: never a transcript with holes
   checkpoint(ctx);
   if (transcriber.failedPieces > 0) {
     throw codedError("E_STT", `${transcriber.failedPieces} piece(s) failed to transcribe`);
@@ -107,8 +120,9 @@ function writeTranscripts(ctx, sentences) {
 /**
  * ctx: { dir, manifest (contract-valid, segments checked), deps, signal,
  *        setStatus(state, reason?) }.
- * → { kind: "done" | "blocked", ... }; throws AbortError, CARDPUTER_TAKEN, or
- *   an error carrying cardputerCode (E_INVALID, E_STT, E_AUDIO …) / an fs code.
+ * → { kind: "done" | "blocked", ... }; throws AbortError, CARDPUTER_TAKEN,
+ *   CARDPUTER_GONE (the folder is gone: cancelled), or an error carrying
+ *   cardputerCode (E_INVALID, E_STT, E_AUDIO …) / an fs code.
  */
 async function processSession(ctx) {
   if (!(await ctx.deps.ensureModel())) {

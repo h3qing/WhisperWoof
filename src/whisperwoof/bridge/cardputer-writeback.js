@@ -5,6 +5,10 @@
  * result.json is written last and never over an existing one: it is linked
  * into place, which fails if the name exists, so a result someone else wrote
  * (or the user's own) always wins.
+ *
+ * A session folder may disappear at any time (deleted, or moved to the
+ * Trash): that cancels the session. Nothing here creates a folder, and once
+ * it is gone every check and write says CARDPUTER_GONE instead of ENOENT.
  */
 
 const crypto = require("crypto");
@@ -13,6 +17,7 @@ const path = require("path");
 
 const { O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW } = fs.constants;
 const RESULT = "result.json";
+const MISSING = new Set(["ENOENT", "ENOTDIR"]);
 
 function takenError() {
   const error = new Error("result.json already exists");
@@ -24,13 +29,36 @@ function isTaken(error) {
   return error?.code === "CARDPUTER_TAKEN";
 }
 
-/** Throws (CARDPUTER_TAKEN) once result.json exists: the folder is no longer ours to write. */
+function goneError() {
+  const error = new Error("The session folder is gone");
+  error.code = "CARDPUTER_GONE";
+  return error;
+}
+
+function isGone(error) {
+  return error?.code === "CARDPUTER_GONE";
+}
+
+/** True once dir is no longer a real folder: deleted, moved away, or replaced. */
+function folderGone(dir) {
+  try {
+    return !fs.lstatSync(dir).isDirectory();
+  } catch (error) {
+    return MISSING.has(error.code);
+  }
+}
+
+/**
+ * Throws CARDPUTER_TAKEN once result.json exists (the folder is no longer
+ * ours to write) and CARDPUTER_GONE once the folder itself is gone.
+ */
 function assertOpen(dir) {
   try {
     fs.lstatSync(path.join(dir, RESULT));
   } catch (error) {
-    if (error.code === "ENOENT") return;
-    throw error;
+    if (!MISSING.has(error.code)) throw error;
+    if (folderGone(dir)) throw goneError();
+    return;
   }
   throw takenError();
 }
@@ -77,13 +105,7 @@ function placeWithoutReplacing(tmp, target, dir) {
   }
 }
 
-/**
- * Atomically writes `data` (string or Buffer) as dir/name. → sha256 (hex) of
- * the bytes written. result.json is never replaced (CARDPUTER_TAKEN).
- */
-function writeAtomic(dir, name, data) {
-  if (path.basename(name) !== name || name.startsWith(".")) throw new Error("Bad file name");
-  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+function writeInPlace(dir, name, bytes) {
   const tmp = writeTemp(dir, name, bytes);
   const target = path.join(dir, name);
   try {
@@ -94,7 +116,30 @@ function writeAtomic(dir, name, data) {
     throw error.code === "EEXIST" ? takenError() : error;
   }
   fsyncDir(dir);
+}
+
+/**
+ * Atomically writes `data` (string or Buffer) as dir/name. → sha256 (hex) of
+ * the bytes written. result.json is never replaced (CARDPUTER_TAKEN); a
+ * folder that is gone is never recreated (CARDPUTER_GONE).
+ */
+function writeAtomic(dir, name, data) {
+  if (path.basename(name) !== name || name.startsWith(".")) throw new Error("Bad file name");
+  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+  try {
+    writeInPlace(dir, name, bytes);
+  } catch (error) {
+    throw MISSING.has(error.code) && folderGone(dir) ? goneError() : error;
+  }
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
-module.exports = { writeAtomic, assertOpen, isTaken, takenError, RESULT };
+module.exports = {
+  writeAtomic,
+  assertOpen,
+  isTaken,
+  takenError,
+  isGone,
+  folderGone,
+  RESULT,
+};

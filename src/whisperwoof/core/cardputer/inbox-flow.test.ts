@@ -3,22 +3,24 @@
  * process-session.js + session-files.js + bridge/cardputer-writeback.js),
  * with a fake SenseVoice: what gets written, in which order, with which
  * times; and the hand-off rules — result.json last, never touched again,
- * deleting it reprocesses.
+ * deleting it reprocesses, a session folder that disappears is cancelled.
  */
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { tempRoot, writeSession, fakeSenseVoice, readJson, snapshot, tone } from "./test-sessions";
 
 const require = createRequire(import.meta.url);
 const { createInboxRunner } = require("./inbox-runner");
 const contract = require("./contract");
 const writeback = require("../../bridge/cardputer-writeback");
+const debugLogger = require("../../../helpers/debugLogger");
 
 const roots: string[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const r of roots.splice(0)) fs.rmSync(r, { recursive: true, force: true });
 });
 
@@ -277,5 +279,133 @@ describe("Cardputer inbox flow", () => {
       ensureModel: async () => true,
     });
     expect(await runner.runOnce()).toEqual([]);
+  });
+});
+
+describe("Cardputer inbox: a session folder that disappears is cancelled", () => {
+  const reply = { text: "x。", tokens: ["x", "。"], timestamps: [0, 0.1] };
+  const twoSeconds = { mode: "memo" as const, segments: [{ i: 0, seconds: 2, t0_ms: 0 }] };
+  const remove = (dir: string) => fs.rmSync(dir, { recursive: true, force: true });
+  const kinds = (outcomes: Array<{ kind: string }>) => outcomes.map((o) => o.kind);
+
+  it("before its turn: a queued folder deleted while another session runs", async () => {
+    const holder = { dir: "" };
+    const { root, runner, writes } = setup({
+      transcribe: async () => {
+        remove(holder.dir);
+        return reply;
+      },
+    });
+    const meeting = writeSession(root, {
+      mode: "meeting",
+      first: 0x100,
+      segments: [{ i: 0, seconds: 2, t0_ms: 0 }],
+    });
+    writeSession(root, { ...twoSeconds, first: 0x200, dirName: "1500-later" });
+    holder.dir = meeting.dir;
+    const name = path.basename(meeting.dir);
+
+    const outcomes = await runner.runOnce();
+
+    expect(kinds(outcomes)).toEqual(["done", "cancelled"]); // the memo goes first
+    expect(outcomes[1]).toEqual({ kind: "cancelled", dir: meeting.dir });
+    expect(writes.filter((w) => w.startsWith(`${name}/`))).toEqual([`${name}/status:queued`]);
+    expect(fs.existsSync(meeting.dir)).toBe(false); // never recreated
+    expect(await runner.runOnce()).toEqual([]); // reported once
+  });
+
+  it("while transcribing: deleting the folder stops before the next piece", async () => {
+    const holder = { dir: "", calls: 0 };
+    const { root, runner } = setup({
+      transcribe: async () => {
+        holder.calls += 1;
+        remove(holder.dir);
+        return reply;
+      },
+    });
+    const { dir } = writeSession(root, {
+      mode: "memo",
+      segments: [{ i: 0, seconds: 60, t0_ms: 0 }],
+    });
+    holder.dir = dir;
+    const warn = vi.spyOn(debugLogger, "warn");
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(holder.calls).toBe(1); // 60 s is several pieces: only the first reached the model
+    expect(warn).not.toHaveBeenCalled(); // one outcome, not a warning per refused piece
+    expect(fs.existsSync(dir)).toBe(false);
+    expect(await runner.runOnce()).toEqual([]);
+  });
+
+  it("while transcribing a meeting: moved to the Trash, it stops and the moved folder gets nothing more", async () => {
+    const holder = { dir: "", trashed: "", before: "", calls: 0 };
+    const { root, runner } = setup({
+      transcribe: async () => {
+        holder.calls += 1;
+        if (holder.calls === 1) {
+          holder.trashed = path.join(root, ".trash", path.basename(holder.dir));
+          fs.mkdirSync(path.dirname(holder.trashed));
+          fs.renameSync(holder.dir, holder.trashed);
+          holder.before = snapshot(holder.trashed);
+        }
+        return reply;
+      },
+    });
+    const { dir } = writeSession(root, {
+      mode: "meeting",
+      segments: [{ i: 0, seconds: 200, t0_ms: 0, pcm: tone(200, [[130, 131]]) }],
+    });
+    holder.dir = dir;
+    const warn = vi.spyOn(debugLogger, "warn");
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(holder.calls).toBe(1);
+    expect(warn).not.toHaveBeenCalled();
+    expect(fs.existsSync(dir)).toBe(false);
+    expect(snapshot(holder.trashed)).toBe(holder.before);
+    expect(await runner.runOnce()).toEqual([]);
+  });
+
+  it.each(["transcript.json", "transcript.md", "result.json"])(
+    "after transcribing: a folder deleted just before %s is written is not recreated",
+    async (file) => {
+      const { root, runner } = setup({
+        write: (dir: string, name: string, data: string) => {
+          if (name === file) remove(dir);
+          return writeback.writeAtomic(dir, name, data);
+        },
+      });
+      const { dir } = writeSession(root, twoSeconds);
+
+      expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+      expect(fs.existsSync(dir)).toBe(false);
+      expect(await runner.runOnce()).toEqual([]);
+    }
+  );
+
+  it("while waiting to retry: reported cancelled once on the next pass, then forgotten", async () => {
+    const { root, runner, advance } = setup({
+      transcribe: async () => {
+        throw new Error("server gone");
+      },
+    });
+    const { dir } = writeSession(root, twoSeconds);
+    expect(kinds(await runner.runOnce())).toEqual(["retry"]);
+    remove(dir);
+    advance(30_000);
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(await runner.runOnce()).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it("after result.json: deleting the folder later changes nothing", async () => {
+    const { root, runner } = setup();
+    const { dir } = writeSession(root, twoSeconds);
+    expect(kinds(await runner.runOnce())).toEqual(["done"]);
+    remove(dir);
+
+    expect(await runner.runOnce()).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(false);
   });
 });

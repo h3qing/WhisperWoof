@@ -67,6 +67,14 @@ anything (audio retention is cpad's job).
    `cpa rec retry` are planned for a later version.)
 5. Idempotent: what counts is the folder; WhisperWoof keeps only retry timers
    in memory. A crash on either side is safe to repeat.
+6. **A folder that disappears cancels its session.** A session folder may be
+   deleted or moved away (the Trash, or `~/CardputerNotes/.trash/` for cpad's
+   planned delete) at any time: before, during or after processing. A missing
+   folder (`ENOENT`) is then never an `E_IO` retry nor an `E_INVALID` verdict:
+   WhisperWoof stops at the next piece or write, writes nothing more, never
+   recreates the folder or any file in it, forgets the session and logs one
+   `cancelled` outcome. The contract is unchanged (v1 stays frozen); this is
+   WhisperWoof's behaviour.
 
 ## Pipeline
 
@@ -127,7 +135,8 @@ at start, on `fs.watch` changes (debounced 2 s) and every 30 s. One pass:
 Retryable errors back off (30 s, 2 min, 8 min); after 3 retries the session
 gets `result.json` `failed` with `retryable: true` (delete it to try again).
 While waiting, `status.json` says `queued`. Turning the inbox off stops the
-session in progress and leaves `blocked / disabled`.
+session in progress and leaves `blocked / disabled`. A session folder that is
+gone is not an error: no code, no retry, nothing written (hand-off rule 6).
 
 ## Privacy and security
 
