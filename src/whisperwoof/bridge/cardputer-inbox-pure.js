@@ -13,9 +13,12 @@ const path = require("path");
 const SAMPLE_RATE = 16000;
 const HEADER_BYTES = 44;
 // Speech from the Cardputer's microphone is quieter than a Mac's: 0.003 (the
-// meeting default) would skip most of it. Provisional until gate G-A10
-// (cardputer-assistant docs/gates/m3-device-gates.md) measures real speech.
-const CARDPUTER_SILENCE_RMS = 0.0005;
+// meeting default) would skip most of it. Calibrated on the device for its
+// v0.3.1 mic gain (cardputer-assistant docs/releases/v0.3.1.md, HIL mic_cal):
+// a quiet room's noise floor is ~0.0004 RMS (-68 dBFS), so 0.0005 let empty
+// pieces through; 0.00084 is the dB midpoint between that floor and speech
+// ~1 m from the device. Handheld speech is ~-35 dBFS (RMS ~0.018).
+const CARDPUTER_SILENCE_RMS = 0.00084;
 const MAX_SEGMENT_BYTES = 20 * 1024 * 1024;
 const MAX_SESSION_MS = 4 * 3600 * 1000;
 const MAX_MANIFEST_BYTES = 1024 * 1024;

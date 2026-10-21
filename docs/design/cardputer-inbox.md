@@ -110,8 +110,12 @@ at start, on `fs.watch` changes (debounced 2 s) and every 30 s. One pass:
      awaits `idle()`. Reading a file is ~1000× faster than SenseVoice, so
      without this a 3-hour meeting would queue ~90 clips (~690 MB) in main; with
      it at most one clip waits.
-   - `silenceRms` is `CARDPUTER_SILENCE_RMS` (0.0005, provisional until the
-     device's mic level gate G-A10 measures real speech).
+   - `silenceRms` is `CARDPUTER_SILENCE_RMS` (0.00084), calibrated on the
+     device for its v0.3.1 mic gain (cardputer-assistant
+     `docs/releases/v0.3.1.md`): a quiet room's noise floor is about 0.0004 RMS
+     and handheld speech about −35 dBFS; 0.00084 is the dB midpoint between
+     that floor and speech about 1 m from the device. Quieter pieces never
+     reach SenseVoice.
    - Before every piece the background gate is asked (`gateDelayMs`): while it
      says wait, `status.json` is `blocked / busy`.
    - Each sentence gets the main-process clean-up dictation gets: Memory swaps

@@ -265,6 +265,27 @@ describe("Cardputer inbox flow", () => {
     expect(fs.existsSync(path.join(dir, "result.json"))).toBe(false);
   });
 
+  it("gates silence at the device-calibrated level: a quiet room is skipped, speech at 1 m is heard", async () => {
+    const { root, runner, stt } = setup();
+    // RMS ≈ 0.0006: a room a little louder than the v0.3.1 calibration's noise floor (≈ 0.0004)
+    const room = writeSession(root, {
+      mode: "memo",
+      first: 0x100,
+      segments: [{ i: 0, seconds: 2, t0_ms: 0, pcm: tone(2, [], 28) }],
+    });
+    // RMS ≈ 0.0018 (≈ −55 dBFS): speech about 1 m from the device
+    const speech = writeSession(root, {
+      mode: "memo",
+      first: 0x200,
+      dirName: "1500-later",
+      segments: [{ i: 0, seconds: 2, t0_ms: 0, pcm: tone(2, [], 83) }],
+    });
+    await runner.runOnce();
+    expect(stt.pieces).toHaveLength(1);
+    expect(readJson(room.dir, "transcript.json").sentences).toEqual([]);
+    expect(readJson(speech.dir, "transcript.json").sentences).toHaveLength(1);
+  });
+
   it("reports what it did", async () => {
     const { root, runner } = setup();
     writeSession(root, { mode: "memo", segments: [{ i: 0, seconds: 2, t0_ms: 0 }] });
