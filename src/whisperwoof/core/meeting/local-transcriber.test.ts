@@ -146,3 +146,131 @@ describe("MeetingLocalTranscriber", () => {
     expect(model.transcribe.mock.calls.length).toBe(calls);
   });
 });
+
+/**
+ * Options for audio that isn't live (the Cardputer inbox reads WAV files):
+ * a known time zero, a silence gate of the caller's choice, and push()
+ * saying when it queued a clip so the caller can wait instead of piling
+ * clips up in memory.
+ */
+describe("MeetingLocalTranscriber fed from a file", () => {
+  const SECOND = SR * 2; // bytes of 16-bit mono PCM per second
+
+  /** Feed a buffer in 1 s chunks; returns what each push() said. */
+  function feedSeconds(t: InstanceType<typeof MeetingLocalTranscriber>, buf: Buffer) {
+    const said: boolean[] = [];
+    for (let i = 0; i < buf.length; i += SECOND)
+      said.push(t.push("mic", buf.subarray(i, i + SECOND)));
+    return said;
+  }
+
+  function makeWith(options: Record<string, unknown>, model = fakeModel()) {
+    const t = new MeetingLocalTranscriber({
+      sampleRate: SR,
+      clipTargetS: 120,
+      lookaheadS: 20,
+      transcribe: model.transcribe,
+      ...options,
+    });
+    return { t, model };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(START + 987_654); // a clock that has nothing to do with the audio
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("dates lines from zeroMs and the sample offset, never from the clock or the first chunk", async () => {
+    const { t } = makeWith({ zeroMs: 1500 });
+    feedSeconds(t, pcm(10));
+    const [line] = await t.finish();
+    expect(line.timestamp).toBe(1500 + 500); // first token at 0.5 s; no 1 s first-chunk subtraction
+  });
+
+  it("keeps zeroMs for every clip, so a later clip is zeroMs plus where it starts", async () => {
+    const { t } = makeWith({ zeroMs: 0, clipTargetS: 10, lookaheadS: 2 });
+    feedSeconds(t, pcm(30, [[10.5, 11]]));
+    const lines = await t.finish();
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines[0].timestamp).toBe(500);
+    // The second clip starts in the quiet stretch (10.5-11 s): its first line is 0.5 s after that.
+    expect(lines[1].timestamp).toBeGreaterThanOrEqual(11_000);
+    expect(lines[1].timestamp).toBeLessThanOrEqual(11_500);
+  });
+
+  it("returns true from push() exactly when it queued a clip", async () => {
+    const { t } = makeWith({ zeroMs: 0 });
+    const said = feedSeconds(t, pcm(141));
+    expect(said.filter(Boolean)).toHaveLength(1);
+    expect(said.indexOf(true)).toBe(139); // the 140th second reaches 120 s + 20 s
+    expect(t.push("mic", Buffer.alloc(0))).toBe(false);
+    await t.finish();
+    expect(t.push("mic", pcm(1))).toBe(false); // after the end
+  });
+
+  it("returns false from push() without the new options too", () => {
+    const { t } = make();
+    expect(t.push("mic", pcm(1))).toBe(false);
+  });
+
+  it("honours silenceRms: quiet speech is skipped by default and kept with a lower gate", async () => {
+    // A tone at RMS ~0.0015 (int16 amplitude 70): below 0.003, above 0.0005.
+    const quiet = Buffer.alloc(10 * SECOND);
+    for (let i = 0; i < 10 * SR; i++) {
+      quiet.writeInt16LE(Math.round(70 * Math.sin((2 * Math.PI * 220 * i) / SR)), i * 2);
+    }
+    const byDefault = makeWith({ zeroMs: 0 });
+    feedSeconds(byDefault.t, quiet);
+    expect(await byDefault.t.finish()).toEqual([]);
+    expect(byDefault.model.transcribe).not.toHaveBeenCalled();
+
+    const lowered = makeWith({ zeroMs: 0, silenceRms: 0.0005 });
+    feedSeconds(lowered.t, quiet);
+    expect(await lowered.t.finish()).toHaveLength(1);
+  });
+
+  it("feeds 3 h through a slow model with at most one queued clip and a bounded buffer", async () => {
+    const clipTargetS = 120;
+    const lookaheadS = 20;
+    const zeroMs = 200;
+    // Loud seconds with a softer one every 45 s, so clips are cut at lulls;
+    // nothing is silent, so every sample reaches the model in order.
+    const loud = pcm(1);
+    const soft = Buffer.alloc(SECOND);
+    for (let i = 0; i < SR; i++)
+      soft.writeInt16LE(Math.round(500 * Math.sin((2 * Math.PI * 220 * i) / SR)), i * 2);
+
+    let fedSamples = 0; // samples the model has seen so far
+    const expected: number[] = [];
+    const transcribe = vi.fn(async (samples: Float32Array) => {
+      expected.push(zeroMs + fedSamples / 16 + 500); // piece start (ms) + first token at 0.5 s
+      fedSamples += samples.length;
+      await new Promise((resolve) => setTimeout(resolve, 1)); // slower than reading a file
+      return { text: "一句。", tokens: ["一", "。"], timestamps: [0.5, 0.9] };
+    });
+    const t = new MeetingLocalTranscriber({
+      sampleRate: SR,
+      clipTargetS,
+      lookaheadS,
+      transcribe,
+      zeroMs,
+    });
+
+    let maxQueued = 0;
+    let maxBuffered = 0;
+    for (let s = 0; s < 3 * 3600; s++) {
+      const cut = t.push("mic", s % 45 === 44 ? soft : loud);
+      maxQueued = Math.max(maxQueued, t.pendingClips);
+      maxBuffered = Math.max(maxBuffered, t.bufferedBytes);
+      if (cut) await t.idle();
+    }
+    const lines = await t.finish();
+
+    expect(maxQueued).toBeLessThanOrEqual(1);
+    expect(maxBuffered).toBeLessThanOrEqual((clipTargetS + lookaheadS + 1) * SECOND);
+    expect(fedSamples).toBe(3 * 3600 * SR);
+    expect(t.pendingClips).toBe(0);
+    expect(lines.map((l: { timestamp: number }) => l.timestamp)).toEqual(expected);
+  }, 120_000);
+});
