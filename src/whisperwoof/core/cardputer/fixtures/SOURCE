@@ -3,8 +3,8 @@ Do not edit these files here: change them upstream and copy them again.
 
 repo:     https://github.com/h3qing/cardputer-assistant
 contract: protocol/recording/v1 (README.md there is the normative text)
-commit:   f0fa2f9e38d3600bed266a2b09a01b3de9c4adec (release/v0.2.0) plus the uncommitted M3-P work
-          that adds protocol/recording/; replace with the commit that lands it.
+commit:   f9501c3962d146fc01e7cd46273bee6c3f68ed25 (release/v0.3.0, "feat(protocol): add file.*
+          transfer and recording contract v1"). Vectors use the boot epoch 3QZK1M7.
 copied:   2026-10-21
 
 What was copied, and where:
@@ -14,7 +14,7 @@ What was copied, and where:
   protocol/recording/v1/schema/*.schema.json    -> ../schema/ (read at runtime by contract.js)
 
 sha256 of VECTORS.sha256 (covers every vector file):
-0a4936e213ce28e9f0e30891107044b17bd701a616d2197aa1b6acb6da0b498e  VECTORS.sha256
+a0f373015a4c89fb5d6ffe871747a50c6017066ea5ee9b78e63c7bc5cef0b816  VECTORS.sha256
 
 sha256 of the schemas:
 039931b77355f764505eeebe5ddfaaa4533ee005a0e0f5b059787372202f1507  schema/common.schema.json
