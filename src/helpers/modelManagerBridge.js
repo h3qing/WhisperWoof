@@ -19,6 +19,12 @@ function getLocalProviders() {
   return modelRegistryData.localProviders || [];
 }
 
+function abortError() {
+  const error = new Error("Inference aborted");
+  error.name = "AbortError";
+  return error;
+}
+
 class ModelError extends Error {
   constructor(message, code, details = {}) {
     super(message);
@@ -321,14 +327,21 @@ class ModelManager {
     }
   }
 
+  /**
+   * `options.signal` aborts the request (an AbortError is thrown);
+   * `options.logContent: false` keeps the model's answer out of the log
+   * (background work: Cardputer transcripts never reach the debug log).
+   */
   async runInference(modelId, prompt, options = {}) {
     this.ensureInitialized();
     const startTime = Date.now();
+    const { signal, logContent = true, ...logged } = options;
     debugLogger.logReasoning("INFERENCE_START", {
       modelId,
       promptLength: prompt.length,
-      options: { ...options, systemPrompt: options.systemPrompt ? "[set]" : "[not set]" },
+      options: { ...logged, systemPrompt: options.systemPrompt ? "[set]" : "[not set]" },
     });
+    if (signal?.aborted) throw abortError();
 
     // Ensure server is available
     if (!this.serverManager.isAvailable()) {
@@ -400,13 +413,16 @@ class ModelManager {
         max_tokens: options.maxTokens ?? 512,
         top_k: options.topK,
         top_p: options.topP,
+        ...(signal ? { signal } : {}),
       });
 
       const totalTime = Date.now() - startTime;
       debugLogger.logReasoning("INFERENCE_SUCCESS", {
         totalTimeMs: totalTime,
         resultLength: result.length,
-        resultPreview: result.substring(0, 200) + (result.length > 200 ? "..." : ""),
+        ...(logContent
+          ? { resultPreview: result.substring(0, 200) + (result.length > 200 ? "..." : "") }
+          : {}),
       });
 
       return result;
@@ -414,8 +430,9 @@ class ModelManager {
       const totalTime = Date.now() - startTime;
       debugLogger.logReasoning("INFERENCE_FAILED", {
         totalTimeMs: totalTime,
-        error: error.message,
+        error: error.name === "AbortError" ? "aborted" : error.message,
       });
+      if (error.name === "AbortError") throw error;
       throw new ModelError(`Inference failed: ${error.message}`, "INFERENCE_FAILED", {
         error: error.message,
       });
@@ -461,6 +478,7 @@ class ModelManager {
 
 module.exports = {
   default: new ModelManager(),
+  ModelManager,
   ModelError,
   ModelNotFoundError,
 };

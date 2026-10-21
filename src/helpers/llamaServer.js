@@ -20,6 +20,12 @@ const HEALTH_CHECK_TIMEOUT_MS = 2000;
 const STARTUP_POLL_INTERVAL_MS = 500;
 const HEALTH_CHECK_FAILURE_THRESHOLD = 3;
 
+function abortError() {
+  const error = new Error("llama-server request aborted");
+  error.name = "AbortError";
+  return error;
+}
+
 class LlamaServerManager {
   constructor() {
     this.process = null;
@@ -431,10 +437,17 @@ class LlamaServerManager {
     }
   }
 
+  /**
+   * One chat completion. `options.signal` (AbortSignal) cancels it: the
+   * request is destroyed, so llama-server drops the task and can take the
+   * next one (background summaries make way for dictation this way).
+   */
   async inference(messages, options = {}) {
     if (!this.ready || !this.process) {
       throw new Error("llama-server is not running");
     }
+    const { signal } = options;
+    if (signal?.aborted) throw abortError();
 
     const body = JSON.stringify({
       messages,
@@ -452,8 +465,18 @@ class LlamaServerManager {
       chat_template_kwargs: { enable_thinking: false },
     });
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolvePromise, rejectPromise) => {
       const startTime = Date.now();
+      let onAbort = null;
+      const stopListening = () => onAbort && signal.removeEventListener("abort", onAbort);
+      const resolve = (value) => {
+        stopListening();
+        resolvePromise(value);
+      };
+      const reject = (error) => {
+        stopListening();
+        rejectPromise(error);
+      };
 
       const req = http.request(
         {
@@ -506,6 +529,13 @@ class LlamaServerManager {
         req.destroy();
         reject(new Error("llama-server request timed out"));
       });
+      if (signal) {
+        onAbort = () => {
+          req.destroy();
+          reject(abortError());
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
 
       req.write(body);
       req.end();
