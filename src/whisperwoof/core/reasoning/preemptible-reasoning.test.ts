@@ -23,7 +23,7 @@ const debugLogger = require("../../../helpers/debugLogger.js");
 
 const KEY = "a".repeat(64); // the format newServerApiKey makes
 
-type Arrival = { at: number; text: string; closedEarly: boolean };
+type Arrival = { at: number; text: string; closedEarly: boolean; endedAt?: number };
 
 /** A llama-server stand-in: background prompts ("BG…") take `bgDelayMs` the first time. */
 function startFakeLlama() {
@@ -47,6 +47,7 @@ function startFakeLlama() {
       seen.set(text, times);
       const delay = text.startsWith("BG") && times === 1 ? bgDelayMs : 20;
       const timer = setTimeout(() => {
+        arrival.endedAt = Date.now();
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
@@ -117,6 +118,30 @@ async function until(check: () => boolean, timeoutMs = 3000) {
     if (Date.now() - start > timeoutMs) throw new Error("timed out waiting");
     await new Promise((r) => setTimeout(r, 5));
   }
+}
+
+/** true once `promise` settles, false if it is still pending after `ms`. */
+function settledWithin(promise: Promise<unknown>, ms: number) {
+  return Promise.race([
+    promise.then(
+      () => true,
+      () => true
+    ),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
+  ]);
+}
+
+/**
+ * The service's next model check waits until `release()`, like a cold
+ * llama-server start: that call ignores its abort signal until then.
+ */
+function holdNextModelCheck(service: { models: { checkModelValid: () => Promise<boolean> } }) {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const check = vi
+    .spyOn(service.models, "checkModelValid")
+    .mockImplementationOnce(() => held.then(() => true));
+  return { started: () => check.mock.calls.length > 0, release };
 }
 
 describe("preemptible local reasoning", () => {
@@ -255,6 +280,67 @@ describe("preemptible local reasoning", () => {
     await expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
     await service.processBackground("BG kept", "m");
     expect(fake.arrivals.map((a) => a.text)).toEqual(["dictation", "BG kept"]);
+  });
+});
+
+describe("background calls that end late", () => {
+  beforeEach(() => {
+    fake.arrivals.length = 0;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps going when a starting call is cancelled and dictation arrives before it returns", async () => {
+    fake.setBgDelay(10);
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const service = makeService({ idleMs: 50 });
+      const coldStart = holdNextModelCheck(service);
+      const controller = new AbortController();
+      const cancelled = service.processBackground("BG cold", "m", { signal: controller.signal });
+      await until(() => coldStart.started());
+      controller.abort(); // the inbox is turned off while llama-server starts
+      await expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
+      await expect(service.processText("hello", "m")).resolves.toBe("answer to hello");
+      coldStart.release(); // the cancelled call returns only now
+
+      const next = service.processBackground("BG next", "m");
+      expect(await settledWithin(next, 2000)).toBe(true);
+      await expect(next).resolves.toBe("answer to BG next");
+      await new Promise((r) => setTimeout(r, 20));
+      expect(unhandled).toEqual([]);
+      expect(fake.arrivals.map((a) => a.text)).toEqual(["hello", "BG next"]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
+  it("keeps one background call at a time when a preempted call returns after its retry started", async () => {
+    fake.setBgDelay(300);
+    const service = makeService({ idleMs: 50 });
+    const coldStart = holdNextModelCheck(service);
+    const first = service.processBackground("BG cold", "m");
+    await until(() => coldStart.started());
+    await service.processText("hello", "m"); // preempts BG cold while it starts
+    await until(() => fake.arrivals.some((a) => a.text === "BG cold")); // its retry is at the server
+    coldStart.release(); // the preempted attempt returns only now
+    const second = service.processBackground("BG second", "m");
+
+    await expect(first).resolves.toBe("answer to BG cold");
+    await expect(second).resolves.toBe("answer to BG second");
+    const cold = fake.arrivals.find((a) => a.text === "BG cold")!;
+    const after = fake.arrivals.find((a) => a.text === "BG second")!;
+    expect(after.at).toBeGreaterThanOrEqual(cold.endedAt!);
+  });
+
+  it("skips a job in line that is no longer known, and keeps the line going", async () => {
+    fake.setBgDelay(10);
+    const queue = require("../../bridge/reasoning-queue-pure.js");
+    const service = makeService();
+    service._queue = queue.enqueue(service._queue, { id: "b-gone", kind: "background" }).state;
+    await expect(service.processBackground("BG after", "m")).resolves.toBe("answer to BG after");
+    expect(service._queue).toEqual({ waiting: [], running: null });
   });
 });
 

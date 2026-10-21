@@ -121,7 +121,10 @@ class LocalReasoningService {
       id,
       kind: KINDS.INTERACTIVE,
     });
-    this._queue = reasoningQueue.takeNext(state).state;
+    // A cancelled call that has not returned yet is not put back in line.
+    const kept =
+      preempt && !this._jobs.has(preempt.id) ? reasoningQueue.remove(state, preempt.id) : state;
+    this._queue = reasoningQueue.takeNext(kept).state;
     if (preempt && this._running?.id === preempt.id) {
       debugLogger.logReasoning("LOCAL_BRIDGE_PREEMPT", { job: preempt.id });
       this._running.controller.abort();
@@ -160,10 +163,20 @@ class LocalReasoningService {
 
   async _runBackground(id) {
     const job = this._jobs.get(id);
+    if (!job) {
+      // Cancelled before it could run again: nothing to send.
+      this._queue = reasoningQueue.finish(this._queue, id);
+      this._schedule(0);
+      return;
+    }
     const controller = new AbortController();
-    this._running = { id, controller };
-    const maxTokens = reasoningQueue.capBackgroundTokens(job.config.maxTokens, job.config.purpose);
+    const run = { id, controller };
+    this._running = run;
     try {
+      const maxTokens = reasoningQueue.capBackgroundTokens(
+        job.config.maxTokens,
+        job.config.purpose
+      );
       const result = await this._infer(
         job.text,
         job.modelId,
@@ -175,8 +188,11 @@ class LocalReasoningService {
       // Aborted: preempted (the job is back at the head of the line) or cancelled (settled).
       if (!controller.signal.aborted) this._settle(id, () => job.reject(error));
     } finally {
-      if (this._running?.id === id) this._running = null;
-      this._queue = reasoningQueue.finish(this._queue, id);
+      // A preempted call that returns after its retry started must not end that retry.
+      if (this._running === run) {
+        this._running = null;
+        this._queue = reasoningQueue.finish(this._queue, id);
+      }
       this._schedule(0);
     }
   }
