@@ -16,6 +16,7 @@ const require = createRequire(import.meta.url);
 const { createInboxRunner } = require("./inbox-runner");
 const contract = require("./contract");
 const writeback = require("../../bridge/cardputer-writeback");
+const files = require("./session-files");
 const debugLogger = require("../../../helpers/debugLogger");
 
 const roots: string[] = [];
@@ -428,5 +429,100 @@ describe("Cardputer inbox: a session folder that disappears is cancelled", () =>
 
     expect(await runner.runOnce()).toEqual([]);
     expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it("between listing and reading: a remembered session that vanishes is cancelled exactly once", async () => {
+    const { root, runner, writes, advance } = setup({
+      transcribe: async () => {
+        throw new Error("server gone");
+      },
+    });
+    const { dir } = writeSession(root, twoSeconds);
+    expect(kinds(await runner.runOnce())).toEqual(["retry"]);
+    const before = writes.length;
+    const read = files.readManifest;
+    vi.spyOn(files, "readManifest").mockImplementation(async (d: string) => {
+      remove(d); // listed, then deleted (or moved to the Trash) before it is read
+      return read(d);
+    });
+    advance(30_000);
+
+    const outcomes = [...(await runner.runOnce()), ...(await runner.runOnce())];
+
+    expect(outcomes).toEqual([{ kind: "cancelled", dir }]);
+    expect(writes.slice(before)).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it("while the gate is closed: deleted meanwhile, it is cancelled with no model call and no more writes", async () => {
+    const holder = { dir: "", asks: 0 };
+    const { root, runner, writes, stt } = setup({
+      gateDelayMs: () => {
+        holder.asks += 1;
+        if (holder.asks === 2) remove(holder.dir); // while dictation holds the gate
+        return holder.asks <= 2 ? 5 : 0;
+      },
+    });
+    const { dir } = writeSession(root, twoSeconds);
+    holder.dir = dir;
+    const name = path.basename(dir);
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(writes).toEqual([
+      `${name}/status:queued`,
+      `${name}/status:transcribing`,
+      `${name}/status:blocked`,
+    ]);
+    expect(stt.pieces).toEqual([]);
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it("a failed result.json racing a delete (refused, or failed while processed) is cancelled, never written", async () => {
+    const { root, runner, stt } = setup({
+      write: (dir: string, name: string, data: string) => {
+        if (name === "result.json") remove(dir); // deleted between the check and the write
+        return writeback.writeAtomic(dir, name, data);
+      },
+    });
+    const refused = writeSession(root, { ...twoSeconds, manifest: (m) => ({ ...m, v: 2 }) });
+    const spoiled = writeSession(root, { ...twoSeconds, first: 0x200, dirName: "1500-later" });
+    const file = path.join(spoiled.dir, "seg-000.wav");
+    const bytes = fs.readFileSync(file);
+    bytes[1000] ^= 0xff; // no longer matches its sha256: failed/E_INVALID while processed
+    fs.writeFileSync(file, bytes);
+
+    expect(await runner.runOnce()).toEqual([
+      { kind: "cancelled", dir: refused.dir },
+      { kind: "cancelled", dir: spoiled.dir },
+    ]);
+    expect(stt.pieces).toEqual([]);
+    expect(fs.existsSync(refused.dir)).toBe(false);
+    expect(fs.existsSync(spoiled.dir)).toBe(false);
+    expect(await runner.runOnce()).toEqual([]);
+  });
+
+  it("replaced by a symlink mid-transcription: cancelled, nothing written through the link", async () => {
+    const holder = { dir: "", moved: "", before: "" };
+    const { root, runner } = setup({
+      transcribe: async () => {
+        if (!holder.moved) {
+          holder.moved = path.join(root, "elsewhere");
+          fs.renameSync(holder.dir, holder.moved);
+          fs.symlinkSync(holder.moved, holder.dir);
+          holder.before = snapshot(holder.moved);
+        }
+        return reply;
+      },
+    });
+    const { dir } = writeSession(root, {
+      mode: "memo",
+      segments: [{ i: 0, seconds: 60, t0_ms: 0 }],
+    });
+    holder.dir = dir;
+
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(snapshot(holder.moved)).toBe(holder.before);
+    expect(fs.lstatSync(dir).isSymbolicLink()).toBe(true);
+    expect(await runner.runOnce()).toEqual([]);
   });
 });
