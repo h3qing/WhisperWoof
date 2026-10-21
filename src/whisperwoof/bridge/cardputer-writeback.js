@@ -62,6 +62,21 @@ function writeTemp(dir, name, bytes) {
   return tmp;
 }
 
+// Volumes without hard links (exFAT, some network shares) answer link(2) with these.
+const NO_HARD_LINKS = new Set(["ENOTSUP", "EOPNOTSUPP", "EPERM", "ENOSYS"]);
+
+/** link(2) fails if the name exists: a result.json someone else wrote always wins. */
+function placeWithoutReplacing(tmp, target, dir) {
+  try {
+    fs.linkSync(tmp, target);
+    fs.unlinkSync(tmp);
+  } catch (error) {
+    if (!NO_HARD_LINKS.has(error.code)) throw error;
+    assertOpen(dir); // no atomic no-replace here: check, then rename
+    fs.renameSync(tmp, target);
+  }
+}
+
 /**
  * Atomically writes `data` (string or Buffer) as dir/name. → sha256 (hex) of
  * the bytes written. result.json is never replaced (CARDPUTER_TAKEN).
@@ -72,12 +87,8 @@ function writeAtomic(dir, name, data) {
   const tmp = writeTemp(dir, name, bytes);
   const target = path.join(dir, name);
   try {
-    if (name === RESULT) {
-      fs.linkSync(tmp, target);
-      fs.unlinkSync(tmp);
-    } else {
-      fs.renameSync(tmp, target);
-    }
+    if (name === RESULT) placeWithoutReplacing(tmp, target, dir);
+    else fs.renameSync(tmp, target);
   } catch (error) {
     fs.rmSync(tmp, { force: true });
     throw error.code === "EEXIST" ? takenError() : error;

@@ -60,7 +60,7 @@ anything (audio retention is cpad's job).
 3. Once `result.json` exists, WhisperWoof writes nothing more to that folder.
    Before every write it checks, and `result.json` itself is linked into place
    (`link(2)` fails if the name exists), so a result that appears meanwhile
-   always wins.
+   always wins. On a volume without hard links (exFAT) it checks, then renames.
 4. **Manual rerun:** delete `result.json`. The session is processed again on
    the next pass and WhisperWoof **overwrites its own files**, including a
    `transcript.md` you edited. Keep edits in a copy. (Protecting edits and
