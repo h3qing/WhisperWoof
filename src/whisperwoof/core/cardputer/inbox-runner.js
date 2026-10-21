@@ -71,6 +71,28 @@ function statusSetter(rt, dir, identity) {
   };
 }
 
+/**
+ * A session folder that disappears (deleted, or moved to the Trash) at any
+ * point cancels its session: nothing more is written, nothing is recreated,
+ * and it is forgotten after one "cancelled" outcome.
+ */
+function isCancel(error, dir) {
+  return writeback.isGone(error) || writeback.folderGone(dir);
+}
+
+function cancel(rt, dir) {
+  rt.memory.delete(dir);
+  return { kind: "cancelled", dir };
+}
+
+/** Sessions remembered from an earlier pass whose folder has gone since. */
+function forgetGone(rt, listed) {
+  const seen = new Set(listed);
+  return [...rt.memory.keys()]
+    .filter((dir) => !seen.has(dir) && writeback.folderGone(dir))
+    .map((dir) => cancel(rt, dir));
+}
+
 function writeFailed(rt, dir, identity, code, retryable) {
   writeback.assertOpen(dir);
   const result = pure.failedResult({ identity, code, retryable, finishedAt: rt.deps.at() });
@@ -100,7 +122,8 @@ async function examine(rt, dir) {
 async function discover(rt) {
   const candidates = [];
   const outcomes = [];
-  for (const dir of await files.listSessionDirs(rt.deps.root)) {
+  const listed = await files.listSessionDirs(rt.deps.root);
+  for (const dir of listed) {
     try {
       const { candidate, outcome } = await examine(rt, dir);
       if (outcome) outcomes.push(outcome);
@@ -108,11 +131,15 @@ async function discover(rt) {
       if (!rt.memory.get(dir)?.status) await statusSetter(rt, dir, candidate.identity)("queued");
       candidates.push(candidate);
     } catch (error) {
-      if (!writeback.isTaken(error))
-        outcomes.push({ kind: "error", dir, code: pure.classifyError(error).code });
+      if (writeback.isTaken(error)) continue;
+      outcomes.push(
+        isCancel(error, dir)
+          ? cancel(rt, dir)
+          : { kind: "error", dir, code: pure.classifyError(error).code }
+      );
     }
   }
-  return { candidates, outcomes };
+  return { candidates, outcomes: [...outcomes, ...forgetGone(rt, listed)] };
 }
 
 async function failOrRetry(rt, candidate, error, setStatus) {
@@ -147,15 +174,16 @@ async function runSession(rt, candidate, signal) {
     return { ...outcome, dir: candidate.dir };
   } catch (error) {
     if (writeback.isTaken(error)) return { kind: "taken", dir: candidate.dir };
+    if (isCancel(error, candidate.dir)) return cancel(rt, candidate.dir);
     if (isAbort(error) || signal.aborted) {
       await setStatus("blocked", "disabled").catch(() => {});
       return { kind: "stopped", dir: candidate.dir };
     }
-    return failOrRetry(rt, candidate, error, setStatus).catch((e) => ({
-      kind: "error",
-      dir: candidate.dir,
-      code: pure.classifyError(e).code,
-    }));
+    return failOrRetry(rt, candidate, error, setStatus).catch((e) =>
+      isCancel(e, candidate.dir)
+        ? cancel(rt, candidate.dir)
+        : { kind: "error", dir: candidate.dir, code: pure.classifyError(e).code }
+    );
   }
 }
 

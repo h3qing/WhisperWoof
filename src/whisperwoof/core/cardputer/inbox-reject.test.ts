@@ -6,7 +6,7 @@
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   tempRoot,
   writeSession,
@@ -20,9 +20,11 @@ import {
 const require = createRequire(import.meta.url);
 const { createInboxRunner } = require("./inbox-runner");
 const contract = require("./contract");
+const files = require("./session-files");
 
 const roots: string[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const r of roots.splice(0)) fs.rmSync(r, { recursive: true, force: true });
 });
 
@@ -106,6 +108,19 @@ describe("Cardputer inbox: invalid sessions", () => {
     const { dir } = writeSession(root, memo);
     fs.unlinkSync(path.join(dir, "seg-000.wav"));
     expect(await failedWith(root, runner, dir)).toEqual({ code: "E_INVALID", retryable: false });
+  });
+
+  it("cancels a folder that vanishes while it is checked, instead of failing it", async () => {
+    const { root, runner } = setup();
+    const { dir } = writeSession(root, memo);
+    const inspect = files.inspectSegments;
+    vi.spyOn(files, "inspectSegments").mockImplementation(async (d: string, m: unknown) => {
+      fs.rmSync(d, { recursive: true }); // deleted (or moved to the Trash) after it was listed
+      return inspect(d, m);
+    });
+    expect(await runner.runOnce()).toEqual([{ kind: "cancelled", dir }]);
+    expect(fs.existsSync(dir)).toBe(false); // never recreated
+    expect(await runner.runOnce()).toEqual([]); // reported once
   });
 
   it("writes nothing for a symlinked segment", async () => {

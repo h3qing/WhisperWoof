@@ -13,13 +13,17 @@ export function tempRoot(): string {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "ww-cardputer-")));
 }
 
-/** 16-bit PCM: a tone, quiet in the given [from, to) seconds. */
-export function tone(seconds: number, quiet: Array<[number, number]> = []): Buffer {
+/** 16-bit PCM: a tone of the given amplitude, quiet in the given [from, to) seconds. */
+export function tone(
+  seconds: number,
+  quiet: Array<[number, number]> = [],
+  amplitude = 6000
+): Buffer {
   const buf = Buffer.alloc(Math.round(seconds * SR) * 2);
   for (let i = 0; i < buf.length / 2; i++) {
     const t = i / SR;
     const q = quiet.some(([a, b]) => t >= a && t < b);
-    buf.writeInt16LE(q ? 0 : Math.round(6000 * Math.sin((2 * Math.PI * 220 * i) / SR)), i * 2);
+    buf.writeInt16LE(q ? 0 : Math.round(amplitude * Math.sin((2 * Math.PI * 220 * i) / SR)), i * 2);
   }
   return buf;
 }
