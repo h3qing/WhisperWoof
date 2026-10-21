@@ -6,6 +6,8 @@ const EXPECTED_BINARY_FRAGMENTS = {
   parakeet: ["sherpa-onnx-ws-", "sherpa-onnx-online-ws-"],
   "parakeet-stream": ["sherpa-onnx-online-ws-"],
   "parakeet-meeting": ["sherpa-onnx-ws-"],
+  // SenseVoice for Cardputer recordings (whisperwoof/bridge/cardputer-inbox.js).
+  "parakeet-cardputer": ["sherpa-onnx-ws-"],
   whisper: ["whisper-server"],
   llama: ["llama-server"],
   qdrant: ["qdrant"],
@@ -126,4 +128,8 @@ function pickStaleServerPids(psOutput, binDirs) {
   return pids;
 }
 
-module.exports = { reapStaleSidecars, pickStaleServerPids };
+module.exports = {
+  reapStaleSidecars,
+  pickStaleServerPids,
+  EXPECTED_BINARY_FRAGMENTS: Object.freeze({ ...EXPECTED_BINARY_FRAGMENTS }),
+};

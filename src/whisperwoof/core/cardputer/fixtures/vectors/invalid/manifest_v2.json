@@ -1,0 +1,23 @@
+{
+  "doc": "manifest",
+  "name": "v=2 manifest: rejected whole",
+  "reason": {"code": "E_VERSION", "field": "v"},
+  "data": {
+    "v": 2,
+    "kind": "cardputer.recording",
+    "session": "K3M9Q2T-00042-0A1C",
+    "attempt": 1,
+    "mode": "meeting",
+    "project": {"key": "cpa", "name": "Cardputer 助手"},
+    "consent": "ack",
+    "started": {"wall_ms": 1792620120000, "tz_min": -420, "uncertain": false},
+    "duration_ms": 675000,
+    "lead_ms": 200,
+    "audio": {"sample_rate": 16000, "channels": 1, "bits": 16},
+    "segments": "new layout",
+    "gaps": [],
+    "marks": [{"t_ms": 12800, "k": "star"}, {"t_ms": 361000, "k": "star"}],
+    "device": {"dev": "288485756024", "fw": "cpa-fw/0.3.0"},
+    "written_at": "2026-10-21T14:45:10.120+08:00"
+  }
+}

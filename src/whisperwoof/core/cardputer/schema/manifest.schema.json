@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardputer-assistant.invalid/protocol/recording/v1/manifest.schema.json",
+  "title": "manifest",
+  "description": "manifest.json, written once by cpad when a session is complete (docs/11-m3-design.md §6.4, §7.3). Its presence means the session can be processed. Rules beyond this schema (check_recording.py, README): segment i strictly ascending; gaps strictly ascending and disjoint from the segment indices; segment indices and gaps together are exactly 0..max; file is seg-%03d.wav of i; bytes = 44 + 2 * samples.",
+  "type": "object",
+  "required": [
+    "v", "kind", "session", "attempt", "mode", "project", "started", "duration_ms", "lead_ms", "audio",
+    "segments", "gaps", "marks", "device", "written_at"
+  ],
+  "properties": {
+    "v": { "$ref": "common.schema.json#/$defs/version" },
+    "kind": { "const": "cardputer.recording" },
+    "session": { "$ref": "common.schema.json#/$defs/monoId", "description": "id of segment 0" },
+    "attempt": { "$ref": "common.schema.json#/$defs/attempt" },
+    "mode": { "$ref": "common.schema.json#/$defs/recMode" },
+    "project": {
+      "type": ["object", "null"],
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,11}$" },
+        "name": { "anyOf": [{ "$ref": "common.schema.json#/$defs/label" }, { "type": "null" }] }
+      }
+    },
+    "consent": {
+      "description": "meeting only: \"ack\" = the user pressed Enter on the 'tell the people present' confirm. Absent when segment 0 was recovered without it.",
+      "anyOf": [{ "const": "ack" }, { "type": "null" }]
+    },
+    "started": {
+      "type": "object",
+      "required": ["wall_ms", "tz_min", "uncertain"],
+      "properties": {
+        "wall_ms": { "type": "integer", "minimum": 1735689600000, "maximum": 9007199254740991 },
+        "tz_min": { "type": "integer", "minimum": -840, "maximum": 840 },
+        "uncertain": { "type": "boolean", "description": "wall time taken from landing time (docs/11 §6.5)" }
+      }
+    },
+    "duration_ms": { "type": "integer", "minimum": 0, "maximum": 14400000, "description": "at most 4 h" },
+    "lead_ms": { "type": "integer", "minimum": 0, "maximum": 2000, "description": "codec settle time at the start of segment 0; 0 when unknown" },
+    "audio": {
+      "type": "object",
+      "required": ["sample_rate", "channels", "bits"],
+      "properties": {
+        "sample_rate": { "const": 16000 },
+        "channels": { "const": 1 },
+        "bits": { "const": 16 }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": ["i", "file", "id", "t0_ms", "samples", "bytes", "sha256", "recovered", "repaired"],
+        "properties": {
+          "i": { "$ref": "common.schema.json#/$defs/segIndex" },
+          "file": { "$ref": "common.schema.json#/$defs/segFile" },
+          "id": { "$ref": "common.schema.json#/$defs/monoId" },
+          "t0_ms": { "$ref": "common.schema.json#/$defs/sessionMs", "description": "session time of the segment's first sample" },
+          "samples": { "type": "integer", "minimum": 0, "maximum": 9600000 },
+          "bytes": { "type": "integer", "minimum": 44, "maximum": 19200044, "description": "whole file incl. the 44 B header" },
+          "sha256": { "$ref": "common.schema.json#/$defs/sha256", "description": "of the whole file, computed by cpad after landing" },
+          "recovered": { "type": "boolean" },
+          "repaired": { "type": "boolean", "description": "cpad replaced the header of a recovered segment" }
+        }
+      }
+    },
+    "gaps": {
+      "description": "segment indices that will never arrive (power loss, card damage); includes k+1 when the last landed segment has last:false",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/segIndex" }
+    },
+    "marks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["t_ms", "k"],
+        "properties": {
+          "t_ms": { "$ref": "common.schema.json#/$defs/sessionMs" },
+          "k": {
+            "description": "Mark kind. Extensible enum: v0.3.0 writes only 'star'; readers skip marks whose k they do not know.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,15}$",
+            "x-knownValues": ["star"]
+          }
+        }
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["dev", "fw"],
+      "properties": {
+        "dev": { "type": "string", "pattern": "^[0-9a-f]{12}$" },
+        "fw": { "type": "string", "pattern": "^cpa-fw/[!-~]{1,24}$" }
+      }
+    },
+    "written_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+  }
+}

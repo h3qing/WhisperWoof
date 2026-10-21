@@ -1,0 +1,26 @@
+Recording file contract v1 (cpad <-> WhisperWoof), copied from cardputer-assistant.
+Do not edit these files here: change them upstream and copy them again.
+
+repo:     https://github.com/h3qing/cardputer-assistant
+contract: protocol/recording/v1 (README.md there is the normative text)
+commit:   f0fa2f9e38d3600bed266a2b09a01b3de9c4adec (release/v0.2.0) plus the uncommitted M3-P work
+          that adds protocol/recording/; replace with the commit that lands it.
+copied:   2026-10-21
+
+What was copied, and where:
+  protocol/recording/v1/vectors/valid/*.json    -> fixtures/vectors/valid/
+  protocol/recording/v1/vectors/invalid/*.json  -> fixtures/vectors/invalid/
+  protocol/recording/v1/VECTORS.sha256          -> fixtures/VECTORS.sha256
+  protocol/recording/v1/schema/*.schema.json    -> ../schema/ (read at runtime by contract.js)
+
+sha256 of VECTORS.sha256 (covers every vector file):
+0a4936e213ce28e9f0e30891107044b17bd701a616d2197aa1b6acb6da0b498e  VECTORS.sha256
+
+sha256 of the schemas:
+039931b77355f764505eeebe5ddfaaa4533ee005a0e0f5b059787372202f1507  schema/common.schema.json
+3590bdb46da87deed3eb14af0019731547ae342ea2ff72b85738659ae5ae3d59  schema/manifest.schema.json
+77af93fba4c8e63453ced0160231722a04a4166f32f76292d533cddf4697793c  schema/result.schema.json
+0686677c1bd6859416a8852ba84ee7c8b9928021a2d8da2be80e6b7086eaa534  schema/status.schema.json
+22dba2019f36be9af4e685e17cb2dfab59be263013adc35de4beb7d738196695  schema/transcript.schema.json
+
+contract.test.ts checks every digest above, so a reformatted or edited copy fails the tests.

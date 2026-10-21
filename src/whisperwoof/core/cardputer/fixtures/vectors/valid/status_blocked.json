@@ -1,0 +1,12 @@
+{
+  "doc": "status",
+  "name": "blocked until the user downloads SenseVoice",
+  "data": {
+    "v": 1,
+    "session": "K3M9Q2T-00042-0A1C",
+    "attempt": 1,
+    "state": "blocked",
+    "at": "2026-10-21T14:45:12.000+08:00",
+    "reason": "model_missing"
+  }
+}

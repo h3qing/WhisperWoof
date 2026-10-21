@@ -1,0 +1,37 @@
+{
+  "doc": "result",
+  "name": "memo classified as a todo",
+  "data": {
+    "v": 1,
+    "session": "K3M9Q2T-00042-0A1F",
+    "attempt": 1,
+    "state": "done",
+    "level": "summary",
+    "mode": "memo",
+    "title": "给 Alice 发报价单",
+    "memo": {"text": "待办：周五前给 Alice 发报价单。", "intent": "todo"},
+    "outputs": {
+      "transcript_json": {
+        "path": "transcript.json",
+        "sha256": "29ccc85d812c2004e2557d4aaa2b973aaad57eab11ff7c9819185e60fa3fb4f3"
+      },
+      "transcript_md": {
+        "path": "transcript.md",
+        "sha256": "6dee04b73e8d3336654bca37a2d58c001f0bfc572f4bf0d46c38fc08002d4da7"
+      },
+      "summary": {
+        "path": "summary.md",
+        "sha256": "5af308bec132bd499660594a6c127c57f910a25c18968eb4f9b976f48df8cb49"
+      }
+    },
+    "actions": [],
+    "pipeline": {
+      "app": "WhisperWoof/2.9.0",
+      "stt": "sensevoice-zh-en-int8-2024-07",
+      "llm": "qwen3.5-2b-q4_k_m",
+      "prompt": "cardputer-memo-v1"
+    },
+    "error": null,
+    "finished_at": "2026-10-21T14:50:31.000+08:00"
+  }
+}

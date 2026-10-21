@@ -1,0 +1,46 @@
+{
+  "doc": "manifest",
+  "name": "meeting with a lost middle segment and a trailing gap",
+  "note": "segment 1 never arrived; segment 2 was recovered at boot with last:false, so 3 is a gap too; t0_ms of segment 2 comes from the up_ms difference",
+  "data": {
+    "v": 1,
+    "kind": "cardputer.recording",
+    "session": "K3M9Q2T-00042-0A1C",
+    "attempt": 1,
+    "mode": "meeting",
+    "project": {"key": "cpa", "name": "Cardputer 助手"},
+    "consent": "ack",
+    "started": {"wall_ms": 1792620120000, "tz_min": -420, "uncertain": false},
+    "duration_ms": 961000,
+    "lead_ms": 200,
+    "audio": {"sample_rate": 16000, "channels": 1, "bits": 16},
+    "segments": [
+      {
+        "i": 0,
+        "file": "seg-000.wav",
+        "id": "K3M9Q2T-00042-0A1C",
+        "t0_ms": 0,
+        "samples": 4800000,
+        "bytes": 9600044,
+        "sha256": "39bec7958351d7dcc6cd8f6781fa308a3e4b1f9ed1d83e425a732ddb54d9d708",
+        "recovered": false,
+        "repaired": false
+      },
+      {
+        "i": 2,
+        "file": "seg-002.wav",
+        "id": "K3M9Q2T-00042-0A1E",
+        "t0_ms": 900000,
+        "samples": 976000,
+        "bytes": 1952044,
+        "sha256": "f583b29528eb064ced6a0a81ffed063698fd9d5aaa8a53dd41c3d3aa8e80b1d0",
+        "recovered": true,
+        "repaired": true
+      }
+    ],
+    "gaps": [1, 3],
+    "marks": [{"t_ms": 12800, "k": "star"}],
+    "device": {"dev": "288485756024", "fw": "cpa-fw/0.3.0"},
+    "written_at": "2026-10-21T14:45:10.120+08:00"
+  }
+}

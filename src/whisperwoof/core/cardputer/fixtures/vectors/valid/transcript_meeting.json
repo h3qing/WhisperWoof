@@ -1,0 +1,16 @@
+{
+  "doc": "transcript",
+  "name": "sentences in session time; two in the same second",
+  "data": {
+    "v": 1,
+    "session": "K3M9Q2T-00042-0A1C",
+    "attempt": 1,
+    "lead_ms": 200,
+    "engine": {"stt": "sensevoice-zh-en-int8-2024-07"},
+    "sentences": [
+      {"t_ms": 12340, "text": "我们先过一下 pricing 的方案。"},
+      {"t_ms": 12340, "text": "OK."},
+      {"t_ms": 361200, "text": "交付时间定在周五，我负责给 Alice 发报价单。"}
+    ]
+  }
+}

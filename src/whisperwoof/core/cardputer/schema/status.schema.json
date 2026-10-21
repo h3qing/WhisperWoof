@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardputer-assistant.invalid/protocol/recording/v1/status.schema.json",
+  "title": "status",
+  "description": "status.json, optional progress written (and overwritten at any time) by WhisperWoof (docs/11-m3-design.md §7.6). cpad keeps it in memory only.",
+  "type": "object",
+  "required": ["v", "session", "attempt", "state", "at"],
+  "properties": {
+    "v": { "$ref": "common.schema.json#/$defs/version" },
+    "session": { "$ref": "common.schema.json#/$defs/monoId" },
+    "attempt": { "$ref": "common.schema.json#/$defs/attempt" },
+    "state": { "enum": ["queued", "transcribing", "summarizing", "blocked"] },
+    "reason": { "anyOf": [{ "enum": ["busy", "model_missing", "disabled"] }, { "type": "null" }] },
+    "at": { "$ref": "common.schema.json#/$defs/timestamp" }
+  },
+  "if": { "required": ["state"], "properties": { "state": { "const": "blocked" } } },
+  "then": { "required": ["reason"], "properties": { "reason": { "enum": ["busy", "model_missing", "disabled"] } } }
+}

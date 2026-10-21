@@ -1,0 +1,60 @@
+{
+  "doc": "result",
+  "name": "more than 20 actions",
+  "reason": {"code": "E_INVALID", "field": "actions"},
+  "data": {
+    "v": 1,
+    "session": "K3M9Q2T-00042-0A1C",
+    "attempt": 1,
+    "state": "done",
+    "level": "summary",
+    "mode": "meeting",
+    "title": "客户同步：定价和交付",
+    "memo": null,
+    "outputs": {
+      "transcript_json": {
+        "path": "transcript.json",
+        "sha256": "29ccc85d812c2004e2557d4aaa2b973aaad57eab11ff7c9819185e60fa3fb4f3"
+      },
+      "transcript_md": {
+        "path": "transcript.md",
+        "sha256": "6dee04b73e8d3336654bca37a2d58c001f0bfc572f4bf0d46c38fc08002d4da7"
+      },
+      "summary": {
+        "path": "summary.md",
+        "sha256": "5af308bec132bd499660594a6c127c57f910a25c18968eb4f9b976f48df8cb49"
+      }
+    },
+    "actions": [
+      {"n": 1, "text": "todo 1", "confident": false},
+      {"n": 2, "text": "todo 2", "confident": false},
+      {"n": 3, "text": "todo 3", "confident": false},
+      {"n": 4, "text": "todo 4", "confident": false},
+      {"n": 5, "text": "todo 5", "confident": false},
+      {"n": 6, "text": "todo 6", "confident": false},
+      {"n": 7, "text": "todo 7", "confident": false},
+      {"n": 8, "text": "todo 8", "confident": false},
+      {"n": 9, "text": "todo 9", "confident": false},
+      {"n": 10, "text": "todo 10", "confident": false},
+      {"n": 11, "text": "todo 11", "confident": false},
+      {"n": 12, "text": "todo 12", "confident": false},
+      {"n": 13, "text": "todo 13", "confident": false},
+      {"n": 14, "text": "todo 14", "confident": false},
+      {"n": 15, "text": "todo 15", "confident": false},
+      {"n": 16, "text": "todo 16", "confident": false},
+      {"n": 17, "text": "todo 17", "confident": false},
+      {"n": 18, "text": "todo 18", "confident": false},
+      {"n": 19, "text": "todo 19", "confident": false},
+      {"n": 20, "text": "todo 20", "confident": false},
+      {"n": 21, "text": "todo 21", "confident": false}
+    ],
+    "pipeline": {
+      "app": "WhisperWoof/2.9.0",
+      "stt": "sensevoice-zh-en-int8-2024-07",
+      "llm": "qwen3.5-2b-q4_k_m",
+      "prompt": "cardputer-meeting-v1"
+    },
+    "error": null,
+    "finished_at": "2026-10-21T14:49:02.000+08:00"
+  }
+}
