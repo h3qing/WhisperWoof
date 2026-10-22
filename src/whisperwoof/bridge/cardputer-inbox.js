@@ -16,6 +16,7 @@ const path = require("path");
 const debugLogger = require("../../helpers/debugLogger");
 const pure = require("./cardputer-inbox-pure");
 const { createInboxRunner } = require("../core/cardputer/inbox-runner");
+const { createSummaryStage } = require("../core/cardputer/summarize-session");
 
 const MODEL = "sense-voice-zh-en";
 const POLL_MS = 30_000;
@@ -44,6 +45,16 @@ function postProcess(text) {
   return require("../core/language/lost-punctuation").repairLostPunctuation(out);
 }
 
+/**
+ * The model chosen in Intelligence, when it is a local one (main learns it
+ * from sync-startup-preferences). Summaries never use a cloud provider.
+ */
+function localModelFrom(environment) {
+  return environment.REASONING_PROVIDER === "local" && environment.LOCAL_REASONING_MODEL
+    ? environment.LOCAL_REASONING_MODEL
+    : null;
+}
+
 function realEnv() {
   const electron = require("electron");
   const markdownRoute = require("./markdown-route");
@@ -62,11 +73,27 @@ function realEnv() {
       if (!Notification?.isSupported?.()) return;
       new Notification({
         title: "Cardputer",
-        body: "A recording was transcribed into CardputerNotes.",
+        body: "A recording is ready in CardputerNotes.",
       }).show();
     },
     watch: (dir, onChange) => require("fs").watch(dir, { recursive: true }, onChange),
+    localModel: () => localModelFrom(process.env),
+    reasoning: () => require("../../services/localReasoningBridge").default,
     runnerOptions: {},
+  };
+}
+
+/** Summaries through the background queue: no text logged, dictation first. */
+function summaryOptions(env) {
+  const reasoning = env.reasoning?.();
+  if (!reasoning) return {};
+  return {
+    gateDelayMs: () => reasoning.backgroundDelayMs(),
+    complete: createSummaryStage({
+      model: () => env.localModel?.() ?? null,
+      llm: (text, { systemPrompt, purpose, maxTokens, model, signal }) =>
+        reasoning.processBackground(text, model, { systemPrompt, purpose, maxTokens, signal }),
+    }),
   };
 }
 
@@ -137,6 +164,7 @@ class CardputerInbox {
       postProcess,
       app: `WhisperWoof/${this._env.appVersion()}`,
       onDone: () => this._env.notify(),
+      ...summaryOptions(this._env),
       ...this._env.runnerOptions,
     });
   }
@@ -257,6 +285,7 @@ module.exports = {
   createCardputerInbox,
   createCardputerServer,
   postProcess,
+  localModelFrom,
   start: () => inbox().start(),
   stop: () => (instance ? instance.stop() : Promise.resolve()),
   registerIpc: (ipcMain) => inbox().registerIpc(ipcMain),

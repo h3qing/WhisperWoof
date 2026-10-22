@@ -205,6 +205,76 @@ describe("Cardputer inbox shell", () => {
     await inbox.stop();
   });
 
+  it("summarises with the selected local model through the background queue, gated by dictation", async () => {
+    const processBackground = vi.fn(
+      async (_text: string, _model: string, o: { systemPrompt: string }) =>
+        o.systemPrompt.includes("exactly one word") ? "no" : "标题：短句"
+    );
+    const backgroundDelayMs = vi.fn(() => 0);
+    const { env, root, setStored } = fakeEnv({
+      localModel: () => "qwen3.5-2b-q4_k_m",
+      reasoning: () => ({ processBackground, backgroundDelayMs }),
+    });
+    setStored({ enabled: true, root });
+    const { dir } = writeSession(root, {
+      mode: "memo",
+      segments: [{ i: 0, seconds: 2, t0_ms: 0 }],
+    });
+    const inbox = shell.createCardputerInbox(env);
+    inbox.start();
+    await inbox.runPass();
+    expect(readJson(dir, "result.json")).toMatchObject({
+      level: "summary",
+      pipeline: { llm: "qwen3.5-2b-q4_k_m" },
+    });
+    expect(processBackground).toHaveBeenCalledWith(
+      expect.stringContaining("<transcript>"),
+      "qwen3.5-2b-q4_k_m",
+      expect.objectContaining({
+        purpose: "map",
+        maxTokens: expect.any(Number),
+        signal: expect.any(AbortSignal),
+      })
+    );
+    expect(backgroundDelayMs).toHaveBeenCalled(); // asked before each SenseVoice piece and model call
+    await inbox.stop();
+  });
+
+  it("keeps the transcript only when the reasoning provider isn't local", async () => {
+    const processBackground = vi.fn();
+    const { env, root, setStored } = fakeEnv({
+      localModel: () => null,
+      reasoning: () => ({ processBackground, backgroundDelayMs: () => 0 }),
+    });
+    setStored({ enabled: true, root });
+    const { dir } = writeSession(root, {
+      mode: "memo",
+      segments: [{ i: 0, seconds: 2, t0_ms: 0 }],
+    });
+    const inbox = shell.createCardputerInbox(env);
+    inbox.start();
+    await inbox.runPass();
+    expect(readJson(dir, "result.json")).toMatchObject({ level: "transcript" });
+    expect(processBackground).not.toHaveBeenCalled();
+    await inbox.stop();
+  });
+
+  it("uses a local model only when Intelligence is set to a local one", () => {
+    expect(
+      shell.localModelFrom({
+        REASONING_PROVIDER: "local",
+        LOCAL_REASONING_MODEL: "qwen3.5-2b-q4_k_m",
+      })
+    ).toBe("qwen3.5-2b-q4_k_m");
+    expect(
+      shell.localModelFrom({
+        REASONING_PROVIDER: "openai",
+        LOCAL_REASONING_MODEL: "qwen3.5-2b-q4_k_m",
+      })
+    ).toBeNull();
+    expect(shell.localModelFrom({ REASONING_PROVIDER: "local" })).toBeNull();
+  });
+
   it("takes the folder only from the native dialog", async () => {
     const { env, root } = fakeEnv();
     const inbox = shell.createCardputerInbox(env);

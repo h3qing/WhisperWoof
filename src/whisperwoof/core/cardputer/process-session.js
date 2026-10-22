@@ -136,7 +136,12 @@ async function processSession(ctx) {
   await ctx.setStatus("transcribing");
   const sentences = await transcribeAll(ctx);
   const outputs = writeTranscripts(ctx, sentences);
-  const result = await ctx.deps.complete({ ctx, sentences, outputs });
+  const result = await ctx.deps.complete({
+    ctx,
+    sentences,
+    outputs,
+    writeFile: (name, data) => writeFile(ctx, name, data),
+  });
   writeFile(ctx, RESULT, `${JSON.stringify(result, null, 2)}\n`);
   return {
     kind: "done",
