@@ -1,0 +1,15 @@
+{
+  "doc": "result",
+  "name": "transcription failed, not retryable",
+  "data": {
+    "v": 1,
+    "session": "3QZK1M7-00042-0A1C",
+    "attempt": 1,
+    "state": "failed",
+    "level": null,
+    "mode": "meeting",
+    "outputs": {},
+    "error": {"code": "E_STT", "retryable": false},
+    "finished_at": "2026-10-21T14:47:40.000+08:00"
+  }
+}

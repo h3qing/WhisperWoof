@@ -1,0 +1,33 @@
+{
+  "doc": "result",
+  "name": "transcript only: no LLM selected",
+  "data": {
+    "v": 1,
+    "session": "3QZK1M7-00042-0A1C",
+    "attempt": 1,
+    "state": "done",
+    "level": "transcript",
+    "mode": "meeting",
+    "title": null,
+    "memo": null,
+    "outputs": {
+      "transcript_json": {
+        "path": "transcript.json",
+        "sha256": "29ccc85d812c2004e2557d4aaa2b973aaad57eab11ff7c9819185e60fa3fb4f3"
+      },
+      "transcript_md": {
+        "path": "transcript.md",
+        "sha256": "6dee04b73e8d3336654bca37a2d58c001f0bfc572f4bf0d46c38fc08002d4da7"
+      }
+    },
+    "actions": [],
+    "pipeline": {
+      "app": "WhisperWoof/2.9.0",
+      "stt": "sensevoice-zh-en-int8-2024-07",
+      "llm": null,
+      "prompt": null
+    },
+    "error": null,
+    "finished_at": "2026-10-21T14:49:02.000+08:00"
+  }
+}

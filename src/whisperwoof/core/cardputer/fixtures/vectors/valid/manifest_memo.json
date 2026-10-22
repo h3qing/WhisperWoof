@@ -1,0 +1,33 @@
+{
+  "doc": "manifest",
+  "name": "memo: one segment, no project, uncertain wall time",
+  "data": {
+    "v": 1,
+    "kind": "cardputer.recording",
+    "session": "3QZK1M7-00042-0A1F",
+    "attempt": 1,
+    "mode": "memo",
+    "project": null,
+    "started": {"wall_ms": 1792620300000, "tz_min": -420, "uncertain": true},
+    "duration_ms": 12000,
+    "lead_ms": 200,
+    "audio": {"sample_rate": 16000, "channels": 1, "bits": 16},
+    "segments": [
+      {
+        "i": 0,
+        "file": "seg-000.wav",
+        "id": "3QZK1M7-00042-0A1F",
+        "t0_ms": 0,
+        "samples": 192000,
+        "bytes": 384044,
+        "sha256": "96f74bacc639a1aeee065393f83b7841402056033d3b0e7ca3856e495816c470",
+        "recovered": false,
+        "repaired": false
+      }
+    ],
+    "gaps": [],
+    "marks": [],
+    "device": {"dev": "288485756024", "fw": "cpa-fw/0.3.0"},
+    "written_at": "2026-10-21T14:50:00.000+08:00"
+  }
+}

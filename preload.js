@@ -858,6 +858,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   whisperwoofSaveMarkdown: (text) => ipcRenderer.invoke("whisperwoof-save-markdown", text),
   whisperwoofGetNotesDir: () => ipcRenderer.invoke("whisperwoof-get-notes-dir"),
   whisperwoofPickNotesDir: () => ipcRenderer.invoke("whisperwoof-pick-notes-dir"),
+
+  // WhisperWoof: Cardputer recordings inbox (off by default). The folder is
+  // chosen in main's native dialog; the page never sends a path.
+  whisperwoofCardputerGet: () => ipcRenderer.invoke("whisperwoof-cardputer-get"),
+  whisperwoofCardputerSetEnabled: (enabled) =>
+    ipcRenderer.invoke("whisperwoof-cardputer-set-enabled", enabled === true),
+  whisperwoofCardputerPickRoot: () => ipcRenderer.invoke("whisperwoof-cardputer-pick-root"),
   whisperwoofNotesList: () => ipcRenderer.invoke("whisperwoof-notes-list"),
   whisperwoofNotesUpdate: (name, body) => ipcRenderer.invoke("whisperwoof-notes-update", name, body),
   whisperwoofNotesTrash: (name) => ipcRenderer.invoke("whisperwoof-notes-trash", name),

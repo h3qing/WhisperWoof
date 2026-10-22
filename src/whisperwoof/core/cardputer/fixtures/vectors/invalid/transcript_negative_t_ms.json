@@ -1,0 +1,13 @@
+{
+  "doc": "transcript",
+  "name": "negative t_ms",
+  "reason": {"code": "E_INVALID", "field": "sentences[0].t_ms"},
+  "data": {
+    "v": 1,
+    "session": "3QZK1M7-00042-0A1C",
+    "attempt": 1,
+    "lead_ms": 200,
+    "engine": {"stt": "sensevoice-zh-en-int8-2024-07"},
+    "sentences": [{"t_ms": -1, "text": "x"}]
+  }
+}

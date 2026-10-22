@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardputer-assistant.invalid/protocol/recording/v1/result.schema.json",
+  "title": "result",
+  "description": "result.json, written LAST by WhisperWoof (tmp + rename) (docs/11-m3-design.md §7.6, §7.7). Untrusted input for cpad: at most 64 KiB; output paths are bare file names in the session directory.",
+  "type": "object",
+  "required": ["v", "session", "attempt", "state", "mode", "outputs", "error", "finished_at"],
+  "properties": {
+    "v": { "$ref": "common.schema.json#/$defs/version" },
+    "session": { "$ref": "common.schema.json#/$defs/monoId" },
+    "attempt": { "$ref": "common.schema.json#/$defs/attempt" },
+    "state": { "enum": ["done", "failed"] },
+    "level": {
+      "description": "transcript: no LLM, or the summary failed but the transcript succeeded; summary: every product",
+      "anyOf": [{ "enum": ["transcript", "summary"] }, { "type": "null" }]
+    },
+    "mode": { "$ref": "common.schema.json#/$defs/recMode" },
+    "title": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 80 }, { "type": "null" }] },
+    "memo": {
+      "description": "memo sessions only",
+      "type": ["object", "null"],
+      "required": ["text", "intent"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "intent": { "enum": ["note", "todo"] }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "transcript_json": { "$ref": "#/$defs/output" },
+        "transcript_md": { "$ref": "#/$defs/output" },
+        "summary": { "$ref": "#/$defs/output" }
+      }
+    },
+    "actions": {
+      "description": "cpad v0.3 only counts them; the full items are for on-device review in v0.4",
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["n", "text", "confident"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "text": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "owner": { "anyOf": [{ "type": "string", "maxLength": 40 }, { "type": "null" }] },
+          "due": { "anyOf": [{ "type": "string", "maxLength": 40 }, { "type": "null" }] },
+          "t_ms": { "anyOf": [{ "$ref": "common.schema.json#/$defs/sessionMs" }, { "type": "null" }] },
+          "confident": { "type": "boolean", "description": "only for an explicit commitment with an owner" }
+        }
+      }
+    },
+    "pipeline": {
+      "type": ["object", "null"],
+      "properties": {
+        "app": { "$ref": "common.schema.json#/$defs/label" },
+        "stt": { "$ref": "common.schema.json#/$defs/label" },
+        "llm": { "anyOf": [{ "$ref": "common.schema.json#/$defs/label" }, { "type": "null" }] },
+        "prompt": { "anyOf": [{ "$ref": "common.schema.json#/$defs/label" }, { "type": "null" }] }
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "required": ["code", "retryable"],
+      "properties": {
+        "code": { "enum": ["E_VERSION", "E_INVALID", "E_AUDIO", "E_STT", "E_LLM", "E_IO"] },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "finished_at": { "$ref": "common.schema.json#/$defs/timestamp" }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["state"], "properties": { "state": { "const": "done" } } },
+      "then": { "required": ["level"], "properties": { "level": { "enum": ["transcript", "summary"] }, "error": { "type": "null" } } }
+    },
+    {
+      "if": { "required": ["state"], "properties": { "state": { "const": "failed" } } },
+      "then": { "properties": { "error": { "type": "object" } } }
+    },
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "transcript" } } },
+      "then": { "properties": { "outputs": { "required": ["transcript_json", "transcript_md"] } } }
+    },
+    {
+      "if": { "required": ["level"], "properties": { "level": { "const": "summary" } } },
+      "then": { "properties": { "outputs": { "required": ["transcript_json", "transcript_md", "summary"] } } }
+    }
+  ],
+  "$defs": {
+    "output": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "common.schema.json#/$defs/bareName" },
+        "sha256": { "$ref": "common.schema.json#/$defs/sha256" }
+      }
+    }
+  }
+}

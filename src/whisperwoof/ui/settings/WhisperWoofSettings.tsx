@@ -8,6 +8,7 @@ import {
   SettingsRow,
 } from "../../../components/ui/SettingsSection";
 import { useSettingsStore } from "../../../stores/settingsStore";
+import CardputerSection from "./CardputerSection";
 
 // WhisperWoof-specific electronAPI methods (exposed in preload.js).
 interface WhisperWoofSettingsAPI {
@@ -190,6 +191,9 @@ export default function WhisperWoofSettings({ className }: WhisperWoofSettingsPr
           {notesDirError && <p className="text-xs text-destructive">{notesDirError}</p>}
         </SettingsGroup>
       </SettingsSection>
+
+      {/* Cardputer recordings (off by default) */}
+      <CardputerSection />
 
       {/* Indicator */}
       <SettingsSection title="Indicator">

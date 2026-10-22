@@ -538,6 +538,16 @@ async function initializeWhisperWoof() {
     debugLogger.debug("[WhisperWoof] Telegram sync init skipped", { error: err.message });
   }
 
+  // Cardputer recordings inbox: transcribes what cpad saves in ~/CardputerNotes.
+  // Off unless turned on in Settings (start() checks); the IPC is always there.
+  try {
+    const cardputerInbox = require("./cardputer-inbox");
+    cardputerInbox.registerIpc(require("electron").ipcMain);
+    cardputerInbox.start();
+  } catch (err) {
+    debugLogger.debug("[WhisperWoof] Cardputer inbox not started", { error: err.message });
+  }
+
   initialized = true;
   debugLogger.log("[WhisperWoof] Initialized (Phase 1a — StorageProvider ready, clipboard monitoring active)");
 }
@@ -684,6 +694,13 @@ async function shutdownWhisperWoof() {
   try {
     const { stopTelegramSync } = require("./telegram-sync");
     stopTelegramSync();
+  } catch {
+    // Ignore — may not have started
+  }
+
+  // Stop the Cardputer inbox (and its SenseVoice server)
+  try {
+    await require("./cardputer-inbox").stop();
   } catch {
     // Ignore — may not have started
   }

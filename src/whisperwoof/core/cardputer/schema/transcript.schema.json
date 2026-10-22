@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardputer-assistant.invalid/protocol/recording/v1/transcript.schema.json",
+  "title": "transcript",
+  "description": "transcript.json, written by WhisperWoof before result.json (docs/11-m3-design.md §7.4). t_ms is session time: ms from sample 0 of segment 0.",
+  "type": "object",
+  "required": ["v", "session", "attempt", "engine", "sentences"],
+  "properties": {
+    "v": { "$ref": "common.schema.json#/$defs/version" },
+    "session": { "$ref": "common.schema.json#/$defs/monoId" },
+    "attempt": { "$ref": "common.schema.json#/$defs/attempt" },
+    "lead_ms": { "type": "integer", "minimum": 0, "maximum": 2000 },
+    "engine": {
+      "type": "object",
+      "required": ["stt"],
+      "properties": { "stt": { "$ref": "common.schema.json#/$defs/label" } }
+    },
+    "sentences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["t_ms", "text"],
+        "properties": {
+          "t_ms": { "$ref": "common.schema.json#/$defs/sessionMs" },
+          "text": { "type": "string", "maxLength": 10000 }
+        }
+      }
+    }
+  }
+}
