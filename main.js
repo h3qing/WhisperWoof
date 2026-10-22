@@ -724,6 +724,10 @@ async function startApp() {
   require("./src/whisperwoof/bridge/clipboard-image-text").setMeetingCheck(() =>
     ipcHandlers?.isMeetingRecording?.()
   );
+  // Background reasoning (Cardputer recordings) waits while a meeting records or finishes.
+  require("./src/services/localReasoningBridge").default.setBusyCheck(() =>
+    Boolean(ipcHandlers?.isMeetingRecording?.() || ipcHandlers?.isLocalMeetingRecording?.())
+  );
 
   // Electron's file:// sends no Origin header, which Neon Auth rejects.
   session.defaultSession.webRequest.onBeforeSendHeaders(
