@@ -283,7 +283,11 @@ async function main() {
   console.log(`\nSaved → eval/results/polish-latest.json (read outputs there to judge quality)`);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
+
+module.exports = { buildSystemPrompt, translated, leakHits, PARAMS, PROD_PROMPT };

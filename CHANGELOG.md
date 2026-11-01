@@ -5,6 +5,9 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Changed
+- **Smart Cleanup now recommends Gemma 4 E4B instead of Qwen3.5 2B.** On real Chinese–English dictations, Qwen3.5 2B sometimes translated English words into Chinese, sometimes changing the meaning, even though the cleanup prompt forbids it. Gemma 4 E4B never did, and it stayed closer to what was said. It's about as quick (about 0.4 s per dictation on Apple Silicon) and uses about the same memory while running, but it's a bigger one-time download: 4.6 GB instead of 1.3 GB. New setups download Gemma, and it's the model marked "Recommended" in Settings. If you already use Qwen3.5 2B, nothing changes until you pick Gemma 4 E4B yourself. Measurements: `eval/real-dictation/RESULTS.md`.
+
 ## [2.8.1] - 2026-10-13 — Start on the meeting prompt works while WhisperWoof is locked
 
 ### Fixed

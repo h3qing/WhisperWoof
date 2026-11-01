@@ -1,10 +1,12 @@
 // The on-device pair WhisperWoof recommends and gives new users: Whisper Turbo
-// for speech-to-text (multilingual, handles Chinese + English) and Qwen3.5 2B
-// for cleanup (1.3 GB, sub-second on Apple Silicon). The registry's
-// `recommended` flags, the settings default and the onboarding cleanup step
-// all follow these ids (recommended-models.test.ts keeps them in step).
+// for speech-to-text (multilingual, handles Chinese + English) and Gemma 4 E4B
+// for cleanup (4.6 GB, sub-second on Apple Silicon; unlike Qwen3.5 2B it never
+// translated English words into Chinese, see eval/real-dictation/RESULTS.md).
+// The registry's `recommended` flags, the settings default and the onboarding
+// cleanup step all follow these ids (recommended-models.test.ts keeps them in
+// step).
 export const RECOMMENDED_WHISPER_MODEL = "turbo";
-export const RECOMMENDED_CLEANUP_MODEL = "qwen3.5-2b-q4_k_m";
+export const RECOMMENDED_CLEANUP_MODEL = "gemma-4-e4b-it-q4_0";
 
 interface PickableModel {
   id: string;

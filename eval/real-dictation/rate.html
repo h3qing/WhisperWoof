@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which model heard you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2a211b; --ink2: #64564b; --ink3: #8e8074; --accent: #8f5a2a; --on-accent: #fff;
+    --select: rgba(143, 90, 42, .14); --live: #b87a3c; --live-glass: rgba(196, 138, 76, .22);
+    --sheet: #fdfbf8; --sheet2: #f5f0ea; --sheet3: #f3ede6; --line: #e8e0d6; --bg: #ebe4dc;
+    --ok: #3b7a4c; --bad: #b0382c; --bad-bg: rgba(176, 56, 44, .12);
+    --glow1: #f0c99655; --glow2: #e3c1bc55;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #f3ede6; --ink2: #bfb2a6; --ink3: #8f8276; --accent: #e2a867; --on-accent: #1d130b;
+      --select: rgba(226, 168, 103, .22); --live: #e2a867; --live-glass: rgba(226, 168, 103, .22);
+      --sheet: #1a1512; --sheet2: #221c18; --sheet3: #261f1a; --line: #312822; --bg: #120e0b;
+      --ok: #72c291; --bad: #ef7d72; --bad-bg: rgba(239, 125, 114, .16);
+      --glow1: #6e452155; --glow2: #57312f55;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.55 Nunito, -apple-system, "PingFang SC", sans-serif; color: var(--ink);
+    background: radial-gradient(1200px 600px at 0% 0%, var(--glow1), transparent 60%), radial-gradient(900px 500px at 100% 100%, var(--glow2), transparent 60%), var(--bg); min-height: 100vh; }
+  main { max-width: 780px; margin: 0 auto; padding: 28px 16px 80px; }
+  h1 { font-size: 24px; font-weight: 800; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--ink2); margin: 0 0 18px; }
+  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--sheet) 45%, transparent); border: 1px solid var(--line); backdrop-filter: blur(16px); margin-bottom: 16px; }
+  .tabs button { border: 0; background: none; color: var(--ink2); font: inherit; font-weight: 700; padding: 6px 16px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--sheet); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: 22px; padding: 22px; box-shadow: 0 8px 30px rgba(42,33,27,.06); }
+  .meta { display: flex; justify-content: space-between; gap: 12px; color: var(--ink3); font-size: 13px; margin-bottom: 12px; }
+  .player { display: flex; align-items: center; gap: 12px; background: var(--sheet2); border-radius: 999px; padding: 8px 14px 8px 8px; margin-bottom: 20px; }
+  .play { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); font-size: 16px; cursor: pointer; flex: none; }
+  .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--line); position: relative; cursor: pointer; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: var(--live); border-radius: 3px; width: 0; }
+  .speed { border: 1px solid var(--line); background: var(--sheet); color: var(--ink2); border-radius: 999px; font: inherit; font-size: 12px; font-weight: 700; padding: 2px 10px; cursor: pointer; }
+  .label { font-size: 13px; font-weight: 700; color: var(--ink2); margin: 0 0 8px; }
+  .label span { font-weight: 400; color: var(--ink3); }
+  .draft { font-size: 19px; line-height: 2; padding: 6px 2px 10px; overflow-wrap: anywhere; }
+  .spot { border: 0; font: inherit; color: inherit; background: var(--live-glass); box-shadow: inset 0 -2px 0 var(--live); border-radius: 6px; padding: 1px 4px; margin: 0 1px; cursor: pointer; }
+  .spot.done { background: transparent; box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--live) 45%, transparent); }
+  .spot.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .spot .nothing { color: var(--ink3); font-size: .8em; }
+  .alts { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 18px; min-height: 36px; align-items: center; }
+  .alt { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 999px; padding: 5px 14px 5px 6px; font: inherit; font-size: 16px; cursor: pointer; transition: background-color .18s ease; }
+  .alt:hover { background: var(--sheet3); }
+  .alt[aria-pressed="true"] { border-color: var(--accent); background: var(--select); }
+  .key { flex: none; min-width: 22px; height: 22px; border-radius: 999px; background: var(--sheet2); color: var(--ink3); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+  .alt[aria-pressed="true"] .key { background: var(--accent); color: var(--on-accent); }
+  .alts .note { color: var(--ink3); font-size: 13px; }
+  .empty { color: var(--ink3); font-style: italic; }
+  textarea { width: 100%; min-height: 76px; border: 1px solid var(--line); background: var(--sheet2); color: var(--ink); border-radius: 16px; padding: 12px 14px; font: inherit; font-size: 17px; line-height: 1.6; resize: vertical; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .btn { border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .spacer { flex: 1; }
+  .hint { color: var(--ink3); font-size: 12px; margin-top: 14px; }
+  kbd { font: 700 11px Nunito, sans-serif; background: var(--sheet2); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .versions { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .versions summary { cursor: pointer; color: var(--ink2); font-size: 13px; font-weight: 700; }
+  .version { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); border-radius: 14px; padding: 8px 12px; margin-top: 8px; font: inherit; font-size: 15px; cursor: pointer; }
+  .version:hover { background: var(--sheet3); }
+  mark { background: var(--live-glass); color: inherit; border-radius: 4px; padding: 0 1px; }
+  .toggle { color: var(--ink2); font-size: 13px; display: flex; gap: 6px; align-items: center; margin-top: 14px; }
+  .lead { font-size: 17px; margin: 0 0 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--ink2); font-weight: 700; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  td.name { font-weight: 700; }
+  td small { display: block; color: var(--ink3); font-weight: 400; font-size: 11px; }
+  .scroll { overflow-x: auto; }
+  h2 { font-size: 16px; margin: 26px 0 10px; }
+  details.clip { border-top: 1px solid var(--line); padding: 10px 0; }
+  details.clip summary { cursor: pointer; font-weight: 600; }
+  .hyp { display: grid; grid-template-columns: 150px 1fr; gap: 8px; padding: 4px 0; font-size: 15px; }
+  .hyp b { color: var(--ink2); font-size: 12px; font-weight: 700; padding-top: 3px; overflow-wrap: anywhere; }
+  .wrong { background: var(--bad-bg); color: var(--bad); border-radius: 4px; padding: 0 1px; }
+  .missing { color: var(--bad); text-decoration: line-through; opacity: .7; font-size: .85em; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .done { text-align: center; padding: 30px 10px; }
+  .heard { color: var(--ink3); font-size: 15px; margin: 0 0 16px; }
+  .options { display: grid; gap: 8px; margin-bottom: 18px; }
+  .copt { display: flex; gap: 8px; align-items: stretch; border: 1px solid var(--line); border-radius: 16px; background: var(--sheet); transition: background-color .18s ease, border-color .18s ease; }
+  .copt:hover { background: var(--sheet3); }
+  .copt.chosen { border-color: var(--accent); background: var(--select); }
+  .copt.chosen .key { background: var(--accent); color: var(--on-accent); }
+  .pick { flex: 1; display: flex; gap: 12px; align-items: flex-start; text-align: left; border: 0; background: none; color: var(--ink); padding: 12px 14px; font: inherit; font-size: 17px; line-height: 1.6; cursor: pointer; }
+  .pick .key { margin-top: 3px; }
+  .flag { flex: none; align-self: center; margin-right: 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink3); border-radius: 999px; font: inherit; font-size: 12px; font-weight: 700; padding: 4px 10px; cursor: pointer; }
+  .flag[aria-pressed="true"] { border-color: var(--bad); color: var(--bad); background: var(--bad-bg); }
+  .removed { color: var(--ink3); text-decoration: line-through; font-size: .85em; margin: 0 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Which model heard you right?</h1>
+  <p class="sub" id="progress">Loading…</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="rate">Rate</button>
+    <button role="tab" aria-selected="false" data-tab="cleanup">Cleanup</button>
+    <button role="tab" aria-selected="false" data-tab="results">Results</button>
+  </div>
+  <section id="rate"></section>
+  <section id="cleanup" hidden></section>
+  <section id="results" hidden></section>
+</main>
+<script>
+const CJK = /[一-鿿㐀-䶿]/;
+const WORD = /[\p{L}\p{N}_]/u;
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+/** Same tokens as the scorer (Chinese per character, words otherwise), with where each sits in the text. */
+function spans(text) {
+  const out = [];
+  let cur = null;
+  let at = 0;
+  for (const ch of text) {
+    const n = ch.normalize("NFKC").toLowerCase();
+    const s = at;
+    at += ch.length;
+    if (CJK.test(n)) { if (cur) out.push(cur); cur = null; out.push({ t: n, s, e: at }); }
+    else if (WORD.test(n)) { cur = cur ? { ...cur, t: cur.t + n, e: at } : { t: n, s, e: at }; }
+    else if (cur) { out.push(cur); cur = null; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** Edit-distance alignment of two token lists, as pairs [i, j] in order (null = nothing on that side). */
+function alignPairs(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i ? (j ? 0 : i) : j)));
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1].t === b[j - 1].t ? 0 : 1));
+  const pairs = [];
+  let i = a.length, j = b.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + (a[i - 1].t === b[j - 1].t ? 0 : 1)) pairs.unshift([--i, --j]);
+    else if (i > 0 && d[i][j] === d[i - 1][j] + 1) pairs.unshift([--i, null]);
+    else pairs.unshift([null, --j]);
+  }
+  return { pairs, edits: d[a.length][b.length] };
+}
+
+const surface = (text, toks) => (toks.length ? text.slice(toks[0].s, toks[toks.length - 1].e) : "");
+const norm = (toks) => toks.map((t) => t.t).join(" ");
+
+/**
+ * One draft with the spots where the versions disagree. The draft is the most
+ * central version; every other version is aligned to it, and each run of
+ * positions where any version differs becomes a spot whose choices are what
+ * each version has there. Positions: 2k = gap before draft token k, 2k+1 = token k.
+ */
+function buildSpots(options) {
+  const toks = options.map((o) => spans(o.text));
+  const dist = toks.map((a, i) => toks.reduce((sum, b, j) => sum + (i === j ? 0 : alignPairs(a, b).edits), 0));
+  const p = dist.indexOf(Math.min(...dist));
+  const draft = toks[p];
+  const n = draft.length;
+  const placed = toks.map((other, j) => {
+    const at = new Array(other.length).fill(0);
+    let consumed = 0;
+    for (const [a, b] of alignPairs(draft, other).pairs) {
+      if (a !== null) consumed = a + 1;
+      if (b !== null) at[b] = a !== null ? 2 * a + 1 : 2 * consumed;
+    }
+    return at;
+  });
+  const contested = new Array(2 * n + 1).fill(false);
+  toks.forEach((other, j) => {
+    if (j === p) return;
+    const atPos = new Map(placed[j].map((pos, b) => [pos, other[b]]));
+    for (let pos = 0; pos <= 2 * n; pos++) {
+      if (pos % 2 === 0) { if (atPos.has(pos)) contested[pos] = true; }
+      else if (atPos.get(pos)?.t !== draft[(pos - 1) / 2].t) contested[pos] = true;
+    }
+  });
+  const spots = [];
+  for (let pos = 0; pos <= 2 * n; pos++) {
+    if (!contested[pos]) continue;
+    const last = spots[spots.length - 1];
+    // Neighbouring disputed words are one spot ("Opus 5.5" vs "obs 五点五"), even with an undisputed gap between them.
+    if (last && (pos === last.to + 1 || (pos === last.to + 2 && last.to % 2 === 1))) last.to = pos;
+    else spots.push({ from: pos, to: pos });
+  }
+  return {
+    draftIndex: p,
+    spots: spots.map(({ from, to }) => {
+      const alts = new Map();
+      options.forEach((o, j) => {
+        const mine = toks[j].filter((_, b) => placed[j][b] >= from && placed[j][b] <= to);
+        const key = norm(mine);
+        if (!alts.has(key)) alts.set(key, { text: surface(o.text, mine), engines: [] });
+        alts.get(key).engines.push(...o.engines);
+      });
+      const own = norm(draft.filter((_, k) => 2 * k + 1 >= from && 2 * k + 1 <= to));
+      // The draft's own reading first (it's what the box starts with), the rest in an order that says nothing about which model wrote them.
+      const list = [...alts.entries()].sort(([ka], [kb]) => (ka === own ? -1 : kb === own ? 1 : hash(ka) - hash(kb))).map(([, v]) => v);
+      const tokFrom = Math.ceil((from - 1) / 2), tokTo = Math.floor((to - 1) / 2); // draft tokens inside the spot
+      return { from, to, tokFrom, tokTo, alts: list };
+    }),
+  };
+}
+
+function hash(s) {
+  let h = 2166136261;
+  for (const ch of s) h = Math.imul(h ^ ch.codePointAt(0), 16777619);
+  return h >>> 0;
+}
+
+/** The draft text with each spot replaced by its chosen reading. */
+function assemble(draftText, draftToks, spots, choices) {
+  let out = "", at = 0;
+  spots.forEach((spot, i) => {
+    const pick = spot.alts[choices[i]].text;
+    if (spot.tokFrom <= spot.tokTo) {
+      const s = draftToks[spot.tokFrom].s, e = draftToks[spot.tokTo].e;
+      out += draftText.slice(at, s) + pick;
+      at = e;
+    } else {
+      const g = spot.from / 2; // a gap only: insert before draft token g
+      const pos = g < draftToks.length ? draftToks[g].s : draftToks.length ? draftToks[draftToks.length - 1].e : draftText.length;
+      const left = draftText.slice(at, pos);
+      const pad = (a, b) => (a && b && /[A-Za-z0-9]/.test(a) && /[A-Za-z0-9]/.test(b) ? " " : "");
+      out += left + pad(left.slice(-1), pick[0]) + pick + pad(pick.slice(-1), draftText[pos]);
+      at = pos;
+    }
+  });
+  return out + draftText.slice(at);
+}
+
+let state = { clips: [], ratings: {}, queue: [], index: 0, includeAgreed: false, shownAt: 0, rate: 1, view: null };
+const audio = new Audio();
+
+async function load() {
+  const s = await (await fetch("/api/session")).json();
+  // A fixed shuffle so the clips you rate first are a fair sample of all of them.
+  const order = (id) => (Math.sin(id * 9301 + 49297) * 233280) % 1;
+  state = { ...state, clips: [...s.clips].sort((a, b) => order(a.id) - order(b.id)), ratings: s.ratings };
+  buildQueue();
+  const firstOpen = state.queue.findIndex((c) => !state.ratings[c.id]);
+  state.index = firstOpen === -1 ? state.queue.length : firstOpen;
+  render();
+}
+
+function buildQueue() {
+  state.queue = state.clips.filter((c) => state.includeAgreed || !c.unanimous || state.ratings[c.id]);
+}
+
+function progressText() {
+  const rated = Object.keys(state.ratings).length;
+  const agreed = state.clips.filter((c) => c.unanimous && !state.ratings[c.id]).length;
+  const left = state.queue.filter((c) => !state.ratings[c.id]).length;
+  return `${rated} rated, ${left} to go` + (agreed && !state.includeAgreed ? ` (${agreed} clips where every model wrote the same thing are left out)` : "") + ". Stop whenever you like: the results use what you've rated.";
+}
+
+/** Per-clip view state: the spots, which reading is chosen for each, the active spot, and whether the box was typed in. */
+function newView(clip) {
+  const built = buildSpots(clip.options);
+  const draft = clip.options[built.draftIndex];
+  return { clipId: clip.id, ...built, draft, draftToks: spans(draft.text), choices: built.spots.map(() => 0), touched: built.spots.map(() => false), active: 0, typed: false };
+}
+
+function render() {
+  document.getElementById("progress").textContent = progressText();
+  const el = document.getElementById("rate");
+  const clip = state.queue[state.index];
+  if (!clip) {
+    el.innerHTML = `<div class="sheet done"><p class="lead">That's every clip. Thank you.</p><button class="btn primary" onclick="showTab('results')">See the results</button>
+      ${state.index > 0 ? `<div class="row" style="justify-content:center"><button class="btn" onclick="go(-1)">Back to the last clip</button></div>` : ""}</div>`;
+    return;
+  }
+  if (state.view?.clipId !== clip.id) state.view = newView(clip);
+  const v = state.view;
+  const saved = state.ratings[clip.id];
+  const when = clip.timestamp ? new Date(clip.timestamp.replace(" ", "T") + "Z").toLocaleString() : "";
+  const reference = saved && !v.typed && !v.touched.some(Boolean) ? saved.reference : assemble(v.draft.text, v.draftToks, v.spots, v.choices);
+  el.innerHTML = `
+    <div class="sheet">
+      <div class="meta"><span>Clip ${state.index + 1} of ${state.queue.length}${saved ? (saved.skipped ? " · skipped" : " · rated") : ""}</span><span>${esc(when)} · ${(clip.durationMs / 1000).toFixed(1)} s</span></div>
+      <div class="player">
+        <button class="play" id="play" aria-label="Play">▶</button>
+        <div class="bar" id="bar"><i id="fill"></i></div>
+        <button class="speed" id="speed">${state.rate}×</button>
+      </div>
+      <p class="label">${v.spots.length ? `Listen, then pick what you said at each highlighted spot <span>— ${v.spots.length} spot${v.spots.length > 1 ? "s" : ""} where the models disagree</span>` : "Every model wrote the same thing <span>— check it's right</span>"}</p>
+      <div class="draft" id="draft">${draftHtml(v)}</div>
+      <div class="alts" id="alts">${altsHtml(v)}</div>
+      <p class="label">What you actually said <span>— fix anything still wrong; punctuation doesn't count, write numbers the way you'd want them typed</span></p>
+      <textarea id="ref">${esc(reference)}</textarea>
+      <div class="row">
+        <button class="btn" onclick="go(-1)" ${state.index === 0 ? "disabled" : ""}>Back</button>
+        <button class="btn" onclick="skip('no-speech')">No speech</button>
+        <button class="btn" onclick="skip('unsure')">Can't tell</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="save">Save and next</button>
+      </div>
+      <p class="hint"><kbd>Space</kbd> play/pause · <kbd>1</kbd>–<kbd>9</kbd> choose for the outlined spot · <kbd>Tab</kbd> next spot · <kbd>E</kbd> edit the box · <kbd>↵</kbd> save and next · <kbd>←</kbd> back</p>
+      ${clip.options.length > 1 ? `<details class="versions"><summary>Whole versions (${clip.options.length})</summary>${clip.options.map((o, i) => `<button class="version" data-i="${i}">${spans(o.text).length ? esc(o.text) : '<span class="empty">(heard nothing)</span>'}</button>`).join("")}</details>` : ""}
+    </div>
+    <label class="toggle"><input type="checkbox" id="agreed" ${state.includeAgreed ? "checked" : ""}> Also show clips where every model wrote the same thing</label>`;
+  wire(clip);
+  setupPlayer(clip);
+}
+
+function draftHtml(v) {
+  let html = "", at = 0;
+  const text = v.draft.text, toks = v.draftToks;
+  v.spots.forEach((spot, i) => {
+    const pick = spot.alts[v.choices[i]].text;
+    const cls = `spot${v.touched[i] ? " done" : ""}${i === v.active ? " active" : ""}`;
+    const label = pick ? esc(pick) : '<span class="nothing">∅</span>';
+    if (spot.tokFrom <= spot.tokTo) {
+      html += esc(text.slice(at, toks[spot.tokFrom].s)) + `<button class="${cls}" data-spot="${i}">${label}</button>`;
+      at = toks[spot.tokTo].e;
+    } else {
+      const g = spot.from / 2;
+      const pos = g < toks.length ? toks[g].s : text.length;
+      html += esc(text.slice(at, pos)) + `<button class="${cls}" data-spot="${i}">${label}</button>`;
+      at = pos;
+    }
+  });
+  html += esc(text.slice(at));
+  return html.trim() ? html : '<span class="empty">(no model heard anything)</span>';
+}
+
+function altsHtml(v) {
+  const spot = v.spots[v.active];
+  if (!spot) return "";
+  return spot.alts.map((a, k) => `<button class="alt" data-alt="${k}" aria-pressed="${k === v.choices[v.active]}"><span class="key">${k + 1}</span>${a.text ? esc(a.text) : '<span class="empty">nothing here</span>'}</button>`).join("")
+    + `<span class="note">spot ${v.active + 1} of ${v.spots.length}</span>`;
+}
+
+function refresh() {
+  const v = state.view;
+  document.getElementById("draft").innerHTML = draftHtml(v);
+  document.getElementById("alts").innerHTML = altsHtml(v);
+  wireSpots();
+}
+
+function wireSpots() {
+  document.querySelectorAll(".spot").forEach((b) => b.addEventListener("click", () => { state.view.active = Number(b.dataset.spot); refresh(); }));
+  document.querySelectorAll(".alt").forEach((b) => b.addEventListener("click", () => choose(Number(b.dataset.alt))));
+}
+
+function wire(clip) {
+  wireSpots();
+  document.getElementById("ref").addEventListener("input", () => { state.view.typed = true; });
+  document.getElementById("save").addEventListener("click", save);
+  document.querySelectorAll(".version").forEach((b) => b.addEventListener("click", () => {
+    document.getElementById("ref").value = clip.options[Number(b.dataset.i)].text;
+    state.view.typed = true;
+    state.view.picked = clip.options[Number(b.dataset.i)].engines;
+  }));
+  document.getElementById("agreed").addEventListener("change", (e) => {
+    state.includeAgreed = e.target.checked;
+    buildQueue();
+    state.index = Math.max(0, state.queue.findIndex((c) => c.id === clip.id));
+    render();
+  });
+}
+
+function choose(k) {
+  const v = state.view;
+  const spot = v.spots[v.active];
+  if (!spot || !spot.alts[k]) return;
+  v.choices[v.active] = k;
+  v.touched[v.active] = true;
+  const next = v.touched.findIndex((t, i) => !t && i > v.active);
+  if (next !== -1) v.active = next;
+  document.getElementById("ref").value = assemble(v.draft.text, v.draftToks, v.spots, v.choices);
+  v.typed = false;
+  refresh();
+}
+
+function setupPlayer(clip) {
+  const src = `/audio/${clip.id}.wav`;
+  if (!audio.src.endsWith(src)) {
+    audio.src = src;
+    state.shownAt = Date.now();
+    audio.play().catch(() => {});
+  }
+  audio.playbackRate = state.rate;
+  const play = document.getElementById("play");
+  const fill = document.getElementById("fill");
+  const sync = () => {
+    play.textContent = audio.paused ? "▶" : "❚❚";
+    fill.style.width = `${audio.duration ? (audio.currentTime / audio.duration) * 100 : 0}%`;
+  };
+  audio.ontimeupdate = sync; audio.onplay = sync; audio.onpause = sync; audio.onended = sync;
+  sync();
+  play.onclick = togglePlay;
+  document.getElementById("bar").onclick = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (audio.duration) audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
+    audio.play();
+  };
+  document.getElementById("speed").onclick = () => {
+    state.rate = state.rate === 1 ? 0.75 : state.rate === 0.75 ? 1.25 : 1;
+    audio.playbackRate = state.rate;
+    document.getElementById("speed").textContent = `${state.rate}×`;
+  };
+}
+
+function togglePlay() {
+  if (audio.paused) { if (audio.ended) audio.currentTime = 0; audio.play(); } else audio.pause();
+}
+
+async function post(body) {
+  const res = await fetch("/api/rating", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(await res.text());
+  state.ratings = await res.json();
+}
+
+async function save() {
+  const clip = state.queue[state.index];
+  const reference = document.getElementById("ref").value.trim();
+  if (!reference) return document.getElementById("ref").focus();
+  await post({ clipId: clip.id, reference, pickedEngines: state.view.picked || [], seconds: Math.round((Date.now() - state.shownAt) / 1000) });
+  go(1);
+}
+
+async function skip(reason) {
+  const clip = state.queue[state.index];
+  await post({ clipId: clip.id, skipped: reason, reference: "", pickedEngines: [] });
+  go(1);
+}
+
+function go(step) {
+  state.index = Math.min(Math.max(0, state.index + step), state.queue.length);
+  state.view = null;
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!document.getElementById("cleanup").hidden) return cleanupKeys(e);
+  if (document.getElementById("rate").hidden || !state.view) return;
+  const typing = e.target.tagName === "TEXTAREA";
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); return save(); }
+  if (typing) { if (e.key === "Escape") e.target.blur(); return; }
+  const v = state.view;
+  if (e.key === " ") { e.preventDefault(); togglePlay(); }
+  else if (/^[1-9]$/.test(e.key)) choose(Number(e.key) - 1);
+  else if (e.key === "Tab" && v.spots.length) { e.preventDefault(); v.active = (v.active + (e.shiftKey ? v.spots.length - 1 : 1)) % v.spots.length; refresh(); }
+  else if (e.key === "e" || e.key === "E") { e.preventDefault(); document.getElementById("ref")?.focus(); }
+  else if (e.key === "Enter") { e.preventDefault(); save(); }
+  else if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "ArrowRight") go(1);
+});
+
+// ---------- results ----------
+const pct = (x) => (x == null ? "–" : `${(x * 100).toFixed(1)}%`);
+
+function diffAgainst(reference, hyp) {
+  if (hyp == null) return '<span class="empty">(not run)</span>';
+  if (!hyp.trim()) return '<span class="empty">(nothing)</span>';
+  const ref = spans(reference), h = spans(hyp);
+  const { pairs, edits } = alignPairs(h, ref);
+  if (!edits) return `${esc(hyp)} <span class="ok">✓</span>`;
+  let html = "", at = 0, missing = [];
+  const flush = () => { if (missing.length) html += ` <span class="missing">${esc(missing.join(" "))}</span> `; missing = []; };
+  for (const [i, j] of pairs) {
+    if (i === null) { missing.push(ref[j].t); continue; }
+    flush();
+    const tok = h[i];
+    const wrong = j === null || ref[j].t !== tok.t;
+    html += esc(hyp.slice(at, tok.s)) + (wrong ? `<span class="wrong">${esc(hyp.slice(tok.s, tok.e))}</span>` : esc(hyp.slice(tok.s, tok.e)));
+    at = tok.e;
+  }
+  flush();
+  return html + esc(hyp.slice(at));
+}
+
+async function renderResults() {
+  const el = document.getElementById("results");
+  el.innerHTML = '<div class="sheet">Scoring…</div>';
+  const r = await (await fetch("/api/results")).json();
+  const cleanup = await cleanupResultsHtml();
+  if (!r.rated) {
+    el.innerHTML = `<div class="sheet"><p class="lead">Rate a few clips first. The scores fill in as you go.</p>${cleanup}</div>`;
+    return;
+  }
+  const best = r.engines.find((e) => e.all.mer != null);
+  const kinds = ["zh", "mixed", "en"].filter((k) => r.clipKinds[k]);
+  el.innerHTML = `
+    <div class="sheet">
+      <p class="lead">Across the ${r.rated} clips you rated, <b>${esc(best.engine)}</b> made the fewest mistakes: ${(best.all.mer * 100).toFixed(1)} per 100 words or characters, and it got ${pct(best.all.perfectRate)} of clips exactly right.</p>
+      <div class="scroll"><table>
+        <tr><th>model</th><th>mistakes</th><th>Chinese chars</th><th>English words, numbers</th><th>exactly right</th><th>badly wrong</th><th>typed on silence</th><th>wait after release</th></tr>
+        ${r.engines.map((e) => `<tr><td class="name">${esc(e.engine)}<small>${esc(e.model || "")}</small></td><td>${pct(e.all.mer)}</td><td>${pct(e.all.zhCer)}</td><td>${pct(e.all.enWer)}</td><td>${pct(e.all.perfectRate)}</td><td>${e.all.brokenClips}</td><td>${r.silentClips ? `${e.typedOnSilence} of ${r.silentClips}` : "–"}</td><td>${e.streaming ? "none (types while you talk)" : e.all.decodeMsP50 == null ? "–" : e.all.decodeMsP50 + " ms"}</td></tr>`).join("")}
+      </table></div>
+      <p class="hint">Mistakes = words or Chinese characters wrong, missing or added, per 100 in what you said (punctuation and um/嗯/呃 ignored). Wait after release is the median time to decode the whole clip on this Mac. "Badly wrong" counts clips with more than half wrong. "Typed on silence" counts clips you marked No speech where the model still wrote words (the app drops some of these before pasting).</p>
+      <h2>By kind of clip</h2>
+      <div class="scroll"><table>
+        <tr><th>model</th>${kinds.map((k) => `<th>${{ zh: "Chinese", mixed: "Mixed", en: "English" }[k]} (${r.clipKinds[k]})</th>`).join("")}</tr>
+        ${r.engines.map((e) => `<tr><td class="name">${esc(e.engine)}</td>${kinds.map((k) => `<td>${pct(e[k].mer)}</td>`).join("")}</tr>`).join("")}
+      </table></div>
+      ${cleanup}
+      <h2>Clip by clip</h2>
+      ${r.details.map((d) => `<details class="clip"><summary>${esc(d.reference)}</summary>${r.engines.map((e) => `<div class="hyp"><b>${esc(e.engine)}</b><span>${diffAgainst(d.reference, d.hyps[e.engine])}</span></div>`).join("")}</details>`).join("")}
+    </div>`;
+}
+
+// ---------- cleanup (polish) ----------
+let cstate = { clips: [], ratings: {}, queue: [], index: 0, best: null, flags: new Set(), input: null };
+
+async function loadCleanup() {
+  const s = await (await fetch("/api/polish")).json();
+  const order = (id) => (Math.sin(id * 7907 + 104729) * 233280) % 1;
+  const clips = [...s.clips].sort((a, b) => order(a.id) - order(b.id));
+  const queue = clips.filter((c) => !c.unanimous || s.ratings[c.id]);
+  const firstOpen = queue.findIndex((c) => !s.ratings[c.id]);
+  cstate = { ...cstate, clips, ratings: s.ratings, queue, input: s.input, index: firstOpen === -1 ? queue.length : firstOpen, best: null, flags: new Set() };
+  renderCleanup();
+}
+
+/** The cleanup with what it changed from the transcript: changed or added words marked, dropped words struck through. */
+function diffCleanup(input, text) {
+  const inp = spans(input), out = spans(text);
+  let html = "", at = 0, dropped = [];
+  const flush = () => { if (dropped.length) html += `<span class="removed">${esc(dropped.join(" "))}</span>`; dropped = []; };
+  for (const [i, j] of alignPairs(out, inp).pairs) {
+    if (i === null) { dropped.push(inp[j].t); continue; }
+    flush();
+    const tok = out[i];
+    const changed = j === null || inp[j].t !== tok.t;
+    html += esc(text.slice(at, tok.s)) + (changed ? `<mark>${esc(text.slice(tok.s, tok.e))}</mark>` : esc(text.slice(tok.s, tok.e)));
+    at = tok.e;
+  }
+  flush();
+  return html + esc(text.slice(at));
+}
+
+function renderCleanup() {
+  const el = document.getElementById("cleanup");
+  const rated = Object.keys(cstate.ratings).length;
+  document.getElementById("progress").textContent = cstate.clips.length
+    ? `${rated} rated, ${cstate.queue.filter((c) => !cstate.ratings[c.id]).length} to go. Each cleanup model got the same transcript (from ${cstate.input}).`
+    : "No cleanups yet: run run_polish.js first.";
+  const clip = cstate.queue[cstate.index];
+  if (!clip) {
+    el.innerHTML = `<div class="sheet done"><p class="lead">${cstate.clips.length ? "That's every clip. Thank you." : "Nothing to rate yet."}</p>${cstate.clips.length ? `<button class="btn primary" onclick="showTab('results')">See the results</button>` : ""}</div>`;
+    return;
+  }
+  const saved = cstate.ratings[clip.id];
+  if (cstate.best === null && saved) {
+    cstate.best = clip.options.findIndex((o) => o.models.some((m) => saved.best.includes(m)));
+    cstate.flags = new Set(clip.options.map((o, i) => (o.models.some((m) => saved.meaningChanged.includes(m)) ? i : -1)).filter((i) => i >= 0));
+  }
+  el.innerHTML = `
+    <div class="sheet">
+      <div class="meta"><span>Clip ${cstate.index + 1} of ${cstate.queue.length}${saved ? " · rated" : ""}</span><span>${(clip.durationMs / 1000).toFixed(1)} s</span></div>
+      <div class="player">
+        <button class="play" id="play" aria-label="Play">▶</button>
+        <div class="bar" id="bar"><i id="fill"></i></div>
+        <button class="speed" id="speed">${state.rate}×</button>
+      </div>
+      <p class="label">What the speech model heard</p>
+      <p class="heard">${esc(clip.input) || '<span class="empty">(nothing)</span>'}</p>
+      <p class="label">Pick the best cleanup <span>— marked words are what it changed; flag any that changed what you meant</span></p>
+      <div class="options">
+        ${clip.options.map((o, i) => `<div class="copt${i === cstate.best ? " chosen" : ""}" data-i="${i}">
+          <button class="pick" data-i="${i}"><span class="key">${i + 1}</span><span>${o.text ? diffCleanup(clip.input, o.text) : '<span class="empty">(empty)</span>'}</span></button>
+          <button class="flag" data-i="${i}" aria-pressed="${cstate.flags.has(i)}">Changed my meaning</button>
+        </div>`).join("")}
+      </div>
+      <div class="row">
+        <button class="btn" id="cback" ${cstate.index === 0 ? "disabled" : ""}>Back</button>
+        <button class="btn" id="cnone">None are good</button>
+        <span class="spacer"></span>
+        <button class="btn primary" id="csave">Save and next</button>
+      </div>
+      <p class="hint"><kbd>Space</kbd> play/pause · <kbd>1</kbd>–<kbd>${clip.options.length}</kbd> pick the best · <kbd>↵</kbd> save and next · <kbd>←</kbd> back</p>
+    </div>`;
+  el.querySelectorAll(".pick").forEach((b) => b.addEventListener("click", () => pickCleanup(Number(b.dataset.i))));
+  el.querySelectorAll(".flag").forEach((b) => b.addEventListener("click", () => {
+    const i = Number(b.dataset.i);
+    cstate.flags = cstate.flags.has(i) ? new Set([...cstate.flags].filter((x) => x !== i)) : new Set([...cstate.flags, i]);
+    b.setAttribute("aria-pressed", String(cstate.flags.has(i)));
+  }));
+  document.getElementById("cback").addEventListener("click", () => goCleanup(-1));
+  document.getElementById("cnone").addEventListener("click", () => saveCleanup(true));
+  document.getElementById("csave").addEventListener("click", () => saveCleanup(false));
+  setupPlayer(clip);
+}
+
+function pickCleanup(i) {
+  const clip = cstate.queue[cstate.index];
+  if (!clip?.options[i]) return;
+  cstate.best = i;
+  document.querySelectorAll(".copt").forEach((d) => d.classList.toggle("chosen", Number(d.dataset.i) === i));
+}
+
+async function saveCleanup(none) {
+  const clip = cstate.queue[cstate.index];
+  if (!none && (cstate.best === null || cstate.best < 0)) return;
+  const best = none ? [] : clip.options[cstate.best].models;
+  const meaningChanged = [...cstate.flags].flatMap((i) => clip.options[i].models);
+  const res = await fetch("/api/polish-rating", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clipId: clip.id, best, meaningChanged }) });
+  if (!res.ok) throw new Error(await res.text());
+  cstate.ratings = await res.json();
+  goCleanup(1);
+}
+
+function goCleanup(step) {
+  cstate = { ...cstate, index: Math.min(Math.max(0, cstate.index + step), cstate.queue.length), best: null, flags: new Set() };
+  renderCleanup();
+  window.scrollTo({ top: 0 });
+}
+
+function cleanupKeys(e) {
+  if (e.key === " ") { e.preventDefault(); togglePlay(); }
+  else if (/^[1-9]$/.test(e.key)) pickCleanup(Number(e.key) - 1);
+  else if (e.key === "Enter") { e.preventDefault(); saveCleanup(false); }
+  else if (e.key === "ArrowLeft") goCleanup(-1);
+  else if (e.key === "ArrowRight") goCleanup(1);
+}
+
+async function cleanupResultsHtml() {
+  const p = await (await fetch("/api/polish-results")).json();
+  if (!p.models.length) return "";
+  const ms = (x) => (x == null ? "–" : `${x} ms`);
+  return `<h2>Cleanup models</h2>
+    <p class="hint" style="margin-top:0">Each model cleaned up the same transcripts (from ${esc(p.input || "")}); ${p.rated} clips rated. "Translated" and "talked back" are checked automatically on every clip; the app pastes the raw transcript when it catches these.</p>
+    <div class="scroll"><table>
+      <tr><th>model</th><th>you picked it</th><th>changed your meaning</th><th>translated</th><th>talked back</th><th>time</th></tr>
+      ${p.models.map((m) => `<tr><td class="name">${esc(m.name)}<small>${esc(m.model || "")}</small></td><td>${pct(m.bestRate)}</td><td>${m.rated ? `${m.meaningChanged} of ${m.rated}` : "–"}</td><td>${m.translated} of ${m.clips}</td><td>${m.leaked} of ${m.clips}</td><td>${ms(m.msP50)}</td></tr>`).join("")}
+    </table></div>`;
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  for (const id of ["rate", "cleanup", "results"]) {
+    document.getElementById(id).hidden = name !== id;
+    if (name !== id && id !== "results") document.getElementById(id).innerHTML = ""; // one player on the page at a time
+  }
+  audio.pause();
+  if (name === "rate") { state.view = null; render(); }
+  if (name === "cleanup") loadCleanup();
+  if (name === "results") renderResults();
+}
+document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+load();
+</script>
+</body>
+</html>

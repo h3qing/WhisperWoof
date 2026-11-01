@@ -525,7 +525,6 @@
           "quantization": "q4_k_m",
           "contextLength": 262144,
           "hfRepo": "bartowski/Qwen_Qwen3.5-2B-GGUF",
-          "recommended": true,
           "descriptionKey": "models.descriptions.local.qwen_qwen3_5_2b_q4_k_m"
         },
         {
@@ -777,8 +776,21 @@
           "descriptionKey": "models.descriptions.local.gemma_gemma_4_26b_a4b_it_q4_k_m"
         },
         {
-          "id": "gemma-4-e4b-it-q4_k_m",
+          "id": "gemma-4-e4b-it-q4_0",
           "name": "Gemma 4 E4B",
+          "size": "4.6GB",
+          "sizeBytes": 4590807392,
+          "description": "Keeps mixed Chinese and English as spoken",
+          "fileName": "gemma-4-E4B-it-Q4_0.gguf",
+          "quantization": "q4_0",
+          "contextLength": 131072,
+          "hfRepo": "ggml-org/gemma-4-E4B-it-GGUF",
+          "recommended": true,
+          "descriptionKey": "models.descriptions.local.gemma_gemma_4_e4b_it_q4_0"
+        },
+        {
+          "id": "gemma-4-e4b-it-q4_k_m",
+          "name": "Gemma 4 E4B (Q4_K_M)",
           "size": "5.4GB",
           "sizeBytes": 5812137984,
           "description": "Google's latest multimodal, strong reasoning",
