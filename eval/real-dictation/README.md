@@ -39,6 +39,17 @@ pip install mlx-audio==0.6.3
 python eval/real-dictation/run_mlx.py --data ~/.whisperwoof-bench/dictation-real-1 --name qwen3-asr-1.7b --model mlx-community/Qwen3-ASR-1.7B-8bit
 ```
 
+Audio models served by llama-server (≥ b9169 for Qwen3-ASR; a renamed copy,
+started with `--cache-ram 0`):
+
+```bash
+bench-llama-asr -m Qwen3-ASR-1.7B-Q8_0.gguf --mmproj mmproj-Qwen3-ASR-1.7B-Q8_0.gguf \
+  --host 127.0.0.1 --port 8342 -c 8192 -np 1 --cache-ram 0
+node eval/real-dictation/run_llama_asr.js --data ~/.whisperwoof-bench/dictation-real-1 \
+  --url http://127.0.0.1:8342 --name qwen3-asr-1.7b-llama-chat --model Qwen3-ASR-1.7B-Q8_0 \
+  --runtime "llama.cpp b12032" --mode chat
+```
+
 Cleanup models, through the app's llama-server (or `mlx_lm.server` for
 models it can't load), with the production prompt and sampling:
 
