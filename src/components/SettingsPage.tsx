@@ -177,6 +177,8 @@ interface TranscriptionSectionProps {
   setWhisperModel: (model: string) => void;
   parakeetModel: string;
   setParakeetModel: (model: string) => void;
+  qwenAsrModel: string;
+  setQwenAsrModel: (model: string) => void;
   openaiApiKey: string;
   setOpenaiApiKey: (key: string) => void;
   groqApiKey: string;
@@ -212,6 +214,8 @@ function TranscriptionSection({
   setWhisperModel,
   parakeetModel,
   setParakeetModel,
+  qwenAsrModel,
+  setQwenAsrModel,
   openaiApiKey,
   setOpenaiApiKey,
   groqApiKey,
@@ -371,11 +375,17 @@ function TranscriptionSection({
           selectedCloudModel={cloudTranscriptionModel}
           onCloudModelSelect={setCloudTranscriptionModel}
           selectedLocalModel={
-            localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel
+            localTranscriptionProvider === "nvidia"
+              ? parakeetModel
+              : localTranscriptionProvider === "qwen"
+                ? qwenAsrModel
+                : whisperModel
           }
-          onLocalModelSelect={(modelId) => {
-            if (localTranscriptionProvider === "nvidia") {
+          onLocalModelSelect={(modelId, provider) => {
+            if (provider === "nvidia") {
               setParakeetModel(modelId);
+            } else if (provider === "qwen") {
+              setQwenAsrModel(modelId);
             } else {
               setWhisperModel(modelId);
             }
@@ -651,6 +661,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     whisperModel,
     localTranscriptionProvider,
     parakeetModel,
+    qwenAsrModel,
     uiLanguage,
     preferredLanguage,
     cloudTranscriptionProvider,
@@ -677,6 +688,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setWhisperModel,
     setLocalTranscriptionProvider,
     setParakeetModel,
+    setQwenAsrModel,
     setCloudTranscriptionProvider,
     setCloudTranscriptionModel,
     setCloudTranscriptionBaseUrl,
@@ -1031,6 +1043,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
           const results = await Promise.allSettled([
             window.electronAPI?.deleteAllWhisperModels?.(),
             window.electronAPI?.deleteAllParakeetModels?.(),
+            window.electronAPI?.deleteAllQwenAsrModels?.(),
             window.electronAPI?.modelDeleteAll?.(),
           ]);
 
@@ -2882,6 +2895,8 @@ EOF`,
             setWhisperModel={setWhisperModel}
             parakeetModel={parakeetModel}
             setParakeetModel={setParakeetModel}
+            qwenAsrModel={qwenAsrModel}
+            setQwenAsrModel={setQwenAsrModel}
             openaiApiKey={openaiApiKey}
             setOpenaiApiKey={setOpenaiApiKey}
             groqApiKey={groqApiKey}

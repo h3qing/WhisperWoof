@@ -20,8 +20,9 @@ import { isCjkLanguage } from "./auto-hints";
 export const MIXED_LANGUAGE_TIP_KEY = "whisperwoof-mixed-language-tip-shown";
 
 /**
- * The note applies to local Whisper when no language is pinned. Parakeet has
- * its own language handling, and cloud engines aren't whisper.cpp.
+ * The note applies to local Whisper when no language is pinned. Parakeet and
+ * Qwen3-ASR have their own language handling, and cloud engines aren't
+ * whisper.cpp.
  */
 export function autoLanguageNoteApplies({
   useLocalWhisper,
@@ -32,7 +33,9 @@ export function autoLanguageNoteApplies({
   provider: string | null | undefined;
   language?: string | null;
 }): boolean {
-  return useLocalWhisper && provider !== "nvidia" && (!language || language === "auto");
+  return (
+    useLocalWhisper && provider !== "nvidia" && provider !== "qwen" && (!language || language === "auto")
+  );
 }
 
 /** Show the one-time tip after the first dictation Whisper detected as CJK. */

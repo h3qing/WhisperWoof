@@ -6,6 +6,7 @@ import { SectionHeader } from "../../../components/ui/SettingsSection";
 import { useModelDownload } from "../../../hooks/useModelDownload";
 import { useSettingsStore } from "../../../stores/settingsStore";
 import { PARAKEET_MODEL_INFO, WHISPER_MODEL_INFO } from "../../../models/ModelRegistry";
+import { QWEN_ASR_MODEL_INFO } from "./useQwenAsrModels";
 import {
   listStreamingModels,
   resolveLiveDictationPlan,
@@ -150,7 +151,9 @@ export default function DictationModeSection() {
   const finalModelName =
     settings.localTranscriptionProvider === "nvidia"
       ? PARAKEET_MODEL_INFO[settings.parakeetModel]?.name ?? settings.parakeetModel
-      : WHISPER_MODEL_INFO[settings.whisperModel]?.name ?? settings.whisperModel;
+      : settings.localTranscriptionProvider === "qwen"
+        ? QWEN_ASR_MODEL_INFO[settings.qwenAsrModel]?.name ?? settings.qwenAsrModel
+        : WHISPER_MODEL_INFO[settings.whisperModel]?.name ?? settings.whisperModel;
   const [showExplainer, setShowExplainer] = useState(false);
 
   const setMode = (mode: DictationMode) => settings.setDictationMode(mode);

@@ -116,6 +116,23 @@ async function fetchLatestRelease(repo, options = {}) {
 }
 
 /**
+ * Fetch one release by its exact tag (works for releases older than the
+ * newest 50, which the tagPrefix search above never sees).
+ * @param {string} repo - Repository in "owner/repo" format
+ * @param {string} tag - Exact tag, e.g. "b12032"
+ * @returns {Promise<{tag: string, assets: Array<{name: string, url: string}>, url: string} | null>}
+ */
+async function fetchReleaseByTag(repo, tag) {
+  try {
+    const url = `https://api.github.com/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`;
+    return formatRelease(await fetchJson(url));
+  } catch (error) {
+    console.error(`  Failed to fetch release ${tag} for ${repo}: ${error.message}`);
+    return null;
+  }
+}
+
+/**
  * Format a GitHub release response into a simplified object.
  * @param {object} release - GitHub release API response
  * @returns {{tag: string, assets: Array<{name: string, url: string}>, url: string}}
@@ -127,6 +144,8 @@ function formatRelease(release) {
     assets: (release.assets || []).map((asset) => ({
       name: asset.name,
       url: asset.browser_download_url,
+      // "sha256:<hex>", computed by GitHub (newer releases only).
+      digest: asset.digest || null,
     })),
   };
 }
@@ -329,6 +348,7 @@ module.exports = {
   extractArchive,
   extractZip,
   fetchLatestRelease,
+  fetchReleaseByTag,
   findBinaryInDir,
   parseArgs,
   setExecutable,

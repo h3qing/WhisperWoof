@@ -239,6 +239,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   cancelParakeetDownload: () => ipcRenderer.invoke("cancel-parakeet-download"),
   getParakeetDiagnostics: () => ipcRenderer.invoke("get-parakeet-diagnostics"),
 
+  // Local Qwen3-ASR (its own llama-server)
+  transcribeLocalQwenAsr: (audioBlob, options) =>
+    ipcRenderer.invoke("transcribe-local-qwen-asr", audioBlob, options),
+  downloadQwenAsrModel: (modelName) => ipcRenderer.invoke("download-qwen-asr-model", modelName),
+  onQwenAsrDownloadProgress: registerListener("qwen-asr-download-progress"),
+  checkQwenAsrModelStatus: (modelName) =>
+    ipcRenderer.invoke("check-qwen-asr-model-status", modelName),
+  listQwenAsrModels: () => ipcRenderer.invoke("list-qwen-asr-models"),
+  deleteQwenAsrModel: (modelName) => ipcRenderer.invoke("delete-qwen-asr-model", modelName),
+  deleteAllQwenAsrModels: () => ipcRenderer.invoke("delete-all-qwen-asr-models"),
+  cancelQwenAsrDownload: () => ipcRenderer.invoke("cancel-qwen-asr-download"),
+
   // Parakeet server functions (faster repeated transcriptions)
   parakeetServerStart: (modelName) => ipcRenderer.invoke("parakeet-server-start", modelName),
   parakeetServerStop: () => ipcRenderer.invoke("parakeet-server-stop"),

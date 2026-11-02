@@ -1397,6 +1397,9 @@
         "parakeet_tdt_0_6b_v3": "Schnelle mehrsprachige ASR mit automatischer Spracherkennung (25 Sprachen)",
         "parakeet_unified_en_0_6b": "Englisch-only ASR mit Spitzen-Genauigkeit (5,91% durchschnittliche WER)"
       },
+      "qwenAsr": {
+        "qwen3_asr_1_7b": "Im Test am besten bei gemischtem Chinesisch und Englisch: rund 40 % weniger Fehler als Whisper Turbo, Zahlen in Ziffern. 30 Sprachen, läuft auf dem mitgelieferten llama-server."
+      },
       "whisper": {
         "tiny": "Am schnellsten, geringere Qualität",
         "base": "Gute Balance",

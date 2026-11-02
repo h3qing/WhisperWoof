@@ -741,6 +741,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const localProvider = s.localTranscriptionProvider;
       const whisperModel = s.whisperModel;
       const parakeetModel = s.parakeetModel || "parakeet-tdt-0.6b-v3";
+      const qwenAsrModel = s.qwenAsrModel || "qwen3-asr-1.7b";
 
       const cloudTranscriptionMode = s.cloudTranscriptionMode;
       const isSignedIn = s.isSignedIn;
@@ -756,16 +757,19 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Parakeet only covers English + 24 European languages. If the user picked it
       // but set a language it can't do (e.g. Chinese), transcribe with Whisper instead
       // — otherwise Parakeet returns empty and surfaces a misleading "No audio detected".
+      // Same for Qwen3-ASR's 30 languages.
       const baseLang = getBaseLanguageCode(s.preferredLanguage);
+      const engineModel =
+        localProvider === "nvidia" ? parakeetModel : localProvider === "qwen" ? qwenAsrModel : null;
       const parakeetUnsupportedLang =
-        localProvider === "nvidia" &&
+        !!engineModel &&
         !!baseLang &&
-        validateLanguageForModel(s.preferredLanguage, parakeetModel) === undefined;
+        validateLanguageForModel(s.preferredLanguage, engineModel) === undefined;
       const effectiveProvider = parakeetUnsupportedLang ? "whisper" : localProvider;
       if (parakeetUnsupportedLang) {
         logger.info(
-          "Routing to Whisper: Parakeet does not support the selected language",
-          { language: baseLang, parakeetModel },
+          "Routing to Whisper: the local engine does not support the selected language",
+          { language: baseLang, model: engineModel },
           "transcription"
         );
       }
@@ -783,6 +787,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           if (effectiveProvider === "nvidia") {
             activeModel = parakeetModel;
             result = await this.processWithLocalParakeet(audioBlob, parakeetModel, metadata);
+          } else if (effectiveProvider === "qwen") {
+            activeModel = qwenAsrModel;
+            result = await this.processWithLocalQwenAsr(audioBlob, qwenAsrModel, metadata);
           } else {
             activeModel = whisperModel;
             result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
@@ -1104,6 +1111,63 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       } else {
         throw new Error(`Parakeet failed: ${error.message}`);
       }
+    }
+  }
+
+  /**
+   * Qwen3-ASR on its own llama-server (main: qwenAsr.js). Language is always
+   * detected (what the bench measured); main strips the model's language
+   * prefix and writes spelled-out Chinese numbers as digits.
+   */
+  async processWithLocalQwenAsr(audioBlob, model = "qwen3-asr-1.7b", metadata = {}) {
+    const timings = {};
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const transcriptionStart = performance.now();
+      const { preferredLanguage, uiLanguage } = getSettings();
+      const result = await window.electronAPI.transcribeLocalQwenAsr(arrayBuffer, {
+        model,
+        // Memory, Dictionary and Word Pack words, read as context.
+        context: await this.getPackEnhancedDictionaryPrompt(),
+        // Languages the user dictates in: text in another one over noise is made up (steady-noise.js).
+        language: getBaseLanguageCode(preferredLanguage),
+        uiLanguage,
+      });
+      timings.transcriptionProcessingDurationMs = Math.round(performance.now() - transcriptionStart);
+      logger.debug(
+        "Qwen3-ASR transcription complete",
+        { transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs, success: result.success },
+        "performance"
+      );
+
+      if (result.success && result.text) {
+        const rawText = this.normalizeSttScript(result.text);
+        const reasoningStart = performance.now();
+        const text = await this.processTranscription(rawText, "local-qwen-asr");
+        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+        if (text === null || text === undefined) throw new Error("No text transcribed");
+        return { success: true, text: text || rawText, rawText, source: "local-qwen-asr", timings };
+      }
+      if (result.success === false && result.message === "No audio detected") {
+        throw new Error("No audio detected");
+      }
+      throw new Error(result.message || result.error || "Qwen3-ASR transcription failed");
+    } catch (error) {
+      if (error.message === "No audio detected") throw error;
+
+      const { allowOpenAIFallback, useLocalWhisper: isLocalMode } = getSettings();
+      // A live-mode draft is already on screen; local-first means it wins over the cloud.
+      if (allowOpenAIFallback && isLocalMode && !metadata.streamedDraft) {
+        try {
+          const fallbackResult = await this.processWithOpenAIAPI(audioBlob, metadata);
+          return { ...fallbackResult, source: "openai-fallback" };
+        } catch (fallbackError) {
+          throw new Error(
+            `Qwen3-ASR failed: ${error.message}. OpenAI fallback also failed: ${fallbackError.message}`
+          );
+        }
+      }
+      throw new Error(`Qwen3-ASR failed: ${error.message}`);
     }
   }
 

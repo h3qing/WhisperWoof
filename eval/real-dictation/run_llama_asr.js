@@ -14,6 +14,11 @@
  * default 8 GB prompt cache otherwise fills up over the run. Language is
  * left on auto, no hotwords. Qwen3-ASR answers "language Chinese<asr_text>…":
  * the prefix is dropped (llama-server keeps it).
+ *
+ * --app-model qwen3-asr-1.7b runs the app's own speech server instead of --url
+ * (src/helpers/qwenAsr.js: bundled llama-server, the app's flags and key, the
+ * noise checks and Chinese number normalization), with the model from the
+ * app's cache (~/.cache/openwhispr/qwen-asr-models). No hints.
  */
 const fs = require("fs");
 const os = require("os");
@@ -33,10 +38,16 @@ const args = {};
 const DATA = path.resolve(String(args.data || "").replace(/^~/, os.homedir()));
 const URL_BASE = String(args.url || "http://127.0.0.1:8342");
 const MODE = String(args.mode || "transcriptions");
+const APP_MODEL = args["app-model"] ? String(args["app-model"]) : null;
+let appAsr = null;
 
 const stripAsrTags = (text) => String(text || "").replace(/language\s+[A-Za-z]+\s*<asr_text>/g, "").trim();
 
 async function transcribe(wav) {
+  if (appAsr) {
+    const result = await appAsr.transcribe(wav, { model: APP_MODEL });
+    return result.success ? result.text : "";
+  }
   if (MODE === "chat") {
     const body = {
       // The audio alone. (Adding Qwen3-ASR's empty system turn scored the same within noise: 44 vs 42.)
@@ -69,13 +80,22 @@ async function main() {
   const only = args.clips ? new Set(String(args.clips).split(",")) : null;
   const todo = clips.filter((c) => (!only || only.has(String(c.id))) && (args.force || !previous.clips[c.id]));
   if (!todo.length) return console.log(`${args.name}: nothing to do`);
-  await transcribe(fs.readFileSync(path.join(DATA, todo[0].file))); // warm up
+  if (APP_MODEL) {
+    const QwenAsrManager = require("../../src/helpers/qwenAsr");
+    appAsr = new QwenAsrManager();
+    await appAsr.startServer(APP_MODEL);
+  }
   let done = { ...previous.clips };
-  for (const clip of todo) {
-    const wav = fs.readFileSync(path.join(DATA, clip.file));
-    const t0 = Date.now();
-    const text = await transcribe(wav);
-    done = { ...done, [clip.id]: { text, ms: Date.now() - t0 } };
+  try {
+    await transcribe(fs.readFileSync(path.join(DATA, todo[0].file))); // warm up
+    for (const clip of todo) {
+      const wav = fs.readFileSync(path.join(DATA, clip.file));
+      const t0 = Date.now();
+      const text = await transcribe(wav);
+      done = { ...done, [clip.id]: { text, ms: Date.now() - t0 } };
+    }
+  } finally {
+    await appAsr?.stopServer();
   }
   const out = {
     engine: args.name,

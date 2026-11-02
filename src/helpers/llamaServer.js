@@ -26,8 +26,23 @@ function abortError() {
   return error;
 }
 
+// Options llama-server also reads from LLAMA_ARG_* variables, some of them
+// dangerous on a server any local page can reach (--tools exec_shell_command,
+// --agent, --ui-mcp-proxy, --props), and GGML_BACKEND_PATH loads an extra
+// backend library into it. Only argv configures it.
+const isLlamaConfigEnv = (name) => /^LLAMA_ARG_/i.test(name) || /^GGML_BACKEND_PATH$/i.test(name);
+
 class LlamaServerManager {
-  constructor() {
+  /**
+   * One instance per server: the cleanup model (the default) and the speech
+   * model (qwenAsr.js) each own a process, a key and a port range, so one
+   * never waits on or restarts the other.
+   */
+  constructor({ portRange = [PORT_RANGE_START, PORT_RANGE_END], bundledOnly = false } = {}) {
+    this.portRange = portRange;
+    // Only the binary shipped with the app (never a user-downloaded Vulkan
+    // build of unknown version: Qwen3-ASR needs llama.cpp >= b9169).
+    this.bundledOnly = bundledOnly;
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -91,7 +106,7 @@ class LlamaServerManager {
         resolveBinary(`llama-server${ext}`);
 
       paths = {};
-      if (vulkanBin) paths.vulkan = vulkanBin;
+      if (vulkanBin && !this.bundledOnly) paths.vulkan = vulkanBin;
       if (cpuBin) paths.cpu = cpuBin;
     }
 
@@ -105,10 +120,11 @@ class LlamaServerManager {
   }
 
   async findAvailablePort() {
-    for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
+    const [first, last] = this.portRange;
+    for (let port = first; port <= last; port++) {
       if (await this.isPortAvailable(port)) return port;
     }
-    throw new Error(`No available ports in range ${PORT_RANGE_START}-${PORT_RANGE_END}`);
+    throw new Error(`No available ports in range ${first}-${last}`);
   }
 
   isPortAvailable(port) {
@@ -128,11 +144,12 @@ class LlamaServerManager {
 
     if (this.ready && this.modelPath === modelPath) return;
 
-    if (this.process) {
-      await this.stop();
-    }
-
-    this.startupPromise = this._doStart(modelPath, options);
+    // Set before stopping the old process, so a second caller waits for this
+    // start instead of starting (and orphaning) a server of its own.
+    this.startupPromise = (async () => {
+      if (this.process) await this.stop();
+      await this._doStart(modelPath, options);
+    })();
     try {
       await this.startupPromise;
     } finally {
@@ -144,6 +161,9 @@ class LlamaServerManager {
     const binaryPaths = this.getServerBinaryPaths();
     if (Object.keys(binaryPaths).length === 0) throw new Error("llama-server binary not found");
     if (!fs.existsSync(modelPath)) throw new Error(`Model file not found: ${modelPath}`);
+    if (options.mmprojPath && !fs.existsSync(options.mmprojPath)) {
+      throw new Error(`Model file not found: ${options.mmprojPath}`);
+    }
 
     this.port = await this.findAvailablePort();
     this.modelPath = modelPath;
@@ -173,6 +193,7 @@ class LlamaServerManager {
       // neither, and /slots reports per-slot state to any caller.
       "--no-webui",
       "--no-slots",
+      ...this._modelArgs(options),
     ];
 
     if (process.platform === "darwin") {
@@ -230,11 +251,20 @@ class LlamaServerManager {
     this.activeBackend = "cpu";
   }
 
+  // Only what a caller spells out: an audio model's projector and
+  // `serverArgs` (qwenAsr.js: fixed context, one slot, no prompt cache).
+  // The cleanup server passes neither, so llama.cpp still fits its context
+  // (modelManagerBridge's `contextSize` stays unused, as before).
+  _modelArgs({ mmprojPath, serverArgs = [] } = {}) {
+    return [...(mmprojPath ? ["--mmproj", mmprojPath] : []), ...serverArgs.map(String)];
+  }
+
   _buildEnv(binaryPath) {
     const binDir = path.dirname(binaryPath);
     // Without the user's cloud API keys and tokens; with our own key, which
     // llama-server reads from LLAMA_API_KEY (the env of --api-key).
-    const env = buildSidecarEnv(process.env, { LLAMA_API_KEY: this.apiKey });
+    const sidecarEnv = buildSidecarEnv(process.env, { LLAMA_API_KEY: this.apiKey });
+    const env = Object.fromEntries(Object.entries(sidecarEnv).filter(([name]) => !isLlamaConfigEnv(name)));
 
     if (process.platform === "darwin") {
       env.DYLD_LIBRARY_PATH = binDir + (env.DYLD_LIBRARY_PATH ? `:${env.DYLD_LIBRARY_PATH}` : "");

@@ -64,9 +64,10 @@ function resolveRetryWhisperModel(downloadedIds, requestedModelId) {
  * `provider` is the user's configured local engine; `language` is their
  * dictation language (`"auto"`, `"zh-CN"`, `"en"`, …). Returns `"whisper"`
  * whenever Parakeet cannot serve the language, mirroring
- * audioManager.processAudio.
+ * audioManager.processAudio. Qwen3-ASR (`"qwen"`) is used when its model is
+ * on disk (`qwenAvailable`) and serves the language (`qwenServesLanguage`).
  *
- * @returns {"whisper"|"parakeet"}
+ * @returns {"whisper"|"parakeet"|"qwen"}
  */
 function resolveRetryProvider({
   provider,
@@ -74,8 +75,13 @@ function resolveRetryProvider({
   parakeetModel = undefined,
   parakeetAvailable,
   whisperAvailable,
+  qwenAvailable = false,
+  qwenServesLanguage = (_base) => true,
 }) {
-  const base = String(language || "").toLowerCase().split("-")[0];
+  // "auto" (the default) pins no language, as in resolveRetryLanguage.
+  const pinned = String(language || "").toLowerCase();
+  const base = pinned === "auto" ? "" : pinned.split("-")[0];
+  if (provider === "qwen" && qwenAvailable && (!base || qwenServesLanguage(base))) return "qwen";
   const parakeetCanServe =
     Boolean(parakeetAvailable) && (!base || sherpaModelServesLanguage(parakeetModel, base));
 
