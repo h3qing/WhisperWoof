@@ -5,7 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+### Added
+- **Qwen3-ASR, a new speech model for mixed Chinese and English.** Pick it in Settings → Transcription → Qwen3-ASR (a 2.5 GB download). On 20 real dictations it made 32 mistakes where Whisper Turbo made 53, at about 0.3 s per dictation on Apple Silicon. It writes numbers the way you'd type them (10月31号, 28个, 30%) and uses your Memory and Dictionary words like Whisper does. Whisper Turbo stays the default. Uploaded audio files still go to Whisper for now. Measurements: `eval/real-dictation/RESULTS.md`.
+- **Silence and fan noise type nothing with Qwen3-ASR.** The model makes up sentences for silence and steady noise (in tests, Portuguese and Spanish questions). WhisperWoof doesn't send it a capture whose level never moves, and drops text in a language you don't use when the capture is mostly noise.
+
 ### Changed
+- **The bundled llama.cpp is now b12032** (was b9038), pinned instead of "latest at build time". Qwen3-ASR needs it. Text cleanup is unchanged: on the same 200 dictations, Gemma 4 E4B wrote the same text on 198 and was just as fast. Its download is checked against pinned checksums, and llama.cpp's options can't be set from environment variables any more, so its newer agent tools (shell commands, file access) can't be switched on behind the app's back.
+- **Picking a model in another engine's tab saves it to that engine.** The first Parakeet model you picked while Whisper was active used to be saved as your Whisper model.
+
+### Fixed
+- **Retry uses Parakeet again when your language is Auto.** It went to Whisper instead (and failed without a Whisper model).
 - **Smart Cleanup now recommends Gemma 4 E4B instead of Qwen3.5 2B.** On real Chinese–English dictations, Qwen3.5 2B sometimes translated English words into Chinese, sometimes changing the meaning, even though the cleanup prompt forbids it. Gemma 4 E4B never did, and it stayed closer to what was said. It's about as quick (about 0.4 s per dictation on Apple Silicon) and uses about the same memory while running, but it's a bigger one-time download: 4.6 GB instead of 1.3 GB. New setups download Gemma, and it's the model marked "Recommended" in Settings. If you already use Qwen3.5 2B, nothing changes until you pick Gemma 4 E4B yourself. Measurements: `eval/real-dictation/RESULTS.md`.
 
 ## [2.8.1] - 2026-10-13 — Start on the meeting prompt works while WhisperWoof is locked

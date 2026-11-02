@@ -67,6 +67,12 @@ function readString(key: string, fallback: string): string {
   return localStorage.getItem(key) ?? fallback;
 }
 
+// Anything but a known engine falls back to Whisper.
+function readLocalTranscriptionProvider(): LocalTranscriptionProvider {
+  const stored = readString("localTranscriptionProvider", "whisper");
+  return stored === "nvidia" || stored === "qwen" ? stored : "whisper";
+}
+
 function readBoolean(key: string, fallback: boolean): boolean {
   if (!isBrowser) return fallback;
   const stored = localStorage.getItem(key);
@@ -194,6 +200,7 @@ export interface SettingsState
   setWhisperModel: (value: string) => void;
   setLocalTranscriptionProvider: (value: LocalTranscriptionProvider) => void;
   setParakeetModel: (value: string) => void;
+  setQwenAsrModel: (value: string) => void;
   setAllowOpenAIFallback: (value: boolean) => void;
   setAllowLocalFallback: (value: boolean) => void;
   setFallbackWhisperModel: (value: string) => void;
@@ -318,10 +325,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   // default for everyone. Parakeet TDT is faster but only covers English + 24 European languages
   // (no CJK), so it's offered as an opt-in speed choice in Settings, not the default. When a user
   // does pick Parakeet but their language isn't supported, audioManager auto-routes to Whisper.
-  localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
-    ? "nvidia"
-    : "whisper") as LocalTranscriptionProvider,
+  // Qwen3-ASR ("qwen") is opt-in too: best on the owner's zh/en bench, but a 2.5 GB download.
+  localTranscriptionProvider: readLocalTranscriptionProvider(),
   parakeetModel: readString("parakeetModel", "parakeet-tdt-0.6b-v3"),
+  qwenAsrModel: readString("qwenAsrModel", "qwen3-asr-1.7b"),
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
   fallbackWhisperModel: readString("fallbackWhisperModel", "base"),
@@ -432,6 +439,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ localTranscriptionProvider: value });
   },
   setParakeetModel: createStringSetter("parakeetModel"),
+  setQwenAsrModel: createStringSetter("qwenAsrModel"),
   setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
   setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
   setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
@@ -667,6 +675,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (settings.localTranscriptionProvider !== undefined)
       s.setLocalTranscriptionProvider(settings.localTranscriptionProvider);
     if (settings.parakeetModel !== undefined) s.setParakeetModel(settings.parakeetModel);
+    if (settings.qwenAsrModel !== undefined) s.setQwenAsrModel(settings.qwenAsrModel);
     if (settings.allowOpenAIFallback !== undefined)
       s.setAllowOpenAIFallback(settings.allowOpenAIFallback);
     if (settings.allowLocalFallback !== undefined)

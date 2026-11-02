@@ -1487,6 +1487,9 @@
         "x_asr_zh_en_streaming_480ms": "Live streaming for Chinese + English mixed speech — text appears as you speak, with punctuation. Small and fast (134MB), built for the live preview.",
         "x_asr_zh_en_streaming_160ms": "Chinese + English live streaming with punctuation, 160ms chunks: words appear sooner and update several times a second."
       },
+      "qwenAsr": {
+        "qwen3_asr_1_7b": "Best on mixed Chinese and English in our bench: about 40% fewer mistakes than Whisper Turbo, and numbers written in digits. 30 languages, runs on the bundled llama-server."
+      },
       "whisper": {
         "tiny": "Fastest, least accurate; weak on Chinese.",
         "base": "Fast and light; weak on Chinese.",

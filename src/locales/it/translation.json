@@ -1397,6 +1397,9 @@
         "parakeet_tdt_0_6b_v3": "ASR multilingue veloce con rilevamento automatico della lingua (25 lingue)",
         "parakeet_unified_en_0_6b": "ASR solo inglese con precisione all'avanguardia (5,91% WER medio)"
       },
+      "qwenAsr": {
+        "qwen3_asr_1_7b": "Il migliore su cinese e inglese misti nel nostro test: circa il 40% di errori in meno di Whisper Turbo e numeri in cifre. 30 lingue, gira sul llama-server incluso."
+      },
       "whisper": {
         "tiny": "Il più veloce, qualità inferiore",
         "base": "Buon equilibrio",

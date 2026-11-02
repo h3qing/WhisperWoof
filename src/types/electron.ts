@@ -1,4 +1,4 @@
-export type LocalTranscriptionProvider = "whisper" | "nvidia";
+export type LocalTranscriptionProvider = "whisper" | "nvidia" | "qwen";
 
 export type TranscriptionStatus = "completed" | "failed" | "pending";
 
@@ -435,6 +435,7 @@ declare global {
         options?: {
           model?: string;
           parakeetModel?: string;
+          qwenAsrModel?: string;
           language?: string;
           provider?: string;
           script?: string;
@@ -653,6 +654,31 @@ declare global {
         error?: string;
       }>;
       getParakeetDiagnostics: () => Promise<ParakeetDiagnosticsResult>;
+
+      // Qwen3-ASR operations (its own llama-server); results shaped like Parakeet's
+      transcribeLocalQwenAsr: (
+        audioBlob: ArrayBuffer,
+        options?: { model?: string; context?: string; language?: string; uiLanguage?: string }
+      ) => Promise<ParakeetTranscriptionResult>;
+      downloadQwenAsrModel: (modelName: string) => Promise<ParakeetModelResult>;
+      onQwenAsrDownloadProgress: (
+        callback: (event: any, data: ParakeetDownloadProgressData) => void
+      ) => () => void;
+      checkQwenAsrModelStatus: (modelName: string) => Promise<ParakeetModelResult>;
+      listQwenAsrModels: () => Promise<ParakeetModelsListResult>;
+      deleteQwenAsrModel: (modelName: string) => Promise<ParakeetModelDeleteResult>;
+      deleteAllQwenAsrModels: () => Promise<{
+        success: boolean;
+        deleted_count?: number;
+        freed_bytes?: number;
+        freed_mb?: number;
+        error?: string;
+      }>;
+      cancelQwenAsrDownload: () => Promise<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>;
 
       // Local AI model management
       modelGetAll: () => Promise<any[]>;

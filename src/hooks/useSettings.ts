@@ -14,6 +14,7 @@ export interface TranscriptionSettings {
   whisperModel: string;
   localTranscriptionProvider: LocalTranscriptionProvider;
   parakeetModel: string;
+  qwenAsrModel: string;
   allowOpenAIFallback: boolean;
   allowLocalFallback: boolean;
   fallbackWhisperModel: string;
@@ -156,6 +157,7 @@ function useSettingsInternal() {
     localTranscriptionProvider,
     whisperModel,
     parakeetModel,
+    qwenAsrModel,
     reasoningProvider,
     reasoningModel,
     useReasoningModel,
@@ -168,7 +170,12 @@ function useSettingsInternal() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI?.syncStartupPreferences) return;
 
-    const model = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
+    const model =
+      localTranscriptionProvider === "nvidia"
+        ? parakeetModel
+        : localTranscriptionProvider === "qwen"
+          ? qwenAsrModel
+          : whisperModel;
     // The model picker may persist a local family id ("qwen", "llama", …) as the
     // provider; main keys prewarm on exactly "local", so normalize before syncing.
     const reasoningPrefs = normalizeReasoningPrefsForSync(reasoningProvider, reasoningModel);
@@ -214,6 +221,7 @@ function useSettingsInternal() {
     localTranscriptionProvider,
     whisperModel,
     parakeetModel,
+    qwenAsrModel,
     reasoningProvider,
     reasoningModel,
     useReasoningModel,
@@ -229,6 +237,7 @@ function useSettingsInternal() {
     uiLanguage: store.uiLanguage,
     localTranscriptionProvider: store.localTranscriptionProvider,
     parakeetModel: store.parakeetModel,
+    qwenAsrModel: store.qwenAsrModel,
     allowOpenAIFallback: store.allowOpenAIFallback,
     allowLocalFallback: store.allowLocalFallback,
     fallbackWhisperModel: store.fallbackWhisperModel,
@@ -257,6 +266,7 @@ function useSettingsInternal() {
     setUiLanguage: store.setUiLanguage,
     setLocalTranscriptionProvider: store.setLocalTranscriptionProvider,
     setParakeetModel: store.setParakeetModel,
+    setQwenAsrModel: store.setQwenAsrModel,
     setAllowOpenAIFallback: store.setAllowOpenAIFallback,
     setAllowLocalFallback: store.setAllowLocalFallback,
     setFallbackWhisperModel: store.setFallbackWhisperModel,

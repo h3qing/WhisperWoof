@@ -39,6 +39,19 @@ describe("resolveRetryWhisperModel", () => {
 });
 
 describe("resolveRetryProvider", () => {
+  it("uses Qwen3-ASR for a Qwen3-ASR user once its model is on disk", () => {
+    const base = { provider: "qwen", parakeetAvailable: true, whisperAvailable: true };
+    expect(resolveRetryProvider({ ...base, language: "zh-CN", qwenAvailable: true })).toBe("qwen");
+    expect(resolveRetryProvider({ ...base, language: "auto", qwenAvailable: false })).toBe("whisper");
+    // Auto (the default) is no language to check: Qwen3-ASR detects it.
+    expect(
+      resolveRetryProvider({ ...base, language: "auto", qwenAvailable: true, qwenServesLanguage: (l: string) => l === "zh" })
+    ).toBe("qwen");
+    expect(
+      resolveRetryProvider({ ...base, language: "uk", qwenAvailable: true, qwenServesLanguage: () => false })
+    ).toBe("whisper");
+  });
+
   it("routes Chinese away from Parakeet, which has no CJK coverage", () => {
     expect(
       resolveRetryProvider({
@@ -72,6 +85,18 @@ describe("resolveRetryProvider", () => {
         whisperAvailable: true,
       })
     ).toBe("whisper");
+  });
+
+  it("keeps a real Parakeet model on auto (it lists its languages; auto isn't one)", () => {
+    expect(
+      resolveRetryProvider({
+        provider: "nvidia",
+        language: "auto",
+        parakeetModel: "sense-voice-zh-en",
+        parakeetAvailable: true,
+        whisperAvailable: true,
+      })
+    ).toBe("parakeet");
   });
 
   it("treats auto as safe for Parakeet only when Whisper is unavailable", () => {

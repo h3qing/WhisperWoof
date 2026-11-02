@@ -26,7 +26,8 @@ import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
 import { API_ENDPOINTS, normalizeBaseUrl } from "../config/constants";
 import { createExternalLinkHandler } from "../utils/externalLinks";
 import { getCachedPlatform } from "../utils/platform";
-import type { CudaWhisperStatus } from "../types/electron";
+import type { CudaWhisperStatus, LocalTranscriptionProvider } from "../types/electron";
+import { QWEN_ASR_MODEL_INFO, useQwenAsrModels } from "../whisperwoof/ui/settings/useQwenAsrModels";
 import logger from "../utils/logger";
 
 interface LocalModel {
@@ -199,9 +200,12 @@ interface TranscriptionModelPickerProps {
   selectedCloudModel: string;
   onCloudModelSelect: (modelId: string) => void;
   selectedLocalModel: string;
-  onLocalModelSelect: (modelId: string) => void;
+  /** `providerId` is the engine the model belongs to (the selected one may still be the old engine). */
+  onLocalModelSelect: (modelId: string, providerId: LocalTranscriptionProvider) => void;
   selectedLocalProvider?: string;
   onLocalProviderSelect?: (providerId: string) => void;
+  /** Engines this picker doesn't offer (e.g. Qwen3-ASR for long uploads). */
+  hiddenLocalProviders?: string[];
   useLocalWhisper: boolean;
   onModeChange: (useLocal: boolean) => void;
   openaiApiKey: string;
@@ -230,7 +234,9 @@ const VALID_CLOUD_PROVIDER_IDS = CLOUD_PROVIDER_TABS.map((p) => p.id);
 const LOCAL_PROVIDER_TABS: Array<{ id: string; name: string; disabled?: boolean }> = [
   { id: "whisper", name: "OpenAI Whisper" },
   { id: "nvidia", name: "NVIDIA Parakeet" },
+  { id: "qwen", name: "Qwen3-ASR" },
 ];
+const LOCAL_PROVIDER_NAMES: Record<string, string> = { nvidia: "Parakeet", qwen: "Qwen3-ASR" };
 
 interface ModeToggleProps {
   useLocalWhisper: boolean;
@@ -291,6 +297,7 @@ export default function TranscriptionModelPicker({
   setCloudTranscriptionBaseUrl,
   className = "",
   variant = "settings",
+  hiddenLocalProviders = [],
 }: TranscriptionModelPickerProps) {
   const { t } = useTranslation();
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
@@ -352,9 +359,9 @@ export default function TranscriptionModelPicker({
     const isCurrentDownloaded = loadedModels.find((m) => m.model === current)?.downloaded;
 
     if (!isCurrentDownloaded && downloaded.length > 0) {
-      onLocalModelSelectRef.current(downloaded[0].model);
+      onLocalModelSelectRef.current(downloaded[0].model, "whisper");
     } else if (!isCurrentDownloaded && downloaded.length === 0) {
-      onLocalModelSelectRef.current("");
+      onLocalModelSelectRef.current("", "whisper");
     }
   }, []);
 
@@ -538,6 +545,8 @@ export default function TranscriptionModelPicker({
     onDownloadComplete: loadParakeetModels,
   });
 
+  const qwenAsr = useQwenAsrModels(useLocalWhisper && internalLocalProvider === "qwen");
+
   const handleModeChange = useCallback(
     (isLocal: boolean) => {
       onModeChange(isLocal);
@@ -580,7 +589,7 @@ export default function TranscriptionModelPicker({
     (modelId: string) => {
       onLocalProviderSelect?.("whisper");
       setInternalLocalProvider("whisper");
-      onLocalModelSelect(modelId);
+      onLocalModelSelect(modelId, "whisper");
     },
     [onLocalModelSelect, onLocalProviderSelect]
   );
@@ -589,7 +598,16 @@ export default function TranscriptionModelPicker({
     (modelId: string) => {
       onLocalProviderSelect?.("nvidia");
       setInternalLocalProvider("nvidia");
-      onLocalModelSelect(modelId);
+      onLocalModelSelect(modelId, "nvidia");
+    },
+    [onLocalModelSelect, onLocalProviderSelect]
+  );
+
+  const handleQwenAsrModelSelect = useCallback(
+    (modelId: string) => {
+      onLocalProviderSelect?.("qwen");
+      setInternalLocalProvider("qwen");
+      onLocalModelSelect(modelId, "qwen");
     },
     [onLocalModelSelect, onLocalProviderSelect]
   );
@@ -687,6 +705,15 @@ export default function TranscriptionModelPicker({
       );
     }
 
+    if (qwenAsr.downloadingModel && internalLocalProvider === "qwen") {
+      return (
+        <DownloadProgressBar
+          modelName={QWEN_ASR_MODEL_INFO[qwenAsr.downloadingModel]?.name || qwenAsr.downloadingModel}
+          progress={qwenAsr.downloadProgress}
+        />
+      );
+    }
+
     return null;
   }, [
     downloadingModel,
@@ -695,6 +722,8 @@ export default function TranscriptionModelPicker({
     downloadingParakeetModel,
     parakeetDownloadProgress,
     isInstallingParakeet,
+    qwenAsr.downloadingModel,
+    qwenAsr.downloadProgress,
     useLocalWhisper,
     internalLocalProvider,
   ]);
@@ -800,6 +829,46 @@ export default function TranscriptionModelPicker({
       ? `${t("transcription.parakeet.streaming", { defaultValue: "Streaming" })} · ${languages}`
       : languages;
   };
+
+  const handleQwenAsrDelete = (modelId: string) => {
+    showConfirmDialog({
+      title: t("transcription.deleteModel.title"),
+      description: t("transcription.deleteModel.description"),
+      onConfirm: () => qwenAsr.deleteModel(modelId, qwenAsr.refresh),
+      variant: "destructive",
+    });
+  };
+
+  const renderQwenAsrModels = () => (
+    <div className="space-y-0.5">
+      {qwenAsr.models.map((model) => {
+        const info = QWEN_ASR_MODEL_INFO[model.model];
+        if (!info) return null;
+        return (
+          <LocalModelCard
+            key={model.model}
+            modelId={model.model}
+            name={info.name}
+            description={info.descriptionKey ? t(info.descriptionKey, { defaultValue: info.description }) : info.description}
+            size={info.size}
+            actualSizeMb={model.size_mb}
+            isSelected={selectedLocalProvider === "qwen" && model.model === selectedLocalModel}
+            isDownloaded={model.downloaded ?? false}
+            isDownloading={qwenAsr.isDownloadingModel(model.model)}
+            isCancelling={qwenAsr.isCancelling}
+            recommended={info.recommended}
+            provider="qwen"
+            languageLabel={getParakeetLanguageLabel(info)}
+            onSelect={() => handleQwenAsrModelSelect(model.model)}
+            onDelete={() => handleQwenAsrDelete(model.model)}
+            onDownload={() => qwenAsr.downloadModel(model.model, handleQwenAsrModelSelect)}
+            onCancel={qwenAsr.cancelDownload}
+            styles={styles}
+          />
+        );
+      })}
+    </div>
+  );
 
   const renderParakeetModels = () => {
     const modelsToRender =
@@ -962,7 +1031,7 @@ export default function TranscriptionModelPicker({
         <div className={styles.container}>
           <div className="p-2 pb-0">
             <ProviderTabs
-              providers={LOCAL_PROVIDER_TABS}
+              providers={LOCAL_PROVIDER_TABS.filter((tab) => !hiddenLocalProviders.includes(tab.id))}
               selectedId={internalLocalProvider}
               onSelect={handleLocalProviderChange}
               colorScheme="purple"
@@ -971,11 +1040,11 @@ export default function TranscriptionModelPicker({
               <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
               <span>Active for dictation:</span>
               <span className="font-medium text-foreground">
-                {selectedLocalProvider === "nvidia" ? "NVIDIA Parakeet" : "OpenAI Whisper"}
+                {LOCAL_PROVIDER_TABS.find((tab) => tab.id === selectedLocalProvider)?.name ?? "OpenAI Whisper"}
               </span>
               {internalLocalProvider !== selectedLocalProvider && (
                 <span className="text-muted-foreground/60">
-                  · viewing {internalLocalProvider === "nvidia" ? "Parakeet" : "Whisper"} (pick a model to switch)
+                  · viewing {LOCAL_PROVIDER_NAMES[internalLocalProvider] ?? "Whisper"} (pick a model to switch)
                 </span>
               )}
             </div>
@@ -1050,6 +1119,7 @@ export default function TranscriptionModelPicker({
           <div className="p-2">
             {internalLocalProvider === "whisper" && renderLocalModels()}
             {internalLocalProvider === "nvidia" && renderParakeetModels()}
+            {internalLocalProvider === "qwen" && renderQwenAsrModels()}
           </div>
         </div>
       )}

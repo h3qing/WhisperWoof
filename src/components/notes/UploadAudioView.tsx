@@ -121,6 +121,10 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
     setCustomTranscriptionApiKey,
     updateTranscriptionSettings,
   } = useSettings();
+  // Files go to Whisper when Qwen3-ASR is the dictation engine: it decodes
+  // long audio in 5-minute pieces with no progress to show, and hour-long
+  // files are untested (the picker here leaves it out).
+  const fileProvider = localTranscriptionProvider === "nvidia" ? "nvidia" : "whisper";
 
   const isCloudReasoning = useSettingsStore(selectIsCloudReasoningMode);
   const effectiveReasoningModel = useSettingsStore((s) =>
@@ -205,7 +209,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         }
         return;
       }
-      if (localTranscriptionProvider === "nvidia") {
+      if (fileProvider === "nvidia") {
         const r = await window.electronAPI.listParakeetModels?.();
         if (!cancelled)
           setProviderReady(
@@ -238,7 +242,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
   const getActiveModelLabel = (): string => {
     if (isOpenWhisprCloud) return t("notes.upload.openwhisprCloud");
     if (useLocalWhisper) {
-      if (localTranscriptionProvider === "nvidia")
+      if (fileProvider === "nvidia")
         return `Parakeet · ${parakeetModel || "default"}`;
       return `Whisper · ${whisperModel || "base"}`;
     }
@@ -366,8 +370,8 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         });
       } else if (useLocalWhisper) {
         res = await window.electronAPI.transcribeAudioFile(file.path, {
-          provider: localTranscriptionProvider as "whisper" | "nvidia",
-          model: localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel,
+          provider: fileProvider,
+          model: fileProvider === "nvidia" ? parakeetModel : whisperModel,
         });
       } else {
         res = await window.electronAPI.transcribeAudioFileByok!({
@@ -511,16 +515,21 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
         onCloudProviderSelect={setCloudTranscriptionProvider}
         selectedCloudModel={cloudTranscriptionModel}
         onCloudModelSelect={setCloudTranscriptionModel}
-        selectedLocalModel={localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel}
-        onLocalModelSelect={(modelId) => {
-          if (localTranscriptionProvider === "nvidia") {
+        selectedLocalModel={fileProvider === "nvidia" ? parakeetModel : whisperModel}
+        onLocalModelSelect={(modelId, provider) => {
+          if (provider === "nvidia") {
             setParakeetModel(modelId);
           } else {
             setWhisperModel(modelId);
           }
         }}
-        selectedLocalProvider={localTranscriptionProvider}
-        onLocalProviderSelect={(id) => setLocalTranscriptionProvider(id as "whisper" | "nvidia")}
+        selectedLocalProvider={fileProvider}
+        hiddenLocalProviders={["qwen"]}
+        onLocalProviderSelect={(id) => {
+          // Picking the Whisper model for files keeps Qwen3-ASR for dictation.
+          if (localTranscriptionProvider === "qwen" && id === "whisper") return;
+          setLocalTranscriptionProvider(id as "whisper" | "nvidia");
+        }}
         useLocalWhisper={useLocalWhisper}
         onModeChange={(isLocal) => {
           setUseLocalWhisper(isLocal);
@@ -620,7 +629,7 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
               language for the whole file (auto-language-note.ts). */}
           {state === "selected" &&
             file &&
-            autoLanguageNoteApplies({ useLocalWhisper, provider: localTranscriptionProvider }) && (
+            autoLanguageNoteApplies({ useLocalWhisper, provider: fileProvider }) && (
               <p className="mt-3 text-xs text-faint text-center leading-relaxed">
                 {t("notes.upload.autoLanguageNote")}
               </p>

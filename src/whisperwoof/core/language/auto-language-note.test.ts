@@ -27,9 +27,12 @@ describe("autoLanguageNoteApplies", () => {
     ).toBe(false);
   });
 
-  it("does not apply to Parakeet or cloud transcription", () => {
+  it("does not apply to Parakeet, Qwen3-ASR or cloud transcription", () => {
     expect(
       autoLanguageNoteApplies({ useLocalWhisper: true, provider: "nvidia", language: "auto" })
+    ).toBe(false);
+    expect(
+      autoLanguageNoteApplies({ useLocalWhisper: true, provider: "qwen", language: "auto" })
     ).toBe(false);
     expect(
       autoLanguageNoteApplies({ useLocalWhisper: false, provider: "whisper", language: "auto" })

@@ -1397,6 +1397,9 @@
         "parakeet_tdt_0_6b_v3": "高速多言語 ASR、自動言語検出対応（25 言語）",
         "parakeet_unified_en_0_6b": "英語専用の最先端精度ASR（平均WER 5.91%）"
       },
+      "qwenAsr": {
+        "qwen3_asr_1_7b": "テストで中国語と英語の混在に最も強いモデル。Whisper Turbo より誤りが約 40% 少なく、数字は算用数字で出力します。30 言語対応、同梱の llama-server で動作します。"
+      },
       "whisper": {
         "tiny": "最速、品質は低め",
         "base": "速度と品質のバランス",
