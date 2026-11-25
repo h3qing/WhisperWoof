@@ -541,4 +541,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { planClips, splitAtLulls, tokenize, editDistance, mer, parseReference, startXasr, startSenseVoice, decode16k };
+module.exports = { planClips, splitAtLulls, tokenize, editDistance, mer, parseReference, startXasr, startSenseVoice, startWhisper, startOffline, offlineEngine, modelLabel, runtimeLabel, decode16k };

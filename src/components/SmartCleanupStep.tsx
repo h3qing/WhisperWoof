@@ -6,11 +6,11 @@ import { useSettings } from "../hooks/useSettings";
 import logger from "../utils/logger";
 import { RECOMMENDED_CLEANUP_MODEL } from "../whisperwoof/core/settings/recommended-models";
 
-// Recommended local cleanup model: small enough to download quickly and run
-// sub-second on Apple Silicon, capable enough for filler removal + grammar.
+// Recommended local cleanup model: runs sub-second on Apple Silicon and keeps
+// mixed Chinese/English as spoken while removing fillers and fixing grammar.
 const MODEL_ID = RECOMMENDED_CLEANUP_MODEL;
-const MODEL_LABEL = "Qwen3.5 2B";
-const MODEL_SIZE = "1.3 GB";
+const MODEL_LABEL = "Gemma 4 E4B";
+const MODEL_SIZE = "4.6 GB";
 
 function formatMb(bytes: number): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
