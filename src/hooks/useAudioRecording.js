@@ -207,6 +207,18 @@ export const useAudioRecording = (notify, options = {}) => {
         // can't reach 0.02, and real speech stays above 0.012.
         setIsSpeaking((prev) => (prev ? rms > 0.012 : rms > 0.02));
       },
+      // The preferred mic is unplugged: the recording goes on with the system
+      // default, and Mando says so once (after the capture, like every notice).
+      onMicFallback: ({ label }) => {
+        notify({
+          sign: "Mic",
+          tone: "info",
+          title: t("microphoneSettings.fallbackNotice.title"),
+          description: label
+            ? t("microphoneSettings.fallbackNotice.description", { device: label })
+            : t("microphoneSettings.fallbackNotice.descriptionUnnamed"),
+        });
+      },
       onError: (error) => {
         notify({
           sign: "Error",

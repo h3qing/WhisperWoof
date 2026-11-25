@@ -709,9 +709,16 @@
     "errors": {
       "unableToAccess": "無法存取麥克風。請檢查權限設定。"
     },
-    "helpText": "選擇特定的麥克風，或使用系統預設裝置。",
-    "inputDevice": "輸入裝置",
+    "fallbackNotice": {
+      "description": "{{device}} 未連接，改用系統預設裝置錄音。",
+      "descriptionUnnamed": "偏好的麥克風未連接，改用系統預設裝置錄音。",
+      "title": "正在使用預設麥克風"
+    },
+    "helpText": "連接時使用此麥克風；未連接時，WhisperWoof 改用系統預設裝置錄音。",
+    "inputDevice": "偏好的麥克風",
     "noBuiltInDetected": "未偵測到內建麥克風。使用系統預設裝置。",
+    "notConnected": "{{device}}（未連接）",
+    "notConnectedHint": "目前未連接。重新連接前將使用系統預設裝置。",
     "preferBuiltIn": {
       "description": "外接麥克風可能造成延遲或降低轉錄品質",
       "label": "優先使用內建麥克風"

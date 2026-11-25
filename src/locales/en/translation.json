@@ -757,9 +757,16 @@
     "errors": {
       "unableToAccess": "Unable to access microphone. Please check permissions."
     },
-    "helpText": "Select a specific microphone or use the system default setting.",
-    "inputDevice": "Input Device",
+    "fallbackNotice": {
+      "description": "{{device}} isn't connected. Recording with the system default.",
+      "descriptionUnnamed": "Your preferred microphone isn't connected. Recording with the system default.",
+      "title": "Using the default mic"
+    },
+    "helpText": "Used whenever it's connected. If it isn't, WhisperWoof records with the system default instead.",
+    "inputDevice": "Preferred Microphone",
     "noBuiltInDetected": "No built-in microphone detected. Using system default.",
+    "notConnected": "{{device}} (not connected)",
+    "notConnectedHint": "Not connected right now. Recording uses the system default until it's back.",
     "preferBuiltIn": {
       "description": "External microphones may cause latency or reduced transcription quality",
       "label": "Prefer Built-in Microphone"

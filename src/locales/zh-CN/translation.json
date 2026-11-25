@@ -709,9 +709,16 @@
     "errors": {
       "unableToAccess": "无法访问麦克风，请检查权限设置。"
     },
-    "helpText": "选择特定的麦克风或使用系统默认设置。",
-    "inputDevice": "输入设备",
+    "fallbackNotice": {
+      "description": "{{device}} 未连接，改用系统默认设备录音。",
+      "descriptionUnnamed": "首选麦克风未连接，改用系统默认设备录音。",
+      "title": "正在使用默认麦克风"
+    },
+    "helpText": "连接时使用此麦克风；未连接时，WhisperWoof 改用系统默认设备录音。",
+    "inputDevice": "首选麦克风",
     "noBuiltInDetected": "未检测到内置麦克风，正在使用系统默认设备。",
+    "notConnected": "{{device}}（未连接）",
+    "notConnectedHint": "当前未连接。重新连接前将使用系统默认设备。",
     "preferBuiltIn": {
       "description": "外接麦克风可能导致延迟或降低转录质量",
       "label": "优先使用内置麦克风"

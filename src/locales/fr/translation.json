@@ -707,9 +707,16 @@
     "errors": {
       "unableToAccess": "Impossible d'accéder au microphone. Veuillez vérifier les permissions."
     },
-    "helpText": "Sélectionnez un microphone spécifique ou utilisez le réglage par défaut du système.",
-    "inputDevice": "Périphérique d'entrée",
+    "fallbackNotice": {
+      "description": "{{device}} n'est pas connecté. Enregistrement avec le micro par défaut du système.",
+      "descriptionUnnamed": "Votre microphone préféré n'est pas connecté. Enregistrement avec le micro par défaut du système.",
+      "title": "Micro par défaut utilisé"
+    },
+    "helpText": "Utilisé dès qu'il est connecté. Sinon, WhisperWoof enregistre avec le réglage par défaut du système.",
+    "inputDevice": "Microphone préféré",
     "noBuiltInDetected": "Aucun microphone intégré détecté. Utilisation du réglage par défaut du système.",
+    "notConnected": "{{device}} (non connecté)",
+    "notConnectedHint": "Non connecté pour le moment. Le réglage par défaut du système est utilisé jusqu'à son retour.",
     "preferBuiltIn": {
       "description": "Les microphones externes peuvent causer de la latence ou réduire la qualité de transcription",
       "label": "Préférer le microphone intégré"

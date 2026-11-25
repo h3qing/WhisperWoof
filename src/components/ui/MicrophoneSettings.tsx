@@ -5,24 +5,30 @@ import { SettingsRow } from "./SettingsSection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Button } from "./button";
 import { RefreshCw, Mic } from "lucide-react";
-import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
+import { isBuiltInMicrophone, resolvePreferredMicrophone } from "../../utils/audioDeviceUtils";
 
 interface AudioDevice {
   deviceId: string;
+  /** Shown in the list (a placeholder when the OS gives no name). */
   label: string;
+  /** The OS's own name, stored with the pick to find the mic again by name. */
+  rawLabel: string;
   isBuiltIn: boolean;
 }
 
 interface MicrophoneSettingsProps {
   preferBuiltInMic: boolean;
+  /** The preferred mic; recording falls back to the system default while it's unplugged. */
   selectedMicDeviceId: string;
+  selectedMicDeviceLabel?: string;
   onPreferBuiltInChange: (value: boolean) => void;
-  onDeviceSelect: (deviceId: string) => void;
+  onDeviceSelect: (deviceId: string, label: string) => void;
 }
 
 export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   preferBuiltInMic,
   selectedMicDeviceId,
+  selectedMicDeviceLabel = "",
   onPreferBuiltInChange,
   onDeviceSelect,
 }) => {
@@ -32,16 +38,16 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Use refs to access current values without triggering re-renders
-  const preferBuiltInRef = useRef(preferBuiltInMic);
   const selectedDeviceRef = useRef(selectedMicDeviceId);
+  const selectedLabelRef = useRef(selectedMicDeviceLabel);
   const onDeviceSelectRef = useRef(onDeviceSelect);
 
   // Keep refs in sync
   useEffect(() => {
-    preferBuiltInRef.current = preferBuiltInMic;
     selectedDeviceRef.current = selectedMicDeviceId;
+    selectedLabelRef.current = selectedMicDeviceLabel;
     onDeviceSelectRef.current = onDeviceSelect;
-  }, [preferBuiltInMic, selectedMicDeviceId, onDeviceSelect]);
+  }, [selectedMicDeviceId, selectedMicDeviceLabel, onDeviceSelect]);
 
   const loadDevices = useCallback(async () => {
     setIsLoading(true);
@@ -58,14 +64,24 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
         .map((d) => ({
           deviceId: d.deviceId,
           label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
+          rawLabel: d.label,
           isBuiltIn: isBuiltInMicrophone(d.label),
         }));
 
       setDevices(audioInputs);
 
-      // If no device is selected and not preferring built-in, select the first device
-      if (!preferBuiltInRef.current && !selectedDeviceRef.current && audioInputs.length > 0) {
-        onDeviceSelectRef.current(audioInputs[0].deviceId);
+      // No pick means the system default; an unplugged pick stays the
+      // preference. A pick found under a new id (or saved without a label)
+      // is stored again so it keeps matching.
+      if (selectedDeviceRef.current) {
+        await resolvePreferredMicrophone(
+          {
+            selectedMicDeviceId: selectedDeviceRef.current,
+            selectedMicDeviceLabel: selectedLabelRef.current,
+            setSelectedMicDevice: (id, label) => onDeviceSelectRef.current(id, label),
+          },
+          allDevices
+        );
       }
     } catch {
       setError(t("microphoneSettings.errors.unableToAccess"));
@@ -87,6 +103,10 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
 
   const builtInDevice = devices.find((d) => d.isBuiltIn);
   const selectedDevice = devices.find((d) => d.deviceId === selectedMicDeviceId);
+  // Listed devices but not the preferred one: it's unplugged, the default records.
+  const preferredMissing =
+    !!selectedMicDeviceId && !selectedDevice && devices.some((d) => d.deviceId);
+  const selectedName = selectedDevice?.label || selectedMicDeviceLabel;
 
   return (
     <div className="space-y-4">
@@ -138,13 +158,21 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
           ) : (
             <Select
               value={selectedMicDeviceId || "default"}
-              onValueChange={(value) => onDeviceSelect(value === "default" ? "" : value)}
+              onValueChange={(value) => {
+                const picked = devices.find((d) => d.deviceId === value);
+                if (value === "default" || !picked) onDeviceSelect("", "");
+                else onDeviceSelect(picked.deviceId, picked.rawLabel);
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
-                  {selectedMicDeviceId
-                    ? selectedDevice?.label || t("microphoneSettings.unknownDevice")
-                    : t("microphoneSettings.systemDefault")}
+                  {!selectedMicDeviceId
+                    ? t("microphoneSettings.systemDefault")
+                    : preferredMissing
+                      ? t("microphoneSettings.notConnected", {
+                          device: selectedName || t("microphoneSettings.unknownDevice"),
+                        })
+                      : selectedName || t("microphoneSettings.unknownDevice")}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -163,6 +191,9 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
             </Select>
           )}
 
+          {preferredMissing && (
+            <p className="text-xs text-warning">{t("microphoneSettings.notConnectedHint")}</p>
+          )}
           <p className="text-xs text-muted-foreground">{t("microphoneSettings.helpText")}</p>
         </div>
       )}
