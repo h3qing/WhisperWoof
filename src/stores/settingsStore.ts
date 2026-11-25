@@ -227,6 +227,8 @@ export interface SettingsState
 
   setPreferBuiltInMic: (value: boolean) => void;
   setSelectedMicDeviceId: (value: string) => void;
+  /** Store the preferred mic's id and label together (empty id: system default). */
+  setSelectedMicDevice: (deviceId: string, label: string) => void;
 
   setTheme: (value: "light" | "dark" | "auto") => void;
   setCloudBackupEnabled: (value: boolean) => void;
@@ -371,6 +373,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
+  selectedMicDeviceLabel: readString("selectedMicDeviceLabel", ""),
 
   theme: (() => {
     const v = readString("theme", "auto");
@@ -541,6 +544,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   setPreferBuiltInMic: createBooleanSetter("preferBuiltInMic"),
   setSelectedMicDeviceId: createStringSetter("selectedMicDeviceId"),
+  setSelectedMicDevice: (deviceId: string, label: string) => {
+    const storedLabel = deviceId ? label : "";
+    if (isBrowser) {
+      localStorage.setItem("selectedMicDeviceId", deviceId);
+      localStorage.setItem("selectedMicDeviceLabel", storedLabel);
+    }
+    set({ selectedMicDeviceId: deviceId, selectedMicDeviceLabel: storedLabel });
+  },
 
   setTheme: (value: "light" | "dark" | "auto") => {
     if (isBrowser) localStorage.setItem("theme", value);

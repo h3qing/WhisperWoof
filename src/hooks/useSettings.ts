@@ -41,7 +41,10 @@ export interface HotkeySettings {
 
 export interface MicrophoneSettings {
   preferBuiltInMic: boolean;
+  /** The preferred mic (empty: system default). Recording falls back to the default when it's absent. */
   selectedMicDeviceId: string;
+  /** Its label when picked, to find it again if Chromium re-keys it. Empty for settings saved before. */
+  selectedMicDeviceLabel: string;
 }
 
 export interface ApiKeySettings {
@@ -296,8 +299,10 @@ function useSettingsInternal() {
     setPanelStartPosition: store.setPanelStartPosition,
     preferBuiltInMic: store.preferBuiltInMic,
     selectedMicDeviceId: store.selectedMicDeviceId,
+    selectedMicDeviceLabel: store.selectedMicDeviceLabel,
     setPreferBuiltInMic: store.setPreferBuiltInMic,
     setSelectedMicDeviceId: store.setSelectedMicDeviceId,
+    setSelectedMicDevice: store.setSelectedMicDevice,
     autoLearnCorrections,
     setAutoLearnCorrections,
     autoPasteEnabled: store.autoPasteEnabled,

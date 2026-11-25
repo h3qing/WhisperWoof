@@ -679,9 +679,16 @@
     "errors": {
       "unableToAccess": "Não foi possível acessar o microfone. Verifique as permissões."
     },
-    "helpText": "Selecione um microfone específico ou use a configuração padrão do sistema.",
-    "inputDevice": "Dispositivo de entrada",
+    "fallbackNotice": {
+      "description": "{{device}} não está conectado. Gravando com o padrão do sistema.",
+      "descriptionUnnamed": "Seu microfone preferido não está conectado. Gravando com o padrão do sistema.",
+      "title": "Usando o microfone padrão"
+    },
+    "helpText": "Usado sempre que estiver conectado. Caso contrário, o WhisperWoof grava com o padrão do sistema.",
+    "inputDevice": "Microfone preferido",
     "noBuiltInDetected": "Nenhum microfone integrado detectado. Usando o padrão do sistema.",
+    "notConnected": "{{device}} (desconectado)",
+    "notConnectedHint": "Desconectado no momento. O padrão do sistema será usado até ele voltar.",
     "preferBuiltIn": {
       "description": "Microfones externos podem causar latência ou reduzir a qualidade da transcrição",
       "label": "Preferir microfone integrado"

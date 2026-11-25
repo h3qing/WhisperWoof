@@ -707,9 +707,16 @@
     "errors": {
       "unableToAccess": "Zugriff auf das Mikrofon nicht möglich. Bitte prüfen Sie die Berechtigungen."
     },
-    "helpText": "Wählen Sie ein bestimmtes Mikrofon oder verwenden Sie die Systemstandardeinstellung.",
-    "inputDevice": "Eingabegerät",
+    "fallbackNotice": {
+      "description": "{{device}} ist nicht verbunden. Aufnahme mit dem Systemstandard.",
+      "descriptionUnnamed": "Ihr bevorzugtes Mikrofon ist nicht verbunden. Aufnahme mit dem Systemstandard.",
+      "title": "Standardmikrofon wird verwendet"
+    },
+    "helpText": "Wird verwendet, wenn es verbunden ist. Andernfalls nimmt WhisperWoof mit dem Systemstandard auf.",
+    "inputDevice": "Bevorzugtes Mikrofon",
     "noBuiltInDetected": "Kein integriertes Mikrofon erkannt. Systemstandard wird verwendet.",
+    "notConnected": "{{device}} (nicht verbunden)",
+    "notConnectedHint": "Derzeit nicht verbunden. Bis es wieder da ist, wird der Systemstandard verwendet.",
     "preferBuiltIn": {
       "description": "Externe Mikrofone können Latenz oder eine verringerte Transkriptionsqualität verursachen",
       "label": "Integriertes Mikrofon bevorzugen"
