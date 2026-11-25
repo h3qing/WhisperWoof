@@ -252,6 +252,56 @@
       "languages": "English (optimized)"
     }
   },
+  "qwenAsrModels": {
+    "qwen3-asr-1.7b": {
+      "name": "Qwen3-ASR 1.7B",
+      "description": "Best on mixed Chinese and English dictation in our bench, about 40% fewer mistakes than Whisper Turbo. 30 languages, runs on the bundled llama-server.",
+      "size": "2.5GB",
+      "sizeMb": 2521,
+      "language": "multilingual",
+      "supportedLanguages": [
+        "zh",
+        "en",
+        "yue",
+        "ja",
+        "ko",
+        "ar",
+        "de",
+        "fr",
+        "es",
+        "pt",
+        "id",
+        "it",
+        "ru",
+        "th",
+        "vi",
+        "tr",
+        "hi",
+        "ms",
+        "nl",
+        "sv",
+        "da",
+        "fi",
+        "pl",
+        "cs",
+        "fil",
+        "fa",
+        "el",
+        "hu",
+        "mk",
+        "ro"
+      ],
+      "hfRepo": "ggml-org/Qwen3-ASR-1.7B-GGUF",
+      "hfRevision": "36a678687ba7d07a74ca70ccb0e36902e005fb80",
+      "fileName": "Qwen3-ASR-1.7B-Q8_0.gguf",
+      "sizeBytes": 2165034944,
+      "sha256": "58e22d0532d4eacaf034cfac17a6fed159f37c41390c710186783be439d1fc57",
+      "mmprojFileName": "mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
+      "mmprojSizeBytes": 355709344,
+      "mmprojSha256": "46c1d533af3f354ceb37ce855dbceff7da7fa7cf1e6a523df3b13440bd164c0d",
+      "descriptionKey": "models.descriptions.qwenAsr.qwen3_asr_1_7b"
+    }
+  },
   "transcriptionProviders": [
     {
       "id": "openai",

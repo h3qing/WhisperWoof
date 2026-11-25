@@ -9,6 +9,9 @@
  *   node eval/real-dictation/run_polish.js --data ~/.whisperwoof-bench/dictation-real-1 \
  *     --llama-url http://127.0.0.1:8341 --name qwen3.5-2b --input whisper-turbo
  *
+ * or --app-model <model>.gguf instead of --llama-url: the app's own server
+ * (bundled binary, app flags, per-launch key; app_llama_server.js).
+ *
  * --input is the ASR engine whose text gets polished (hyps/<input>.json); every
  * cleanup model gets the same input. Writes <data>/polish/<name>.json.
  */
@@ -16,11 +19,14 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { buildSystemPrompt, translated, leakHits, PARAMS, PROD_PROMPT } = require("../run-polish-eval");
+const { startAppLlamaServer } = require("./app_llama_server");
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => (argv.includes(`--${name}`) ? argv[argv.indexOf(`--${name}`) + 1] : fallback);
 const DATA = path.resolve(String(arg("data", "")).replace(/^~/, os.homedir()));
-const LLAMA_URL = arg("llama-url", "http://127.0.0.1:8341");
+let LLAMA_URL = arg("llama-url", "http://127.0.0.1:8341");
+let HEADERS = {};
+const APP_MODEL = arg("app-model");
 const NAME = arg("name");
 const INPUT = arg("input", "whisper-turbo");
 
@@ -28,7 +34,7 @@ async function polish(text) {
   const t0 = Date.now();
   const res = await fetch(`${LLAMA_URL}/v1/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...HEADERS },
     body: JSON.stringify({
       messages: [
         { role: "system", content: buildSystemPrompt(PROD_PROMPT, text) },
@@ -55,14 +61,21 @@ async function main() {
   if (!NAME) throw new Error("--name is required");
   const { clips } = JSON.parse(fs.readFileSync(path.join(DATA, "manifest.json"), "utf8"));
   const inputs = JSON.parse(fs.readFileSync(path.join(DATA, "hyps", `${INPUT}.json`), "utf8")).clips;
-  const model = await (await fetch(`${LLAMA_URL}/v1/models`)).json();
-  await polish("测试一下。"); // warm up
+  const server = APP_MODEL ? await startAppLlamaServer(path.resolve(APP_MODEL)) : null;
+  if (server) [LLAMA_URL, HEADERS] = [server.url, server.headers];
   let done = {};
-  for (const clip of clips) {
-    const input = (inputs[clip.id]?.text || "").trim();
-    if (!/[\p{L}\p{N}]/u.test(input)) continue; // the app never polishes symbol-only text (non-speech-transcript.ts)
-    const out = await polish(input);
-    done = { ...done, [clip.id]: { ...out, translated: translated(input, out.text), leaked: leakHits(out.text).length > 0 } };
+  let model;
+  try {
+    model = await (await fetch(`${LLAMA_URL}/v1/models`, { headers: HEADERS })).json();
+    await polish("测试一下。"); // warm up
+    for (const clip of clips) {
+      const input = (inputs[clip.id]?.text || "").trim();
+      if (!/[\p{L}\p{N}]/u.test(input)) continue; // the app never polishes symbol-only text (non-speech-transcript.ts)
+      const out = await polish(input);
+      done = { ...done, [clip.id]: { ...out, translated: translated(input, out.text), leaked: leakHits(out.text).length > 0 } };
+    }
+  } finally {
+    await server?.stop();
   }
   fs.mkdirSync(path.join(DATA, "polish"), { recursive: true, mode: 0o700 });
   const file = path.join(DATA, "polish", `${NAME}.json`);

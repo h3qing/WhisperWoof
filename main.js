@@ -262,6 +262,7 @@ const DatabaseManager = require("./src/helpers/database");
 const ClipboardManager = require("./src/helpers/clipboard");
 const WhisperManager = require("./src/helpers/whisper");
 const ParakeetManager = require("./src/helpers/parakeet");
+const QwenAsrManager = require("./src/helpers/qwenAsr");
 const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
@@ -287,6 +288,7 @@ let databaseManager = null;
 let clipboardManager = null;
 let whisperManager = null;
 let parakeetManager = null;
+let qwenAsrManager = null;
 let trayManager = null;
 let updateManager = null;
 let globeKeyManager = null;
@@ -381,6 +383,7 @@ function initializeCoreManagers() {
     whisperCudaManager = new WhisperCudaManager();
   }
   parakeetManager = new ParakeetManager();
+  qwenAsrManager = new QwenAsrManager();
   googleCalendarManager = new GoogleCalendarManager(databaseManager, windowManager);
   meetingDetectionEngine = new MeetingDetectionEngine(
     googleCalendarManager,
@@ -409,6 +412,7 @@ function initializeCoreManagers() {
     clipboardManager,
     whisperManager,
     parakeetManager,
+    qwenAsrManager,
     windowManager,
     updateManager,
     windowsKeyManager,
@@ -880,6 +884,15 @@ async function startApp() {
   parakeetManager.initializeAtStartup(parakeetSettings).catch((err) => {
     debugLogger.debug("Parakeet startup init error (non-fatal)", { error: err.message });
   });
+
+  qwenAsrManager
+    .initializeAtStartup({
+      localTranscriptionProvider: process.env.LOCAL_TRANSCRIPTION_PROVIDER || "",
+      qwenAsrModel: process.env.QWEN_ASR_MODEL,
+    })
+    .catch((err) => {
+      debugLogger.debug("Qwen3-ASR startup init error (non-fatal)", { error: err.message });
+    });
 
   if (process.env.REASONING_PROVIDER === "local" && process.env.LOCAL_REASONING_MODEL) {
     const modelManager = require("./src/helpers/modelManagerBridge").default;
@@ -1443,6 +1456,10 @@ if (gotSingleInstanceLock) {
     // Stop parakeet WS server if running
     if (parakeetManager) {
       parakeetManager.stopServer().catch(() => {});
+    }
+    // Stop the speech llama-server (Qwen3-ASR) if running
+    if (qwenAsrManager) {
+      qwenAsrManager.stopServer().catch(() => {});
     }
     // Stop llama-server if running
     const modelManager = require("./src/helpers/modelManagerBridge").default;

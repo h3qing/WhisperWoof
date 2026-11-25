@@ -127,6 +127,7 @@ class IPCHandlers {
     this.clipboardManager = managers.clipboardManager;
     this.whisperManager = managers.whisperManager;
     this.parakeetManager = managers.parakeetManager;
+    this.qwenAsrManager = managers.qwenAsrManager;
     this.windowManager = managers.windowManager;
     this.updateManager = managers.updateManager;
     this.windowsKeyManager = managers.windowsKeyManager;
@@ -1468,6 +1469,58 @@ class IPCHandlers {
       return this.parakeetManager.getDiagnostics();
     });
 
+    // Qwen3-ASR: GGUF + audio projector on its own llama-server (qwenAsr.js).
+    ipcMain.handle("transcribe-local-qwen-asr", async (event, audioBlob, options = {}) => {
+      try {
+        const result = await this.qwenAsrManager.transcribe(audioBlob, options);
+        if (!result.success && result.message === "No audio detected") {
+          event.sender.send("no-audio-detected");
+        }
+        return result;
+      } catch (error) {
+        debugLogger.error("Local Qwen3-ASR transcription error", { error: error.message });
+        if (/not downloaded/.test(error.message || "")) {
+          return { success: false, error: "model_not_found", message: error.message };
+        }
+        throw error;
+      }
+    });
+
+    ipcMain.handle("download-qwen-asr-model", async (event, modelName) => {
+      const send = (data) => {
+        if (!event.sender.isDestroyed()) event.sender.send("qwen-asr-download-progress", data);
+      };
+      try {
+        const result = await this.qwenAsrManager.downloadModel(modelName, send);
+        if (process.env.LOCAL_TRANSCRIPTION_PROVIDER === "qwen") this.qwenAsrManager.prewarm(modelName);
+        return result;
+      } catch (error) {
+        const code = error.code || "DOWNLOAD_FAILED";
+        if (code !== "DOWNLOAD_CANCELLED") send({ type: "error", model: modelName, error: error.message, code });
+        return { success: false, error: error.message, code };
+      }
+    });
+
+    ipcMain.handle("check-qwen-asr-model-status", async (_event, modelName) => {
+      return this.qwenAsrManager.checkModelStatus(modelName);
+    });
+
+    ipcMain.handle("list-qwen-asr-models", async () => {
+      return this.qwenAsrManager.listModels();
+    });
+
+    ipcMain.handle("delete-qwen-asr-model", async (_event, modelName) => {
+      return this.qwenAsrManager.deleteModel(modelName);
+    });
+
+    ipcMain.handle("delete-all-qwen-asr-models", async () => {
+      return this.qwenAsrManager.deleteAllModels();
+    });
+
+    ipcMain.handle("cancel-qwen-asr-download", async () => {
+      return this.qwenAsrManager.cancelDownload();
+    });
+
     ipcMain.handle("parakeet-server-start", async (event, modelName) => {
       const result = await this.parakeetManager.startServer(modelName);
       process.env.LOCAL_TRANSCRIPTION_PROVIDER = "nvidia";
@@ -1574,6 +1627,11 @@ class IPCHandlers {
         errors.push(`Parakeet stop: ${e.message}`);
       }
       try {
+        await this.qwenAsrManager?.stopServer();
+      } catch (e) {
+        errors.push(`Qwen3-ASR stop: ${e.message}`);
+      }
+      try {
         this.whisperManager?.stopServer();
       } catch (e) {
         errors.push(`Whisper stop: ${e.message}`);
@@ -1616,6 +1674,11 @@ class IPCHandlers {
         await this.parakeetManager?.deleteAllParakeetModels();
       } catch (e) {
         errors.push(`Parakeet models: ${e.message}`);
+      }
+      try {
+        await this.qwenAsrManager?.deleteAllModels();
+      } catch (e) {
+        errors.push(`Qwen3-ASR models: ${e.message}`);
       }
       try {
         const modelManager = require("./modelManagerBridge").default;
@@ -2080,7 +2143,30 @@ class IPCHandlers {
       if (prefs.useLocalWhisper && prefs.model) {
         // Local mode with model selected - set provider and model for pre-warming
         setVars.LOCAL_TRANSCRIPTION_PROVIDER = prefs.localTranscriptionProvider;
-        if (prefs.localTranscriptionProvider === "nvidia") {
+        if (prefs.localTranscriptionProvider !== "qwen") {
+          clearVars.push("QWEN_ASR_MODEL");
+          this.qwenAsrManager.stopServer().catch((err) => {
+            debugLogger.error("Failed to stop the Qwen3-ASR server on provider switch", {
+              error: err.message,
+            });
+          });
+        }
+        if (prefs.localTranscriptionProvider === "qwen") {
+          // Qwen3-ASR on its own llama-server (qwenAsr.js), warm for the first dictation.
+          setVars.QWEN_ASR_MODEL = prefs.model;
+          clearVars.push("LOCAL_WHISPER_MODEL", "PARAKEET_MODEL");
+          this.whisperManager.stopServer().catch((err) => {
+            debugLogger.error("Failed to stop whisper-server on provider switch", {
+              error: err.message,
+            });
+          });
+          this.parakeetManager.stopOfflineServer().catch((err) => {
+            debugLogger.error("Failed to stop parakeet-server on provider switch", {
+              error: err.message,
+            });
+          });
+          this.qwenAsrManager.prewarm(prefs.model);
+        } else if (prefs.localTranscriptionProvider === "nvidia") {
           setVars.PARAKEET_MODEL = prefs.model;
           clearVars.push("LOCAL_WHISPER_MODEL");
           this.whisperManager.stopServer().catch((err) => {
@@ -2101,10 +2187,15 @@ class IPCHandlers {
         }
       } else if (prefs.useLocalWhisper) {
         // Local mode enabled but no model selected - clear pre-warming vars
-        clearVars.push("LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL");
+        clearVars.push("LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL", "QWEN_ASR_MODEL");
       } else {
         // Cloud mode - stop local servers to free RAM
-        clearVars.push("LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL");
+        clearVars.push("LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL", "QWEN_ASR_MODEL");
+        this.qwenAsrManager.stopServer().catch((err) => {
+          debugLogger.error("Failed to stop the Qwen3-ASR server on cloud switch", {
+            error: err.message,
+          });
+        });
         this.whisperManager.stopServer().catch((err) => {
           debugLogger.error("Failed to stop whisper-server on cloud switch", {
             error: err.message,
@@ -4491,6 +4582,7 @@ class IPCHandlers {
           parakeetModel: requestedParakeetModel,
           language: requestedLanguage,
           provider: requestedProvider,
+          qwenAsrModel: requestedQwenAsrModel = "qwen3-asr-1.7b",
           script: requestedScript,
         } = options || {};
 
@@ -4507,10 +4599,21 @@ class IPCHandlers {
           parakeetModel: requestedParakeetModel,
           parakeetAvailable,
           whisperAvailable,
+          qwenAvailable: Boolean(
+            this.qwenAsrManager?.isAvailable() && this.qwenAsrManager.isModelDownloaded(requestedQwenAsrModel)
+          ),
+          qwenServesLanguage: (base) =>
+            (
+              require("../models/modelRegistryData.json").qwenAsrModels[requestedQwenAsrModel]
+                ?.supportedLanguages || []
+            ).includes(base),
         });
         const language = resolveRetryLanguage(requestedLanguage);
 
-        if (engine === "parakeet" && parakeetAvailable) {
+        if (engine === "qwen") {
+          result = await this.qwenAsrManager.transcribe(buffer, { model: requestedQwenAsrModel });
+          if (result?.success) result = { ...result, source: "local-qwen-asr" };
+        } else if (engine === "parakeet" && parakeetAvailable) {
           result = await this.parakeetManager.transcribeLocalParakeet(buffer, {
             ...(requestedParakeetModel ? { model: requestedParakeetModel } : {}),
             ...(language ? { language } : {}),

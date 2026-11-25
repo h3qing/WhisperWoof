@@ -1,20 +1,31 @@
 #!/usr/bin/env node
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const {
   downloadFile,
   extractArchive,
-  fetchLatestRelease,
+  fetchReleaseByTag,
   findBinaryInDir,
   parseArgs,
   setExecutable,
   cleanupFiles,
 } = require("./lib/download-utils");
 
-const LLAMA_CPP_REPO = "ggerganov/llama.cpp";
+const LLAMA_CPP_REPO = "ggml-org/llama.cpp";
 
-// Version can be pinned via environment variable for reproducible builds
-const VERSION_OVERRIDE = process.env.LLAMA_CPP_VERSION || null;
+// Pinned for reproducible builds (LLAMA_CPP_VERSION overrides it). Qwen3-ASR
+// needs b9169 or newer (ggml-org/llama.cpp#23073); b9038 decodes it to
+// nonsense. See eval/real-dictation/RESULTS.md.
+const LLAMA_CPP_VERSION = process.env.LLAMA_CPP_VERSION || "b12032";
+// SHA-256 of the pinned release's archives, so a replaced asset is refused.
+// With LLAMA_CPP_VERSION set, GitHub's own asset digest is checked instead.
+const PINNED_SHA256 = {
+  "llama-b12032-bin-macos-arm64.tar.gz": "00468fe833eb000b78a748122f5921b6c7b07dc82331a8d0c68196c69cb26382",
+  "llama-b12032-bin-macos-x64.tar.gz": "291d99f3b6f45f67f73afe5381540f29928840a1a14d9c19d6595bd649a035fc",
+  "llama-b12032-bin-ubuntu-x64.tar.gz": "9f10432ca3f66ef003a7a540aaffb9da0acadaefd05404521b9ab7a2436af304",
+  "llama-b12032-bin-win-cpu-x64.zip": "5296f5d18bb7d422c7c26f4bb9bc796d9d4f41e1312a8c296cff475bdc60d0d4",
+};
 
 const BINARIES = {
   "darwin-arm64": {
@@ -53,17 +64,19 @@ let cachedRelease = null;
 
 async function getRelease() {
   if (cachedRelease) return cachedRelease;
-
-  if (VERSION_OVERRIDE) {
-    cachedRelease = await fetchLatestRelease(LLAMA_CPP_REPO, { tagPrefix: VERSION_OVERRIDE });
-  } else {
-    cachedRelease = await fetchLatestRelease(LLAMA_CPP_REPO);
-  }
+  cachedRelease = await fetchReleaseByTag(LLAMA_CPP_REPO, LLAMA_CPP_VERSION);
   return cachedRelease;
 }
 
 function findAsset(release, pattern) {
   return release?.assets?.find((a) => pattern.test(a.name));
+}
+
+function verifyArchive(archivePath, asset) {
+  const expected = PINNED_SHA256[asset.name] || asset.digest?.replace(/^sha256:/, "");
+  if (!expected) throw new Error(`no SHA-256 to check ${asset.name} against`);
+  const actual = crypto.createHash("sha256").update(fs.readFileSync(archivePath)).digest("hex");
+  if (actual !== expected) throw new Error(`SHA-256 mismatch for ${asset.name}: got ${actual}`);
 }
 
 function findLibrariesInDir(dir, pattern, maxDepth = 5, currentDepth = 0) {
@@ -96,6 +109,41 @@ function matchesPattern(filename, pattern) {
   return false;
 }
 
+// The marker says which release the binary and its libraries came from, so a
+// version bump replaces an older install instead of keeping it.
+function readInstallMarker(markerPath) {
+  try {
+    return JSON.parse(fs.readFileSync(markerPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function isCurrentInstall(marker, outputPath) {
+  return (
+    fs.existsSync(outputPath) &&
+    marker?.version === LLAMA_CPP_VERSION &&
+    Array.isArray(marker.libraries) &&
+    marker.libraries.every((lib) => fs.existsSync(path.join(BIN_DIR, lib)))
+  );
+}
+
+// Libraries of the previous install that the new one doesn't ship. Installs
+// from before the marker only leave versioned macOS copies behind
+// (libllama.0.0.9038.dylib, libggml.0.11.0.dylib and the like).
+function removeStaleLibraries(previousMarker, keep) {
+  const stale = previousMarker?.libraries
+    ? previousMarker.libraries
+    : fs
+        .readdirSync(BIN_DIR)
+        .filter((f) => /^lib(?:llama|llama-common|mtmd|ggml(?:-[a-z]+)?)\.\d+\.\d+\.\d+\.dylib$/.test(f));
+  for (const lib of stale) {
+    if (keep.includes(lib)) continue;
+    fs.rmSync(path.join(BIN_DIR, lib), { force: true });
+    console.log(`  Removed stale library ${lib}`);
+  }
+}
+
 async function downloadBinary(key, config, release, isForce = false) {
   if (!config) {
     console.log(`  ${key}: Not supported`);
@@ -103,8 +151,10 @@ async function downloadBinary(key, config, release, isForce = false) {
   }
 
   const outputPath = path.join(BIN_DIR, config.outputName);
+  const markerPath = path.join(BIN_DIR, `.llama-server-${key}.json`);
+  const previousMarker = readInstallMarker(markerPath);
 
-  if (fs.existsSync(outputPath) && !isForce) {
+  if (!isForce && isCurrentInstall(previousMarker, outputPath)) {
     console.log(`  ${key}: Already exists (use --force to re-download)`);
     return true;
   }
@@ -121,6 +171,7 @@ async function downloadBinary(key, config, release, isForce = false) {
 
   try {
     await downloadFile(asset.url, zipPath);
+    verifyArchive(zipPath, asset);
 
     const extractDir = path.join(BIN_DIR, `temp-llama-${key}`);
     fs.mkdirSync(extractDir, { recursive: true });
@@ -138,6 +189,7 @@ async function downloadBinary(key, config, release, isForce = false) {
       setExecutable(outputPath);
       console.log(`  ${key}: Extracted to ${config.outputName}`);
 
+      const copiedLibraries = [];
       if (config.libPattern) {
         const libraries = findLibrariesInDir(extractDir, config.libPattern);
 
@@ -145,11 +197,19 @@ async function downloadBinary(key, config, release, isForce = false) {
           const libName = path.basename(libPath);
           const destPath = path.join(BIN_DIR, libName);
 
+          // rm first: copying onto an existing symlink would write through it
+          fs.rmSync(destPath, { force: true });
           fs.copyFileSync(libPath, destPath);
           setExecutable(destPath);
+          copiedLibraries.push(libName);
           console.log(`  ${key}: Copied library ${libName}`);
         }
       }
+      removeStaleLibraries(previousMarker, copiedLibraries);
+      fs.writeFileSync(
+        markerPath,
+        JSON.stringify({ version: release.tag, libraries: copiedLibraries })
+      );
     } else {
       console.error(`  ${key}: Binary '${binaryName}' not found in archive`);
       return false;
@@ -170,11 +230,7 @@ function getEntriesForPlatformArch(platformArch) {
 }
 
 async function main() {
-  if (VERSION_OVERRIDE) {
-    console.log(`\n[llama-server] Using pinned version: ${VERSION_OVERRIDE}`);
-  } else {
-    console.log("\n[llama-server] Fetching latest release...");
-  }
+  console.log(`\n[llama-server] Using pinned version: ${LLAMA_CPP_VERSION}`);
   const release = await getRelease();
 
   if (!release) {

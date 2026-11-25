@@ -1,4 +1,5 @@
 import registry from "../config/languageRegistry.json";
+import modelRegistryData from "../models/modelRegistryData.json";
 
 function buildLanguageSet(key: "whisper" | "parakeet" | "assemblyai"): Set<string> {
   const set = new Set<string>();
@@ -30,6 +31,9 @@ const MODEL_LANGUAGE_MAP: Record<string, Set<string>> = {
   "sense-voice-zh-en": new Set(["zh", "en", "ja", "ko", "yue"]),
   "x-asr-zh-en-streaming-160ms": new Set(["zh", "en"]),
   "x-asr-zh-en-streaming-480ms": new Set(["zh", "en"]),
+  ...Object.fromEntries(
+    Object.entries(modelRegistryData.qwenAsrModels).map(([id, info]) => [id, new Set(info.supportedLanguages)])
+  ),
 };
 
 const LANGUAGE_INSTRUCTIONS: Record<string, string> = Object.fromEntries(

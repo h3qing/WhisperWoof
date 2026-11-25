@@ -411,12 +411,19 @@ function ControlPanelViews() {
         // changing the user's settings. The Chinese output script is resolved
         // here too (UI language and OS locale are renderer signals) so the
         // main process applies the same script live dictation would.
-        const { whisperModel, parakeetModel, preferredLanguage, uiLanguage, localTranscriptionProvider } =
-          getSettings();
+        const {
+          whisperModel,
+          parakeetModel,
+          qwenAsrModel,
+          preferredLanguage,
+          uiLanguage,
+          localTranscriptionProvider,
+        } = getSettings();
         const language = overrides?.language ?? preferredLanguage;
         const result = await window.electronAPI.retryTranscription(id, {
           model: overrides?.model ?? whisperModel,
           parakeetModel,
+          qwenAsrModel,
           language,
           provider: overrides?.provider ?? localTranscriptionProvider,
           script: resolveChineseScript(language, uiLanguage, navigator.language),

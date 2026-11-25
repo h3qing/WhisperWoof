@@ -39,6 +39,7 @@ import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import TranscriptionModelPicker from "./TranscriptionModelPicker";
 import SmartCleanupStep from "./SmartCleanupStep";
 import { areRequiredPermissionsMet } from "../utils/permissions";
+import type { LocalTranscriptionProvider } from "../types/electron";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -72,6 +73,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     whisperModel,
     localTranscriptionProvider,
     parakeetModel,
+    qwenAsrModel,
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     cloudTranscriptionBaseUrl,
@@ -158,7 +160,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [setActivationMode]);
 
   useEffect(() => {
-    const modelToCheck = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
+    const modelToCheck =
+      localTranscriptionProvider === "nvidia"
+        ? parakeetModel
+        : localTranscriptionProvider === "qwen"
+          ? qwenAsrModel
+          : whisperModel;
     if (!useLocalWhisper || !modelToCheck) {
       setIsModelDownloaded(false);
       return;
@@ -169,7 +176,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         const result =
           localTranscriptionProvider === "nvidia"
             ? await window.electronAPI?.checkParakeetModelStatus(modelToCheck)
-            : await window.electronAPI?.checkModelStatus(modelToCheck);
+            : localTranscriptionProvider === "qwen"
+              ? await window.electronAPI?.checkQwenAsrModelStatus(modelToCheck)
+              : await window.electronAPI?.checkModelStatus(modelToCheck);
         setIsModelDownloaded(result?.downloaded ?? false);
       } catch (error) {
         logger.error("Failed to check model status", { error }, "onboarding");
@@ -178,7 +187,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     checkStatus();
-  }, [useLocalWhisper, whisperModel, parakeetModel, localTranscriptionProvider]);
+  }, [useLocalWhisper, whisperModel, parakeetModel, qwenAsrModel, localTranscriptionProvider]);
 
   // Auto-register default hotkey when entering the activation step
   // (step 3 for non-signed-in, step 2 for signed-in users)
@@ -395,11 +404,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 updateTranscriptionSettings({ cloudTranscriptionModel: model })
               }
               selectedLocalModel={
-                localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel
+                localTranscriptionProvider === "nvidia"
+                  ? parakeetModel
+                  : localTranscriptionProvider === "qwen"
+                    ? qwenAsrModel
+                    : whisperModel
               }
-              onLocalModelSelect={(modelId) => {
-                if (localTranscriptionProvider === "nvidia") {
+              onLocalModelSelect={(modelId, provider) => {
+                if (provider === "nvidia") {
                   updateTranscriptionSettings({ parakeetModel: modelId });
+                } else if (provider === "qwen") {
+                  updateTranscriptionSettings({ qwenAsrModel: modelId });
                 } else {
                   updateTranscriptionSettings({ whisperModel: modelId });
                 }
@@ -407,7 +422,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               selectedLocalProvider={localTranscriptionProvider}
               onLocalProviderSelect={(provider) =>
                 updateTranscriptionSettings({
-                  localTranscriptionProvider: provider as "whisper" | "nvidia",
+                  localTranscriptionProvider: provider as LocalTranscriptionProvider,
                 })
               }
               useLocalWhisper={useLocalWhisper}

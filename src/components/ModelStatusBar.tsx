@@ -23,6 +23,10 @@ function parakeetDisplayName(id: string): string {
   return (registry as any).parakeetModels?.[id]?.name || "Parakeet";
 }
 
+function qwenAsrDisplayName(id: string): string {
+  return (registry as any).qwenAsrModels?.[id]?.name || "Qwen3-ASR";
+}
+
 function localReasoningDisplayName(id: string): string {
   for (const p of (registry as any).localProviders || []) {
     const m = (p.models || []).find((x: { id: string }) => x.id === id);
@@ -46,6 +50,7 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
     localTranscriptionProvider,
     whisperModel,
     parakeetModel,
+    qwenAsrModel,
     cloudTranscriptionProvider,
     cloudTranscriptionModel,
     useReasoningModel,
@@ -64,6 +69,9 @@ export default function ModelStatusBar({ onOpenSettings }: Props) {
   } else if (localTranscriptionProvider === "nvidia") {
     sttName = parakeetDisplayName(parakeetModel);
     sttDesc = "On-device · fast, multilingual";
+  } else if (localTranscriptionProvider === "qwen") {
+    sttName = qwenAsrDisplayName(qwenAsrModel);
+    sttDesc = "On-device · mixed Chinese and English";
   } else {
     sttName = whisperDisplayName(whisperModel);
     sttDesc = "On-device";
