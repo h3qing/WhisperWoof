@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getSettings } from "../stores/settingsStore";
-import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
+import { isBuiltInMicrophone, resolvePreferredMicrophone } from "../utils/audioDeviceUtils";
+import { getUserMediaWithFallback } from "../whisperwoof/core/audio/preferred-mic";
 import logger from "../utils/logger";
 
 export interface TranscriptSegment {
@@ -124,17 +125,39 @@ const getMeetingMicConstraints = async (): Promise<MediaStreamConstraints> => {
     }
   }
 
-  if (selectedMicDeviceId && selectedMicDeviceId !== "default") {
-    return {
-      audio: {
-        deviceId: { exact: selectedMicDeviceId },
-        ...micProcessing,
-      },
-    };
+  if (!preferBuiltInMic && selectedMicDeviceId) {
+    // The picked mic is a preference: unplugged, the meeting records the system default.
+    const mic = await resolvePreferredMicrophone(getSettings());
+    if (mic.deviceId) {
+      return {
+        audio: {
+          deviceId: { exact: mic.deviceId },
+          ...micProcessing,
+        },
+      };
+    }
+    if (mic.usedFallback) {
+      logger.warn(
+        "Preferred microphone unavailable, meeting records the system default",
+        { reason: mic.reason },
+        "meeting"
+      );
+    }
   }
 
   return { audio: micProcessing };
 };
+
+/** Mic stream for a meeting; a mic that vanished since the check retries on the system default. */
+const openMeetingMic = (constraints: MediaStreamConstraints) =>
+  getUserMediaWithFallback(constraints, {
+    onFallback: (err) =>
+      logger.warn(
+        "Meeting microphone unavailable, retrying with the system default",
+        { error: (err as Error)?.name },
+        "meeting"
+      ),
+  });
 
 const createAudioPipeline = async ({
   stream,
@@ -393,7 +416,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         const [startResult, micResult] = await Promise.all([
           window.electronAPI?.meetingTranscriptionStart?.(startOpts),
           getMeetingMicConstraints().then((constraints) =>
-            navigator.mediaDevices.getUserMedia(constraints).catch((err) => {
+            openMeetingMic(constraints).catch((err) => {
               logger.error(
                 "Mic capture failed, continuing with system audio only",
                 { error: (err as Error).message },

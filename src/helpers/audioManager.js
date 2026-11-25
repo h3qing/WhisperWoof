@@ -1,7 +1,8 @@
 import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import logger from "../utils/logger";
-import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
+import { isBuiltInMicrophone, resolvePreferredMicrophone } from "../utils/audioDeviceUtils";
+import { getUserMediaWithFallback } from "../whisperwoof/core/audio/preferred-mic";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { withSessionRefresh } from "../lib/neonAuth";
 import { getBaseLanguageCode, validateLanguageForModel } from "../utils/languageSupport";
@@ -137,6 +138,15 @@ class AudioManager {
     this.streamingTextResolve = null;
     this.streamingTextDebounce = null;
     this.cachedMicDeviceId = null;
+    // Audio inputs as last listed; a plugged or unplugged mic drops it (and the
+    // cached built-in id), so the next recording picks its mic again.
+    this._audioInputs = null;
+    this._micFallbackNotified = null;
+    this._onDeviceChange = () => {
+      this.cachedMicDeviceId = null;
+      this._audioInputs = null;
+    };
+    globalThis.navigator?.mediaDevices?.addEventListener?.("devicechange", this._onDeviceChange);
     this.persistentAudioContext = null;
     this.workletModuleLoaded = false;
     this.workletBlobUrl = null;
@@ -401,8 +411,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onRmsUpdate,
     onMicReady,
     onProcessingPhase,
+    onMicFallback = null,
   }) {
     this.onStateChange = onStateChange;
+    this.onMicFallback = onMicFallback;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onPartialTranscript = onPartialTranscript;
@@ -440,9 +452,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return this.sttConfig?.streamingProvider || defaultProvider;
   }
 
-  async getAudioConstraints() {
-    const { preferBuiltInMic: preferBuiltIn, selectedMicDeviceId: selectedDeviceId } =
-      getSettings();
+  async getAudioConstraints({ reportFallback = true } = {}) {
+    const settings = getSettings();
+    const { preferBuiltInMic: preferBuiltIn, selectedMicDeviceId: selectedDeviceId } = settings;
 
     // All browser audio processing disabled to avoid OS-level side-effects.
     // AGC off: Chromium's AGC on Windows mutates the system mic volume via WASAPI (#476).
@@ -489,12 +501,73 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     if (!preferBuiltIn && selectedDeviceId) {
-      logger.debug("Using selected microphone", { deviceId: selectedDeviceId }, "audio");
-      return { audio: { deviceId: { exact: selectedDeviceId }, ...noProcessing } };
+      // The picked mic is a preference: unplugged, the system default records instead.
+      const audioInputs = await this._listAudioInputs();
+      const mic = await resolvePreferredMicrophone(settings, audioInputs ?? undefined);
+      if (mic.deviceId) {
+        this._micFallbackNotified = null;
+        logger.debug(
+          "Using preferred microphone",
+          { deviceId: mic.deviceId, matchedBy: mic.matchedBy, reason: mic.reason },
+          "audio"
+        );
+        return { audio: { deviceId: { exact: mic.deviceId }, ...noProcessing } };
+      }
+      if (reportFallback) this._reportMicFallback(mic.reason);
     }
 
     logger.debug("Using default microphone", {}, "audio");
     return { audio: noProcessing };
+  }
+
+  /** Audio inputs, listed once until a device is plugged or unplugged. Null if unreadable. */
+  async _listAudioInputs() {
+    if (this._audioInputs) return this._audioInputs;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "audioinput");
+      // Ids are hidden until mic permission is granted; don't keep that list.
+      if (inputs.some((d) => d.deviceId)) this._audioInputs = inputs;
+      return inputs;
+    } catch (error) {
+      logger.debug("Failed to list microphones", { error: error.message }, "audio");
+      return null;
+    }
+  }
+
+  /** The preferred mic is missing: say so once (until it's back), never block the recording. */
+  _reportMicFallback(reason) {
+    const { selectedMicDeviceId, selectedMicDeviceLabel } = getSettings();
+    logger.warn(
+      "Preferred microphone unavailable, recording with the system default",
+      { reason, label: selectedMicDeviceLabel || undefined },
+      "audio"
+    );
+    if (this._micFallbackNotified === selectedMicDeviceId) return;
+    this._micFallbackNotified = selectedMicDeviceId;
+    this.onMicFallback?.({ label: selectedMicDeviceLabel || "", reason });
+  }
+
+  /**
+   * getUserMedia that never fails just because the asked-for mic is gone
+   * (unplugged since the device check, or a stale cached id): it retries once
+   * on the system default.
+   */
+  _openMicStream(constraints, { reportFallback = true } = {}) {
+    return getUserMediaWithFallback(constraints, {
+      onFallback: (error) => {
+        this.cachedMicDeviceId = null;
+        this._audioInputs = null;
+        logger.warn(
+          "Microphone unavailable, retrying with the system default",
+          { error: error?.name },
+          "audio"
+        );
+        if (reportFallback && !getSettings().preferBuiltInMic) {
+          this._reportMicFallback("unavailable");
+        }
+      },
+    });
   }
 
   async cacheMicrophoneDeviceId() {
@@ -523,7 +596,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const tStart = performance.now();
       const constraints = await this.getAudioConstraints();
-      const micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const micStream = await this._openMicStream(constraints);
       const tMicAcquired = performance.now();
 
       const audioTrack = micStream.getAudioTracks()[0];
@@ -2514,8 +2587,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         // getUserMedia calls resolve in ~100-200ms instead of ~500-1000ms.
         if (!this.micDriverWarmedUp) {
           try {
-            const constraints = await this.getAudioConstraints();
-            const tempStream = await navigator.mediaDevices.getUserMedia(constraints);
+            const constraints = await this.getAudioConstraints({ reportFallback: false });
+            const tempStream = await this._openMicStream(constraints, { reportFallback: false });
             tempStream.getTracks().forEach((track) => track.stop());
             this.micDriverWarmedUp = true;
             logger.debug("Microphone driver pre-warmed", {}, "streaming");
@@ -2578,7 +2651,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const tConstraints = performance.now();
 
       // 1. Get mic stream (can take 10-15s on cold macOS mic driver)
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await this._openMicStream(constraints);
       const tMedia = performance.now();
 
       const audioTrack = stream.getAudioTracks()[0];
@@ -3198,6 +3271,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onPartialTranscript = null;
     this.onLiveStreamUnavailable = null;
     this.onStreamingCommit = null;
+    this.onMicFallback = null;
+    globalThis.navigator?.mediaDevices?.removeEventListener?.("devicechange", this._onDeviceChange);
     this._localPartialUnsub?.();
     this._localErrorUnsub?.();
     this._localPartialUnsub = null;

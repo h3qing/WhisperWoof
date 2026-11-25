@@ -707,9 +707,16 @@
     "errors": {
       "unableToAccess": "Impossibile accedere al microfono. Verifica i permessi."
     },
-    "helpText": "Seleziona un microfono specifico o usa l'impostazione predefinita di sistema.",
-    "inputDevice": "Dispositivo di ingresso",
+    "fallbackNotice": {
+      "description": "{{device}} non è collegato. Registrazione con il predefinito di sistema.",
+      "descriptionUnnamed": "Il microfono preferito non è collegato. Registrazione con il predefinito di sistema.",
+      "title": "Uso il microfono predefinito"
+    },
+    "helpText": "Viene usato quando è collegato. Altrimenti WhisperWoof registra con il predefinito di sistema.",
+    "inputDevice": "Microfono preferito",
     "noBuiltInDetected": "Nessun microfono integrato rilevato. Verrà usato quello predefinito di sistema.",
+    "notConnected": "{{device}} (non collegato)",
+    "notConnectedHint": "Non collegato al momento. Verrà usato il predefinito di sistema finché non torna.",
     "preferBuiltIn": {
       "description": "I microfoni esterni possono causare latenza o ridurre la qualità della trascrizione",
       "label": "Preferisci microfono integrato"

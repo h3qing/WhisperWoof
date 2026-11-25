@@ -707,9 +707,16 @@
     "errors": {
       "unableToAccess": "マイクにアクセスできません。権限を確認してください。"
     },
-    "helpText": "特定のマイクを選択するか、システムのデフォルト設定を使用してください。",
-    "inputDevice": "入力デバイス",
+    "fallbackNotice": {
+      "description": "{{device}} が接続されていません。システムのデフォルトで録音します。",
+      "descriptionUnnamed": "優先マイクが接続されていません。システムのデフォルトで録音します。",
+      "title": "デフォルトのマイクを使用中"
+    },
+    "helpText": "接続されているときはこのマイクを使用します。接続されていない場合はシステムのデフォルトで録音します。",
+    "inputDevice": "優先マイク",
     "noBuiltInDetected": "内蔵マイクが検出されません。システムのデフォルトを使用しています。",
+    "notConnected": "{{device}}（未接続）",
+    "notConnectedHint": "現在接続されていません。再接続されるまでシステムのデフォルトを使用します。",
     "preferBuiltIn": {
       "description": "外部マイクは遅延や文字起こし品質の低下を引き起こす場合があります",
       "label": "内蔵マイクを優先"

@@ -8,6 +8,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 ### Changed
 - **Smart Cleanup now recommends Gemma 4 E4B instead of Qwen3.5 2B.** On real Chinese–English dictations, Qwen3.5 2B sometimes translated English words into Chinese, sometimes changing the meaning, even though the cleanup prompt forbids it. Gemma 4 E4B never did, and it stayed closer to what was said. It's about as quick (about 0.4 s per dictation on Apple Silicon) and uses about the same memory while running, but it's a bigger one-time download: 4.6 GB instead of 1.3 GB. New setups download Gemma, and it's the model marked "Recommended" in Settings. If you already use Qwen3.5 2B, nothing changes until you pick Gemma 4 E4B yourself. Measurements: `eval/real-dictation/RESULTS.md`.
 
+## [2.8.2] - 2026-11-25 - Your preferred mic, or the system default when it's unplugged
+
+### Fixed
+- **Dictation works when your picked mic is unplugged.** The mic chosen in Settings is now your *preferred* microphone. When it's plugged in, WhisperWoof records from it (it's found by name too if macOS gives it a new id). When it isn't, WhisperWoof records from the system default instead of failing, and Mando says so once. Plug it back in and the next recording uses it again. Meeting recordings follow the same rule.
+
+### Added
+- **Cardputer inbox, off by default.** With Settings > WhisperWoof > Cardputer recordings turned on, WhisperWoof finds the Cardputer Assistant's recordings in `~/CardputerNotes/recordings`, transcribes them on this Mac and writes the transcript next to the audio.
+- **Background reasoning steps aside for dictation.** Background work can share the bundled local model without slowing dictation down: it waits until dictation has been idle for a while and yields as soon as you dictate.
+- **The local transcriber can take recorded audio, not just live audio**, with its own time zero and silence gate, groundwork for the Cardputer inbox.
+
 ## [2.8.1] - 2026-10-13 — Start on the meeting prompt works while WhisperWoof is locked
 
 ### Fixed
