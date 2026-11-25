@@ -5,6 +5,16 @@ WhisperWoof is a fork of OpenWhispr — see below for inherited changes.
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-11-25 - Your preferred mic, or the system default when it's unplugged
+
+### Fixed
+- **Dictation works when your picked mic is unplugged.** The mic chosen in Settings is now your *preferred* microphone. When it's plugged in, WhisperWoof records from it (it's found by name too if macOS gives it a new id). When it isn't, WhisperWoof records from the system default instead of failing, and Mando says so once. Plug it back in and the next recording uses it again. Meeting recordings follow the same rule.
+
+### Added
+- **Cardputer inbox, off by default.** With Settings > WhisperWoof > Cardputer recordings turned on, WhisperWoof finds the Cardputer Assistant's recordings in `~/CardputerNotes/recordings`, transcribes them on this Mac and writes the transcript next to the audio.
+- **Background reasoning steps aside for dictation.** Background work can share the bundled local model without slowing dictation down: it waits until dictation has been idle for a while and yields as soon as you dictate.
+- **The local transcriber can take recorded audio, not just live audio**, with its own time zero and silence gate, groundwork for the Cardputer inbox.
+
 ## [2.8.1] - 2026-10-13 — Start on the meeting prompt works while WhisperWoof is locked
 
 ### Fixed
